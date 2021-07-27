@@ -16,10 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
-import java.time.Clock
-import com.google.cloud.spanner.ErrorCode
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -30,12 +27,14 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.OwnerType
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
-class CreateCertificate(private val certificate: Certificate, val ownerType: OwnerType) :
-  SpannerWriter<Certificate, Certificate>() {
+class CreateCertificate(
+  private val certificate: Certificate,
+  val onFailure: (exception: SpannerException) -> Unit
+) : SpannerWriter<Certificate, Certificate>() {
+  private val ownerTableName = getTableName()
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val certificateId = idGenerator.generateInternalId()
@@ -53,11 +52,30 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
   }
+
+  private fun getTableName(): String {
+    return when (certificate.parentCase) {
+      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+      else -> "Duchy"
+    }
+  }
   private suspend fun getOwnerInternalId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): InternalId {
-    return when (ownerType) {
-      OwnerType.MEASUREMENT_CONSUMER -> {
+    return when (certificate.parentCase) {
+      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+        val dataProviderId =
+          DataProviderReader()
+            .readExternalIdOrNull(
+              transactionContext,
+              ExternalId(certificate.externalDataProviderId)
+            )
+            ?.dataProviderId
+            ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+        InternalId(dataProviderId)
+      }
+      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
         val measurementConsumerId =
           MeasurementConsumerReader()
             .readExternalIdOrNull(
@@ -70,19 +88,38 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
             )
         InternalId(measurementConsumerId)
       }
-      OwnerType.DATA_PROVIDER -> {
-        val dataProviderId =
-          DataProviderReader()
-            .readExternalIdOrNull(
-              transactionContext,
-              ExternalId(certificate.externalDataProviderId)
-            )
-            ?.dataProviderId
-            ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-        InternalId(dataProviderId)
-      }
-      OwnerType.DUCHY -> TODO("uakyol implement duchy support after duchy config is implemented")
+      else -> TODO("uakyol implement duchy support after duchy config is implemented")
     }
+
+    //     return when (ownerType) {
+    //       OwnerType.MEASUREMENT_CONSUMER -> {
+    //         val measurementConsumerId =
+    //           MeasurementConsumerReader()
+    //             .readExternalIdOrNull(
+    //               transactionContext,
+    //               ExternalId(certificate.externalMeasurementConsumerId)
+    //             )
+    //             ?.measurementConsumerId
+    //             ?: throw KingdomInternalException(
+    //               KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+    //             )
+    //         InternalId(measurementConsumerId)
+    //       }
+    //       OwnerType.DATA_PROVIDER -> {
+    //         val dataProviderId =
+    //           DataProviderReader()
+    //             .readExternalIdOrNull(
+    //               transactionContext,
+    //               ExternalId(certificate.externalDataProviderId)
+    //             )
+    //             ?.dataProviderId
+    //             ?: throw
+    // KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+    //         InternalId(dataProviderId)
+    //       }
+    //       OwnerType.DUCHY -> TODO("uakyol implement duchy support after duchy config is
+    // implemented")
+    //     }
   }
 
   private fun createCertificateMapTableMutation(
@@ -90,32 +127,33 @@ class CreateCertificate(private val certificate: Certificate, val ownerType: Own
     internalCertificateId: InternalId,
     externalMapId: ExternalId
   ): Mutation {
-    val tableName = "${ownerType.tableName}Certificates"
-    val internalIdField = "${ownerType.tableName}Id"
-    val externalIdField = "External${ownerType.tableName}CertificateId"
+    val tableName = "${ownerTableName}Certificates"
+    val internalIdField = "${ownerTableName}Id"
+    val externalIdField = "External${ownerTableName}CertificateId"
     return insertMutation(tableName) {
       set(internalIdField to internalOwnerId.value)
       set("CertificateId" to internalCertificateId.value)
       set(externalIdField to externalMapId.value)
     }
   }
-  override suspend fun execute(
-    databaseClient: AsyncDatabaseClient,
-    idGenerator: IdGenerator,
-    clock: Clock
-  ): Certificate {
-    try {
-      return super.execute(databaseClient, idGenerator, clock)
-    } catch (e: SpannerException) {
-      when (e.errorCode) {
-        ErrorCode.ALREADY_EXISTS ->
-          throw KingdomInternalException(
-            KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
-          )
-        else -> throw KingdomInternalException(KingdomInternalException.Code.UNKNOWN)
-      }
-    }
-  }
+
+  // override suspend fun execute(
+  //   databaseClient: AsyncDatabaseClient,
+  //   idGenerator: IdGenerator,
+  //   clock: Clock
+  // ): Certificate {
+  //   try {
+  //     return super.execute(databaseClient, idGenerator, clock)
+  //   } catch (e: SpannerException) {
+  //     when (e.errorCode) {
+  //       ErrorCode.ALREADY_EXISTS ->
+  //         throw KingdomInternalException(
+  //           KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
+  //         )
+  //       else -> throw e
+  //     }
+  //   }
+  // }
 }
 
 fun Certificate.toInsertMutation(internalId: InternalId): Mutation {

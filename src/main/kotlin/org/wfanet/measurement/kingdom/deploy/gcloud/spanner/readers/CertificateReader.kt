@@ -15,58 +15,64 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 
-class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.Result>() {
+class CertificateReader(val request: GetCertificateRequest) :
+  SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
 
-  enum class OwnerType(val tableName: String) {
-    DATA_PROVIDER("DataProvider"),
-    MEASUREMENT_CONSUMER("MeasurementConsumer"),
-    DUCHY("Duchy"),
-  }
+  private val tableName = getTableName()
 
   override val baseSql: String =
     """
     SELECT
-      ${owner.tableName}Certificates.CertificateId,
+      ${tableName}Certificates.CertificateId,
       Certificates.SubjectKeyIdentifier,
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
       Certificates.CertificateDetails,
-      ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
-      ${owner.tableName}Certificates.${owner.tableName}Id,
-      ${owner.tableName}s.External${owner.tableName}Id
-    FROM ${owner.tableName}Certificates
-    JOIN ${owner.tableName}s USING (${owner.tableName}Id)
+      ${tableName}Certificates.External${tableName}CertificateId,
+      ${tableName}Certificates.${tableName}Id,
+      ${tableName}s.External${tableName}Id
+    FROM ${tableName}Certificates
+    JOIN ${tableName}s USING (${tableName}Id)
     JOIN Certificates USING (CertificateId)
     """.trimIndent()
 
   override val externalIdColumn: String =
-    "${owner.tableName}Certificates.External${owner.tableName}CertificateId"
+    "${tableName}Certificates.External${tableName}CertificateId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
+
+  private fun getTableName(): String {
+    return when (request.parentCase) {
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+      else -> "Duchy"
+    }
+  }
 
   private fun populateExternalId(
     certificateBuilder: Certificate.Builder,
     struct: Struct
   ): Certificate {
-    val externalResourceIdColumn = "External${owner.tableName}Id"
-
+    val externalResourceIdColumn = "External${tableName}Id"
+    println("externalResourceIdColumnexternalResourceIdColumnexternalResourceIdColumn")
+    println(externalResourceIdColumn)
     return certificateBuilder
       .apply {
-        when (owner) {
-          OwnerType.MEASUREMENT_CONSUMER ->
-            externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
-          OwnerType.DATA_PROVIDER ->
+        when (request.parentCase) {
+          GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
             externalDataProviderId = struct.getLong(externalResourceIdColumn)
-          OwnerType.DUCHY ->
-            TODO("uakyol implement duchy support after duchy config is implemented")
+          GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+            externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
+          else -> TODO("uakyol implement duchy support after duchy config is implemented")
         }
       }
       .build()
@@ -75,7 +81,7 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
   private fun buildCertificate(struct: Struct): Certificate {
     val certificateBuilder =
       Certificate.newBuilder().apply {
-        externalCertificateId = struct.getLong("External${owner.tableName}CertificateId")
+        externalCertificateId = struct.getLong("External${tableName}CertificateId")
         subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
         notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
         notValidAfter = struct.getTimestamp("NotValidAfter").toProto()

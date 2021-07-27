@@ -16,9 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
 class KingdomInternalException(val code: Code) : Exception() {
   enum class Code {
-    /** Unknown, used to report exceptions that are not specifically programmed to be caught. */
-    UNKNOWN,
-
     /** MeasurementConsumer resource queried could not be found. */
     MEASUREMENT_CONSUMER_NOT_FOUND,
 
