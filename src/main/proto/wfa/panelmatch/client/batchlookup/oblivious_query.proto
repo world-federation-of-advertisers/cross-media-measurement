@@ -21,11 +21,11 @@ option java_multiple_files = true;
 
 // An argument in every Request proto. It contains various knobs for tuning the
 // system.
-message Parameters {}
+message ObliviousQueryParameters {}
 
 // A request to get a public/private key pair
 message GenerateKeysRequest {
-  Parameters parameters = 1;
+  ObliviousQueryParameters parameters = 1;
 }
 
 message GenerateKeysResponse {
@@ -42,7 +42,7 @@ message UnencryptedQuery {
 
 // A request to encrypt a set of queries
 message EncryptQueriesRequest {
-  Parameters parameters = 1;
+  ObliviousQueryParameters parameters = 1;
   bytes public_key = 2;
   bytes private_key = 3;
   repeated UnencryptedQuery unencrypted_query = 4;
@@ -61,7 +61,7 @@ message EncryptQueriesResponse {
 
 // A request to remove RLWE-encryption from a set of results.
 message DecryptQueriesRequest {
-  Parameters parameters = 1;
+  ObliviousQueryParameters parameters = 1;
   bytes public_key = 2;
   bytes private_key = 3;
   repeated bytes encrypted_query_results = 4;

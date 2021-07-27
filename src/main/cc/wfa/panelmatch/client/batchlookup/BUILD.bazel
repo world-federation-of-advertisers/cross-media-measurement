@@ -26,3 +26,29 @@ cc_library(
         "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
     ],
 )
+
+cc_library(
+    name = "query_evaluator",
+    srcs = ["query_evaluator.cc"],
+    hdrs = ["query_evaluator.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:query_evaluator_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_library(
+    name = "query_evaluator_wrapper",
+    srcs = ["query_evaluator_wrapper.cc"],
+    hdrs = ["query_evaluator_wrapper.h"],
+    strip_include_prefix = "/src/main/cc",
+    deps = [
+        ":query_evaluator",
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:query_evaluator_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
+    ],
+)

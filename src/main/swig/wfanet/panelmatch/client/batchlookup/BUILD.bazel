@@ -1,0 +1,16 @@
+load("@wfa_rules_swig//java:defs.bzl", "java_wrap_cc")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+java_wrap_cc(
+    name = "query_evaluator",
+    src = "query_evaluator.swig",
+    module = "SwigQueryEvaluator",
+    package = "org.wfanet.panelmatch.client.batchlookup",
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/batchlookup:query_evaluator_wrapper",
+    ],
+)

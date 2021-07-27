@@ -16,3 +16,19 @@ cc_test(
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
+
+cc_test(
+    name = "query_evaluator_test",
+    srcs = ["query_evaluator_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/batchlookup:query_evaluator",
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:query_evaluator_cc_proto",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
