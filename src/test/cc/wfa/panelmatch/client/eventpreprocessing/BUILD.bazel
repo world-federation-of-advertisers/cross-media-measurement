@@ -5,6 +5,7 @@ cc_test(
     srcs = ["preprocess_events_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/client/eventpreprocessing:preprocess_events",
+        "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
