@@ -14,7 +14,7 @@
 
 """Container image specs."""
 
-load("@wfa_common_jvm//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 _PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
 

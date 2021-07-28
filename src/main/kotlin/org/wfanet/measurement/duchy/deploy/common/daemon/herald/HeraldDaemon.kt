@@ -18,8 +18,10 @@ import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.grpc.addChannelShutdownHooks
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -36,11 +38,14 @@ private class Flags {
   lateinit var duchy: CommonDuchyFlags
     private set
 
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
+    private set
+
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."],
-    required = true
   )
   lateinit var channelShutdownTimeout: Duration
     private set
@@ -48,26 +53,43 @@ private class Flags {
   @CommandLine.Option(
     names = ["--polling-interval"],
     defaultValue = "1m",
-    description = ["How long to sleep between calls to the Global Computation Service."],
-    required = true
+    description = ["How long to sleep between calls to the system Computations Service."],
   )
   lateinit var pollingInterval: Duration
     private set
 
   @CommandLine.Option(
-    names = ["--system-computations-service-target"],
-    description = ["Address and port of the kingdom system Computations Service"],
+    names = ["--system-api-target"],
+    description = ["Address and port of the Kingdom's system APIs"],
     required = true
   )
-  lateinit var systemComputationsServiceTarget: String
+  lateinit var systemApiTarget: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--system-api-authority"],
+    description =
+      ["The authority used with TLS and HTTP virtual hosting of the Kingdom's system APIs"],
+    required = true
+  )
+  lateinit var systemApiAuthority: String
     private set
 
   @CommandLine.Option(
     names = ["--computations-service-target"],
-    description = ["Address and port of the Computations service"],
+    description = ["Address and port of the duchy Computations service"],
     required = true
   )
   lateinit var computationsServiceTarget: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--computations-service-authority"],
+    description =
+      ["The authority used with TLS and HTTP virtual hosting of the duchy Computations service."],
+    required = true
+  )
+  lateinit var computationsServiceAuthority: String
     private set
 
   @CommandLine.Option(
@@ -93,19 +115,27 @@ private class Flags {
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
-  val systemComputationServiceChannel = buildChannel(flags.systemComputationsServiceTarget)
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.tlsFlags.certFile,
+      privateKeyFile = flags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+    )
+
+  val systemComputationServiceChannel =
+    buildMutualTlsChannel(flags.systemApiTarget, clientCerts, flags.systemApiAuthority)
+      .withShutdownTimeout(flags.channelShutdownTimeout)
   val systemComputationsClient =
     SystemComputationsCoroutineStub(systemComputationServiceChannel)
       .withDuchyId(flags.duchy.duchyName)
 
-  val storageChannel = buildChannel(flags.computationsServiceTarget)
-
-  addChannelShutdownHooks(
-    Runtime.getRuntime(),
-    flags.channelShutdownTimeout,
-    systemComputationServiceChannel,
-    storageChannel
-  )
+  val storageChannel =
+    buildMutualTlsChannel(
+        flags.computationsServiceTarget,
+        clientCerts,
+        flags.computationsServiceAuthority
+      )
+      .withShutdownTimeout(flags.channelShutdownTimeout)
 
   val herald =
     Herald(
