@@ -32,11 +32,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 /**
- * @throws KingdomInternalException if subjectKeyIdentifier of [certificate] collides with a
- *     certificate already in the database.
- */
-
-/**
  * Creates a certificate in the database.
  *
  * Throw KingdomInternalException with code CERT_SUBJECT_KEY_ID_ALREADY_EXISTS when executed if
