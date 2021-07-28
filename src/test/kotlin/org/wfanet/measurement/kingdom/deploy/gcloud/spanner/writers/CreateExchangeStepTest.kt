@@ -141,7 +141,15 @@ class CreateExchangeStepTest : KingdomDatabaseTestBase() {
       .singleUse(TimestampBound.strong())
       .executeQuery(
         Statement.of(
-          "SELECT RecurringExchangeId, Date, StepIndex, State, ModelProviderId, DataProviderId FROM ExchangeSteps"
+          """
+            SELECT RecurringExchangeId,
+                   Date,
+                   StepIndex,
+                   State,
+                   ModelProviderId,
+                   DataProviderId
+            FROM ExchangeSteps
+            """.trimIndent()
         )
       )
       .toList()
