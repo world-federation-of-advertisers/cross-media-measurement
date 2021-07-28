@@ -27,6 +27,8 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService
 import picocli.CommandLine
 
+private const val SERVER_NAME = "SystemApiServer"
+
 @CommandLine.Command(
   name = "system_api_server",
   description = ["Server daemon for Kingdom system API services."],
@@ -38,11 +40,14 @@ private fun run(
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags
 ) {
-  runKingdomApiServer(kingdomApiServerFlags, duchyInfoFlags, commonServerFlags) { channel ->
-    ComputationsService(MeasurementsCoroutineStub(channel))
-    ComputationParticipantsService(ComputationParticipantsCoroutineStub(channel))
-    ComputationLogEntriesService(MeasurementLogEntriesCoroutineStub(channel))
-    RequisitionsService(RequisitionsCoroutineStub(channel))
+  runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
+    channel ->
+    listOf(
+      ComputationsService(MeasurementsCoroutineStub(channel)),
+      ComputationParticipantsService(ComputationParticipantsCoroutineStub(channel)),
+      ComputationLogEntriesService(MeasurementLogEntriesCoroutineStub(channel)),
+      RequisitionsService(RequisitionsCoroutineStub(channel))
+    )
   }
 }
 

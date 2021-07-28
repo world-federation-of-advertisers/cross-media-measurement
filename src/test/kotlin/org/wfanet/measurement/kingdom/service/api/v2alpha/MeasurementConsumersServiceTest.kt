@@ -34,10 +34,10 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -46,9 +46,9 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as InternalMeasurementConsumersService
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersClient
 
 /**
  * Path to `testdata` directory containing certs and keys.
@@ -69,52 +69,56 @@ private val TESTDATA_DIR =
     "testing",
     "testdata"
   )
-private const val DATA_PROVIDER_ID = 123L
+private const val MEASUREMENT_CONSUMER_ID = 123L
 private const val CERTIFICATE_ID = 456L
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val CERTIFICATE_NAME = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 
 @RunWith(JUnit4::class)
-class DataProvidersServiceTest {
-  private val internalServiceMock: InternalDataProvidersService =
+class MeasurementConsumersServiceTest {
+  private val internalServiceMock: InternalMeasurementConsumersService =
     mock(useConstructor = UseConstructor.parameterless()) {
-      onBlocking { createDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-      onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+      onBlocking { createMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+      onBlocking { getMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
-  private lateinit var service: DataProvidersService
+  private lateinit var service: MeasurementConsumersService
 
   @Before
   fun initService() {
-    service = DataProvidersService(InternalDataProvidersClient(grpcTestServerRule.channel))
+    service =
+      MeasurementConsumersService(InternalMeasurementConsumersClient(grpcTestServerRule.channel))
   }
 
   @Test
   fun `create fills created resource names`() {
-    val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply {
+    val request = buildCreateMeasurementConsumerRequest {
+      measurementConsumerBuilder.apply {
         preferredCertificateDer = SERVER_CERTIFICATE_DER
         publicKey = SIGNED_PUBLIC_KEY
       }
     }
 
-    val createdDataProvider = runBlocking { service.createDataProvider(request) }
+    val createdMeasurementConsumer = runBlocking { service.createMeasurementConsumer(request) }
 
-    val expectedDataProvider =
-      request.dataProvider.rebuild {
-        name = DATA_PROVIDER_NAME
+    val expectedMeasurementConsumer =
+      request.measurementConsumer.rebuild {
+        name = MEASUREMENT_CONSUMER_NAME
         preferredCertificate = CERTIFICATE_NAME
       }
-    assertThat(createdDataProvider).isEqualTo(expectedDataProvider)
-    verifyProtoArgument(internalServiceMock, InternalDataProvidersService::createDataProvider)
+    assertThat(createdMeasurementConsumer).isEqualTo(expectedMeasurementConsumer)
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalMeasurementConsumersService::createMeasurementConsumer
+      )
       .isEqualTo(
-        INTERNAL_DATA_PROVIDER.rebuild {
-          clearExternalDataProviderId()
+        INTERNAL_MEASUREMENT_CONSUMER.rebuild {
+          clearExternalMeasurementConsumerId()
           clearExternalPublicKeyCertificateId()
           preferredCertificate {
-            clearExternalDataProviderId()
+            clearExternalMeasurementConsumerId()
             clearExternalCertificateId()
           }
         }
@@ -123,13 +127,13 @@ class DataProvidersServiceTest {
 
   @Test
   fun `create throws INVALID_ARGUMENT when preferred certificate DER is missing`() {
-    val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
+    val request = buildCreateMeasurementConsumerRequest {
+      measurementConsumerBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createDataProvider(request) }
+        runBlocking { service.createMeasurementConsumer(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("preferred_certificate_der is not specified")
@@ -137,13 +141,13 @@ class DataProvidersServiceTest {
 
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
-    val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply { preferredCertificateDer = SERVER_CERTIFICATE_DER }
+    val request = buildCreateMeasurementConsumerRequest {
+      measurementConsumerBuilder.apply { preferredCertificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createDataProvider(request) }
+        runBlocking { service.createMeasurementConsumer(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("public_key is not fully specified")
@@ -151,26 +155,37 @@ class DataProvidersServiceTest {
 
   @Test
   fun `get returns resource`() {
-    val dataProvider = runBlocking {
-      service.getDataProvider(buildGetDataProviderRequest { name = DATA_PROVIDER_NAME })
+    val measurementConsumer = runBlocking {
+      service.getMeasurementConsumer(
+        buildGetMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+      )
     }
 
-    val expectedDataProvider = buildDataProvider {
-      name = DATA_PROVIDER_NAME
+    val expectedMeasurementConsumer = buildMeasurementConsumer {
+      name = MEASUREMENT_CONSUMER_NAME
       preferredCertificate = CERTIFICATE_NAME
       preferredCertificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
     }
-    assertThat(dataProvider).isEqualTo(expectedDataProvider)
-    verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
-      .isEqualTo(buildInternalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
+    assertThat(measurementConsumer).isEqualTo(expectedMeasurementConsumer)
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalMeasurementConsumersService::getMeasurementConsumer
+      )
+      .isEqualTo(
+        buildInternalGetMeasurementConsumerRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+        }
+      )
   }
 
   @Test
   fun `get throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.getDataProvider(GetDataProviderRequest.getDefaultInstance()) }
+        runBlocking {
+          service.getMeasurementConsumer(GetMeasurementConsumerRequest.getDefaultInstance())
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
@@ -180,7 +195,9 @@ class DataProvidersServiceTest {
   fun `get throws INVALID_ARGUMENT when name is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.getDataProvider(buildGetDataProviderRequest { name = "foo" }) }
+        runBlocking {
+          service.getMeasurementConsumer(buildGetMeasurementConsumerRequest { name = "foo" })
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
@@ -216,8 +233,9 @@ class DataProvidersServiceTest {
       signature = ByteString.copyFromUtf8("Fake signature of public key")
     }
 
-    private val INTERNAL_DATA_PROVIDER: InternalDataProvider = buildInternalDataProvider {
-      externalDataProviderId = DATA_PROVIDER_ID
+    private val INTERNAL_MEASUREMENT_CONSUMER: InternalMeasurementConsumer =
+        buildInternalMeasurementConsumer {
+      externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
       externalPublicKeyCertificateId = CERTIFICATE_ID
       details {
         apiVersion = Version.V2_ALPHA.string
@@ -225,7 +243,7 @@ class DataProvidersServiceTest {
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
       }
       preferredCertificate {
-        externalDataProviderId = DATA_PROVIDER_ID
+        externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         externalCertificateId = CERTIFICATE_ID
         subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier
         notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
@@ -236,13 +254,13 @@ class DataProvidersServiceTest {
   }
 }
 
-private inline fun buildCreateDataProviderRequest(
-  fill: (@Builder CreateDataProviderRequest.Builder).() -> Unit
-) = CreateDataProviderRequest.newBuilder().apply(fill).build()
+private inline fun buildCreateMeasurementConsumerRequest(
+  fill: (@Builder CreateMeasurementConsumerRequest.Builder).() -> Unit
+) = CreateMeasurementConsumerRequest.newBuilder().apply(fill).build()
 
-private inline fun buildGetDataProviderRequest(
-  fill: (@Builder GetDataProviderRequest.Builder).() -> Unit
-) = GetDataProviderRequest.newBuilder().apply(fill).build()
+private inline fun buildGetMeasurementConsumerRequest(
+  fill: (@Builder GetMeasurementConsumerRequest.Builder).() -> Unit
+) = GetMeasurementConsumerRequest.newBuilder().apply(fill).build()
 
 private inline fun buildEncryptionPublicKey(
   fill: (@Builder EncryptionPublicKey.Builder).() -> Unit
@@ -251,9 +269,10 @@ private inline fun buildEncryptionPublicKey(
 private inline fun buildSignedData(fill: (@Builder SignedData.Builder).() -> Unit) =
   SignedData.newBuilder().apply(fill).build()
 
-private inline fun DataProvider.rebuild(fill: (@Builder DataProvider.Builder).() -> Unit) =
-  toBuilder().apply(fill).build()
+private inline fun MeasurementConsumer.rebuild(
+  fill: (@Builder MeasurementConsumer.Builder).() -> Unit
+) = toBuilder().apply(fill).build()
 
-private inline fun InternalDataProvider.rebuild(
-  fill: (@Builder InternalDataProvider.Builder).() -> Unit
+private inline fun InternalMeasurementConsumer.rebuild(
+  fill: (@Builder InternalMeasurementConsumer.Builder).() -> Unit
 ) = toBuilder().apply(fill).build()

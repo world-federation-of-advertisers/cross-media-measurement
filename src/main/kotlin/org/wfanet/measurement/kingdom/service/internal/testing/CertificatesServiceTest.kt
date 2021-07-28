@@ -82,43 +82,43 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
-      MeasurementConsumer.newBuilder()
-        .apply {
-              preferredCertificateBuilder.apply {
-                notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
-              }
-          detailsBuilder.apply {
-                apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-              }
+        MeasurementConsumer.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
             }
-        .build()
-    )
+            detailsBuilder.apply {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
+          }
+          .build()
+      )
       .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
     return dataProvidersService.createDataProvider(
-      DataProvider.newBuilder()
-        .apply {
-              preferredCertificateBuilder.apply {
-                notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
-              }
-          detailsBuilder.apply {
-                apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-              }
+        DataProvider.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
             }
-        .build()
-    )
+            detailsBuilder.apply {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
+          }
+          .build()
+      )
       .externalDataProviderId
   }
 
@@ -216,7 +216,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         }
         .build()
 
-    val createdCertificate = certificatesService.createCertificate(certificate)
+    certificatesService.createCertificate(certificate)
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 

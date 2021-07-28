@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.TransactionContext
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
@@ -59,11 +60,27 @@ abstract class SpannerWriter<T, R> {
   // To ensure the transaction is only executed once:
   private val executed = AtomicBoolean(false)
 
+  private suspend fun runTransaction(
+    runner: AsyncDatabaseClient.TransactionRunner,
+    idGenerator: IdGenerator,
+    clock: Clock
+  ): T? {
+    return try {
+      runner.execute { transactionContext ->
+        val scope = TransactionScope(transactionContext, idGenerator, clock)
+        scope.runTransaction()
+      }
+    } catch (e: SpannerException) {
+      handleSpannerException(e)
+    }
+  }
+
   /**
    * Executes the SpannerWriter by starting a SpannerWriter, running [runTransaction], then calling
    * [buildResult] on the output.
    *
-   * This can only be called once per instance.
+   * This can only be called once per instance. This will bubble up anything that
+   * [handleSpannerException] throws.
    *
    * @return the output of [buildResult]
    */
@@ -75,13 +92,14 @@ abstract class SpannerWriter<T, R> {
     logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
-    val transactionResult: T? =
-      runner.execute { transactionContext ->
-        val scope = TransactionScope(transactionContext, idGenerator, clock)
-        scope.runTransaction()
-      }
+    val transactionResult: T? = runTransaction(runner, idGenerator, clock)
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
+  }
+
+  /** Override this to handle Spanner exception thrown from [execute]. */
+  protected open suspend fun handleSpannerException(e: SpannerException): T? {
+    throw e
   }
 
   companion object {
