@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Value
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.Date
-import java.time.Instant
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -27,11 +25,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
-import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val DATA_PROVIDER_ID = 1L
@@ -44,7 +43,6 @@ private const val RECURRING_EXCHANGE_ID1 = 7L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID1 = 8L
 private const val RECURRING_EXCHANGE_ID2 = 9L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID2 = 10L
-private const val STEP_INDEX = 1L
 
 private val DATE1 =
   Date.newBuilder()
@@ -58,23 +56,59 @@ private val DATE2 =
   Date.newBuilder()
     .apply {
       year = 2021
-      month = 3
-      day = 1
+      month = 1
+      day = 16
     }
     .build()
 private val DATE3 =
   Date.newBuilder()
     .apply {
       year = 2021
-      month = 6
-      day = 28
+      month = 1
+      day = 22
+    }
+    .build()
+private val DATE4 =
+  Date.newBuilder()
+    .apply {
+      year = 2021
+      month = 2
+      day = 15
     }
     .build()
 private val EXCHANGE_DETAILS =
   ExchangeDetails.newBuilder().setAuditTrailHash(ByteString.copyFromUtf8("123")).build()
+private val RECURRING_EXCHANGE_DETAILS =
+  RecurringExchangeDetails.newBuilder().setCronSchedule("DAILY").build()
+private val RECURRING_EXCHANGE_DETAILS2 =
+  RecurringExchangeDetails.newBuilder().setCronSchedule("WEEKLY").build()
+private val RECURRING_EXCHANGE_DETAILS3 =
+  RecurringExchangeDetails.newBuilder().setCronSchedule("MONTHLY").build()
+
+private val RECURRING_EXCHANGE =
+  RecurringExchange.newBuilder()
+    .apply {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      nextExchangeDate = DATE1
+      state = RecurringExchange.State.ACTIVE
+      details = RECURRING_EXCHANGE_DETAILS
+    }
+    .build()
+
+private val RECURRING_EXCHANGE2 =
+  RecurringExchange.newBuilder()
+    .apply {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      nextExchangeDate = DATE1
+      state = RecurringExchange.State.ACTIVE
+      details = RECURRING_EXCHANGE_DETAILS2
+    }
+    .build()
 
 @RunWith(JUnit4::class)
-class UpdateExchangeStepStateTest : KingdomDatabaseTestBase() {
+class UpdateRecurringExchangeTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
@@ -115,93 +149,79 @@ class UpdateExchangeStepStateTest : KingdomDatabaseTestBase() {
       state = Exchange.State.ACTIVE,
       exchangeDetails = EXCHANGE_DETAILS
     )
-
-    insertExchangeStep(
-      recurringExchangeId = RECURRING_EXCHANGE_ID1,
-      date = DATE1,
-      stepIndex = 1L,
-      state = ExchangeStep.State.IN_PROGRESS,
-      updateTime = Instant.now().minusSeconds(1000),
-      modelProviderId = null,
-      dataProviderId = DATA_PROVIDER_ID
-    )
   }
 
-  private suspend fun directlyUpdateState(state: ExchangeStep.State) {
+  private suspend fun directlyUpdate(nextExchangeDate: Date, state: RecurringExchange.State) {
     databaseClient.write(
-      updateMutation("ExchangeSteps") {
+      updateMutation("RecurringExchanges") {
         set("RecurringExchangeId" to RECURRING_EXCHANGE_ID1)
-        set("Date" to DATE1.toCloudDate())
-        set("StepIndex" to STEP_INDEX)
+        set("ExternalRecurringExchangeId" to EXTERNAL_RECURRING_EXCHANGE_ID1)
+        set("ModelProviderId" to MODEL_PROVIDER_ID)
         set("State" to state)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-        set("DataProviderId" to DATA_PROVIDER_ID)
+        set("NextExchangeDate" to nextExchangeDate.toCloudDate())
+        set("RecurringExchangeDetails" to RECURRING_EXCHANGE_DETAILS)
+        setJson("RecurringExchangeDetailsJson" to RECURRING_EXCHANGE_DETAILS)
       }
     )
   }
 
-  private fun updateExchangeStepState(step: ExchangeStep, state: ExchangeStep.State): ExchangeStep =
-      runBlocking {
-    UpdateExchangeStepState(step, RECURRING_EXCHANGE_ID1, state).execute(databaseClient)
-  }
+  private suspend fun updateAndAssertSuccess(
+    nextExchangeDate: Date,
+    state: RecurringExchange.State
+  ) {
+    val recurringExchange =
+      UpdateRecurringExchange(RECURRING_EXCHANGE, RECURRING_EXCHANGE_ID1, nextExchangeDate, state)
+        .execute(databaseClient)
 
-  private fun assertContainsExchangeStepInState(state: ExchangeStep.State) {
-    assertThat(readAllExchangeStepsInSpanner())
+    assertThat(recurringExchange)
       .comparingExpectedFieldsOnly()
-      .containsExactly(ExchangeStep.newBuilder().setState(state).build())
-  }
-
-  private fun updateStepStateAndAssertSuccess(state: ExchangeStep.State) {
-
-    val exchangeStep =
-      ExchangeStep.newBuilder()
-        .apply {
-          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          date = DATE1
-          stepIndex = STEP_INDEX.toInt()
-          this.state = ExchangeStep.State.READY
-          updateTime = Value.COMMIT_TIMESTAMP.toProto()
-        }
-        .build()
-
-    val actual = updateExchangeStepState(exchangeStep, state)
-    assertContainsExchangeStepInState(state)
-
-    assertThat(actual)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(exchangeStep.toBuilder().setState(state).build())
+      .isEqualTo(
+        RecurringExchange.newBuilder()
+          .apply {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            this.nextExchangeDate = nextExchangeDate
+            this.state = state
+            this.details = RECURRING_EXCHANGE_DETAILS
+          }
+          .build()
+      )
   }
 
   @Test
   fun `state update in normal flow`() = runBlocking {
-    directlyUpdateState(ExchangeStep.State.READY)
-    updateStepStateAndAssertSuccess(ExchangeStep.State.READY_FOR_RETRY)
-    updateStepStateAndAssertSuccess(ExchangeStep.State.IN_PROGRESS)
+    directlyUpdate(DATE2, RecurringExchange.State.ACTIVE)
+    updateAndAssertSuccess(DATE3, RecurringExchange.State.ACTIVE)
+    updateAndAssertSuccess(DATE1, RecurringExchange.State.RETIRED)
   }
 
   @Test
-  fun `terminal states do not allow updates`() = runBlocking {
-    var step = ExchangeStep.getDefaultInstance()
-    val terminalStates =
-      setOf(
-        ExchangeStep.State.BLOCKED,
-        ExchangeStep.State.SUCCEEDED,
-        ExchangeStep.State.FAILED,
-        ExchangeStep.State.STATE_UNSPECIFIED
-      )
-    for (terminalState in terminalStates) {
-      directlyUpdateState(terminalState)
-      step = step.toBuilder().setState(terminalState).build()
-      assertFails { updateExchangeStepState(step, ExchangeStep.State.IN_PROGRESS) }
+  fun `terminal states do not allow updates`() =
+    runBlocking<Unit> {
+      val recurringExchange =
+        RecurringExchange.newBuilder()
+          .apply {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            nextExchangeDate = DATE1
+            state = RecurringExchange.State.RETIRED
+            details = RECURRING_EXCHANGE_DETAILS
+          }
+          .build()
+      assertFails {
+        UpdateRecurringExchange(
+            recurringExchange,
+            RECURRING_EXCHANGE_ID1,
+            DATE2,
+            RecurringExchange.State.ACTIVE
+          )
+          .execute(databaseClient)
+      }
     }
-  }
 
   @Test
   fun `noop update`() = runBlocking {
-    directlyUpdateState(ExchangeStep.State.SUCCEEDED)
-
     // Does not fail:
-    updateStepStateAndAssertSuccess(ExchangeStep.State.SUCCEEDED)
+    updateAndAssertSuccess(DATE1, RecurringExchange.State.ACTIVE)
   }
 }

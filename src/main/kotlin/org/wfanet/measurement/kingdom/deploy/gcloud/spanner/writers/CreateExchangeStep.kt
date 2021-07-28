@@ -17,53 +17,34 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 
-class UpdateExchangeStepState(
+class CreateExchangeStep(
   private val exchangeStep: ExchangeStep,
   private val recurringExchangeId: Long,
-  private val state: ExchangeStep.State
+  private val modelProviderId: Long? = null,
+  private val dataProviderId: Long? = null,
 ) : SpannerWriter<ExchangeStep, ExchangeStep>() {
   override suspend fun TransactionScope.runTransaction(): ExchangeStep {
-    if (exchangeStep.state == state) {
-      return exchangeStep
-    }
+    insertMutation("ExchangeSteps") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to exchangeStep.date.toCloudDate())
+      set("StepIndex" to exchangeStep.stepIndex.toLong())
+      set("State" to exchangeStep.state)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      set("ModelProviderId" to modelProviderId)
+      set("DataProviderId" to dataProviderId)
+    }.bufferTo(transactionContext)
 
-    require(!exchangeStep.state.isTerminal) {
-      "ExchangeStep: $exchangeStep is in a terminal state."
-    }
-
-    updateMutation("ExchangeSteps") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to exchangeStep.date.toCloudDate())
-        set("StepIndex" to exchangeStep.stepIndex.toLong())
-        set("State" to state)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
-
-    return exchangeStep.toBuilder().setState(state).build()
+    return exchangeStep
   }
 
   override fun ResultScope<ExchangeStep>.buildResult(): ExchangeStep {
     return checkNotNull(transactionResult)
       .toBuilder()
-      .setUpdateTime(commitTimestamp.toProto())
+      .apply { updateTime = commitTimestamp.toProto() }
       .build()
   }
 }
-
-private val ExchangeStep.State.isTerminal: Boolean
-  get() =
-    when (this) {
-      ExchangeStep.State.READY,
-      ExchangeStep.State.READY_FOR_RETRY,
-      ExchangeStep.State.IN_PROGRESS -> false
-      ExchangeStep.State.BLOCKED,
-      ExchangeStep.State.SUCCEEDED,
-      ExchangeStep.State.FAILED,
-      ExchangeStep.State.UNRECOGNIZED,
-      ExchangeStep.State.STATE_UNSPECIFIED -> true
-    }

@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.kingdom.db.StreamExchangesFilter
@@ -33,7 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeRead
  * @param limit how many [Exchange]s to return -- if zero, there is no limit
  */
 class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
-  SpannerQuery<ExchangeReader.Result, Exchange>() {
+  SpannerQuery<ExchangeReader.Result, ExchangeReader.Result>() {
   override val reader: BaseSpannerReader<ExchangeReader.Result> by lazy {
     ExchangeReader(forcedIndex).withBuilder {
       if (!filter.empty) {
@@ -41,7 +40,7 @@ class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
         filter.toSql(this, StreamExchangesFilterSqlConverter)
       }
 
-      appendClause("ORDER BY NextExchangeDate, Date ASC")
+      appendClause("ORDER BY NextExchangeDate ASC")
 
       if (limit > 0) {
         appendClause("LIMIT @limit")
@@ -60,5 +59,5 @@ class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
     }
   }
 
-  override fun Flow<ExchangeReader.Result>.transform(): Flow<Exchange> = map { it.exchange }
+  override fun Flow<ExchangeReader.Result>.transform(): Flow<ExchangeReader.Result> = this
 }
