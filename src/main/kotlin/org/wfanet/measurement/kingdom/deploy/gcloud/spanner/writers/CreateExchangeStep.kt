@@ -29,14 +29,15 @@ class CreateExchangeStep(
 ) : SpannerWriter<ExchangeStep, ExchangeStep>() {
   override suspend fun TransactionScope.runTransaction(): ExchangeStep {
     insertMutation("ExchangeSteps") {
-      set("RecurringExchangeId" to recurringExchangeId)
-      set("Date" to exchangeStep.date.toCloudDate())
-      set("StepIndex" to exchangeStep.stepIndex.toLong())
-      set("State" to exchangeStep.state)
-      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("ModelProviderId" to modelProviderId)
-      set("DataProviderId" to dataProviderId)
-    }.bufferTo(transactionContext)
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to exchangeStep.date.toCloudDate())
+        set("StepIndex" to exchangeStep.stepIndex.toLong())
+        set("State" to exchangeStep.state)
+        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+        set("ModelProviderId" to modelProviderId)
+        set("DataProviderId" to dataProviderId)
+      }
+      .bufferTo(transactionContext)
 
     return exchangeStep
   }
