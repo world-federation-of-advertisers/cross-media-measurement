@@ -83,6 +83,20 @@ message Measurement {
   }
   State state = 9;
 
+  message DataProviderValue {
+    fixed64 external_data_provider_certificate_id = 1;
+
+    // Serialized `EncryptionPublicKey` message from the public API.
+    bytes data_provider_public_key = 2;
+    bytes data_provider_public_key_signature = 3;
+
+    bytes encrypted_requisition_spec = 4;
+  }
+  // Map of external DataProvider ID to DataProviderValue.
+  //
+  // Only set for DEFAULT view.
+  map<fixed64, DataProviderValue> data_providers = 10;
+
   message Details {
     // Version the public API for serialized message definitions.
     string api_version = 1;
@@ -100,16 +114,17 @@ message Measurement {
     bytes result_public_key = 8;
     bytes encrypted_result = 9;
   }
-  Details details = 10;
-  string details_json = 11;
+  Details details = 11;
+  string details_json = 12;
 
-  // Child Requisitions of this Measurement. Output-only.
+  // Child Requisitions of this Measurement, using Requisition.View.NORMALIZED.
+  // Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated Requisition requisitions = 12;
+  repeated Requisition requisitions = 13;
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated ComputationParticipant computation_participants = 13;
+  repeated ComputationParticipant computation_participants = 14;
 }

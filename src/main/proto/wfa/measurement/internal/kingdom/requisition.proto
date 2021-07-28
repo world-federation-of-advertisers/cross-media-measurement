@@ -17,11 +17,19 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/computation_participant.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message Requisition {
+  enum View {
+    // Default view, which includes all fields.
+    FULL = 0;
+
+    // Normalized view, which excludes fields from other entities.
+    NORMALIZED = 1;
+  }
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
   fixed64 external_requisition_id = 3;
@@ -92,20 +100,46 @@ message Requisition {
     string message = 2;
   }
 
+  message DuchyValue {
+    // External ID of Certificate used to verify signatures in protocol field.
+    fixed64 external_duchy_certificate_id = 1;
+
+    oneof protocol {
+      ComputationParticipant.LiquidLegionsV2Details liquid_legions_v2 = 2;
+    }
+  }
+  // Map of external Duchy ID to DuchyValue.
+  map<string, DuchyValue> duchies = 10;
+
   message Details {
     // Serialized `EncryptionPublicKey` message from the public API.
     bytes data_provider_public_key = 1;
     bytes data_provider_public_key_signature = 2;
 
-    bytes data_provider_participation_signature = 3;
+    bytes encrypted_requisition_spec = 3;
 
-    Refusal refusal = 4;
+    bytes data_provider_participation_signature = 4;
+
+    Refusal refusal = 5;
   }
-  Details details = 10;
-  string details_json = 11;
+  Details details = 11;
+  string details_json = 12;
 
-  // Version of the public API for serialized message definitions as well as
-  // resource names, which is denormalized from the parent Measurement.
-  // Output-only.
-  string api_version = 12;
+  message ParentMeasurement {
+    // Version of the public API for serialized message definitions as well as
+    // resource names.
+    string api_version = 1;
+
+    fixed64 external_measurement_consumer_certificate_id = 2;
+
+    // Serialized `MeasurementSpec` from public API.
+    bytes measurement_spec = 3;
+    bytes measurement_spec_signature = 4;
+
+    string external_protocol_config_id = 5;
+  }
+  // Denormalized fields from the parent Measurement. Output-only.
+  //
+  // Only set for FULL view.
+  ParentMeasurement parent_measurement = 13;
 }
