@@ -36,7 +36,6 @@ class SpannerCertificatesService(
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
   override suspend fun createCertificate(request: Certificate): Certificate {
-
     grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
       "Certificate is missing parent field"
     }
@@ -58,7 +57,6 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-
     grpcRequire(request.parentCase != GetCertificateRequest.ParentCase.PARENT_NOT_SET) {
       "GetCertificateRequest is missing parent field"
     }
