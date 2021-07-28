@@ -39,7 +39,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
-fun InternalRequisition.toSystemRequisition(): Requisition {
+fun InternalRequisition.toSystemRequisition(publicApiVersion: Version): Requisition {
   return Requisition.newBuilder()
     .also {
       it.name =
@@ -49,7 +49,7 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
           )
           .toName()
       it.dataProvider =
-        when (Version.fromString(apiVersion)) {
+        when (publicApiVersion) {
           Version.V2_ALPHA -> DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
           Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
         }
@@ -180,7 +180,9 @@ fun InternalMeasurement.toSystemComputation(): Computation {
         }
       )
       it.addAllRequisitions(
-        requisitionsList.map { requisition -> requisition.toSystemRequisition() }
+        requisitionsList.map { requisition ->
+          requisition.toSystemRequisition(Version.fromString(details.apiVersion))
+        }
       )
       it.duchyProtocolConfig = details.duchyProtocolConfig.toSystemDuchyProtocolConfig()
     }
