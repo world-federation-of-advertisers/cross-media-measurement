@@ -14,10 +14,11 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
-import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -42,7 +43,20 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     DuchyInfo.initializeFromFlags(flags.duchyInfoFlags)
     val duchyName = flags.duchy.duchyName
 
-    val computationsServiceChannel = buildChannel(flags.computationsServiceTarget)
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.tlsFlags.certFile,
+        privateKeyFile = flags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      )
+
+    val computationsServiceChannel =
+      buildMutualTlsChannel(
+          flags.computationsServiceFlags.target,
+          clientCerts,
+          flags.computationsServiceFlags.certHost
+        )
+        .withShutdownTimeout(flags.channelShutdownTimeout)
     val dataClients =
       ComputationDataClients(
         ComputationsCoroutineStub(computationsServiceChannel).withDuchyId(duchyName),
@@ -52,23 +66,27 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     val computationControlClientMap =
       DuchyInfo.entries.filter { it.duchyId != duchyName }.associate {
         it.duchyId to
-          ComputationControlCoroutineStub(buildChannel(it.computationControlServiceTarget))
+          ComputationControlCoroutineStub(
+              buildMutualTlsChannel(
+                  it.computationControlServiceTarget,
+                  clientCerts,
+                  it.computationControlServiceCertHost
+                )
+                .withShutdownTimeout(flags.channelShutdownTimeout)
+            )
             .withDuchyId(duchyName)
       }
 
+    val systemApiChannel =
+      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+        .withShutdownTimeout(flags.channelShutdownTimeout)
+
     val systemComputationsClient =
-      SystemComputationsCoroutineStub(buildChannel(flags.systemComputationsServiceTarget))
-        .withDuchyId(duchyName)
+      SystemComputationsCoroutineStub(systemApiChannel).withDuchyId(duchyName)
     val systemComputationParticipantsClient =
-      SystemComputationParticipantsCoroutineStub(
-          buildChannel(flags.systemComputationParticipantsServiceTarget)
-        )
-        .withDuchyId(duchyName)
+      SystemComputationParticipantsCoroutineStub(systemApiChannel).withDuchyId(duchyName)
     val systemComputationLogEntriesClient =
-      SystemComputationLogEntriesCoroutineStub(
-          buildChannel(flags.systemComputationLogEntriesServiceTarget)
-        )
-        .withDuchyId(duchyName)
+      SystemComputationLogEntriesCoroutineStub(systemApiChannel).withDuchyId(duchyName)
 
     val computationStatsClient = ComputationStatsCoroutineStub(computationsServiceChannel)
 
@@ -89,7 +107,4 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
     runBlocking { mill.continuallyProcessComputationQueue() }
   }
-
-  private fun buildChannel(target: String): ManagedChannel =
-    buildChannel(target, flags.channelShutdownTimeout)
 }

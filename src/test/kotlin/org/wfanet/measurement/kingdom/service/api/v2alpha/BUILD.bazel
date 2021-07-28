@@ -19,7 +19,7 @@ kt_jvm_test(
     associates = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
     ],
-    data = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing/testdata:certs"],
+    data = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing/testdata:static_certs"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:builder",
@@ -117,7 +117,7 @@ kt_jvm_test(
     associates = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurement_consumers_service",
     ],
-    data = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing/testdata:certs"],
+    data = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing/testdata:static_certs"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:builder",
