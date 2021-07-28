@@ -16,11 +16,13 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import picocli.CommandLine
@@ -41,12 +43,8 @@ class AsyncComputationControlServiceFlags {
   lateinit var duchyInfo: DuchyInfoFlags
     private set
 
-  @CommandLine.Option(
-    names = ["--computations-service-target"],
-    description = ["Address and port of the Computations service"],
-    required = true
-  )
-  lateinit var computationsServiceTarget: String
+  @CommandLine.Mixin
+  lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 }
 
@@ -59,7 +57,19 @@ class AsyncComputationControlServiceFlags {
 private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
   DuchyInfo.initializeFromFlags(flags.duchyInfo)
 
-  val channel: ManagedChannel = buildChannel(flags.computationsServiceTarget)
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.server.tlsFlags.certFile,
+      privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+    )
+
+  val channel: ManagedChannel =
+    buildMutualTlsChannel(
+      flags.computationsServiceFlags.target,
+      clientCerts,
+      flags.computationsServiceFlags.certHost
+    )
 
   CommonServer.fromFlags(
       flags.server,

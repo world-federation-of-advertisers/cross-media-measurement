@@ -44,12 +44,16 @@ object DuchyInfo {
   }
 
   fun setForTest(duchyIds: Set<String>) {
-    entries = duchyIds.map { DuchyInfo.Entry(it, "hostname-$it", "cert-id-$it") }.toTypedArray()
+    entries =
+      duchyIds
+        .map { DuchyInfo.Entry(it, "hostname-$it", "cert-host-$it", "cert-id-$it") }
+        .toTypedArray()
   }
 
   data class Entry(
     val duchyId: String,
     val computationControlServiceTarget: String,
+    val computationControlServiceCertHost: String,
     val rootCertificateSkid: String
   )
 }
@@ -65,5 +69,10 @@ class DuchyInfoFlags {
 }
 
 private fun DuchyRpcConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
-  return DuchyInfo.Entry(duchyId, computationControlServiceTarget, rootCertificateSkid)
+  return DuchyInfo.Entry(
+    duchyId,
+    computationControlServiceTarget,
+    computationControlServiceCertHost,
+    rootCertificateSkid
+  )
 }

@@ -18,14 +18,18 @@ import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.grpc.addChannelShutdownHooks
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
+import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
@@ -36,11 +40,14 @@ private class Flags {
   lateinit var duchy: CommonDuchyFlags
     private set
 
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
+    private set
+
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."],
-    required = true
   )
   lateinit var channelShutdownTimeout: Duration
     private set
@@ -48,26 +55,17 @@ private class Flags {
   @CommandLine.Option(
     names = ["--polling-interval"],
     defaultValue = "1m",
-    description = ["How long to sleep between calls to the Global Computation Service."],
-    required = true
+    description = ["How long to sleep between calls to the system Computations Service."],
   )
   lateinit var pollingInterval: Duration
     private set
 
-  @CommandLine.Option(
-    names = ["--system-computations-service-target"],
-    description = ["Address and port of the kingdom system Computations Service"],
-    required = true
-  )
-  lateinit var systemComputationsServiceTarget: String
+  @CommandLine.Mixin
+  lateinit var systemApiFlags: SystemApiFlags
     private set
 
-  @CommandLine.Option(
-    names = ["--computations-service-target"],
-    description = ["Address and port of the Computations service"],
-    required = true
-  )
-  lateinit var computationsServiceTarget: String
+  @CommandLine.Mixin
+  lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 
   @CommandLine.Option(
@@ -93,19 +91,27 @@ private class Flags {
   showDefaultValues = true
 )
 private fun run(@CommandLine.Mixin flags: Flags) {
-  val systemComputationServiceChannel = buildChannel(flags.systemComputationsServiceTarget)
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.tlsFlags.certFile,
+      privateKeyFile = flags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+    )
+
+  val systemComputationServiceChannel =
+    buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      .withShutdownTimeout(flags.channelShutdownTimeout)
   val systemComputationsClient =
     SystemComputationsCoroutineStub(systemComputationServiceChannel)
       .withDuchyId(flags.duchy.duchyName)
 
-  val storageChannel = buildChannel(flags.computationsServiceTarget)
-
-  addChannelShutdownHooks(
-    Runtime.getRuntime(),
-    flags.channelShutdownTimeout,
-    systemComputationServiceChannel,
-    storageChannel
-  )
+  val storageChannel =
+    buildMutualTlsChannel(
+        flags.computationsServiceFlags.target,
+        clientCerts,
+        flags.computationsServiceFlags.certHost
+      )
+      .withShutdownTimeout(flags.channelShutdownTimeout)
 
   val herald =
     Herald(
