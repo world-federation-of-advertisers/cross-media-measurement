@@ -130,6 +130,13 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "CreateExchangeStepTest",
+    srcs = ["CreateExchangeStepTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangeStepTest",
+    deps = _TEST_DEPS,
+)
+
+spanner_emulator_test(
     name = "CreateExchangeStepAttemptTest",
     srcs = ["CreateExchangeStepAttemptTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangeStepAttemptTest",

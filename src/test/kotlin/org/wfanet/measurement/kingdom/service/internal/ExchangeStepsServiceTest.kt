@@ -14,8 +14,11 @@
 
 package org.wfanet.measurement.kingdom.service.internal
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -202,6 +205,7 @@ class ExchangeStepsServiceTest : KingdomDatabaseTestBase() {
 
       val service = ExchangeStepsService(databaseClient)
 
-      assertFailsWith<NoSuchElementException> { service.claimReadyExchangeStep(request) }
+      val exception = assertFailsWith<StatusRuntimeException> { service.claimReadyExchangeStep(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 }
