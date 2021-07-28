@@ -79,8 +79,8 @@ abstract class SpannerWriter<T, R> {
    * Executes the SpannerWriter by starting a SpannerWriter, running [runTransaction], then calling
    * [buildResult] on the output.
    *
-   * This can only be called once per instance.
-   * This will bubble up anything that [handleSpannerException] throws.
+   * This can only be called once per instance. This will bubble up anything that
+   * [handleSpannerException] throws.
    *
    * @return the output of [buildResult]
    */

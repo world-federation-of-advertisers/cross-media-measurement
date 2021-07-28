@@ -42,8 +42,7 @@ class SpannerEventGroupsService(
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
-          throw e
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
       }
     }
   }
