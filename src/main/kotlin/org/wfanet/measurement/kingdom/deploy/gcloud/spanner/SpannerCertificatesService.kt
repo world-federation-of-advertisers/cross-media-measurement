@@ -62,7 +62,7 @@ class SpannerCertificatesService(
     grpcRequire(request.parentCase != GetCertificateRequest.ParentCase.PARENT_NOT_SET) {
       "GetCertificateRequest is missing parent field"
     }
-    
+
     return CertificateReader(request)
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate

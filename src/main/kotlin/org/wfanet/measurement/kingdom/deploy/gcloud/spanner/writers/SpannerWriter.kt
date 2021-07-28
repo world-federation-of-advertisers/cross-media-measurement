@@ -80,6 +80,7 @@ abstract class SpannerWriter<T, R> {
    * [buildResult] on the output.
    *
    * This can only be called once per instance.
+   * This will bubble up anything that [handleSpannerException] throws.
    *
    * @return the output of [buildResult]
    */
