@@ -4,45 +4,14 @@ package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "eventpreprocessing",
-    srcs = [
-        "JniPreprocessEvents.kt",
-        "PreprocessEvents.kt",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
-        "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-    ],
-)
-
-kt_jvm_library(
-    name = "batchingdofn",
-    srcs = [
-        "BatchingDoFn.kt",
-        "EventSize.kt",
-    ],
+    srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/joda",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
-    ],
-)
-
-kt_jvm_library(
-    name = "encryptiondofn",
-    srcs = [
-        "EncryptEvents.kt",
-        "EncryptionEventsDoFn.kt",
-        "HardCodedCryptoKeyProvider.kt",
-        "HardCodedPepperProvider.kt",
-    ],
-    deps = [
-        "//imports/java/org/apache/beam:core",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
