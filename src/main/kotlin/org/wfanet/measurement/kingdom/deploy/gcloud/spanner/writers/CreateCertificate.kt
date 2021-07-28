@@ -40,7 +40,9 @@ class CreateCertificate(private val certificate: Certificate) :
       when (certificate.parentCase) {
         Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
         Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-        else -> "Duchy"
+        Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+        Certificate.ParentCase.PARENT_NOT_SET ->
+          throw IllegalArgumentException("Parent field of Certificate is not set")
       }
   }
 
@@ -89,7 +91,10 @@ class CreateCertificate(private val certificate: Certificate) :
             )
         InternalId(measurementConsumerId)
       }
-      else -> TODO("uakyol implement duchy support after duchy config is implemented")
+      Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
+        TODO("uakyol implement duchy support after duchy config is implemented")
+      Certificate.ParentCase.PARENT_NOT_SET ->
+        throw IllegalArgumentException("Parent field of Certificate is not set")
     }
   }
 

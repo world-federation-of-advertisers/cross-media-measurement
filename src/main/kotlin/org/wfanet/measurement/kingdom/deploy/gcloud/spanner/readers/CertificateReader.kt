@@ -30,7 +30,9 @@ class CertificateReader(val request: GetCertificateRequest) :
       when (request.parentCase) {
         GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
         GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-        else -> "Duchy"
+        GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+        GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+          throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
       }
   }
 
@@ -69,7 +71,10 @@ class CertificateReader(val request: GetCertificateRequest) :
             externalDataProviderId = struct.getLong(externalResourceIdColumn)
           GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
             externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
-          else -> TODO("uakyol implement duchy support after duchy config is implemented")
+          GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
+            TODO("uakyol implement duchy support after duchy config is implemented")
+          GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+            throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
         }
       }
       .build()

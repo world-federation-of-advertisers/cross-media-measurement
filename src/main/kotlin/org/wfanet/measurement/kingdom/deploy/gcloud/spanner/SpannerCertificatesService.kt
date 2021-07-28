@@ -36,11 +36,10 @@ class SpannerCertificatesService(
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
   override suspend fun createCertificate(request: Certificate): Certificate {
-    grpcRequire(
-      request.hasExternalDataProviderId() ||
-        request.hasExternalMeasurementConsumerId() ||
-        request.hasExternalDuchyId()
-    ) { "Certificate is missing parent field" }
+
+    grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
+      "Certificate is missing parent field"
+    }
 
     try {
       return CreateCertificate(request).execute(client, idGenerator, clock)
@@ -59,11 +58,11 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    grpcRequire(
-      request.hasExternalDataProviderId() ||
-        request.hasExternalMeasurementConsumerId() ||
-        request.hasExternalDuchyId()
-    ) { "GetCertificateRequest is missing parent field" }
+
+    grpcRequire(request.parentCase != GetCertificateRequest.ParentCase.PARENT_NOT_SET) {
+      "GetCertificateRequest is missing parent field"
+    }
+    
     return CertificateReader(request)
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate
