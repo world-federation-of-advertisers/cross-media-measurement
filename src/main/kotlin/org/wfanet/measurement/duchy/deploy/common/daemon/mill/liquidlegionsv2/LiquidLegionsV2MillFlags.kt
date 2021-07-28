@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import java.time.Duration
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import picocli.CommandLine
@@ -23,6 +24,10 @@ import picocli.CommandLine
 class LiquidLegionsV2MillFlags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
     private set
 
   @CommandLine.Mixin
@@ -54,27 +59,31 @@ class LiquidLegionsV2MillFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--system-computations-service-target"],
-    description = ["Address and port of the Kingdom's System ComputationsService"],
+    names = ["--computations-service-authority"],
+    description =
+      [
+        "The authority used with TLS and HTTP virtual hosting of the duchy internal " +
+          "Computations service"],
     required = true
   )
-  lateinit var systemComputationsServiceTarget: String
+  lateinit var computationsServiceAuthority: String
     private set
 
   @CommandLine.Option(
-    names = ["--system-computation-log-entries-service-target"],
-    description = ["Address and port of the Kingdom's System ComputationLogEntriesService"],
+    names = ["--system-api-target"],
+    description = ["Address and port of the Kingdom's system APIs"],
     required = true
   )
-  lateinit var systemComputationLogEntriesServiceTarget: String
+  lateinit var systemApiTarget: String
     private set
 
   @CommandLine.Option(
-    names = ["--system-computation-participants-service-target"],
-    description = ["Address and port of the Kingdom's System ComputationParticipantsService"],
+    names = ["--system-api-authority"],
+    description =
+      ["The authority used with TLS and HTTP virtual hosting of the Kingdom's system APIs"],
     required = true
   )
-  lateinit var systemComputationParticipantsServiceTarget: String
+  lateinit var systemApiAuthority: String
     private set
 
   @CommandLine.Option(

@@ -1,0 +1,12 @@
+.include /etc/ssl/openssl.cnf
+
+[v3_ca]
+subjectAltName = @subject_alt_name
+
+[usr_cert]
+subjectAltName = @subject_alt_name
+
+[subject_alt_name]
+DNS=localhost
+IP=127.0.0.1
+

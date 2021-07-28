@@ -84,14 +84,23 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 	{
 		name:                   "aggregator"
 		protocols_setup_config: #AggregatorProtocolsSetupConfig
+		tls_cert_file:          "/var/run/secrets/files/aggregator_server.pem"
+		tls_key_file:           "/var/run/secrets/files/aggregator_server.key"
+		cert_collection_file:   "/var/run/secrets/files/common_root.pem"
 	},
 	{
 		name:                   "worker-1"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		tls_cert_file:          "/var/run/secrets/files/non_aggregator_one_server.pem"
+		tls_key_file:           "/var/run/secrets/files/non_aggregator_one_server.key"
+		cert_collection_file:   "/var/run/secrets/files/common_root.pem"
 	},
 	{
 		name:                   "worker-2"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		tls_cert_file:          "/var/run/secrets/files/non_aggregator_two_server.pem"
+		tls_key_file:           "/var/run/secrets/files/non_aggregator_two_server.key"
+		cert_collection_file:   "/var/run/secrets/files/common_root.pem"
 	},
 ]
 

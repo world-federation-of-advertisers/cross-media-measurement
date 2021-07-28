@@ -1,8 +1,8 @@
 load("//build/cue:defs.bzl", "cue_string_field")
 load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
-load("@wfa_common_jvm//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
-load(":macros.bzl", "cue_dump")
+load(":macros.bzl", "cue_dump", "generate_root_certificate", "generate_server_certificate")
 
 exports_files(["duchy_rpc_config.textproto"])
 
@@ -51,8 +51,16 @@ CUE_LIBRARIES = [
 ]
 
 cue_dump(
+    name = "kustomization",
+    srcs = [
+        "kustomization.cue",
+    ],
+)
+
+cue_dump(
     name = "kingdom_and_three_duchies_from_cue_local",
     srcs = CUE_LIBRARIES + ["kingdom_and_three_duchies_local.cue"],
+    expression = "listObject",
 )
 
 cue_dump(
@@ -66,6 +74,7 @@ cue_dump(
         "spanner_instance": TEST_GOOGLE_CLOUD_SETTINGS.spanner_instance,
         "spanner_project": TEST_GOOGLE_CLOUD_SETTINGS.spanner_project,
     },
+    expression = "listObject",
 )
 
 ALL_LOCAL_IMAGE_ARCHIVES = [
@@ -130,4 +139,45 @@ k8s_apply(
     delete_selector = SELECTOR,
     imports = [":import_" + image.name + "_u7s" for image in ALL_LOCAL_IMAGES],
     tags = ["manual"],
+)
+
+generate_root_certificate(
+    name = "common_root",
+    srcs = ["openssl.cnf"],
+)
+
+generate_server_certificate(
+    name = "kingdom_server",
+    srcs = [
+        "openssl.cnf",
+        ":common_root",
+    ],
+    root = "common_root",
+)
+
+generate_server_certificate(
+    name = "aggregator_server",
+    srcs = [
+        "openssl.cnf",
+        ":common_root",
+    ],
+    root = "common_root",
+)
+
+generate_server_certificate(
+    name = "non_aggregator_one_server",
+    srcs = [
+        "openssl.cnf",
+        ":common_root",
+    ],
+    root = "common_root",
+)
+
+generate_server_certificate(
+    name = "non_aggregator_two_server",
+    srcs = [
+        "openssl.cnf",
+        ":common_root",
+    ],
+    root = "common_root",
 )

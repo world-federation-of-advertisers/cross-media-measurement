@@ -95,9 +95,20 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				name:  "JAVA_TOOL_OPTIONS"
 				value: _jvm_flags
 			}]
+			volumeMounts: [{
+				name:      _name + "-files"
+				mountPath: "/var/run/secrets/files"
+				readOnly:  true
+			}]
 			readinessProbe?: {
 				exec: command: [...string]
 				periodSeconds: uint32
+			}
+		}]
+		volumes: [{
+			name: _name + "-files"
+			secret: {
+				secretName: "all-test-certs-mdd9m72hbh"
 			}
 		}]
 		initContainers: [ for ds in _dependencies {
@@ -111,9 +122,4 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #ServerPod: #Pod & {
 	_ports: [{containerPort: 8080}]
-	spec: containers: [{
-		readinessProbe: {
-			exec: command: ["/app/grpc_health_probe/file/grpc-health-probe", "--addr=:8080"]
-			periodSeconds: 60
-		}}]
 }
