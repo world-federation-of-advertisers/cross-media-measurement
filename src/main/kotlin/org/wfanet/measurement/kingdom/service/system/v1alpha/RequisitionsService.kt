@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
@@ -49,6 +50,9 @@ class RequisitionsService(
           dataProviderParticipationSignature = request.dataProviderParticipationSignature
         }
         .build()
-    return internalRequisitionsClient.fulfillRequisition(internalRequest).toSystemRequisition()
+    val internalResponse = internalRequisitionsClient.fulfillRequisition(internalRequest)
+    return internalResponse.toSystemRequisition(
+      Version.fromString(internalResponse.parentMeasurement.apiVersion)
+    )
   }
 }

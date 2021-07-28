@@ -64,9 +64,9 @@ private val INTERNAL_REQUISITION =
       externalFulfillingDuchyId = DUCHY_ID
       state = InternalRequisition.State.FULFILLED
       detailsBuilder.apply {
-        apiVersion = PUBLIC_API_VERSION
         dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
       }
+      parentMeasurementBuilder.apply { apiVersion = PUBLIC_API_VERSION }
     }
     .build()
 

@@ -101,9 +101,7 @@ private val INTERNAL_REQUISITION =
       externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
       externalFulfillingDuchyId = DUCHY_ID
       state = InternalRequisition.State.FULFILLED
-      apiVersion = PUBLIC_API_VERSION
       detailsBuilder.apply {
-        apiVersion = PUBLIC_API_VERSION
         dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
       }
     }
