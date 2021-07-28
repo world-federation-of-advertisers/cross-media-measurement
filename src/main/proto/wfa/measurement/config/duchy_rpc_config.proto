@@ -28,8 +28,12 @@ message DuchyRpcConfig {
     // The URI of the Duchy Computation Control Service
     string computation_control_service_target = 2;
 
+    // The authority used with TLS and HTTP virtual hosting of the Duchy
+    // Computation Control Service.
+    string computation_control_service_cert_host = 3;
+
     // The SKID of the Duchy's root certificate
-    string root_certificate_skid = 3;
+    string root_certificate_skid = 4;
   }
 
   // The list of all the Duchy RPC information in this config message

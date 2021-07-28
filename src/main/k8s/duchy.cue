@@ -17,7 +17,7 @@ package k8s
 import ("strings")
 
 #Duchy: {
-	_duchy: {name: string, protocols_setup_config: string}
+	_duchy: {name: string, protocols_setup_config: string, tls_cert_file: string, tls_key_file: string, cert_collection_file: string}
 	_spanner_schema_push_flags: [...string]
 	_spanner_flags: [...string]
 	_blob_storage_flags: [...string]
@@ -25,6 +25,9 @@ import ("strings")
 
 	_name:                   _duchy.name
 	_protocols_setup_config: _duchy.protocols_setup_config
+	_tls_cert_file:          _duchy.tls_cert_file
+	_tls_key_file:           _duchy.tls_key_file
+	_cert_collection_file:   _duchy.cert_collection_file
 
 	_image_prefix:  "\(_name)_"
 	_object_prefix: "\(_name)-"
@@ -32,18 +35,21 @@ import ("strings")
 	_images: [Name=_]: string
 	_duchy_image_pull_policy: string
 
-	_async_computations_control_service_target_flag:      "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
-	_computations_service_target_flag:                    "--computations-service-target=" + (#Target & {name:              "\(_name)-spanner-computations-server"}).target
-	_duchy_name_flag:                                     "--duchy-name=duchy-\(_name)"
-	_duchy_info_config_flag:                              "--duchy-info-config=" + #DuchyInfoConfig
-	_public_api_protocol_configs:                         "--public-api-protocol-configs=" + #PublicApiProtocolConfigs
-	_duchy_protocols_setup_config_flag:                   "--protocols-setup-config=\(_protocols_setup_config)"
-	_system_computations_service_target_flag:             "--system-computations-service-target=" + (#Target & {name:             "system-api-server"}).target
-	_system_requisitions_service_target_flag:             "--system-requisitions-service-target=" + (#Target & {name:             "system-api-server"}).target
-	_system_computation_log_entries_service_target_flag:  "--system-computation-log-entries-service-target=" + (#Target & {name:  "system-api-server"}).target
-	_system_computation_participants_service_target_flag: "--system-computation-participants-service-target=" + (#Target & {name: "system-api-server"}).target
-	_debug_verbose_grpc_client_logging_flag:              "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
-	_debug_verbose_grpc_server_logging_flag:              "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
+	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
+	_async_computations_control_service_cert_host_flag: "--async-computation-control-service-cert-host=localhost"
+	_computations_service_target_flag:                  "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
+	_computations_service_cert_host_flag:               "--computations-service-cert-host=localhost"
+	_duchy_name_flag:                                   "--duchy-name=duchy-\(_name)"
+	_duchy_info_config_flag:                            "--duchy-info-config=" + #DuchyInfoConfig
+	_public_api_protocol_configs:                       "--public-api-protocol-configs=" + #PublicApiProtocolConfigs
+	_duchy_protocols_setup_config_flag:                 "--protocols-setup-config=\(_protocols_setup_config)"
+	_duchy_tls_cert_file_flag:                          "--tls-cert-file=\(_tls_cert_file)"
+	_duchy_tls_key_file_flag:                           "--tls-key-file=\(_tls_key_file)"
+	_duchy_cert_collection_file_flag:                   "--cert-collection-file=\(_cert_collection_file)"
+	_system_api_target_flag:                            "--system-api-target=" + (#Target & {name: "system-api-server"}).target
+	_system_api_cert_host_flag:                         "--system-api-cert-host=localhost"
+	_debug_verbose_grpc_client_logging_flag:            "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_server_logging_flag:            "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
 	duchy_service: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
@@ -68,10 +74,15 @@ import ("strings")
 		"herald-daemon-pod": #Pod & {
 			_args: [
 				_computations_service_target_flag,
+				_computations_service_cert_host_flag,
 				_duchy_name_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
 				_public_api_protocol_configs,
 				_duchy_protocols_setup_config_flag,
-				_system_computations_service_target_flag,
+				_system_api_target_flag,
+				_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--polling-interval=1m",
 			]
@@ -80,11 +91,14 @@ import ("strings")
 		"liquid-legions-v2-mill-daemon-pod": #Pod & {
 			_args: [
 				_computations_service_target_flag,
+				_computations_service_cert_host_flag,
 				_duchy_name_flag,
 				_duchy_info_config_flag,
-				_system_computations_service_target_flag,
-				_system_computation_log_entries_service_target_flag,
-				_system_computation_participants_service_target_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
+				_system_api_target_flag,
+				_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--mill-id=\(_name)-liquid-legions-v2-mill-1",
 				"--polling-interval=1s",
@@ -95,8 +109,12 @@ import ("strings")
 		"async-computation-control-server-pod": #ServerPod & {
 			_args: [
 				_computations_service_target_flag,
+				_computations_service_cert_host_flag,
 				_duchy_name_flag,
 				_duchy_info_config_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			]
@@ -105,8 +123,12 @@ import ("strings")
 		"computation-control-server-pod": #ServerPod & {
 			_args: [
 				_async_computations_control_service_target_flag,
+				_async_computations_control_service_cert_host_flag,
 				_duchy_name_flag,
 				_duchy_info_config_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _blob_storage_flags
@@ -117,7 +139,11 @@ import ("strings")
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
 				_duchy_info_config_flag,
-				_system_computation_log_entries_service_target_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
+				_system_api_target_flag,
+				_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--port=8080",
 				"--spanner-database=\(_name)_duchy_computations",
@@ -128,8 +154,13 @@ import ("strings")
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
 				_computations_service_target_flag,
-				_system_requisitions_service_target_flag,
+				_computations_service_cert_host_flag,
+				_system_api_target_flag,
+				_system_api_cert_host_flag,
 				"--port=8080",
 			] + _blob_storage_flags
 			_dependencies: ["system-api-server", "\(_name)-spanner-computations-server"]

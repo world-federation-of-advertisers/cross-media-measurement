@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
+import io.grpc.ManagedChannel
 import java.time.Duration
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
@@ -25,6 +28,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -54,8 +58,15 @@ abstract class ComputationsServer : Runnable {
     computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb
   ) {
-    val channel =
-      buildChannel(flags.computationLogEntriesServiceTarget, flags.channelShutdownTimeout)
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.server.tlsFlags.certFile,
+        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      )
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+        .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val computationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
@@ -109,12 +120,8 @@ abstract class ComputationsServer : Runnable {
     lateinit var channelShutdownTimeout: Duration
       private set
 
-    @CommandLine.Option(
-      names = ["--system-computation-log-entries-service-target"],
-      description = ["Address and port of the system ComputationLogEntriesService"],
-      required = true
-    )
-    lateinit var computationLogEntriesServiceTarget: String
+    @CommandLine.Mixin
+    lateinit var systemApiFlags: SystemApiFlags
       private set
   }
 
