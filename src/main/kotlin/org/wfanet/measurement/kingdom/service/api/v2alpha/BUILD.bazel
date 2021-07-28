@@ -12,12 +12,27 @@ kt_jvm_library(
     srcs = [
         "DateUtil.kt",
     ],
-    visibility = [
-        ":__pkg__",
-        test_target("__pkg__"),
-    ],
+    visibility = [test_target("__pkg__")],
     deps = [
         "@com_google_googleapis//google/type:type_java_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "builder",
+    srcs = ["Builder.kt"],
+    visibility = [test_target("__pkg__")],
+)
+
+kt_jvm_library(
+    name = "preferred_certificates",
+    srcs = ["PreferredCertificates.kt"],
+    visibility = [test_target("__pkg__")],
+    deps = [
+        ":builder",
+        "//src/main/proto/wfa/measurement/internal/kingdom:certificate_java_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
 
@@ -25,6 +40,8 @@ kt_jvm_library(
     name = "data_providers_service",
     srcs = ["DataProvidersService.kt"],
     deps = [
+        ":builder",
+        ":preferred_certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc",
@@ -100,6 +117,23 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_consumers_service",
+    srcs = ["MeasurementConsumersService.kt"],
+    deps = [
+        ":builder",
+        ":preferred_certificates",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumers_service_kt_jvm_grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
