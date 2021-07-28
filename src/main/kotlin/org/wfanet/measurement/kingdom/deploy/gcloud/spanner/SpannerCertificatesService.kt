@@ -14,7 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -22,20 +26,47 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
 
 class SpannerCertificatesService(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
-
   override suspend fun createCertificate(request: Certificate): Certificate {
-    TODO("not implemented yet")
+    grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
+      "Certificate is missing parent field"
+    }
+
+    try {
+      return CreateCertificate(request).execute(client, idGenerator, clock)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
+          failGrpc(Status.ALREADY_EXISTS) {
+            "Certificate with the same subject key identifier (SKID) already exists."
+          }
+      }
+    }
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    TODO("not implemented yet")
+    grpcRequire(request.parentCase != GetCertificateRequest.ParentCase.PARENT_NOT_SET) {
+      "GetCertificateRequest is missing parent field"
+    }
+
+    return CertificateReader(request)
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
+      ?.certificate
+      ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
   }
+
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
     TODO("not implemented yet")
   }
