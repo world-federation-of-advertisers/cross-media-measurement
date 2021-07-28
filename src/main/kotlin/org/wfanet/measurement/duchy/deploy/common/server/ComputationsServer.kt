@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
+import io.grpc.ManagedChannel
 import java.time.Duration
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
@@ -54,8 +57,15 @@ abstract class ComputationsServer : Runnable {
     computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb
   ) {
-    val channel =
-      buildChannel(flags.computationLogEntriesServiceTarget, flags.channelShutdownTimeout)
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.server.tlsFlags.certFile,
+        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      )
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(flags.systemApiTarget, clientCerts, flags.systemApiAuthority)
+        .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val computationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
@@ -110,11 +120,20 @@ abstract class ComputationsServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--system-computation-log-entries-service-target"],
-      description = ["Address and port of the system ComputationLogEntriesService"],
+      names = ["--system-api-target"],
+      description = ["Address and port of the Kingdom's system APIs"],
       required = true
     )
-    lateinit var computationLogEntriesServiceTarget: String
+    lateinit var systemApiTarget: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--system-api-authority"],
+      description =
+        ["The authority used with TLS and HTTP virtual hosting of the Kingdom's system APIs"],
+      required = true
+    )
+    lateinit var systemApiAuthority: String
       private set
   }
 

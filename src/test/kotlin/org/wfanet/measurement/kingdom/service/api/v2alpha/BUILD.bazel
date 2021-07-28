@@ -16,7 +16,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "DataProvidersServiceTest",
     srcs = ["DataProvidersServiceTest.kt"],
-    data = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing/testdata:certs"],
+    data = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing/testdata:static_certs"],
     friends = ["//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersServiceTest",
     deps = [

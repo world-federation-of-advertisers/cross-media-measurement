@@ -15,8 +15,9 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
@@ -38,7 +39,19 @@ abstract class ComputationControlServer : Runnable {
   protected fun run(storageClient: StorageClient) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
-    val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.server.tlsFlags.certFile,
+        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      )
+
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(
+        flags.asyncComputationControlServiceTarget,
+        clientCerts,
+        flags.asyncComputationControlServiceAuthority
+      )
 
     CommonServer.fromFlags(
         flags.server,
@@ -61,10 +74,21 @@ abstract class ComputationControlServer : Runnable {
 
     @CommandLine.Option(
       names = ["--async-computation-control-service-target"],
-      description = ["Address and port of the internal Aysnc Computation Control service"],
+      description = ["Address and port of the internal Async Computation Control service."],
       required = true
     )
     lateinit var asyncComputationControlServiceTarget: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--async-computation-control-service-authority"],
+      description =
+        [
+          "The authority used with TLS and HTTP virtual hosting of the internal Async Computation" +
+            " Control service."],
+      required = true
+    )
+    lateinit var asyncComputationControlServiceAuthority: String
       private set
   }
 

@@ -14,8 +14,9 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
@@ -31,10 +32,18 @@ abstract class RequisitionFulfillmentServer : Runnable {
     private set
 
   protected fun run(storageClient: StorageClient) {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.server.tlsFlags.certFile,
+        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      )
     val computationsClient =
-      ComputationsCoroutineStub(buildChannel(flags.computationsServiceTarget))
+      ComputationsCoroutineStub(buildMutualTlsChannel(flags.computationsServiceTarget, clientCerts))
     val systemRequisitionsClient =
-      SystemRequisitionsCoroutineStub(buildChannel(flags.systemRequisitionsServiceTarget))
+      SystemRequisitionsCoroutineStub(
+          buildMutualTlsChannel(flags.systemApiTarget, clientCerts, flags.systemApiAuthority)
+        )
         .withDuchyId(flags.duchy.duchyName)
 
     val service =
@@ -66,12 +75,20 @@ abstract class RequisitionFulfillmentServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--system-requisitions-service-target"],
-      description =
-        ["gRPC target (authority string or URI) for Requisitions service in the system API."],
+      names = ["--system-api-target"],
+      description = ["Address and port of the Kingdom's system APIs"],
       required = true
     )
-    lateinit var systemRequisitionsServiceTarget: String
+    lateinit var systemApiTarget: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--system-api-authority"],
+      description =
+        ["The authority used with TLS and HTTP virtual hosting of the Kingdom's system APIs"],
+      required = true
+    )
+    lateinit var systemApiAuthority: String
       private set
   }
 

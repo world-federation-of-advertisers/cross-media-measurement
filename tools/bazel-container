@@ -47,12 +47,13 @@ main() {
 
   mkdir -p "${host_output_user_root}"
 
+  workspaces="$(dirname ${PWD})"
+
   local -a docker_options=(
-    '-it'
     '--rm'
     '--network=host'
     '--entrypoint=/usr/bin/bazel'
-    "--volume=${PWD}:${PWD}"
+    "--volume=${workspaces}:${workspaces}"
     "--volume=${host_output_user_root}:${OUTPUT_USER_ROOT}"
     "--workdir=${PWD}"
   )

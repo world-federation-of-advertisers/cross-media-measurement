@@ -14,7 +14,7 @@
 
 """Container image specs."""
 
-load("@wfa_common_jvm//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 _PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
 
@@ -22,55 +22,15 @@ _PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
 # These are common to both local execution (e.g. in Kind) as well as on GKE.
 COMMON_IMAGES = [
     struct(
-        name = "duchy_async_computation_control_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:async_computation_control_server_image",
-        repository = _PREFIX + "/duchy/async-computation-control",
-    ),
-    struct(
-        name = "duchy_herald_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image",
-        repository = _PREFIX + "/duchy/herald",
-    ),
-    struct(
         name = "duchy_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/mill/liquidlegionsv2:gcs_liquid_legions_v2_mill_daemon_image",
         repository = _PREFIX + "/duchy/liquid-legions-v2-mill",
-    ),
-    struct(
-        name = "duchy_spanner_computations_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image",
-        repository = _PREFIX + "/duchy/spanner-computations",
-    ),
-    struct(
-        name = "kingdom_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_legacy_kingdom_data_server_image",
-        repository = _PREFIX + "/kingdom/data-server",
-    ),
-    struct(
-        name = "kingdom_system_api_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
-        repository = _PREFIX + "/kingdom/system-api",
-    ),
-    struct(
-        name = "setup_spanner_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
-        repository = _PREFIX + "/setup/push-spanner-schema",
     ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
 # These are only used on GKE.
 GKE_IMAGES = [
-    struct(
-        name = "duchy_computation_control_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
-        repository = _PREFIX + "/duchy/computation-control",
-    ),
-    struct(
-        name = "duchy_requisition_fulfillment_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_requisition_fulfillment_server_image",
-        repository = _PREFIX + "/duchy/requisition-fulfillment",
-    ),
 ]
 
 # List of image build rules that are only used locally (e.g. in Kind).

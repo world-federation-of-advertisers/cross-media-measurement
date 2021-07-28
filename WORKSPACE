@@ -86,9 +86,9 @@ wfa_repo_archive(
 
 wfa_repo_archive(
     name = "wfa_common_jvm",
-    commit = "a2b9bae790fc84205499bed09bd1ac22e9cf7328",
+    commit = "8e347732c024ed5cde5614b62e44db14535f3955",
     repo = "common-jvm",
-    sha256 = "b4f410343536bb11bb0a8a868e611be792e1cb0d493d329b9ad2fe4c4dbb7c35",
+    sha256 = "ec5eaa464db1b70d32f95c952ebd865cf90cde75eb57a75f68bd5e43fac0efe4",
 )
 
 # @com_google_truth_truth
