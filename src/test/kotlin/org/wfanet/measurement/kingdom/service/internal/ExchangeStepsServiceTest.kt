@@ -205,7 +205,8 @@ class ExchangeStepsServiceTest : KingdomDatabaseTestBase() {
 
       val service = ExchangeStepsService(databaseClient)
 
-      val exception = assertFailsWith<StatusRuntimeException> { service.claimReadyExchangeStep(request) }
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.claimReadyExchangeStep(request) }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
 }
