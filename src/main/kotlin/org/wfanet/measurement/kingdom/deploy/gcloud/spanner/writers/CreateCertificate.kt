@@ -35,6 +35,13 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * @throws KingdomInternalException if subjectKeyIdentifier of [certificate] collides with a
  *     certificate already in the database.
  */
+
+/**
+ * Creates a certificate in the database.
+ *
+ * Throw KingdomInternalException with code CERT_SUBJECT_KEY_ID_ALREADY_EXISTS when executed if
+ * subjectKeyIdentifier of [certificate] collides with a certificate already in the database.
+ */
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
 
