@@ -138,13 +138,13 @@ object GetExchangeStepFilterSqlConverter : SqlConverter<GetExchangeStepClause> {
         SqlData(
           "ModelProviders.ExternalModelProviderId",
           "external_model_provider_id",
-          Value.int64(v.value.value)
+          externalIdValueArray(v.values)
         )
       is GetExchangeStepClause.ExternalDataProviderId ->
         SqlData(
           "DataProviders.ExternalDataProviderId",
           "external_data_provider_id",
-          Value.int64(v.value.value)
+          externalIdValueArray(v.values)
         )
       is GetExchangeStepClause.RecurringExchangeId ->
         SqlData("ExchangeSteps.RecurringExchangeId", "recurring_exchange_id", Value.int64(v.value))

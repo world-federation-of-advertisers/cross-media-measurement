@@ -142,3 +142,10 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateExchangeStepStateTest",
     deps = _TEST_DEPS,
 )
+
+spanner_emulator_test(
+    name = "UpdateRecurringExchangeTest",
+    srcs = ["UpdateRecurringExchangeTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateRecurringExchangeTest",
+    deps = _TEST_DEPS,
+)

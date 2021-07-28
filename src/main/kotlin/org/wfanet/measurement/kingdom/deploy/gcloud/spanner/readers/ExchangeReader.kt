@@ -15,26 +15,21 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import com.google.type.Date
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Exchange
-import org.wfanet.measurement.internal.kingdom.ExchangeDetails
-import org.wfanet.measurement.internal.kingdom.RecurringExchange.State
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 
 /** Reads [Exchange] protos from Spanner. */
 class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
   SpannerReader<ExchangeReader.Result>() {
   data class Result(
-    val exchange: Exchange,
+    val recurringExchange: RecurringExchange,
     val recurringExchangeId: Long,
     val modelProviderId: Long,
-    val dataProviderId: Long,
-    val state: State,
-    val nextExchangeDate: Date,
-    val recurringExchangeDetails: RecurringExchangeDetails
+    val dataProviderId: Long
   )
 
   enum class Index(internal val sql: String) {
@@ -49,33 +44,31 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
     """
     SELECT $SELECT_COLUMNS_SQL
     FROM RecurringExchanges${recurringExchangesIndex.sql}
-    JOIN Exchanges USING (RecurringExchangeId)
-    JOIN DataProviders USING (DataProviderId)
     JOIN ModelProviders USING (ModelProviderId)
+    JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
   override val externalIdColumn: String = "RecurringExchanges.ExternalRecurringExchangeId"
 
   override suspend fun translate(struct: Struct): Result {
     return Result(
-      exchange = buildExchange(struct),
+      recurringExchange = buildRecurringExchange(struct),
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
       modelProviderId = struct.getLong("ModelProviderId"),
-      dataProviderId = struct.getLong("DataProviderId"),
-      state = struct.getProtoEnum("State", State::forNumber),
-      nextExchangeDate = struct.getDate("NextExchangeDate").toProtoDate(),
-      recurringExchangeDetails =
-        struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+      dataProviderId = struct.getLong("DataProviderId")
     )
   }
 
-  private fun buildExchange(struct: Struct): Exchange {
-    return Exchange.newBuilder()
+  private fun buildRecurringExchange(struct: Struct): RecurringExchange {
+    return RecurringExchange.newBuilder()
       .apply {
-        date = struct.getDate("Date").toProtoDate()
         externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
-        details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.parser())
-        state = struct.getProtoEnum("ExchangeState", Exchange.State::forNumber)
+        externalModelProviderId = struct.getLong("ExternalModelProviderId")
+        externalDataProviderId = struct.getLong("ExternalDataProviderId")
+        state = struct.getProtoEnum("State", RecurringExchange.State::forNumber)
+        nextExchangeDate = struct.getDate("NextExchangeDate").toProtoDate()
+        details =
+          struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
       }
       .build()
   }
@@ -92,11 +85,7 @@ class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
         "RecurringExchanges.RecurringExchangeDetails",
         "RecurringExchanges.RecurringExchangeDetailsJson",
         "DataProviders.ExternalDataProviderId",
-        "ModelProviders.ExternalModelProviderId",
-        "Exchanges.State AS ExchangeState",
-        "Exchanges.Date",
-        "Exchanges.ExchangeDetails",
-        "Exchanges.ExchangeDetailsJson"
+        "ModelProviders.ExternalModelProviderId"
       )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")

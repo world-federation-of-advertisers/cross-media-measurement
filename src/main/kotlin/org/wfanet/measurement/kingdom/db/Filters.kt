@@ -160,8 +160,8 @@ fun streamExchangesFilter(
  * @param states list of [ExchangeStep.State]s
  */
 fun getExchangeStepFilter(
-  externalModelProviderId: ExternalId? = null,
-  externalDataProviderId: ExternalId? = null,
+  externalModelProviderIds: List<ExternalId>? = null,
+  externalDataProviderIds: List<ExternalId>? = null,
   recurringExchangeId: Long? = null,
   date: Date? = null,
   stepIndex: Long? = null,
@@ -169,8 +169,8 @@ fun getExchangeStepFilter(
 ): GetExchangeStepFilter =
   allOf(
     listOfNotNull(
-      externalModelProviderId.ifNotNull(GetExchangeStepClause::ExternalModelProviderId),
-      externalDataProviderId.ifNotNull(GetExchangeStepClause::ExternalDataProviderId),
+      externalModelProviderIds.ifNotNullOrEmpty(GetExchangeStepClause::ExternalModelProviderId),
+      externalDataProviderIds.ifNotNullOrEmpty(GetExchangeStepClause::ExternalDataProviderId),
       recurringExchangeId.ifNotNull(GetExchangeStepClause::RecurringExchangeId),
       date.ifNotNull(GetExchangeStepClause::Date),
       stepIndex.ifNotNull(GetExchangeStepClause::StepIndex),
@@ -270,13 +270,13 @@ interface EqualClause : TerminalClause
 
 /** Base class for filtering to get an Exchange Step. Never directly instantiated. */
 sealed class GetExchangeStepClause : TerminalClause {
-  /** Matching ExchangeStep must belong to a ModelProvider with an external id of [value]. */
-  data class ExternalModelProviderId internal constructor(val value: ExternalId) :
-    GetExchangeStepClause(), EqualClause
+  /** Matching ExchangeStep must belong to a ModelProvider with an external id of [values]. */
+  data class ExternalModelProviderId internal constructor(val values: List<ExternalId>) :
+    GetExchangeStepClause(), AnyOfClause
 
-  /** Matching ExchangeStep must belong to a DataProvider with an external id of [value]. */
-  data class ExternalDataProviderId internal constructor(val value: ExternalId) :
-    GetExchangeStepClause(), EqualClause
+  /** Matching ExchangeStep must belong to a DataProvider with an external id of [values]. */
+  data class ExternalDataProviderId internal constructor(val values: List<ExternalId>) :
+    GetExchangeStepClause(), AnyOfClause
 
   /** Matching ExchangeStep must belong to a RecurringExchange with an external id of [value]. */
   data class RecurringExchangeId internal constructor(val value: Long) :
