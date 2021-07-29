@@ -87,8 +87,8 @@ wfa_repo_archive(
 wfa_repo_archive(
     name = "wfa_common_jvm",
     repo = "common-jvm",
-    sha256 = "6778aa7cfb009cd94af138fa051c17d9cc5e986c96f83bb378d14f96a31fa873",
-    version = "0.1.0",
+    sha256 = "e65b6e93473da198494777446d2d4f889d2c6753c77f26949e51e39e67a47aee",
+    version = "0.2.0"
 )
 
 # @com_google_truth_truth

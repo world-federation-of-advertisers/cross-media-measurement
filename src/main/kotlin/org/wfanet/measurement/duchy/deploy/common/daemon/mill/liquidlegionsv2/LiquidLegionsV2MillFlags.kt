@@ -16,13 +16,20 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import java.time.Duration
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
+import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
+import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import picocli.CommandLine
 
 class LiquidLegionsV2MillFlags {
   @CommandLine.Mixin
   lateinit var duchy: CommonDuchyFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
     private set
 
   @CommandLine.Mixin
@@ -45,36 +52,12 @@ class LiquidLegionsV2MillFlags {
   lateinit var pollingInterval: Duration
     private set
 
-  @CommandLine.Option(
-    names = ["--computations-service-target"],
-    description = ["Address and port of the internal Computations service"],
-    required = true
-  )
-  lateinit var computationsServiceTarget: String
+  @CommandLine.Mixin
+  lateinit var systemApiFlags: SystemApiFlags
     private set
 
-  @CommandLine.Option(
-    names = ["--system-computations-service-target"],
-    description = ["Address and port of the Kingdom's System ComputationsService"],
-    required = true
-  )
-  lateinit var systemComputationsServiceTarget: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--system-computation-log-entries-service-target"],
-    description = ["Address and port of the Kingdom's System ComputationLogEntriesService"],
-    required = true
-  )
-  lateinit var systemComputationLogEntriesServiceTarget: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--system-computation-participants-service-target"],
-    description = ["Address and port of the Kingdom's System ComputationParticipantsService"],
-    required = true
-  )
-  lateinit var systemComputationParticipantsServiceTarget: String
+  @CommandLine.Mixin
+  lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 
   @CommandLine.Option(
