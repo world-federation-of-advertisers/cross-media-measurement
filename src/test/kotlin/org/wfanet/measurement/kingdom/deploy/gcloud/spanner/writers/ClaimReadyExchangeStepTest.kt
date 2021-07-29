@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.internal
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -26,12 +28,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.Exchange
+import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val DATA_PROVIDER_ID = 1L
@@ -92,6 +96,19 @@ private val EXCHANGE_STEP =
       date = DATE1
       stepIndex = 1
       state = ExchangeStep.State.IN_PROGRESS
+      updateTime = Value.COMMIT_TIMESTAMP.toProto()
+    }
+    .build()
+
+private val EXCHANGE_STEP_ATTEMPT =
+  ExchangeStepAttempt.newBuilder()
+    .apply {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+      date = DATE1
+      stepIndex = 1
+      state = ExchangeStepAttempt.State.ACTIVE
+      attemptNumber = 1
+      details = ExchangeStepAttemptDetails.getDefaultInstance()
     }
     .build()
 
@@ -99,15 +116,28 @@ private val EXCHANGE_STEP2 =
   ExchangeStep.newBuilder()
     .apply {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
       date = DATE2
       stepIndex = 1
       state = ExchangeStep.State.IN_PROGRESS
+      updateTime = Value.COMMIT_TIMESTAMP.toProto()
+    }
+    .build()
+
+private val EXCHANGE_STEP_ATTEMPT2 =
+  ExchangeStepAttempt.newBuilder()
+    .apply {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
+      date = DATE2
+      stepIndex = 1
+      state = ExchangeStepAttempt.State.ACTIVE
+      attemptNumber = 1
+      details = ExchangeStepAttemptDetails.getDefaultInstance()
     }
     .build()
 
 @RunWith(JUnit4::class)
-class ExchangeStepsServiceTest : KingdomDatabaseTestBase() {
+class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
@@ -136,27 +166,21 @@ class ExchangeStepsServiceTest : KingdomDatabaseTestBase() {
   @Test
   fun claimReadyExchangeStepWithModelProvider() =
     runBlocking<Unit> {
-      val request =
-        ClaimReadyExchangeStepRequest.newBuilder()
-          .setExternalModelProviderId(EXTERNAL_MODEL_PROVIDER_ID)
-          .build()
+      val expected: ClaimReadyExchangeStep.Result =
+        ClaimReadyExchangeStep.Result(step = EXCHANGE_STEP, attempt = EXCHANGE_STEP_ATTEMPT)
 
-      val response: ClaimReadyExchangeStepResponse =
-        ClaimReadyExchangeStepResponse.newBuilder()
-          .apply {
-            exchangeStep = EXCHANGE_STEP
-            attemptNumber = 1
-          }
-          .build()
+      val actual =
+        ClaimReadyExchangeStep(
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
+            externalDataProviderId = null
+          )
+          .execute(databaseClient)
 
-      val service = ExchangeStepsService(databaseClient)
-      assertThat(service.claimReadyExchangeStep(request))
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(response)
+      assertThat(actual).isEqualTo(expected)
 
       // Assert that RecurringExchange.nextExchangeDate updated.
       assertThat(
-          ExchangeReader()
+          RecurringExchangeReader()
             .readExternalId(databaseClient.singleUse(), ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID1))
             .recurringExchange
             .nextExchangeDate
@@ -167,27 +191,21 @@ class ExchangeStepsServiceTest : KingdomDatabaseTestBase() {
   @Test
   fun claimReadyExchangeStepWithDataProvider() =
     runBlocking<Unit> {
-      val request =
-        ClaimReadyExchangeStepRequest.newBuilder()
-          .setExternalDataProviderId(EXTERNAL_DATA_PROVIDER_ID2)
-          .build()
+      val expected: ClaimReadyExchangeStep.Result =
+        ClaimReadyExchangeStep.Result(step = EXCHANGE_STEP2, attempt = EXCHANGE_STEP_ATTEMPT2)
 
-      val response: ClaimReadyExchangeStepResponse =
-        ClaimReadyExchangeStepResponse.newBuilder()
-          .apply {
-            exchangeStep = EXCHANGE_STEP2
-            attemptNumber = 1
-          }
-          .build()
+      val actual =
+        ClaimReadyExchangeStep(
+            externalModelProviderId = null,
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
+          )
+          .execute(databaseClient)
 
-      val service = ExchangeStepsService(databaseClient)
-      assertThat(service.claimReadyExchangeStep(request))
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(response)
+      assertThat(actual).isEqualTo(expected)
 
       // Assert that RecurringExchange.nextExchangeDate updated.
       assertThat(
-          ExchangeReader()
+          RecurringExchangeReader()
             .readExternalId(databaseClient.singleUse(), ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID2))
             .recurringExchange
             .nextExchangeDate
@@ -198,15 +216,57 @@ class ExchangeStepsServiceTest : KingdomDatabaseTestBase() {
   @Test
   fun claimReadyExchangeStepWithWrongProviderId() =
     runBlocking<Unit> {
-      val request =
-        ClaimReadyExchangeStepRequest.newBuilder()
-          .setExternalDataProviderId(EXTERNAL_MODEL_PROVIDER_ID2)
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          ClaimReadyExchangeStep(
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
+              externalDataProviderId = null
+            )
+            .execute(databaseClient)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+  @Test
+  fun claimReadyExchangeStepWithExistingStep() =
+    runBlocking<Unit> {
+      insertExchange(
+        recurringExchangeId = RECURRING_EXCHANGE_ID1,
+        date = DATE1,
+        state = Exchange.State.ACTIVE,
+        exchangeDetails = ExchangeDetails.getDefaultInstance()
+      )
+      insertExchangeStep(
+        recurringExchangeId = RECURRING_EXCHANGE_ID1,
+        date = DATE1,
+        stepIndex = 1L,
+        state = ExchangeStep.State.READY,
+        updateTime = Instant.now().minusSeconds(1000),
+        modelProviderId = MODEL_PROVIDER_ID,
+        dataProviderId = null
+      )
+      val expected =
+        ExchangeStep.newBuilder()
+          .apply {
+            this.externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            this.externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            this.date = DATE1
+            this.state = ExchangeStep.State.IN_PROGRESS
+            this.stepIndex = 1
+            this.updateTime = Value.COMMIT_TIMESTAMP.toProto()
+          }
           .build()
 
-      val service = ExchangeStepsService(databaseClient)
+      val actual =
+        ClaimReadyExchangeStep(
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
+            externalDataProviderId = null
+          )
+          .execute(databaseClient)
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.claimReadyExchangeStep(request) }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(actual.step).isEqualTo(expected)
+      // Assert that ExchangeStep.Status updated to IN_PROGRESS.
+      assertThat(readAllExchangeStepsInSpanner().first().state)
+        .isEqualTo(ExchangeStep.State.IN_PROGRESS)
     }
 }

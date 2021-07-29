@@ -23,8 +23,8 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 
 /** Reads [Exchange] protos from Spanner. */
-class ExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
-  SpannerReader<ExchangeReader.Result>() {
+class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
+  SpannerReader<RecurringExchangeReader.Result>() {
   data class Result(
     val recurringExchange: RecurringExchange,
     val recurringExchangeId: Long,

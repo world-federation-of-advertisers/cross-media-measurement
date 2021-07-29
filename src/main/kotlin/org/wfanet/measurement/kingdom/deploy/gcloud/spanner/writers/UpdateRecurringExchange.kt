@@ -33,37 +33,33 @@ class UpdateRecurringExchange(
     ) {
       return recurringExchange
     }
-    return updateRecurringExchange(recurringExchange, recurringExchangeId, nextExchangeDate, state)
-  }
-}
 
-internal fun SpannerWriter.TransactionScope.updateRecurringExchange(
-  recurringExchange: RecurringExchange,
-  recurringExchangeId: Long,
-  nextExchangeDate: Date,
-  state: RecurringExchange.State
-): RecurringExchange {
-  require(!recurringExchange.state.isTerminal) {
-    "RecurringExchange: $recurringExchange is in a terminal state."
-  }
-  updateMutation("RecurringExchanges") {
-      set("RecurringExchangeId" to recurringExchangeId)
-      set("ExternalRecurringExchangeId" to recurringExchange.externalRecurringExchangeId)
-      set("State" to state)
-      set("NextExchangeDate" to nextExchangeDate.toCloudDate())
-      set("RecurringExchangeDetails" to recurringExchange.details)
-      setJson("RecurringExchangeDetailsJson" to recurringExchange.details)
+    require(!recurringExchange.state.isTerminal) {
+      "RecurringExchange: $recurringExchange is in a terminal state."
     }
-    .bufferTo(transactionContext)
+    updateMutation("RecurringExchanges") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("ExternalRecurringExchangeId" to recurringExchange.externalRecurringExchangeId)
+        set("State" to state)
+        set("NextExchangeDate" to nextExchangeDate.toCloudDate())
+        set("RecurringExchangeDetails" to recurringExchange.details)
+        setJson("RecurringExchangeDetailsJson" to recurringExchange.details)
+      }
+      .bufferTo(transactionContext)
 
-  return recurringExchange.toBuilder().setNextExchangeDate(nextExchangeDate).setState(state).build()
+    return recurringExchange
+      .toBuilder()
+      .setNextExchangeDate(nextExchangeDate)
+      .setState(state)
+      .build()
+  }
+
+  private val RecurringExchange.State.isTerminal: Boolean
+    get() =
+      when (this) {
+        RecurringExchange.State.ACTIVE -> false
+        RecurringExchange.State.STATE_UNSPECIFIED,
+        RecurringExchange.State.UNRECOGNIZED,
+        RecurringExchange.State.RETIRED -> true
+      }
 }
-
-private val RecurringExchange.State.isTerminal: Boolean
-  get() =
-    when (this) {
-      RecurringExchange.State.ACTIVE -> false
-      RecurringExchange.State.STATE_UNSPECIFIED,
-      RecurringExchange.State.UNRECOGNIZED,
-      RecurringExchange.State.RETIRED -> true
-    }

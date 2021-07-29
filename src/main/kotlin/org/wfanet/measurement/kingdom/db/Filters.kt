@@ -112,7 +112,7 @@ fun streamReportsFilter(
  *
  * For example,
  *
- * streamExchangesFilter(externalModelProviderIds = listOf(ID1, ID2), nextExchangeDate = SOME_DATE)
+ * streamExchangesFilter(externalModelProviderIds = listOf(ID1, ID2), nextExchangeDateBefore = SOME_DATE)
  *
  * would match each Exchange that matches both these criteria:
  * - it is associated with a ModelProvider with external id either ID1 or ID2, and
@@ -121,20 +121,20 @@ fun streamReportsFilter(
  * @param externalModelProviderIds a list of Model Providers
  * @param externalDataProviderIds a list of Data Providers
  * @param states a list of [RecurringExchange.State]s
- * @param nextExchangeDate a time before next exchange date scheduled
+ * @param nextExchangeDateBefore a time before next exchange date scheduled
  */
 fun streamExchangesFilter(
   externalModelProviderIds: List<ExternalId>? = null,
   externalDataProviderIds: List<ExternalId>? = null,
   states: List<RecurringExchange.State>? = null,
-  nextExchangeDate: Date? = null
+  nextExchangeDateBefore: Date? = null
 ): StreamExchangesFilter =
   allOf(
     listOfNotNull(
       externalModelProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalModelProviderId),
       externalDataProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalDataProviderId),
       states.ifNotNullOrEmpty(StreamExchangesClause::State),
-      nextExchangeDate.ifNotNull(StreamExchangesClause::NextExchangeDate)
+      nextExchangeDateBefore.ifNotNull(StreamExchangesClause::NextExchangeDateBefore)
     )
   )
 
@@ -244,8 +244,8 @@ sealed class StreamExchangesClause : TerminalClause {
   data class State internal constructor(val values: List<RecurringExchange.State>) :
     StreamExchangesClause(), AnyOfClause
 
-  /** Matching RecurringExchanges must have [NextExchangeDate] before [value]. */
-  data class NextExchangeDate internal constructor(val value: Date) :
+  /** Matching RecurringExchanges must have [NextExchangeDateBefore] before [value]. */
+  data class NextExchangeDateBefore internal constructor(val value: Date) :
     StreamExchangesClause(), LessThanClause
 }
 

@@ -8,21 +8,6 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "util",
-    srcs = [
-        "DateUtil.kt",
-    ],
-    visibility = [
-        ":__pkg__",
-        test_target("__pkg__"),
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:__subpackages__",
-    ],
-    deps = [
-        "@com_google_googleapis//google/type:type_java_proto",
-    ],
-)
-
-kt_jvm_library(
     name = "builder",
     srcs = ["Builder.kt"],
     visibility = [test_target("__pkg__")],
