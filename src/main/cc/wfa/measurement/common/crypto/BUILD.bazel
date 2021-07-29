@@ -61,7 +61,6 @@ cc_library(
     deps = [
         ":constants",
         ":ec_point_util",
-        "//src/main/cc/wfa/measurement/common:macros",
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/container:flat_hash_map",
