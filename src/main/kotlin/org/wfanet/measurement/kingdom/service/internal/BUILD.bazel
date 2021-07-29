@@ -7,12 +7,7 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "legacy",
-    srcs = [
-        "LegacyDataServices.kt",
-        "ReportLogEntriesService.kt",
-        "ReportsService.kt",
-        "RequisitionsService.kt",
-    ],
+    srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",

@@ -112,7 +112,8 @@ fun streamReportsFilter(
  *
  * For example,
  *
- * streamExchangesFilter(externalModelProviderIds = listOf(ID1, ID2), nextExchangeDateBefore = SOME_DATE)
+ * streamExchangesFilter(externalModelProviderIds = listOf(ID1, ID2), nextExchangeDateBefore =
+ * SOME_DATE)
  *
  * would match each Exchange that matches both these criteria:
  * - it is associated with a ModelProvider with external id either ID1 or ID2, and
