@@ -31,6 +31,6 @@ message DuchyIdConfig {
     // Not known by external entities - only Kingdom is aware of this ID.
     fixed64 internal_duchy_id = 2;
   }
-   // The list of all the Duchy information in this config message
+  // The list of all the Duchy information in this config message
   repeated Duchy duchies = 1;
 }
