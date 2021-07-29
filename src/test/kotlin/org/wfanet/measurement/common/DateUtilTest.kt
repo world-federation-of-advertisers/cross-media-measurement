@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha
+package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -21,6 +21,8 @@ import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toLocalDate
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toProtoDate
 
 @RunWith(JUnit4::class)
 class DateUtilTest {
