@@ -126,7 +126,7 @@ object StreamExchangesFilterSqlConverter : SqlConverter<StreamExchangesClause> {
         )
       is StreamExchangesClause.State ->
         SqlData("RecurringExchanges.State", "state", enumValueArray(v.values))
-      is StreamExchangesClause.NextExchangeDate ->
+      is StreamExchangesClause.NextExchangeDateBefore ->
         SqlData("RecurringExchanges.NextExchangeDate", "next_exchange_date", dateValue(v.value))
     }
 }

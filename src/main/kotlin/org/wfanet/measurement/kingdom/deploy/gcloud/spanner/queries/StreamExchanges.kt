@@ -23,7 +23,7 @@ import org.wfanet.measurement.kingdom.db.hasModelProviderFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.StreamExchangesFilterSqlConverter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.toSql
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 /**
  * Streams [Exchange]s matching [filter] from Spanner ordered by ascending updateTime.
@@ -31,10 +31,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeRead
  * @param filter a filter to control which [Exchange]s to return
  * @param limit how many [Exchange]s to return -- if zero, there is no limit
  */
-class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
-  SpannerQuery<ExchangeReader.Result, ExchangeReader.Result>() {
-  override val reader: BaseSpannerReader<ExchangeReader.Result> by lazy {
-    ExchangeReader(forcedIndex).withBuilder {
+class StreamExchanges(filter: StreamExchangesFilter, limit: Long = 0) :
+  SpannerQuery<RecurringExchangeReader.Result, RecurringExchangeReader.Result>() {
+  override val reader: BaseSpannerReader<RecurringExchangeReader.Result> by lazy {
+    RecurringExchangeReader(forcedIndex).withBuilder {
       if (!filter.empty) {
         appendClause("WHERE ")
         filter.toSql(this, StreamExchangesFilterSqlConverter)
@@ -49,15 +49,16 @@ class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
     }
   }
 
-  private val forcedIndex: ExchangeReader.Index by lazy {
+  private val forcedIndex: RecurringExchangeReader.Index by lazy {
     if (filter.hasDataProviderFilter()) {
-      ExchangeReader.Index.DATA_PROVIDER_ID
+      RecurringExchangeReader.Index.DATA_PROVIDER_ID
     } else if (filter.hasModelProviderFilter()) {
-      ExchangeReader.Index.MODEL_PROVIDER_ID
+      RecurringExchangeReader.Index.MODEL_PROVIDER_ID
     } else {
-      ExchangeReader.Index.NONE
+      RecurringExchangeReader.Index.NONE
     }
   }
 
-  override fun Flow<ExchangeReader.Result>.transform(): Flow<ExchangeReader.Result> = this
+  override fun Flow<RecurringExchangeReader.Result>.transform():
+    Flow<RecurringExchangeReader.Result> = this
 }

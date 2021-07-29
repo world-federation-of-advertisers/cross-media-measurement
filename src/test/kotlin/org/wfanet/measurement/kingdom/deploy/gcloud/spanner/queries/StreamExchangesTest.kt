@@ -132,7 +132,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
 
   @Test
   fun `database sanity check`() {
-    assertThat(readAllExchangesInSpanner())
+    assertThat(readAllRecurringExchangesInSpanner())
       .comparingExpectedFieldsOnly()
       .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
   }
@@ -140,7 +140,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
   @Test
   fun `next exchange date filter`() =
     runBlocking<Unit> {
-      fun filter(date: Date) = streamExchangesFilter(nextExchangeDate = date)
+      fun filter(date: Date) = streamExchangesFilter(nextExchangeDateBefore = date)
 
       assertThat(executeToList(filter(DATE1), 10)).comparingExpectedFieldsOnly().containsExactly()
 
@@ -193,7 +193,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
         externalModelProviderIds = listOf(ExternalId(EXTERNAL_MODEL_PROVIDER_ID)),
         externalDataProviderIds = listOf(ExternalId(EXTERNAL_DATA_PROVIDER_ID)),
         states = listOf(RecurringExchange.State.ACTIVE),
-        nextExchangeDate = date,
+        nextExchangeDateBefore = date,
       )
     assertThat(executeToList(filter, 10))
       .comparingExpectedFieldsOnly()

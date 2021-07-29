@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
@@ -50,7 +49,15 @@ class CreateExchangeStepAttempt(
         }
         .build()
 
-    exchangeStepAttempt.toInsertMutation().bufferTo(transactionContext)
+    insertMutation("ExchangeStepAttempts") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("StepIndex" to stepIndex)
+        set("AttemptIndex" to exchangeStepAttempt.attemptNumber.toLong())
+        set("ExchangeStepAttemptDetails" to details)
+        setJson("ExchangeStepAttemptDetailsJson" to details)
+      }
+      .bufferTo(transactionContext)
 
     return exchangeStepAttempt
   }
@@ -77,16 +84,5 @@ class CreateExchangeStepAttempt(
     val row: Struct = transactionContext.executeQuery(statement).single()
 
     return row.getLong("MaxAttemptIndex") + 1L
-  }
-
-  private fun ExchangeStepAttempt.toInsertMutation(): Mutation {
-    return insertMutation("ExchangeStepAttempts") {
-      set("RecurringExchangeId" to recurringExchangeId)
-      set("Date" to date.toCloudDate())
-      set("StepIndex" to stepIndex.toLong())
-      set("AttemptIndex" to attemptNumber.toLong())
-      set("ExchangeStepAttemptDetails" to details)
-      setJson("ExchangeStepAttemptDetailsJson" to details)
-    }
   }
 }
