@@ -35,14 +35,23 @@ objectSets: [
 	{
 		name:                   "aggregator"
 		protocols_setup_config: #AggregatorProtocolsSetupConfig
+		tls_cert_file:          "/var/run/secrets/files/aggregator.pem"
+		tls_key_file:           "/var/run/secrets/files/aggregator.key"
+		cert_collection_file:   "/var/run/secrets/files/all_root_certs.pem"
 	},
 	{
 		name:                   "worker-1"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		tls_cert_file:          "/var/run/secrets/files/worker_1.pem"
+		tls_key_file:           "/var/run/secrets/files/worker_1.key"
+		cert_collection_file:   "/var/run/secrets/files/all_root_certs.pem"
 	},
 	{
 		name:                   "worker-2"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		tls_cert_file:          "/var/run/secrets/files/worker_2.pem"
+		tls_key_file:           "/var/run/secrets/files/worker_2.key"
+		cert_collection_file:   "/var/run/secrets/files/all_root_certs.pem"
 	},
 ]
 

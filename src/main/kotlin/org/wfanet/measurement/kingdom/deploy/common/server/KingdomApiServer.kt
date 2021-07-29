@@ -17,8 +17,9 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import io.grpc.BindableService
 import io.grpc.Channel
 import kotlin.properties.Delegates
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
@@ -32,6 +33,14 @@ class KingdomApiServerFlags {
     required = true
   )
   lateinit var internalApiTarget: String
+
+  @CommandLine.Option(
+    names = ["--internal-api-cert-host"],
+    description = ["The expected hostname in the KingdomDataServer's TLS certificate"],
+    required = true
+  )
+  lateinit var internalApiCertHost: String
+    private set
 
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
@@ -51,8 +60,18 @@ fun runKingdomApiServer(
 ) {
   DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = commonServerFlags.tlsFlags.certFile,
+      privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+    )
   val channel: Channel =
-    buildChannel(kingdomApiServerFlags.internalApiTarget)
+    buildMutualTlsChannel(
+        kingdomApiServerFlags.internalApiTarget,
+        clientCerts,
+        kingdomApiServerFlags.internalApiCertHost
+      )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
   val service = serviceFactory(channel).map { it.withDuchyIdentities() }
 

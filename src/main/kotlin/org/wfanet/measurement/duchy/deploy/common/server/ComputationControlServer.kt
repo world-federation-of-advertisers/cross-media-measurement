@@ -15,11 +15,13 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.common.identity.withDuchyIdentities
+import org.wfanet.measurement.duchy.deploy.common.AsyncComputationControlServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
@@ -38,7 +40,19 @@ abstract class ComputationControlServer : Runnable {
   protected fun run(storageClient: StorageClient) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
-    val channel: ManagedChannel = buildChannel(flags.asyncComputationControlServiceTarget)
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.server.tlsFlags.certFile,
+        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
+      )
+
+    val channel: ManagedChannel =
+      buildMutualTlsChannel(
+        flags.asyncComputationControlServiceFlags.target,
+        clientCerts,
+        flags.asyncComputationControlServiceFlags.certHost
+      )
 
     CommonServer.fromFlags(
         flags.server,
@@ -59,12 +73,8 @@ abstract class ComputationControlServer : Runnable {
     lateinit var duchy: CommonDuchyFlags
       private set
 
-    @CommandLine.Option(
-      names = ["--async-computation-control-service-target"],
-      description = ["Address and port of the internal Aysnc Computation Control service"],
-      required = true
-    )
-    lateinit var asyncComputationControlServiceTarget: String
+    @CommandLine.Mixin
+    lateinit var asyncComputationControlServiceFlags: AsyncComputationControlServiceFlags
       private set
   }
 

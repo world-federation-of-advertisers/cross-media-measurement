@@ -289,7 +289,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
       assertFailsWith(RuntimeException::class) {
         LiquidLegionsV2EncryptionUtility.completeSetupPhase("something not a proto".toByteArray())
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   @Test
@@ -300,7 +300,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           "something not a proto".toByteArray()
         )
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   @Test
@@ -311,7 +311,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           "something not a proto".toByteArray()
         )
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   @Test
@@ -322,7 +322,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           "something not a proto".toByteArray()
         )
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   @Test
@@ -333,7 +333,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           "something not a proto".toByteArray()
         )
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   @Test
@@ -344,7 +344,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           "something not a proto".toByteArray()
         )
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   @Test
@@ -355,7 +355,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
           "something not a proto".toByteArray()
         )
       }
-    assertThat(exception).hasMessageThat().contains("failed to parse")
+    assertThat(exception).hasMessageThat().contains("Failed to parse")
   }
 
   companion object {
