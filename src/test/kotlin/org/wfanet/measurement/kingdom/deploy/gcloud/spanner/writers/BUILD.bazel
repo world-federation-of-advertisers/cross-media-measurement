@@ -123,41 +123,6 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "CreateExchangeTest",
-    srcs = ["CreateExchangeTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangeTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateExchangeStepTest",
-    srcs = ["CreateExchangeStepTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangeStepTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateExchangeStepAttemptTest",
-    srcs = ["CreateExchangeStepAttemptTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangeStepAttemptTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "UpdateExchangeStepStateTest",
-    srcs = ["UpdateExchangeStepStateTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateExchangeStepStateTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "UpdateRecurringExchangeTest",
-    srcs = ["UpdateRecurringExchangeTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateRecurringExchangeTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
     name = "ClaimReadyExchangeStepTest",
     srcs = ["ClaimReadyExchangeStepTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStepTest",
