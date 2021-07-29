@@ -26,6 +26,7 @@ import ("strings")
 	_kingdom_image_pull_policy: string
 
 	_duchy_info_config_flag:                 "--duchy-info-config=" + #DuchyInfoConfig
+	_duchy_id_config_flag:                   "--duchy-id-config=" + #DuchyIdConfig
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -77,6 +78,7 @@ import ("strings")
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
 				_duchy_info_config_flag,
+				_duchy_id_config_flag,
 				_kingdom_tls_cert_file_flag,
 				_kingdom_tls_key_file_flag,
 				_kingdom_cert_collection_file_flag,

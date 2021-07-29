@@ -1,0 +1,14 @@
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/duchy_id_config_proto
+# proto-message: DuchyIdConfig
+duchies {
+  external_duchy_id: "aggregator"
+  internal_duchy_id: 1234L
+}
+duchies {
+  duchy_id: "worker-1"
+  internal_duchy_id: 2345L
+}
+duchies {
+  duchy_id: "worker-2"
+  internal_duchy_id: 3456L
+}
