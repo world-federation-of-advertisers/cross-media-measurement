@@ -21,7 +21,7 @@ class KingdomInternalException(val code: Code) : Exception() {
 
     /** DataProvider resource queried could not be found. */
     DATA_PROVIDER_NOT_FOUND,
-    
+
     /** DUCHY resource queried could not be found. */
     DUCHY_NOT_FOUND,
 

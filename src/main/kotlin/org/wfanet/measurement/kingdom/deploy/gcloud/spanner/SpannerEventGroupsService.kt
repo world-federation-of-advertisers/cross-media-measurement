@@ -43,6 +43,7 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+        KingdomInternalException.Code.DUCHY_NOT_FOUND -> throw e
       }
     }
   }

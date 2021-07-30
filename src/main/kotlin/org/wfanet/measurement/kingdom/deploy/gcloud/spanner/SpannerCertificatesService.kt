@@ -52,6 +52,8 @@ class SpannerCertificatesService(
           failGrpc(Status.ALREADY_EXISTS) {
             "Certificate with the same subject key identifier (SKID) already exists."
           }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
       }
     }
   }

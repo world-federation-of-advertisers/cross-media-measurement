@@ -20,6 +20,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class CertificateReader(val request: GetCertificateRequest) :
   SpannerReader<CertificateReader.Result>() {
@@ -36,23 +37,7 @@ class CertificateReader(val request: GetCertificateRequest) :
       }
   }
 
-  override val baseSql: String =
-    """
-    SELECT
-      ${tableName}Certificates.CertificateId,
-      Certificates.SubjectKeyIdentifier,
-      Certificates.NotValidBefore,
-      Certificates.NotValidAfter,
-      Certificates.RevocationState,
-      Certificates.CertificateDetails,
-      ${tableName}Certificates.External${tableName}CertificateId,
-      ${tableName}Certificates.${tableName}Id,
-      ${tableName}s.External${tableName}Id
-    FROM ${tableName}Certificates
-    JOIN ${tableName}s USING (${tableName}Id)
-    JOIN Certificates USING (CertificateId)
-    """.trimIndent()
-
+  override val baseSql: String = constructBaseSql()
   override val externalIdColumn: String =
     "${tableName}Certificates.External${tableName}CertificateId"
 
@@ -60,33 +45,33 @@ class CertificateReader(val request: GetCertificateRequest) :
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
 
   private fun constructBaseSql(): String {
-    return when (owner) {
-      OwnerType.DUCHY ->
+    return when (request.parentCase) {
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
         """SELECT
-            ${owner.tableName}Certificates.CertificateId,
+            ${tableName}Certificates.CertificateId,
             Certificates.SubjectKeyIdentifier,
             Certificates.NotValidBefore,
             Certificates.NotValidAfter,
             Certificates.RevocationState,
             Certificates.CertificateDetails,
-            ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
-            ${owner.tableName}Certificates.${owner.tableName}Id,
-          FROM ${owner.tableName}Certificates
+            ${tableName}Certificates.External${tableName}CertificateId,
+            ${tableName}Certificates.${tableName}Id,
+          FROM ${tableName}Certificates
           JOIN Certificates USING (CertificateId)
           """.trimIndent()
       else ->
         """SELECT
-            ${owner.tableName}Certificates.CertificateId,
+            ${tableName}Certificates.CertificateId,
             Certificates.SubjectKeyIdentifier,
             Certificates.NotValidBefore,
             Certificates.NotValidAfter,
             Certificates.RevocationState,
             Certificates.CertificateDetails,
-            ${owner.tableName}Certificates.External${owner.tableName}CertificateId,
-            ${owner.tableName}Certificates.${owner.tableName}Id,
-            ${owner.tableName}s.External${owner.tableName}Id
-          FROM ${owner.tableName}Certificates
-          JOIN ${owner.tableName}s USING (${owner.tableName}Id)
+            ${tableName}Certificates.External${tableName}CertificateId,
+            ${tableName}Certificates.${tableName}Id,
+            ${tableName}s.External${tableName}Id
+          FROM ${tableName}Certificates
+          JOIN ${tableName}s USING (${tableName}Id)
           JOIN Certificates USING (CertificateId)
           """.trimIndent()
     }
