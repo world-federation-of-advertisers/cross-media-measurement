@@ -37,30 +37,14 @@ class CertificateReader(val request: GetCertificateRequest) :
       }
   }
 
-  override val baseSql: String = constructBaseSql()
   override val externalIdColumn: String =
     "${tableName}Certificates.External${tableName}CertificateId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
 
-  private fun constructBaseSql(): String {
-    return when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
-        """SELECT
-            ${tableName}Certificates.CertificateId,
-            Certificates.SubjectKeyIdentifier,
-            Certificates.NotValidBefore,
-            Certificates.NotValidAfter,
-            Certificates.RevocationState,
-            Certificates.CertificateDetails,
-            ${tableName}Certificates.External${tableName}CertificateId,
-            ${tableName}Certificates.${tableName}Id,
-          FROM ${tableName}Certificates
-          JOIN Certificates USING (CertificateId)
-          """.trimIndent()
-      else ->
-        """SELECT
+  private val tabledResourceBaseSql: String =
+    """SELECT
             ${tableName}Certificates.CertificateId,
             Certificates.SubjectKeyIdentifier,
             Certificates.NotValidBefore,
@@ -74,6 +58,30 @@ class CertificateReader(val request: GetCertificateRequest) :
           JOIN ${tableName}s USING (${tableName}Id)
           JOIN Certificates USING (CertificateId)
           """.trimIndent()
+
+  private val configResourceBaseSql: String =
+    """SELECT
+            ${tableName}Certificates.CertificateId,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ${tableName}Certificates.External${tableName}CertificateId,
+            ${tableName}Certificates.${tableName}Id,
+          FROM ${tableName}Certificates
+          JOIN Certificates USING (CertificateId)
+          """.trimIndent()
+
+  override val baseSql: String = constructBaseSql()
+
+  private fun constructBaseSql(): String {
+    return when (request.parentCase) {
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> configResourceBaseSql
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> tabledResourceBaseSql
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> tabledResourceBaseSql
+      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
     }
   }
   private fun populateExternalId(
