@@ -44,10 +44,14 @@ class SpannerExchangeStepsService(
         )
         .execute(client)
 
+    if (result.step == null || result.attempt == null) {
+      return ClaimReadyExchangeStepResponse.getDefaultInstance()
+    }
+
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
         exchangeStep = result.step
-        attemptNumber = result.attempt!!.attemptNumber
+        attemptNumber = result.attempt.attemptNumber
       }
       .build()
   }
