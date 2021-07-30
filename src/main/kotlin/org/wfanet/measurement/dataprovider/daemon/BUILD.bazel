@@ -11,12 +11,12 @@ kt_jvm_library(
     name = "daemon",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/protobuf",
-        "//imports/kotlin/kotlinx/coroutines:core",
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "//src/main/kotlin/org/wfanet/measurement/dataprovider/common",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
