@@ -16,14 +16,32 @@
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-_URL_TEMPLATE = "https://github.com/world-federation-of-advertisers/{repo}/archive/{commit}.tar.gz"
-_PREFIX_TEMPLATE = "{repo}-{commit}"
+_RELEASE_URL_TEMPLATE = "https://github.com/world-federation-of-advertisers/{repo}/archive/refs/tags/v{version}.tar.gz"
+_COMMIT_URL_TEMPLATE = "https://github.com/world-federation-of-advertisers/{repo}/archive/{commit}.tar.gz"
+_PREFIX_TEMPLATE = "{repo}-{suffix}"
 
-def wfa_repo_archive(name, repo, commit, sha256 = None):
-    """Adds a WFA repository archive target."""
+def wfa_repo_archive(name, repo, sha256, version = None, commit = None):
+    """Adds a WFA repository archive target.
+
+    Args:
+      name: target name
+      repo: name of repository in world-federation-of-advertisers organization
+      sha256: SHA256 hash of archive
+      version: release version number. Either this or commit must be specified.
+      commit: commit hash. Either this or version must be specified.
+    """
+    if version:
+        suffix = version
+        url = _RELEASE_URL_TEMPLATE.format(repo = repo, version = version)
+    elif commit:
+        suffix = commit
+        url = _COMMIT_URL_TEMPLATE.format(repo = repo, commit = commit)
+    else:
+        fail("version or commit must be specified")
+
     http_archive(
         name = name,
-        urls = [_URL_TEMPLATE.format(repo = repo, commit = commit)],
-        strip_prefix = _PREFIX_TEMPLATE.format(repo = repo, commit = commit),
+        urls = [url],
+        strip_prefix = _PREFIX_TEMPLATE.format(repo = repo, suffix = suffix),
         sha256 = sha256,
     )

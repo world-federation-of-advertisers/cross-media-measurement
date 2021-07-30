@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -27,7 +28,6 @@ import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader.OwnerType
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
 
 class SpannerCertificatesService(
@@ -35,32 +35,15 @@ class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : CertificatesCoroutineImplBase() {
-
-  private fun getInternalOwnerType(request: GetCertificateRequest): OwnerType {
-    return when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> OwnerType.DATA_PROVIDER
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-        OwnerType.MEASUREMENT_CONSUMER
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> OwnerType.DUCHY
-      else -> failGrpc(Status.INVALID_ARGUMENT) { "GetCertificateRequest is missing parent field" }
-    }
-  }
-
-  private fun getInternalOwnerType(request: Certificate): OwnerType {
-    return when (request.parentCase) {
-      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> OwnerType.DATA_PROVIDER
-      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> OwnerType.MEASUREMENT_CONSUMER
-      Certificate.ParentCase.EXTERNAL_DUCHY_ID -> OwnerType.DUCHY
-      else -> failGrpc(Status.INVALID_ARGUMENT) { "Certificate is missing parent field" }
-    }
-  }
-
   override suspend fun createCertificate(request: Certificate): Certificate {
+    grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
+      "Certificate is missing parent field"
+    }
+
     try {
-      return CreateCertificate(request, getInternalOwnerType(request))
-        .execute(client, idGenerator, clock)
+      return CreateCertificate(request).execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
-      return when (e.code) {
+      when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
@@ -69,15 +52,16 @@ class SpannerCertificatesService(
           failGrpc(Status.ALREADY_EXISTS) {
             "Certificate with the same subject key identifier (SKID) already exists."
           }
-        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
-        else -> failGrpc(Status.UNKNOWN) { "" }
       }
     }
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    return CertificateReader(getInternalOwnerType(request))
+    grpcRequire(request.parentCase != GetCertificateRequest.ParentCase.PARENT_NOT_SET) {
+      "GetCertificateRequest is missing parent field"
+    }
+
+    return CertificateReader(request)
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
       ?.certificate
       ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }

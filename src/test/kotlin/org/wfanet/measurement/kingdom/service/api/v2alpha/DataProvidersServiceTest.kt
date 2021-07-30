@@ -50,6 +50,11 @@ import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvi
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
 
+/**
+ * Path to `testdata` directory containing certs and keys.
+ *
+ * TODO(@SanjayVas): Reference these files from the properties defined in common-jvm v0.2.0+.
+ */
 private val TESTDATA_DIR =
   Paths.get(
     "wfa_common_jvm",

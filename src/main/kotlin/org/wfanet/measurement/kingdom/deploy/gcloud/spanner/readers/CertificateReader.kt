@@ -18,22 +18,43 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 
-class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.Result>() {
+class CertificateReader(val request: GetCertificateRequest) :
+  SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
-
-  enum class OwnerType(val tableName: String) {
-    DATA_PROVIDER("DataProvider"),
-    MEASUREMENT_CONSUMER("MeasurementConsumer"),
-    DUCHY("Duchy"),
+  private val tableName: String
+  init {
+    tableName =
+      when (request.parentCase) {
+        GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+        GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+        GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+        GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+          throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+      }
   }
 
-  override val baseSql: String = constructBaseSql()
+  override val baseSql: String =
+    """
+    SELECT
+      ${tableName}Certificates.CertificateId,
+      Certificates.SubjectKeyIdentifier,
+      Certificates.NotValidBefore,
+      Certificates.NotValidAfter,
+      Certificates.RevocationState,
+      Certificates.CertificateDetails,
+      ${tableName}Certificates.External${tableName}CertificateId,
+      ${tableName}Certificates.${tableName}Id,
+      ${tableName}s.External${tableName}Id
+    FROM ${tableName}Certificates
+    JOIN ${tableName}s USING (${tableName}Id)
+    JOIN Certificates USING (CertificateId)
+    """.trimIndent()
 
   override val externalIdColumn: String =
-    "${owner.tableName}Certificates.External${owner.tableName}CertificateId"
+    "${tableName}Certificates.External${tableName}CertificateId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
@@ -74,17 +95,18 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
     certificateBuilder: Certificate.Builder,
     struct: Struct
   ): Certificate {
-    val externalResourceIdColumn = "External${owner.tableName}Id"
-
+    val externalResourceIdColumn = "External${tableName}Id"
     return certificateBuilder
       .apply {
-        when (owner) {
-          OwnerType.MEASUREMENT_CONSUMER ->
-            externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
-          OwnerType.DATA_PROVIDER ->
+        when (request.parentCase) {
+          GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
             externalDataProviderId = struct.getLong(externalResourceIdColumn)
-          OwnerType.DUCHY ->
+          GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+            externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
+          GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
             externalDuchyId = DuchyIds.getExternalId(struct.getLong("DuchyId"))
+          GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+            throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
         }
       }
       .build()
@@ -93,7 +115,7 @@ class CertificateReader(val owner: OwnerType) : SpannerReader<CertificateReader.
   private fun buildCertificate(struct: Struct): Certificate {
     val certificateBuilder =
       Certificate.newBuilder().apply {
-        externalCertificateId = struct.getLong("External${owner.tableName}CertificateId")
+        externalCertificateId = struct.getLong("External${tableName}CertificateId")
         subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
         notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
         notValidAfter = struct.getTimestamp("NotValidAfter").toProto()

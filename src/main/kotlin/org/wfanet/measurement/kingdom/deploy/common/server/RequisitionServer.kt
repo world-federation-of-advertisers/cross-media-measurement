@@ -21,6 +21,8 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.kingdom.service.api.v1alpha.RequisitionService
 import picocli.CommandLine
 
+private const val SERVER_NAME = "RequisitionServer"
+
 @CommandLine.Command(
   name = "requisition_server",
   description = ["Server daemon for Requisitions service."],
@@ -32,9 +34,9 @@ private fun run(
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags
 ) {
-  runKingdomApiServer(kingdomApiServerFlags, duchyInfoFlags, commonServerFlags) { channel ->
-    val requisitionServiceStub = RequisitionsCoroutineStub(channel)
-    RequisitionService(requisitionServiceStub)
+  runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
+    channel ->
+    listOf(RequisitionService(RequisitionsCoroutineStub(channel)))
   }
 }
 

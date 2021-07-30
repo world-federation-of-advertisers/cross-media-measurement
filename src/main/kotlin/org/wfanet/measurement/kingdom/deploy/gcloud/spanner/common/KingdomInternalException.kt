@@ -16,19 +16,16 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
 class KingdomInternalException(val code: Code) : Exception() {
   enum class Code {
-    /** Unknown, used to report exceptions that are not specifically programmed to be caught. */
-    UNKNOWN,
-
     /** MeasurementConsumer resource queried could not be found. */
     MEASUREMENT_CONSUMER_NOT_FOUND,
 
     /** DataProvider resource queried could not be found. */
     DATA_PROVIDER_NOT_FOUND,
+    
+    /** DUCHY resource queried could not be found. */
+    DUCHY_NOT_FOUND,
 
     /** Certificate with the same subject key identifier (SKID) already exists. */
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-
-     /** DUCHY resource queried could not be found. */
-    DUCHY_NOT_FOUND,
   }
 }
