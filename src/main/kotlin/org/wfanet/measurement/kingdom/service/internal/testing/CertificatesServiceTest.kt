@@ -27,17 +27,18 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.junit.Rule
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
@@ -60,6 +61,7 @@ private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in D
 
 @RunWith(JUnit4::class)
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val certificatesService: T,
@@ -83,43 +85,43 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
+      MeasurementConsumer.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
+              }
+          detailsBuilder.apply {
+                apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
+        .build()
+    )
       .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
     return dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
+      DataProvider.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
+              }
+          detailsBuilder.apply {
+                apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
+        .build()
+    )
       .externalDataProviderId
   }
 
@@ -169,7 +171,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate fails for missing DuchyCertificate`() = runBlocking {
-    DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
@@ -186,7 +188,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate fails due to Duchy owner not_found `() = runBlocking {
-    DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -206,7 +208,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate suceeds for DuchyCertificate`() = runBlocking {
-    DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -230,7 +232,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate succeeds for DuchyCertificate`() = runBlocking {
-    DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
 
     val request =
       Certificate.newBuilder()
