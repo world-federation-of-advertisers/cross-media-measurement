@@ -5,6 +5,22 @@ load("@rules_cc//cc:defs.bzl", "cc_proto_library")
 package(default_visibility = ["//src:__subpackages__"])
 
 proto_library(
+    name = "database_proto",
+    srcs = ["database.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "database_cc_proto",
+    deps = [":database_proto"],
+)
+
+java_proto_library(
+    name = "database_java_proto",
+    deps = [":database_proto"],
+)
+
+proto_library(
     name = "oblivious_query_proto",
     srcs = ["oblivious_query.proto"],
     strip_import_prefix = "/src/main/proto",

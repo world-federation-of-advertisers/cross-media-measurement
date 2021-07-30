@@ -1,0 +1,30 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "BucketingTest",
+    srcs = ["BucketingTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.batchlookup.BucketingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "BatchLookupWorkflowTest",
+    srcs = ["BatchLookupWorkflowTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.batchlookup.BatchLookupWorkflowTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

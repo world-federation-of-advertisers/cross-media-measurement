@@ -19,6 +19,7 @@ import org.apache.beam.sdk.transforms.Combine
 import org.apache.beam.sdk.transforms.Count
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.Flatten
+import org.apache.beam.sdk.transforms.GroupByKey
 import org.apache.beam.sdk.transforms.Keys
 import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.transforms.Partition
@@ -181,6 +182,13 @@ inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.combinePerKey(
   crossinline combiner: (Iterable<ValueT>) -> ValueT
 ): PCollection<KV<KeyT, ValueT>> {
   return apply(name, Combine.perKey<KeyT, ValueT>(SerializableFunction { combiner(it) }))
+}
+
+/** Kotlin convenience helper for applying GroupByKey. */
+inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
+  name: String = "GroupByKey"
+): PCollection<KV<KeyT, Iterable<ValueT>>> {
+  return apply(name, GroupByKey.create())
 }
 
 /** Convenient way to get a [TypeDescriptor] for the receiver. */

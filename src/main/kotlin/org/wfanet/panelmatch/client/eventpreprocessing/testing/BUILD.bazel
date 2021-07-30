@@ -1,10 +1,14 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
-package(default_visibility = ["//src/test/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:__subpackages__"])
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:__subpackages__",
+    ],
+)
 
 kt_jvm_library(
     name = "testing",
-    testonly = True,
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",

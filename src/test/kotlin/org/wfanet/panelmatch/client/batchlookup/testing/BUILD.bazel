@@ -1,0 +1,33 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PlaintextBatchLookupWorkflowEndToEndTest",
+    srcs = ["PlaintextBatchLookupWorkflowEndToEndTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.batchlookup.testing.PlaintextBatchLookupWorkflowEndToEndTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextQueryEvaluatorTest",
+    srcs = ["PlaintextQueryEvaluatorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.batchlookup.testing.PlaintextQueryEvaluatorTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

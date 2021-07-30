@@ -156,6 +156,15 @@ class BeamTest : BeamTestBase() {
   }
 
   @Test
+  fun groupByKey() {
+    assertThat(anotherCollection.groupByKey()).satisfies { elements ->
+      assertThat(elements.map { kvOf(it.key, it.value.toList().sorted()) })
+        .containsExactly(kvOf(1, listOf('a', 'b')), kvOf(4, listOf('c')))
+      null
+    }
+  }
+
+  @Test
   fun parDoWithSideInput() {
     val sideInput = collection.count()
     val result: PCollection<KV<Int, Long>> =
