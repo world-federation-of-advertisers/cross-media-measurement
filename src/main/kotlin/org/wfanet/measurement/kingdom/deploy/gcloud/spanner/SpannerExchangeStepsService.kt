@@ -47,7 +47,7 @@ class SpannerExchangeStepsService(
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
         exchangeStep = result.step
-        attemptNumber = result.attempt.attemptNumber
+        attemptNumber = result.attempt!!.attemptNumber
       }
       .build()
   }
