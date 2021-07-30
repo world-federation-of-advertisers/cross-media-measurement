@@ -27,8 +27,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
-import org.wfanet.measurement.kingdom.db.StreamExchangesFilter
-import org.wfanet.measurement.kingdom.db.streamExchangesFilter
+import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesFilter
+import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val DATA_PROVIDER_ID = 1L
@@ -96,14 +96,15 @@ private val RECURRING_EXCHANGE2 =
     .build()
 
 @RunWith(JUnit4::class)
-class StreamExchangesTest : KingdomDatabaseTestBase() {
+class StreamRecurringExchangesTest : KingdomDatabaseTestBase() {
   private suspend fun executeToList(
-    filter: StreamExchangesFilter,
+    filter: StreamRecurringExchangesFilter,
     limit: Long
   ): List<RecurringExchange> {
-    return StreamExchanges(filter, limit).execute(databaseClient.singleUse()).toList().map {
-      it.recurringExchange
-    }
+    return StreamRecurringExchanges(filter, limit)
+      .execute(databaseClient.singleUse())
+      .toList()
+      .map { it.recurringExchange }
   }
 
   @Before
@@ -140,7 +141,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
   @Test
   fun `next exchange date filter`() =
     runBlocking<Unit> {
-      fun filter(date: Date) = streamExchangesFilter(nextExchangeDateBefore = date)
+      fun filter(date: Date) = streamRecurringExchangesFilter(nextExchangeDateBefore = date)
 
       assertThat(executeToList(filter(DATE1), 10)).comparingExpectedFieldsOnly().containsExactly()
 
@@ -165,15 +166,15 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
   @Test
   fun `limit filter`() =
     runBlocking<Unit> {
-      assertThat(executeToList(streamExchangesFilter(), 10))
+      assertThat(executeToList(streamRecurringExchangesFilter(), 10))
         .comparingExpectedFieldsOnly()
         .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
 
-      assertThat(executeToList(streamExchangesFilter(), 2))
+      assertThat(executeToList(streamRecurringExchangesFilter(), 2))
         .comparingExpectedFieldsOnly()
         .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
 
-      assertThat(executeToList(streamExchangesFilter(), 1))
+      assertThat(executeToList(streamRecurringExchangesFilter(), 1))
         .comparingExpectedFieldsOnly()
         .containsExactly(RECURRING_EXCHANGE1)
     }
@@ -189,7 +190,7 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
         }
         .build()
     val filter =
-      streamExchangesFilter(
+      streamRecurringExchangesFilter(
         externalModelProviderIds = listOf(ExternalId(EXTERNAL_MODEL_PROVIDER_ID)),
         externalDataProviderIds = listOf(ExternalId(EXTERNAL_DATA_PROVIDER_ID)),
         states = listOf(RecurringExchange.State.ACTIVE),

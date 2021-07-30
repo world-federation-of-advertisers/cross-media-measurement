@@ -6,10 +6,8 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "util",
-    srcs = [
-        "DateUtil.kt",
-    ],
+    name = "common",
+    srcs = glob(["*.kt"]),
     deps = [
         "@com_google_googleapis//google/type:type_java_proto",
     ],

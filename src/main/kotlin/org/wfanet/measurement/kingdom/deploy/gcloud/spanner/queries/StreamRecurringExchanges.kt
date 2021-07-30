@@ -16,28 +16,28 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.internal.kingdom.Exchange
-import org.wfanet.measurement.kingdom.db.StreamExchangesFilter
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.db.hasDataProviderFilter
 import org.wfanet.measurement.kingdom.db.hasModelProviderFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.StreamExchangesFilterSqlConverter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.StreamRecurringExchangesFilterSqlConverter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.toSql
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 /**
- * Streams [Exchange]s matching [filter] from Spanner ordered by ascending updateTime.
+ * Streams [RecurringExchange]s matching [filter] from Spanner ordered by ascending updateTime.
  *
- * @param filter a filter to control which [Exchange]s to return
- * @param limit how many [Exchange]s to return -- if zero, there is no limit
+ * @param filter a filter to control which [RecurringExchange]s to return
+ * @param limit how many [RecurringExchange]s to return -- if zero, there is no limit
  */
-class StreamExchanges(filter: StreamExchangesFilter, limit: Long = 0) :
+class StreamRecurringExchanges(filter: StreamRecurringExchangesFilter, limit: Long = 0) :
   SpannerQuery<RecurringExchangeReader.Result, RecurringExchangeReader.Result>() {
   override val reader: BaseSpannerReader<RecurringExchangeReader.Result> by lazy {
     RecurringExchangeReader(forcedIndex).withBuilder {
       if (!filter.empty) {
         appendClause("WHERE ")
-        filter.toSql(this, StreamExchangesFilterSqlConverter)
+        filter.toSql(this, StreamRecurringExchangesFilterSqlConverter)
       }
 
       appendClause("ORDER BY NextExchangeDate ASC")

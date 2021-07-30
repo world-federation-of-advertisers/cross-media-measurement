@@ -55,9 +55,9 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "StreamExchangesTest",
-    srcs = ["StreamExchangesTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangesTest",
+    name = "StreamRecurringExchangesTest",
+    srcs = ["StreamRecurringExchangesTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchangesTest",
     deps = _TEST_DEPS,
 )
 
