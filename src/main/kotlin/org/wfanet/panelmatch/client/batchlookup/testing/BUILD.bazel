@@ -11,17 +11,17 @@ package(
 kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
-    runtime_deps = [
-        "//imports/java/org/apache/beam:direct_runner",
-        "//imports/java/org/hamcrest:core",
-        "//imports/java/org/hamcrest:library",
-        "//imports/java/org/slf4j:simple",
-    ],
     deps = [
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
