@@ -84,7 +84,7 @@ abstract class SpannerWriter<T, R> {
    *
    * @return the output of [buildResult]
    */
-  open suspend fun execute(
+  suspend fun execute(
     databaseClient: AsyncDatabaseClient,
     idGenerator: IdGenerator = RandomIdGenerator(),
     clock: Clock = Clock.systemUTC()
@@ -109,7 +109,7 @@ abstract class SpannerWriter<T, R> {
 
 /** A [SpannerWriter] whose result is the non-null transaction result. */
 abstract class SimpleSpannerWriter<T : Any> : SpannerWriter<T, T>() {
-   override fun ResultScope<T>.buildResult(): T {
+  final override fun ResultScope<T>.buildResult(): T {
     return checkNotNull(transactionResult)
   }
 }

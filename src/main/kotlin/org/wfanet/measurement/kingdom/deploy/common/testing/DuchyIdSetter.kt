@@ -21,8 +21,6 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 /** JUnit rule that sets the global list of all valid Duchy ids to [duchyIds]. */
 class DuchyIdSetter(val duchyIds: List<String>) : TestRule {
-  // constructor(duchyIds: Iterable<String>) : this(duchyIds.toSet())
-  // constructor(vararg duchyIds: String) : this(duchyIds.toSet())
 
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {

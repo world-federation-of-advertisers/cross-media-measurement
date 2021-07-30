@@ -171,7 +171,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate fails for missing DuchyCertificate`() = runBlocking {
-    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
@@ -188,7 +187,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate fails due to Duchy owner not_found `() = runBlocking {
-    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -208,7 +206,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate suceeds for DuchyCertificate`() = runBlocking {
-    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -232,8 +229,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate succeeds for DuchyCertificate`() = runBlocking {
-    // DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
-
     val request =
       Certificate.newBuilder()
         .also {
