@@ -21,8 +21,6 @@ import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.kingdom.service.api.v2alpha.toLocalDate
-import org.wfanet.measurement.kingdom.service.api.v2alpha.toProtoDate
 
 @RunWith(JUnit4::class)
 class DateUtilTest {

@@ -18,10 +18,9 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Date
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.time.LocalDate
 import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
@@ -38,74 +37,72 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
-import org.wfanet.measurement.kingdom.db.streamExchangesFilter
+import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchanges
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchanges
 
 class ClaimReadyExchangeStep(
   private val externalModelProviderId: Long?,
   private val externalDataProviderId: Long?
 ) : SpannerWriter<ClaimReadyExchangeStep.Result, ClaimReadyExchangeStep.Result>() {
+
+  private val externalModelProviderIds =
+    if (externalModelProviderId == null) emptyList()
+    else listOf(ExternalId(externalModelProviderId))
+  private val externalDataProviderIds =
+    if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
+
   private data class FirstReadyStep(
     val exchangeStep: ExchangeStep?,
     val recurringExchangeId: Long?
   )
-  data class Result(val step: ExchangeStep, val attempt: ExchangeStepAttempt)
+  data class Result(val step: ExchangeStep?, val attempt: ExchangeStepAttempt?)
 
   override fun ResultScope<Result>.buildResult(): Result {
-    return checkNotNull(transactionResult)
+    val result = checkNotNull(transactionResult)
+    return Result(checkNotNull(result.step), checkNotNull(result.attempt))
   }
 
   override suspend fun TransactionScope.runTransaction(): Result {
-    try {
-      // Check if any READY | READY_TO_RETRY Exchange Step exists.
-      return findReadyExchangeStep()
-    } catch (e: StatusRuntimeException) {
-      // If not, create Exchanges and ExchangeSteps from the request.
-      // And return the first step with status READY | READY_TO_RETRY.
-      val firstReadyStep = createExchangesAndSteps()
-      if (firstReadyStep.exchangeStep == null || firstReadyStep.recurringExchangeId == null) {
-        throw Status.NOT_FOUND.withDescription("No Exchange Steps were found.").asRuntimeException()
-      }
-
-      val exchangeStep = firstReadyStep.exchangeStep
-      val recurringExchangeId = firstReadyStep.recurringExchangeId
-
-      // Create an Exchange Step Attempt for this Step.
-      val attempt =
-        createExchangeStepAttempt(
-          recurringExchangeId = recurringExchangeId,
-          externalRecurringExchangeId = ExternalId(exchangeStep.externalRecurringExchangeId),
-          date = exchangeStep.date,
-          stepIndex = exchangeStep.stepIndex.toLong()
-        )
-
-      // Return Result with Exchange Step and Attempt.
-      return Result(exchangeStep, attempt)
+    // Check if any READY | READY_TO_RETRY Exchange Step exists.
+    val firstReadyStep = findReadyExchangeStep()
+    if (firstReadyStep != null) {
+      return firstReadyStep
     }
+
+    // If not, create Exchanges and ExchangeSteps from the request.
+    // And return the first step with status READY | READY_TO_RETRY.
+    val readyStep = createExchangesAndSteps() ?: return Result(null, null)
+    val exchangeStep = readyStep.exchangeStep
+    val recurringExchangeId = readyStep.recurringExchangeId
+    if (exchangeStep == null || recurringExchangeId == null) {
+      return Result(null, null)
+    }
+
+    // Create an Exchange Step Attempt for this Step.
+    val attempt =
+      createExchangeStepAttempt(
+        recurringExchangeId = recurringExchangeId,
+        externalRecurringExchangeId = ExternalId(exchangeStep.externalRecurringExchangeId),
+        date = exchangeStep.date,
+        stepIndex = exchangeStep.stepIndex.toLong()
+      )
+
+    // Return Result with Exchange Step and Attempt.
+    return Result(exchangeStep, attempt)
   }
 
-  private suspend fun TransactionScope.findReadyExchangeStep(): Result {
+  private suspend fun TransactionScope.findReadyExchangeStep(): Result? {
     // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
     val stepFilter =
       getExchangeStepFilter(
-        externalModelProviderIds =
-          if (externalModelProviderId == null) emptyList()
-          else listOf(ExternalId(externalModelProviderId)),
-        externalDataProviderIds =
-          if (externalDataProviderId == null) emptyList()
-          else listOf(ExternalId(externalDataProviderId)),
+        externalModelProviderIds = externalModelProviderIds,
+        externalDataProviderIds = externalDataProviderIds,
         states = listOf(ExchangeStep.State.READY_FOR_RETRY, ExchangeStep.State.READY)
       )
     val exchangeStepResult =
-      try {
-        GetExchangeStep(stepFilter).executeSingle(transactionContext)
-      } catch (e: NoSuchElementException) {
-        throw Status.NOT_FOUND
-          .withCause(e)
-          .withDescription("No Exchange Step was found.")
-          .asRuntimeException()
-      }
+      GetExchangeStep(stepFilter).execute(transactionContext).singleOrNull() ?: return null
+
     val exchangeStep = exchangeStepResult.exchangeStep
     val recurringExchangeId = exchangeStepResult.recurringExchangeId
 
@@ -129,28 +126,19 @@ class ClaimReadyExchangeStep(
     return Result(updatedStep, attempt)
   }
 
-  private suspend fun TransactionScope.createExchangesAndSteps(): FirstReadyStep {
+  private suspend fun TransactionScope.createExchangesAndSteps(): FirstReadyStep? {
     // First, retrieve single Recurring Exchange based on the filter below.
     val streamFilter =
-      streamExchangesFilter(
-        externalModelProviderIds =
-          if (externalModelProviderId == null) emptyList()
-          else listOf(ExternalId(externalModelProviderId)),
-        externalDataProviderIds =
-          if (externalDataProviderId == null) emptyList()
-          else listOf(ExternalId(externalDataProviderId)),
+      streamRecurringExchangesFilter(
+        externalModelProviderIds = externalModelProviderIds,
+        externalDataProviderIds = externalDataProviderIds,
         states = listOf(RecurringExchange.State.ACTIVE),
-        nextExchangeDateBefore = LocalDate.now().toProtoDate() // NOW
+        nextExchangeDateBefore = LocalDate.now().plusDays(1).toProtoDate() // TOMORROW
       )
     val streamResult =
-      try {
-        StreamExchanges(streamFilter, limit = 1).executeSingle(transactionContext)
-      } catch (e: NoSuchElementException) {
-        throw Status.NOT_FOUND
-          .withCause(e)
-          .withDescription("No Recurring Exchange was found.")
-          .asRuntimeException()
-      }
+      StreamRecurringExchanges(streamFilter, limit = 1).execute(transactionContext).singleOrNull()
+        ?: return null
+
     val recurringExchange = streamResult.recurringExchange
     val recurringExchangeId = streamResult.recurringExchangeId
     val modelProviderId = streamResult.modelProviderId
@@ -182,22 +170,18 @@ class ClaimReadyExchangeStep(
         recurringExchangeId = recurringExchangeId,
         externalRecurringExchangeId = recurringExchange.externalRecurringExchangeId,
         modelProviderId = modelProviderId,
-        externalModelProviderId = externalModelProviderId,
         dataProviderId = dataProviderId,
-        externalDataProviderId = externalDataProviderId,
         date = nextExchangeDate
       )
 
     return FirstReadyStep(readyStep, recurringExchangeId)
   }
 
-  private suspend fun TransactionScope.createExchangeSteps(
+  private fun TransactionScope.createExchangeSteps(
     recurringExchangeId: Long,
     externalRecurringExchangeId: Long,
     modelProviderId: Long,
-    externalModelProviderId: Long?,
     dataProviderId: Long,
-    externalDataProviderId: Long?,
     date: Date
   ): ExchangeStep {
     // TODO: Create all ExchangeSteps for this Exchange based on the workflow.
@@ -226,7 +210,7 @@ class ClaimReadyExchangeStep(
     )
   }
 
-  private suspend fun TransactionScope.createExchange(
+  private fun TransactionScope.createExchange(
     recurringExchangeId: Long,
     externalRecurringExchangeId: ExternalId,
     date: Date,
@@ -245,7 +229,7 @@ class ClaimReadyExchangeStep(
     return externalRecurringExchangeId
   }
 
-  private suspend fun TransactionScope.updateRecurringExchange(
+  private fun TransactionScope.updateRecurringExchange(
     recurringExchange: RecurringExchange,
     recurringExchangeId: Long,
     nextExchangeDate: Date,
@@ -275,7 +259,7 @@ class ClaimReadyExchangeStep(
       .build()
   }
 
-  private suspend fun TransactionScope.createExchangeStep(
+  private fun TransactionScope.createExchangeStep(
     step: ExchangeStep,
     recurringExchangeId: Long,
     modelProviderId: Long? = null,
@@ -356,7 +340,7 @@ class ClaimReadyExchangeStep(
     return row.getLong("MaxAttemptIndex") + 1L
   }
 
-  private suspend fun TransactionScope.updateExchangeStepState(
+  private fun TransactionScope.updateExchangeStepState(
     exchangeStep: ExchangeStep,
     recurringExchangeId: Long,
     state: ExchangeStep.State
