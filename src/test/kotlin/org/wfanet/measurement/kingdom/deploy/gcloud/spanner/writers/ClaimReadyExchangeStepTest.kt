@@ -166,7 +166,10 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
   fun claimReadyExchangeStepWithModelProvider() =
     runBlocking<Unit> {
       val expected: ClaimReadyExchangeStep.Result =
-        ClaimReadyExchangeStep.Result(step = EXCHANGE_STEP, attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber)
+        ClaimReadyExchangeStep.Result(
+          step = EXCHANGE_STEP,
+          attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
+        )
 
       val actual =
         ClaimReadyExchangeStep(
@@ -191,7 +194,10 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
   fun claimReadyExchangeStepWithDataProvider() =
     runBlocking<Unit> {
       val expected: ClaimReadyExchangeStep.Result =
-        ClaimReadyExchangeStep.Result(step = EXCHANGE_STEP2, attemptNumber = EXCHANGE_STEP_ATTEMPT2.attemptNumber)
+        ClaimReadyExchangeStep.Result(
+          step = EXCHANGE_STEP2,
+          attemptNumber = EXCHANGE_STEP_ATTEMPT2.attemptNumber
+        )
 
       val actual =
         ClaimReadyExchangeStep(
