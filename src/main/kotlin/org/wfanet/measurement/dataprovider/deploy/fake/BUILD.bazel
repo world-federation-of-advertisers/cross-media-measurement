@@ -11,8 +11,6 @@ kt_jvm_library(
     name = "fake_data_provider_server",
     srcs = ["FakeDataProviderServer.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
-        "//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider/daemon",
     ],

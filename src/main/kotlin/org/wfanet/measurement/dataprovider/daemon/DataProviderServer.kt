@@ -16,10 +16,21 @@ package org.wfanet.measurement.dataprovider.daemon
 
 import java.time.Clock
 import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import picocli.CommandLine
+import org.wfanet.measurement.api.v2alpha.CombinedPublicKeysGrpcKt.CombinedPublicKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Sketch
+import org.wfanet.measurement.api.v2alpha.SketchConfig
+import org.wfanet.measurement.api.v2alpha.SketchConfigsGrpcKt.SketchConfigsCoroutineStub
+import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 
 abstract class DataProviderServer : Runnable {
   @CommandLine.Mixin
@@ -54,6 +65,41 @@ abstract class DataProviderServer : Runnable {
 
   protected class Flags {
 
+    @CommandLine.Option(
+      names = ["--combined-public-keys-service-target"],
+      required = true
+    )
+    lateinit var combinedPublicKeysServiceTarget: String
+      private set
+
+    val combinedPublicKeysStub by lazy {
+      CombinedPublicKeysCoroutineStub(
+        buildChannel(combinedPublicKeysServiceTarget)
+          .withVerboseLogging(debugVerboseGrpcClientLogging)
+      )
+    }
+
+    @CommandLine.Option(
+      names = ["--sketch-configs-service-target"],
+      required = true
+    )
+    lateinit var sketchConfigsServiceTarget: String
+      private set
+
+    val sketchConfigsStub by lazy {
+      SketchConfigsCoroutineStub(
+        buildChannel(sketchConfigsServiceTarget)
+          .withVerboseLogging(debugVerboseGrpcClientLogging)
+      )
+    }
+
+    @CommandLine.Option(
+      names = ["--external-data-provider-id"],
+      required = true
+    )
+    lateinit var externalDataProviderId: String
+      private set
+
     @CommandLine.Option(names = ["--throttler-minimum-interval"], defaultValue = "1s")
     lateinit var throttlerMinimumInterval: Duration
       private set
@@ -79,7 +125,25 @@ abstract class DataProviderServer : Runnable {
     )
     lateinit var systemRequisitionsServiceTarget: String
       private set
+
+    val requisitionsStub by lazy {
+      RequisitionsCoroutineStub(
+        buildChannel(systemRequisitionsServiceTarget)
+          .withVerboseLogging(debugVerboseGrpcClientLogging)
+      )
+    }
+
+    @set:CommandLine.Option(
+      names = ["--debug-verbose-grpc-client-logging"],
+      description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+      defaultValue = "false"
+    )
+    var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+      private set
+
   }
+
+
 
   companion object {
     const val SERVICE_NAME = "DataProvider"
