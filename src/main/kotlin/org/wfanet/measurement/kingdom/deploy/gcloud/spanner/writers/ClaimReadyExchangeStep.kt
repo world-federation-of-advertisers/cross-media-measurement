@@ -59,8 +59,11 @@ class ClaimReadyExchangeStep(
   data class Result(val step: ExchangeStep?, val attempt: ExchangeStepAttempt?)
 
   override fun ResultScope<Result>.buildResult(): Result {
-    val result = checkNotNull(transactionResult)
-    return Result(checkNotNull(result.step), checkNotNull(result.attempt))
+    val message = "No Exchange Steps were found."
+    val result = checkNotNull(transactionResult) { message }
+    val step = checkNotNull(result.step) { message }
+    val attempt = checkNotNull(result.attempt) { message }
+    return Result(step, attempt)
   }
 
   override suspend fun TransactionScope.runTransaction(): Result {

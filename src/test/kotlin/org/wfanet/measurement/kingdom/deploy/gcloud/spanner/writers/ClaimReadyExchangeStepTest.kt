@@ -18,8 +18,7 @@ import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import java.lang.IllegalStateException
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -217,14 +216,14 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
   fun claimReadyExchangeStepWithWrongProviderId() =
     runBlocking<Unit> {
       val exception =
-        assertFailsWith<StatusRuntimeException> {
+        assertFailsWith<IllegalStateException> {
           ClaimReadyExchangeStep(
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
               externalDataProviderId = null
             )
             .execute(databaseClient)
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.localizedMessage).isEqualTo("No Exchange Steps were found.")
     }
 
   @Test
