@@ -26,6 +26,7 @@ internal enum class IdVariable() {
   REQUISITION,
   PROTOCOL_CONFIG,
   DUCHY,
+  MEASUREMENT,
   MEASUREMENT_CONSUMER,
   CERTIFICATE
 }

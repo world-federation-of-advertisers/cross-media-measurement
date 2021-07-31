@@ -58,9 +58,9 @@ load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 wfa_repo_archive(
     name = "wfa_measurement_proto",
-    commit = "584b40ca7b4275d194cc4cedfb877c05ec5ab24e",
+    commit = "7c954985a7e2e44b6a82c6039e61ae80137be6e9",
     repo = "cross-media-measurement-api",
-    sha256 = "12f231fe7c8f75e3170ee9c6e308d355eccc354ed60ef4505f6f537812652626",
+    sha256 = "a73ec98bba409e81ea04f5fcda0a96f44e5285692b4e16c2c78ccae285fd5ae8",
 )
 
 wfa_repo_archive(
@@ -88,7 +88,7 @@ wfa_repo_archive(
     name = "wfa_common_jvm",
     repo = "common-jvm",
     sha256 = "e65b6e93473da198494777446d2d4f889d2c6753c77f26949e51e39e67a47aee",
-    version = "0.2.0"
+    version = "0.2.0",
 )
 
 # @com_google_truth_truth
