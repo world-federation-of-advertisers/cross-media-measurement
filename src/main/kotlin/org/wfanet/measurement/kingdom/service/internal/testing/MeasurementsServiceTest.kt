@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -24,17 +26,28 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+private val PREFERRED_MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
+private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
+  ByteString.copyFromUtf8("This is a MC subject key identifier.")
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
+
+  protected data class Services<T>(
+    val measurementsService: T,
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase
+  )
 
   protected val idGenerator =
     FixedIdGenerator(
@@ -45,26 +58,62 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected lateinit var measurementsService: T
     private set
 
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    private set
+
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
   fun initService() {
-    measurementsService = newService(idGenerator)
+    val services = newServices(idGenerator)
+    measurementConsumersService = services.measurementConsumersService
+    measurementsService = services.measurementsService
   }
 
-  @Test
-  fun `getMeasurement fails for missing Measurement`() = runBlocking {
+  private suspend fun insertMeasurementConsumer(): Long {
+    return measurementConsumersService.createMeasurementConsumer(
+      MeasurementConsumer.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+              }
+          detailsBuilder.apply {
+                apiVersion = "2"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
+            }
+        .build()
+    )
+      .externalMeasurementConsumerId
   }
 
-  @Test
-  fun `createMeasurement fails for missing fields`() = runBlocking {
-  }
+  @Test fun `getMeasurement fails for missing Measurement`() = runBlocking {}
+
+  @Test fun `createMeasurement fails for missing fields`() = runBlocking {}
+
+  @Test fun `createMeasurement succeeds`() = runBlocking {}
 
   @Test
-  fun `createMeasurement succeeds`() = runBlocking {
+  fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
+      runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val secondCreateMeasurementAttempt = measurementsService.createMeasurement(measurement)
+    assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
   }
 
-  @Test
-  fun `getMeasurement succeeds`() = runBlocking {
-  }
+  @Test fun `getMeasurement succeeds`() = runBlocking {}
 }

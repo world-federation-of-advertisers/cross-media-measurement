@@ -15,10 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Measurement
 
 class MeasurementReader : SpannerReader<MeasurementReader.Result>() {
@@ -28,19 +25,15 @@ class MeasurementReader : SpannerReader<MeasurementReader.Result>() {
     """
     SELECT
       Measurements.MeasurementId,
+      Measurements.MeasurementConsumerId,
       Measurements.ExternalMeasurementId,
+      Measurements.ExternalComputationId,
+      Measurements.ProvidedMeasurementId,
       Measurements.MeasurementDetails,
-      Measurements.MeasurementDetailsJson,
-      MeasurementCertificates.ExternalMeasurementCertificateId,
-      Certificates.CertificateId,
-      Certificates.SubjectKeyIdentifier,
-      Certificates.NotValidBefore,
-      Certificates.NotValidAfter,
-      Certificates.RevocationState,
-      Certificates.CertificateDetails
+      Measurements.CreateTime,
+      MeasurementConsumers.ExternalMeasurementConsumerId
     FROM Measurements
-    JOIN MeasurementCertificates USING (MeasurementId)
-    JOIN Certificates USING (CertificateId)
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
     """.trimIndent()
 
   override val externalIdColumn: String = "Measurements.ExternalMeasurementId"
@@ -52,9 +45,11 @@ class MeasurementReader : SpannerReader<MeasurementReader.Result>() {
     Measurement.newBuilder()
       .apply {
         externalMeasurementId = struct.getLong("ExternalMeasurementId")
-        externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementCertificateId")
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalComputationId = struct.getLong("ExternalComputationId")
+        providedMeasurementId = struct.getString("ProvidedMeasurementId")
         details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-        preferredCertificate = buildCertificate(struct)
+        createTime = struct.getTimestamp("CreateTime").toProto()
       }
       .build()
 }

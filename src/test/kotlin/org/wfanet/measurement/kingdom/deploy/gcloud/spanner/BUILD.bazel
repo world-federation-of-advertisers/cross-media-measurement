@@ -13,6 +13,37 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+<<<<<<< HEAD
+=======
+    name = "SpannerDatabasesTest",
+    srcs = ["SpannerDatabasesTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDatabasesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/db/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:testing_nontestonly",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+spanner_emulator_test(
+    name = "SpannerMeasurementsServiceTest",
+    srcs = ["SpannerMeasurementsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
+
+spanner_emulator_test(
+>>>>>>> 31430425 (building)
     name = "SpannerMeasurementConsumersServiceTest",
     srcs = ["SpannerMeasurementConsumersServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementConsumersServiceTest",

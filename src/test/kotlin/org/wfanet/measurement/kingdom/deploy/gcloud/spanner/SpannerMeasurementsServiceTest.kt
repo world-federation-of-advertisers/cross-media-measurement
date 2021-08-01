@@ -22,18 +22,21 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementsServiceTest
+import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementsServiceTest.Services
 
 @RunWith(JUnit4::class)
-class SpannerMeasurementsServiceTest :
-  MeasurementsServiceTest<SpannerMeasurementsService>() {
+class SpannerMeasurementsServiceTest : MeasurementsServiceTest<SpannerMeasurementsService>() {
 
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
 
-  override fun newService(idGenerator: IdGenerator): SpannerMeasurementsService {
-    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
-      .buildDataServices()
-      .measurementsService as
-      SpannerMeasurementsService
+  override fun newServices(idGenerator: IdGenerator): Services<SpannerMeasurementsService> {
+    val spannerServices =
+      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
+
+    return Services<SpannerMeasurementsService>(
+      spannerServices.measurementsService as SpannerMeasurementsService,
+      spannerServices.measurementConsumersService
+    )
   }
 }

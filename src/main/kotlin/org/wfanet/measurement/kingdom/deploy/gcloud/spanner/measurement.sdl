@@ -214,7 +214,7 @@ CREATE TABLE Measurements (
   -- org.wfanet.measurement.internal.kingdom.Measurement.Details serialized
   -- proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
-  MeasurementsDetailsJson STRING(MAX) NOT NULL,
+  MeasurementDetailsJson STRING(MAX) NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
