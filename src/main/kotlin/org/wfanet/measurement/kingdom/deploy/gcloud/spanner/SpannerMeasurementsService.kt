@@ -21,6 +21,8 @@ import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
 
 class SpannerMeasurementsService(
   private val clock: Clock,
@@ -28,14 +30,20 @@ class SpannerMeasurementsService(
   private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
   override suspend fun createMeasurement(request: Measurement): Measurement {
-    TODO("not implemented yet")
+    return CreateMeasurement(request).execute(client, idGenerator, clock)
   }
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    TODO("not implemented yet")
+    return MeasurementReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
+      ?.measurement
+      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
   override suspend fun getMeasurementByComputationId(
     request: GetMeasurementByComputationIdRequest
   ): Measurement {
-    TODO("not implemented yet")
+    return MeasurementReader()
+      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalComputationId))
+      ?.measurement
+      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
 }
