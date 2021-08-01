@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
@@ -23,6 +26,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 class SpannerMeasurementsService(
   private val clock: Clock,
@@ -30,13 +34,23 @@ class SpannerMeasurementsService(
   private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
   override suspend fun createMeasurement(request: Measurement): Measurement {
-    return CreateMeasurement(request).execute(client, idGenerator, clock)
+    try {
+      return CreateMeasurement(request).execute(client, idGenerator, clock)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND -> throw e
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+      }
+    }
   }
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    return MeasurementReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
-      ?.measurement
-      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+    // return MeasurementReader()
+    //   .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
+    //   ?.measurement
+    //   ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+    TODO("later")
   }
   override suspend fun getMeasurementByComputationId(
     request: GetMeasurementByComputationIdRequest
