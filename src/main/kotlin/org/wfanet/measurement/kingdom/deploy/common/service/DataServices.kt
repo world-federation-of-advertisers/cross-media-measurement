@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.common.service
 
 import io.grpc.BindableService
+import kotlin.reflect.full.declaredMemberProperties
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -22,6 +23,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
 interface DataServices {
@@ -38,18 +40,10 @@ data class KingdomDataServices(
   val measurementsService: MeasurementsCoroutineImplBase,
   val requisitionsService: RequisitionsCoroutineImplBase,
   val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
-  val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase
+  val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase,
+  val recurringExchangesService: RecurringExchangesCoroutineImplBase
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
-  return listOf(
-    certificatesService,
-    dataProvidersService,
-    eventGroupsService,
-    measurementConsumersService,
-    measurementsService,
-    requisitionsService,
-    computationParticipantsService,
-    measurementLogEntriesService
-  )
+  return KingdomDataServices::class.declaredMemberProperties.map { it.get(this) as BindableService }
 }
