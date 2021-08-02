@@ -178,7 +178,7 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
           )
           .execute(databaseClient)
 
-      assertThat(actual).isEqualTo(expected)
+      assertThat(actual.get()).isEqualTo(expected)
 
       // Assert that RecurringExchange.nextExchangeDate updated.
       assertThat(
@@ -206,7 +206,7 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
           )
           .execute(databaseClient)
 
-      assertThat(actual).isEqualTo(expected)
+      assertThat(actual.get()).isEqualTo(expected)
 
       // Assert that RecurringExchange.nextExchangeDate updated.
       assertThat(
@@ -269,7 +269,7 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
           )
           .execute(databaseClient)
 
-      assertThat(actual.step).isEqualTo(expected)
+      assertThat(actual.get().step).isEqualTo(expected)
       // Assert that ExchangeStep.Status updated to IN_PROGRESS.
       assertThat(readAllExchangeStepsInSpanner().first().state)
         .isEqualTo(ExchangeStep.State.IN_PROGRESS)

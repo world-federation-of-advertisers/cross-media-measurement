@@ -45,12 +45,15 @@ class SpannerExchangeStepsService(
         )
         .execute(client)
 
-    require((result.step == null) == (result.attemptNumber == null))
+    require(result.isPresent)
+
+    val exchangeStep = result.get().step
+    val attemptNumber = result.get().attemptNumber!!
 
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
-        exchangeStep = result.step
-        attemptNumber = result.attemptNumber!!
+        this.exchangeStep = exchangeStep
+        this.attemptNumber = attemptNumber
       }
       .build()
   }

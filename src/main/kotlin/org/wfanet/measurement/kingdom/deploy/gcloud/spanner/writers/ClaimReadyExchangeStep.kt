@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.common.base.Optional
 import com.google.type.Date
 import java.time.LocalDate
 import kotlinx.coroutines.flow.single
@@ -40,11 +41,12 @@ import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchanges
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
 class ClaimReadyExchangeStep(
   private val externalModelProviderId: Long?,
   private val externalDataProviderId: Long?
-) : SpannerWriter<ClaimReadyExchangeStep.Result, ClaimReadyExchangeStep.Result>() {
+) : SpannerWriter<Result, Optional<Result>>() {
 
   private val externalModelProviderIds =
     if (externalModelProviderId == null) emptyList()
@@ -58,12 +60,12 @@ class ClaimReadyExchangeStep(
   )
   data class Result(val step: ExchangeStep?, val attemptNumber: Int?)
 
-  override fun ResultScope<Result>.buildResult(): Result {
+  override fun ResultScope<Result>.buildResult(): Optional<Result> {
     val message = "No Exchange Steps were found."
     val result = checkNotNull(transactionResult) { message }
     val step = checkNotNull(result.step) { message }
     val attemptNumber = checkNotNull(result.attemptNumber) { message }
-    return Result(step, attemptNumber)
+    return Optional.of(Result(step, attemptNumber))
   }
 
   override suspend fun TransactionScope.runTransaction(): Result {
