@@ -16,8 +16,7 @@ package org.wfanet.panelmatch.client.storage
 
 import com.google.protobuf.ByteString
 import java.io.File
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.reduce
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.logger.loggerFor
 
@@ -40,15 +39,15 @@ class FileSystemStorage(baseDir: String) : Storage {
     storageClient = FileSystemStorageClient(directory = baseFolder)
   }
 
-  override suspend fun read(path: String): ByteString {
+  override suspend fun read(path: String): Flow<ByteString> {
     logger.fine("Read:${path}\n")
     val blob = storageClient.getBlob(path) ?: throw Storage.NotFoundException(path)
-    return blob.read(4096).reduce { a, b -> a.concat(b) }
+    return blob.read(4096)
   }
 
-  override suspend fun write(path: String, data: ByteString) {
+  override suspend fun write(path: String, data: Flow<ByteString>) {
     logger.fine("Write:${path}\n")
-    storageClient.createBlob(path, listOf(data).asFlow())
+    storageClient.createBlob(path, data)
   }
 
   companion object {

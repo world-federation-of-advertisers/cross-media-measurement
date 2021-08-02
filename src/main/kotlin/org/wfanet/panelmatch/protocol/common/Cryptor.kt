@@ -51,7 +51,7 @@ interface Cryptor {
     return reEncrypt(request).reencryptedTextsList
   }
 
-  /** Encrypts plaintexts. */
+  /** Decrypts plaintexts. */
   fun decrypt(key: ByteString, encryptedTexts: List<ByteString>): List<ByteString> {
     val request =
       CryptorDecryptRequest.newBuilder()

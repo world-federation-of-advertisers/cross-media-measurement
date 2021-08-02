@@ -16,6 +16,9 @@ package org.wfanet.panelmatch.client.storage
 
 import com.google.protobuf.ByteString
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.fold
+import org.wfanet.measurement.common.asBufferedFlow
 
 /**
  * Stores everything in memory. Nothing is persistent. Use with caution. Uses a simple hashmap to
@@ -28,15 +31,17 @@ class InMemoryStorage(private val keyPrefix: String) : Storage {
     return "$keyPrefix$path"
   }
 
-  override suspend fun read(path: String): ByteString {
+  override suspend fun read(path: String): Flow<ByteString> {
     val key = getKey(path)
-    return inMemoryStorage.getOrElse(key) { throw Storage.NotFoundException(key) }
+    return inMemoryStorage
+      .getOrElse(key) { throw Storage.NotFoundException(key) }
+      .asBufferedFlow(4096)
   }
 
-  override suspend fun write(path: String, data: ByteString) {
+  override suspend fun write(path: String, data: Flow<ByteString>) {
     val key = getKey(path)
-    require(inMemoryStorage.putIfAbsent(key, data) == null) {
-      "Cannot write to an existing key: $key"
-    }
+
+    require(!inMemoryStorage.containsKey(key)) { "Cannot write to an existing key: $key" }
+    inMemoryStorage[key] = data.fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) })
   }
 }
