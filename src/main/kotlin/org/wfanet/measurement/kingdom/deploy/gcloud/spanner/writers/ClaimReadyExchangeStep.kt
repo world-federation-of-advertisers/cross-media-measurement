@@ -46,7 +46,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 class ClaimReadyExchangeStep(
   private val externalModelProviderId: Long?,
   private val externalDataProviderId: Long?
-) : SpannerWriter<Result, Optional<Result>>() {
+) : SpannerWriter<Result?, Optional<Result>>() {
 
   private val externalModelProviderIds =
     if (externalModelProviderId == null) emptyList()
@@ -54,21 +54,15 @@ class ClaimReadyExchangeStep(
   private val externalDataProviderIds =
     if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
 
-  private data class FirstReadyStep(
-    val exchangeStep: ExchangeStep?,
-    val recurringExchangeId: Long?
-  )
-  data class Result(val step: ExchangeStep?, val attemptNumber: Int?)
+  private data class FirstReadyStep(val exchangeStep: ExchangeStep, val recurringExchangeId: Long?)
+  data class Result(val step: ExchangeStep, val attemptNumber: Int)
 
-  override fun ResultScope<Result>.buildResult(): Optional<Result> {
-    val message = "No Exchange Steps were found."
-    val result = checkNotNull(transactionResult) { message }
-    val step = checkNotNull(result.step) { message }
-    val attemptNumber = checkNotNull(result.attemptNumber) { message }
-    return Optional.of(Result(step, attemptNumber))
+  override fun ResultScope<Result?>.buildResult(): Optional<Result> {
+    val result = checkNotNull(transactionResult) { "No Exchange Steps were found." }
+    return Optional.of(Result(result.step, result.attemptNumber))
   }
 
-  override suspend fun TransactionScope.runTransaction(): Result {
+  override suspend fun TransactionScope.runTransaction(): Result? {
     // Check if any READY | READY_TO_RETRY Exchange Step exists.
     val firstReadyStep = findReadyExchangeStep()
     if (firstReadyStep != null) {
@@ -78,12 +72,9 @@ class ClaimReadyExchangeStep(
     // Look for a RecurringExchange that is due for instantiation as an Exchange.
     // If there are any, pick an arbitrary one, create an Exchange and the corresponding
     // ExchangeSteps, and then see if any of those are ready.
-    val readyStep = createExchangesAndSteps() ?: return Result(null, null)
+    val readyStep = createExchangesAndSteps() ?: return null
     val exchangeStep = readyStep.exchangeStep
-    val recurringExchangeId = readyStep.recurringExchangeId
-    if (exchangeStep == null || recurringExchangeId == null) {
-      return Result(null, null)
-    }
+    val recurringExchangeId = readyStep.recurringExchangeId ?: return null
 
     // Create an Exchange Step Attempt for this Step.
     val attempt =
