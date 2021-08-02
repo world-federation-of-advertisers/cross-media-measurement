@@ -31,10 +31,10 @@ message ExchangeWorkflow {
   // Building blocks of the ExchangeWorkflow.
   message Step {
     // Identifier unique to the ExchangeStep.
-    int32 step_id = 1;
+    int32 step_index = 1;
 
     // Each step may or may not expect some prerequisite steps to be finished.
-    repeated int32 prerequisite_ids = 3;
+    repeated int32 prerequisite_step_indices = 3;
 
     // The party that should execute this step.
     Party party = 2;
