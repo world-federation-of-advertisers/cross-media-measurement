@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
@@ -32,8 +33,8 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    grpcRequire(request.partyCase != ClaimReadyExchangeStepRequest.PartyCase.PARTY_NOT_SET) {
-      "INVALID_ARGUMENT: Data Provider id OR Model Provider id must be provided."
+    grpcRequire(request.partyCase != PartyCase.PARTY_NOT_SET) {
+      "external_data_provider_id or external_model_provider_id must be provided."
     }
     val result =
       ClaimReadyExchangeStep(
@@ -44,10 +45,12 @@ class SpannerExchangeStepsService(
         )
         .execute(client)
 
+    require((result.step == null) == (result.attemptNumber == null))
+
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
         exchangeStep = result.step
-        attemptNumber = result.attemptNumber
+        attemptNumber = result.attemptNumber!!
       }
       .build()
   }

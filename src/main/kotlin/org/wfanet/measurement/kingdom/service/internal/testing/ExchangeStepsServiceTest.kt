@@ -65,6 +65,6 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception)
       .hasMessageThat()
-      .contains("INVALID_ARGUMENT: Data Provider id OR Model Provider id must be provided.")
+      .contains("external_data_provider_id or external_model_provider_id must be provided.")
   }
 }
