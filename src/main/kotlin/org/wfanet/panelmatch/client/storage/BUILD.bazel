@@ -7,6 +7,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
+        "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",

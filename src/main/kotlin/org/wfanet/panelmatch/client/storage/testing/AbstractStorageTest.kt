@@ -17,7 +17,9 @@ package org.wfanet.panelmatch.client.storage.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.reduce
 import org.junit.Test
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.panelmatch.client.storage.Storage
 import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
 import org.wfanet.panelmatch.common.testing.runBlockingTest
@@ -31,8 +33,8 @@ abstract class AbstractStorageTest {
 
   @Test
   fun `write and read FileSystemStorage`() = runBlockingTest {
-    privateStorage.write(KEY, VALUE)
-    assertThat(privateStorage.read(KEY)).isEqualTo(VALUE)
+    privateStorage.write(KEY, VALUE.asBufferedFlow(1024))
+    assertThat(privateStorage.read(KEY).reduce { a, b -> a.concat(b) }).isEqualTo(VALUE)
   }
 
   @Test
@@ -42,27 +44,29 @@ abstract class AbstractStorageTest {
 
   @Test
   fun `get error for rewriting to same key 2x in FileSystemStorage`() = runBlockingTest {
-    privateStorage.write(KEY, VALUE)
-    assertFailsWith<IllegalArgumentException> { privateStorage.write(KEY, VALUE) }
+    privateStorage.write(KEY, VALUE.asBufferedFlow(1024))
+    assertFailsWith<IllegalArgumentException> {
+      privateStorage.write(KEY, VALUE.asBufferedFlow(1024))
+    }
   }
 
   @Test
   fun `shared storage cannot read from private storage`() = runBlockingTest {
-    privateStorage.write(KEY, VALUE)
-    privateStorage.read(KEY) // Does not throw.
+    privateStorage.write(KEY, VALUE.asBufferedFlow(1024))
+    privateStorage.read(KEY).reduce { a, b -> a.concat(b) } // Does not throw.
     assertFailsWith<NotFoundException> { sharedStorage.read(KEY) }
   }
 
   @Test
   fun `private storage cannot read from shared storage`() = runBlockingTest {
-    sharedStorage.write(KEY, VALUE)
-    sharedStorage.read(KEY) // Does not throw.
+    sharedStorage.write(KEY, VALUE.asBufferedFlow(1024))
+    sharedStorage.read(KEY).reduce { a, b -> a.concat(b) } // Does not throw.
     assertFailsWith<NotFoundException> { privateStorage.read(KEY) }
   }
 
   @Test
   fun `same key can be written to private storage and shared storage`() = runBlockingTest {
-    sharedStorage.write(KEY, VALUE)
-    privateStorage.write(KEY, VALUE) // Does not throw.
+    sharedStorage.write(KEY, VALUE.asBufferedFlow(1024))
+    privateStorage.write(KEY, VALUE.asBufferedFlow(1024)) // Does not throw.
   }
 }
