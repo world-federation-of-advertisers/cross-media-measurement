@@ -65,7 +65,8 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val CREATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
-private const val MIN_LIMIT = 50
+private const val MIN_LIMIT = 1
+private const val DEFAULT_LIMIT = 50
 
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
@@ -136,27 +137,26 @@ private val REQUISITION: Requisition = buildRequisition {
     data = INTERNAL_REQUISITION.details.dataProviderPublicKey
     signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
   }
+
   val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]
-  if (entry != null) {
-    addAllDuchies(
-      List(1) {
-        buildDuchyEntry {
-          key = DUCHIES_MAP_KEY
-          value {
-            duchyCertificate = externalIdToApiId(entry.externalDuchyCertificateId)
-            buildLiquidLegionsV2 {
-              elGamalPublicKey {
-                data = entry.liquidLegionsV2.elGamalPublicKey
-                signature = entry.liquidLegionsV2.elGamalPublicKeySignature
-              }
+  addAllDuchies(
+    List(1) {
+      buildDuchyEntry {
+        key = DUCHIES_MAP_KEY
+        value {
+          duchyCertificate = externalIdToApiId(entry!!.externalDuchyCertificateId)
+          buildLiquidLegionsV2 {
+            elGamalPublicKey {
+              data = entry.liquidLegionsV2.elGamalPublicKey
+              signature = entry.liquidLegionsV2.elGamalPublicKeySignature
             }
           }
         }
       }
-    )
-  }
+    }
+  )
+
   state = State.FULFILLED
-  refusal = Refusal.getDefaultInstance()
 }
 
 @RunWith(JUnit4::class)
@@ -201,7 +201,7 @@ class RequisitionServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         buildStreamRequisitionsRequest {
-          limit = MIN_LIMIT
+          limit = 2
           filter = StreamRequisitionsRequest.Filter.getDefaultInstance()
         }
       )
@@ -240,7 +240,7 @@ class RequisitionServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         buildStreamRequisitionsRequest {
-          limit = MIN_LIMIT
+          limit = 2
           filterBuilder.apply {
             createdAfter = CREATE_TIME
             addStates(InternalState.UNFULFILLED)
@@ -281,7 +281,7 @@ class RequisitionServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         buildStreamRequisitionsRequest {
-          limit = MIN_LIMIT
+          limit = DEFAULT_LIMIT
           filterBuilder.apply {
             val measurementKey: MeasurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
             externalMeasurementConsumerId = apiIdToExternalId(measurementKey.measurementConsumerId)
@@ -335,6 +335,7 @@ class RequisitionServiceTest {
     whenever(internalRequisitionMock.refuseRequisition(any()))
       .thenReturn(
         INTERNAL_REQUISITION.rebuild {
+          state = InternalState.REFUSED
           detailsBuilder.apply {
             refusalBuilder.apply { justification = InternalRefusal.Justification.UNFULFILLABLE }
           }
@@ -354,7 +355,10 @@ class RequisitionServiceTest {
     val expected =
       REQUISITION
         .toBuilder()
-        .apply { refusalBuilder.apply { justification = Refusal.Justification.UNFULFILLABLE } }
+        .apply {
+          state = State.REFUSED
+          refusalBuilder.apply { justification = Refusal.Justification.UNFULFILLABLE }
+        }
         .build()
 
     verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)

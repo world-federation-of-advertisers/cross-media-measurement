@@ -45,7 +45,8 @@ import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalStat
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
-private const val MIN_PAGE_SIZE = 50
+private const val MIN_PAGE_SIZE = 1
+private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
@@ -58,7 +59,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
     val pageSize =
       when {
-        request.pageSize < MIN_PAGE_SIZE -> MIN_PAGE_SIZE
+        request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
         request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
         else -> request.pageSize
       }
@@ -173,9 +174,11 @@ private fun InternalRequisition.toRequisition(): Requisition {
     addAllDuchies(duchiesMap.entries.map(Map.Entry<String, DuchyValue>::toDuchyEntry))
 
     state = this@toRequisition.state.toRequisitionState()
-    buildRefusal {
-      justification = details.refusal.justification.toRefusalJustification()
-      message = details.refusal.message
+    if (state.equals(State.REFUSED)) {
+      buildRefusal {
+        justification = details.refusal.justification.toRefusalJustification()
+        message = details.refusal.message
+      }
     }
   }
 }
@@ -221,9 +224,8 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
       InternalRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
-    Refusal.Justification.JUSTIFICATION_UNSPECIFIED ->
+    Refusal.Justification.JUSTIFICATION_UNSPECIFIED, Refusal.Justification.UNRECOGNIZED ->
       InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
-    Refusal.Justification.UNRECOGNIZED -> InternalRefusal.Justification.UNRECOGNIZED
   }
 
 /** Converts an internal [InternalState] to a public [State]. */
@@ -232,8 +234,7 @@ private fun InternalState.toRequisitionState(): State =
     InternalState.UNFULFILLED -> State.UNFULFILLED
     InternalState.FULFILLED -> State.FULFILLED
     InternalState.REFUSED -> State.REFUSED
-    InternalState.STATE_UNSPECIFIED -> State.STATE_UNSPECIFIED
-    InternalState.UNRECOGNIZED -> State.UNRECOGNIZED
+    InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
 /** Converts a public [State] to an internal [InternalState]. */
@@ -242,8 +243,7 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
-    State.STATE_UNSPECIFIED -> InternalState.STATE_UNSPECIFIED
-    State.UNRECOGNIZED -> InternalState.UNRECOGNIZED
+    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
   }
 
 internal inline fun buildDuchyEntryValue(fill: (@Builder DuchyEntry.Value.Builder).() -> Unit) =
