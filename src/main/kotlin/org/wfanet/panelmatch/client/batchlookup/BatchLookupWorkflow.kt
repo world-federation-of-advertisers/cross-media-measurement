@@ -16,6 +16,8 @@ package org.wfanet.panelmatch.client.batchlookup
 
 import com.google.protobuf.ByteString
 import java.io.Serializable
+import org.apache.beam.sdk.metrics.Metrics
+import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.common.beam.combinePerKey
@@ -120,13 +122,17 @@ class BatchLookupWorkflow(
       .map {
         val combinedValues =
           it.value.fold(ByteString.EMPTY) { acc, e -> acc.concat(e.value.payload) }
+        require(combinedValues.size() <= parameters.subshardSizeBytes) {
+          "Bucket ${it.key} has size ${combinedValues.size()}, which is larger than the maximum " +
+            "allowed size of ${parameters.subshardSizeBytes}"
+        }
         kvOf(it.key.key, bucketOf(it.key.value, combinedValues))
       }
       // TODO: try replacing this with `GroupIntoBatches`. The size limit should be the
       //  subshardSizeBytes minus some constant that we expect to be larger than any individual
       //  bucket.
       .groupByKey("Group by Shard")
-      .parDo {
+      .parDo<KV<ShardId, Iterable<Bucket>>, KV<ShardId, DatabaseShard>> {
         // While this might look like exactly what GroupIntoBatches does, it's not. GroupIntoBatches
         // does not guarantee a strict size limit. We, on the other hand, need a strict size limit
         // here because we're trying to build as big batches as possible without OOMing.
@@ -148,5 +154,25 @@ class BatchLookupWorkflow(
           yield(kvOf(shardId, databaseShardOf(shardId, buffer)))
         }
       }
+      .parDo(DatabaseShardSizeObserver())
+  }
+}
+
+/**
+ * This makes a Distribution metric of the number of bytes in each subshard's buckets' payloads.
+ *
+ * Note that this is a different value than the size of the DatabaseShard as a serialized proto.
+ */
+private class DatabaseShardSizeObserver :
+  DoFn<KV<ShardId, DatabaseShard>, KV<ShardId, DatabaseShard>>() {
+  private val sizeDistribution =
+    Metrics.distribution(BatchLookupWorkflow::class.java, "database-shard-sizes")
+
+  @ProcessElement
+  fun processElement(context: ProcessContext) {
+    val bucketsList = context.element().value.bucketsList
+    val totalSize = bucketsList.fold(0L) { acc, bucket -> acc + bucket.payload.size() }
+    sizeDistribution.update(totalSize)
+    context.output(context.element())
   }
 }

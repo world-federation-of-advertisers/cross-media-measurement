@@ -17,6 +17,9 @@ package org.wfanet.panelmatch.client.batchlookup
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import kotlin.test.assertFails
+import org.apache.beam.sdk.metrics.MetricNameFilter
+import org.apache.beam.sdk.metrics.MetricsFilter
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
@@ -52,6 +55,8 @@ class BatchLookupWorkflowTest : BeamTestBase() {
 
     assertThat(runWorkflow(queryBundles, parameters))
       .containsInAnyOrder(resultOf(100, "hij"), resultOf(101, "hij"), resultOf(102, "abc"))
+
+    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(9)
   }
 
   @Test
@@ -76,6 +81,8 @@ class BatchLookupWorkflowTest : BeamTestBase() {
         resultOf(103, "abc"),
         resultOf(104, "")
       )
+
+    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(9)
   }
 
   @Test
@@ -100,10 +107,28 @@ class BatchLookupWorkflowTest : BeamTestBase() {
         resultOf(103, "hij"),
         resultOf(104, "abc")
       )
+
+    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(9)
   }
 
   @Test
-  fun subshards() {
+  fun `subshardSizeBytes too small`() {
+    val parameters = Parameters(numShards = 1, numBucketsPerShard = 100, subshardSizeBytes = 2)
+
+    val queryBundles =
+      listOf(
+        queryBundleOf(shard = 0, listOf(1 to 53, 2 to 58)),
+        queryBundleOf(shard = 0, listOf(3 to 71, 4 to 85))
+      )
+
+    runWorkflow(queryBundles, parameters)
+
+    // We expect the pipeline to crash if `subshardSizeBytes` is smaller than an individual bucket.
+    assertFails { pipeline.run() }
+  }
+
+  @Test
+  fun `subshards that fit a single item`() {
     // With `parameters`, we expect database to have a single shard with 5 subshards.
     // The buckets should be 53 to "abc", 58 to "def", 71 to "hij", 85 to "klm".
     val parameters = Parameters(numShards = 1, numBucketsPerShard = 100, subshardSizeBytes = 5)
@@ -121,6 +146,29 @@ class BatchLookupWorkflowTest : BeamTestBase() {
         resultOf(3, "hij"),
         resultOf(4, "klm")
       )
+
+    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(3)
+  }
+
+  @Test
+  fun `subshards that fit two items`() {
+    val parameters = Parameters(numShards = 1, numBucketsPerShard = 100, subshardSizeBytes = 8)
+
+    val queryBundles =
+      listOf(
+        queryBundleOf(shard = 0, listOf(1 to 53, 2 to 58)),
+        queryBundleOf(shard = 0, listOf(3 to 71, 4 to 85))
+      )
+
+    assertThat(runWorkflow(queryBundles, parameters))
+      .containsInAnyOrder(
+        resultOf(1, "abc"),
+        resultOf(2, "def"),
+        resultOf(3, "hij"),
+        resultOf(4, "klm")
+      )
+
+    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(6)
   }
 
   @Test
@@ -148,6 +196,20 @@ class BatchLookupWorkflowTest : BeamTestBase() {
         .map { kvOf(databaseKeyOf(it.first.toLong()), plaintextOf(it.second.toByteString())) }
         .toTypedArray()
     )
+  }
+
+  private fun runPipelineAndGetActualMaxSubshardSize(): Long {
+    val pipelineResult = pipeline.run()
+    pipelineResult.waitUntilFinish()
+    val filter =
+      MetricsFilter.builder()
+        .addNameFilter(
+          MetricNameFilter.named(BatchLookupWorkflow::class.java, "database-shard-sizes")
+        )
+        .build()
+    val metrics = pipelineResult.metrics().queryMetrics(filter)
+    assertThat(metrics.distributions).isNotEmpty()
+    return metrics.distributions.map { it.committed.max }.first()
   }
 }
 
