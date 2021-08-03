@@ -28,3 +28,15 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "JniQueryEvaluatorTest",
+    srcs = ["JniQueryEvaluatorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.batchlookup.JniQueryEvaluatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
