@@ -35,12 +35,18 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
+import org.wfanet.measurement.api.v2alpha.Requisition.State
+import org.wfanet.measurement.api.v2alpha.RequisitionKey
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -50,13 +56,16 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest as InternalRefuseRequest
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
-import org.wfanet.measurement.internal.kingdom.Requisition.State
+import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val CREATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+
+private const val MIN_LIMIT = 50
 
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
@@ -73,7 +82,7 @@ private val INTERNAL_REQUISITION: InternalRequisition =
       externalDataProviderId = 5
       externalDataProviderCertificateId = 6
       createTime = CREATE_TIME
-      state = State.FULFILLED
+      state = InternalState.FULFILLED
       externalFulfillingDuchyId = "9"
       putDuchies(
         DUCHIES_MAP_KEY,
@@ -92,18 +101,37 @@ private val INTERNAL_REQUISITION: InternalRequisition =
     .build()
 
 private val REQUISITION: Requisition = buildRequisition {
-  name = externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
-  measurement = externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
+  name =
+    RequisitionKey(
+        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
+        externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
+      )
+      .toName()
+
+  measurement =
+    MeasurementKey(
+        externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
+        externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
+      )
+      .toName()
   measurementConsumerCertificate =
-    externalIdToApiId(
-      INTERNAL_REQUISITION.parentMeasurement.externalMeasurementConsumerCertificateId
-    )
+    MeasurementConsumerCertificateKey(
+        externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
+        externalIdToApiId(
+          INTERNAL_REQUISITION.parentMeasurement.externalMeasurementConsumerCertificateId
+        )
+      )
+      .toName()
   measurementSpec {
     data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
     signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
   }
   dataProviderCertificate =
-    externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderCertificateId)
+    DataProviderCertificateKey(
+        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
+        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderCertificateId)
+      )
+      .toName()
   dataProviderPublicKey {
     data = INTERNAL_REQUISITION.details.dataProviderPublicKey
     signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
@@ -127,8 +155,8 @@ private val REQUISITION: Requisition = buildRequisition {
       }
     )
   }
-  state = Requisition.State.FULFILLED
-  refusal = Requisition.Refusal.getDefaultInstance()
+  state = State.FULFILLED
+  refusal = Refusal.getDefaultInstance()
 }
 
 @RunWith(JUnit4::class)
@@ -160,11 +188,7 @@ class RequisitionServiceTest {
         .apply {
           addRequisitions(REQUISITION)
           addRequisitions(REQUISITION)
-          nextPageToken =
-            buildPageToken {
-              createdAfter = CREATE_TIME
-              filter = StreamRequisitionsRequest.Filter.getDefaultInstance()
-            }
+          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
         }
         .build()
 
@@ -176,27 +200,25 @@ class RequisitionServiceTest {
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        StreamRequisitionsRequest.newBuilder()
-          .apply {
-            limit = 2
-            filter = StreamRequisitionsRequest.Filter.getDefaultInstance()
-          }
-          .build()
+        buildStreamRequisitionsRequest {
+          limit = MIN_LIMIT
+          filter = StreamRequisitionsRequest.Filter.getDefaultInstance()
+        }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
-  fun `listRequisitions with page token and with filter only uses filter from page token`() =
+  fun `listRequisitions with page token and filter uses filter with timestamp from page token`() =
       runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION.rebuild { createTime = CREATE_TIME_B }))
 
     val request = buildListRequisitionsRequest {
       pageSize = 2
-      pageToken = buildPageToken { createdAfter = CREATE_TIME }
-      filterBuilder.apply { addStates(Requisition.State.UNFULFILLED) }
+      pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+      filterBuilder.apply { addStates(State.UNFULFILLED) }
     }
 
     val result = service.listRequisitions(request)
@@ -205,11 +227,7 @@ class RequisitionServiceTest {
       ListRequisitionsResponse.newBuilder()
         .apply {
           addRequisitions(REQUISITION)
-          nextPageToken =
-            buildPageToken {
-              createdAfter = CREATE_TIME_B
-              filterBuilder.apply { createdAfter = CREATE_TIME }
-            }
+          nextPageToken = CREATE_TIME_B.toByteArray().base64UrlEncode()
         }
         .build()
 
@@ -221,12 +239,13 @@ class RequisitionServiceTest {
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        StreamRequisitionsRequest.newBuilder()
-          .apply {
-            limit = 2
-            filterBuilder.apply { createdAfter = CREATE_TIME }
+        buildStreamRequisitionsRequest {
+          limit = MIN_LIMIT
+          filterBuilder.apply {
+            createdAfter = CREATE_TIME
+            addStates(InternalState.UNFULFILLED)
           }
-          .build()
+        }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
@@ -249,18 +268,7 @@ class RequisitionServiceTest {
       ListRequisitionsResponse.newBuilder()
         .apply {
           addRequisitions(REQUISITION)
-          nextPageToken =
-            buildPageToken {
-              createdAfter = CREATE_TIME
-              filterBuilder.apply {
-                val measurementKey: MeasurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
-                externalMeasurementConsumerId =
-                  apiIdToExternalId(measurementKey.measurementConsumerId)
-                val dataProviderKey: DataProviderKey =
-                  DataProviderKey.fromName(DATA_PROVIDER_NAME)!!
-                externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-              }
-            }
+          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
         }
         .build()
 
@@ -272,18 +280,15 @@ class RequisitionServiceTest {
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        StreamRequisitionsRequest.newBuilder()
-          .apply {
-            limit = 1
-            filterBuilder.apply {
-              val measurementKey: MeasurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
-              externalMeasurementConsumerId =
-                apiIdToExternalId(measurementKey.measurementConsumerId)
-              val dataProviderKey: DataProviderKey = DataProviderKey.fromName(DATA_PROVIDER_NAME)!!
-              externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-            }
+        buildStreamRequisitionsRequest {
+          limit = MIN_LIMIT
+          filterBuilder.apply {
+            val measurementKey: MeasurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
+            externalMeasurementConsumerId = apiIdToExternalId(measurementKey.measurementConsumerId)
+            val dataProviderKey: DataProviderKey = DataProviderKey.fromName(DATA_PROVIDER_NAME)!!
+            externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
           }
-          .build()
+        }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
@@ -331,9 +336,7 @@ class RequisitionServiceTest {
       .thenReturn(
         INTERNAL_REQUISITION.rebuild {
           detailsBuilder.apply {
-            refusalBuilder.apply {
-              justification = InternalRequisition.Refusal.Justification.UNFULFILLABLE
-            }
+            refusalBuilder.apply { justification = InternalRefusal.Justification.UNFULFILLABLE }
           }
         }
       )
@@ -342,7 +345,7 @@ class RequisitionServiceTest {
       RefuseRequisitionRequest.newBuilder()
         .apply {
           name = REQUISITION_NAME
-          refusalBuilder.apply { justification = Requisition.Refusal.Justification.UNFULFILLABLE }
+          refusalBuilder.apply { justification = Refusal.Justification.UNFULFILLABLE }
         }
         .build()
 
@@ -351,9 +354,7 @@ class RequisitionServiceTest {
     val expected =
       REQUISITION
         .toBuilder()
-        .apply {
-          refusalBuilder.apply { justification = Requisition.Refusal.Justification.UNFULFILLABLE }
-        }
+        .apply { refusalBuilder.apply { justification = Refusal.Justification.UNFULFILLABLE } }
         .build()
 
     verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -361,9 +362,7 @@ class RequisitionServiceTest {
       .isEqualTo(
         InternalRefuseRequest.newBuilder()
           .apply {
-            refusalBuilder.apply {
-              justification = InternalRequisition.Refusal.Justification.UNFULFILLABLE
-            }
+            refusalBuilder.apply { justification = InternalRefusal.Justification.UNFULFILLABLE }
           }
           .build()
       )

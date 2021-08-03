@@ -14,16 +14,20 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
+import org.wfanet.measurement.api.v2alpha.Requisition.State
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.SignedData
@@ -33,14 +37,16 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.PageToken
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest as InternalRefuseRequest
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
-import org.wfanet.measurement.internal.kingdom.Requisition.State
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+
+private const val MIN_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 100
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
   RequisitionsCoroutineImplBase() {
@@ -52,49 +58,32 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
     val pageSize =
       when {
-        request.pageSize < 1 -> 1
-        request.pageSize > 1000 -> 1000
+        request.pageSize < MIN_PAGE_SIZE -> MIN_PAGE_SIZE
+        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
         else -> request.pageSize
       }
 
-    /**
-     * StreamRequisitionsRequest filter depends on whether the page token is present or not. If it
-     * is present, the filter in the request is ignored and the filter is retrieved from the page
-     * token.
-     */
-    val streamRequest =
-      StreamRequisitionsRequest.newBuilder()
-        .apply {
-          limit = pageSize
-          if (request.pageToken.isNotBlank()) {
-            val pageToken = PageToken.parseFrom(request.pageToken.base64UrlDecode())
-            filterBuilder.apply {
-              createdAfter = pageToken.createdAfter
-              externalMeasurementConsumerId = pageToken.filter.externalMeasurementConsumerId
-              externalDataProviderId = pageToken.filter.externalDataProviderId
-              addAllStates(pageToken.filter.statesList)
-            }
-          } else {
-            filterBuilder.apply {
-              if (request.filter.measurement.isNotBlank()) {
-                val key: MeasurementKey =
-                  grpcRequireNotNull(MeasurementKey.fromName(request.filter.measurement)) {
-                    "Resource name invalid"
-                  }
-                externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-              }
-              if (request.parent.isNotBlank()) {
-                val key: DataProviderKey =
-                  grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-                    "Resource name invalid"
-                  }
-                externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-              }
-              addAllStates(request.filter.statesList.map(Requisition.State::toInternal))
-            }
-          }
+    val streamRequest = buildStreamRequisitionsRequest {
+      limit = pageSize
+      filterBuilder.apply {
+        if (request.pageToken.isNotBlank()) {
+          createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
         }
-        .build()
+        if (request.filter.measurement.isNotBlank()) {
+          val key: MeasurementKey =
+            grpcRequireNotNull(MeasurementKey.fromName(request.filter.measurement)) {
+              "Resource name invalid"
+            }
+          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+        }
+        if (request.parent.isNotBlank()) {
+          val key: DataProviderKey =
+            grpcRequireNotNull(DataProviderKey.fromName(request.parent)) { "Resource name invalid" }
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        }
+        addAllStates(request.filter.statesList.map(State::toInternal))
+      }
+    }
 
     val results: List<InternalRequisition> =
       internalRequisitionStub.streamRequisitions(streamRequest).toList()
@@ -105,12 +94,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
     return ListRequisitionsResponse.newBuilder()
       .addAllRequisitions(results.map(InternalRequisition::toRequisition))
-      .setNextPageToken(
-        buildPageToken {
-          createdAfter = results.last().createTime
-          filter = streamRequest.filter
-        }
-      )
+      .setNextPageToken(results.last().createTime.toByteArray().base64UrlEncode())
       .build()
   }
 
@@ -148,11 +132,25 @@ private fun InternalRequisition.toRequisition(): Requisition {
   }
 
   return buildRequisition {
-    name = externalIdToApiId(externalRequisitionId)
+    name =
+      RequisitionKey(
+          externalIdToApiId(externalDataProviderId),
+          externalIdToApiId(externalRequisitionId)
+        )
+        .toName()
 
-    measurement = externalIdToApiId(externalMeasurementId)
+    measurement =
+      MeasurementKey(
+          externalIdToApiId(externalMeasurementConsumerId),
+          externalIdToApiId(externalMeasurementId)
+        )
+        .toName()
     measurementConsumerCertificate =
-      externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
+      MeasurementConsumerCertificateKey(
+          externalIdToApiId(externalMeasurementConsumerId),
+          externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
+        )
+        .toName()
     measurementSpec {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
@@ -161,14 +159,18 @@ private fun InternalRequisition.toRequisition(): Requisition {
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
-      externalIdToApiId(this@toRequisition.externalDataProviderCertificateId)
+      DataProviderCertificateKey(
+          externalIdToApiId(externalDataProviderId),
+          externalIdToApiId(this@toRequisition.externalDataProviderCertificateId)
+        )
+        .toName()
     dataProviderPublicKey {
       data = details.dataProviderPublicKey
       signature = details.dataProviderPublicKeySignature
     }
     dataProviderParticipationSignature = details.dataProviderParticipationSignature
 
-    addAllDuchies(duchiesMap.entries.map(MutableMap.MutableEntry<String, DuchyValue>::toDuchyEntry))
+    addAllDuchies(duchiesMap.entries.map(Map.Entry<String, DuchyValue>::toDuchyEntry))
 
     state = this@toRequisition.state.toRequisitionState()
     buildRefusal {
@@ -203,7 +205,9 @@ private fun InternalRefusal.Justification.toRefusalJustification(): Refusal.Just
       Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     InternalRefusal.Justification.UNFULFILLABLE -> Refusal.Justification.UNFULFILLABLE
     InternalRefusal.Justification.DECLINED -> Refusal.Justification.DECLINED
-    else -> Refusal.Justification.JUSTIFICATION_UNSPECIFIED
+    InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED ->
+      Refusal.Justification.JUSTIFICATION_UNSPECIFIED
+    InternalRefusal.Justification.UNRECOGNIZED -> Refusal.Justification.UNRECOGNIZED
   }
 
 /** Converts a public [Refusal.Justification] to an internal [InternalRefusal.Justification]. */
@@ -217,25 +221,29 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
       InternalRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
-    else -> InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
+    Refusal.Justification.JUSTIFICATION_UNSPECIFIED ->
+      InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
+    Refusal.Justification.UNRECOGNIZED -> InternalRefusal.Justification.UNRECOGNIZED
   }
 
-/** Converts an internal [State] to a public [Requisition.State]. */
-private fun State.toRequisitionState(): Requisition.State =
+/** Converts an internal [InternalState] to a public [State]. */
+private fun InternalState.toRequisitionState(): State =
   when (this) {
-    State.UNFULFILLED -> Requisition.State.UNFULFILLED
-    State.FULFILLED -> Requisition.State.FULFILLED
-    State.REFUSED -> Requisition.State.REFUSED
-    else -> Requisition.State.STATE_UNSPECIFIED
+    InternalState.UNFULFILLED -> State.UNFULFILLED
+    InternalState.FULFILLED -> State.FULFILLED
+    InternalState.REFUSED -> State.REFUSED
+    InternalState.STATE_UNSPECIFIED -> State.STATE_UNSPECIFIED
+    InternalState.UNRECOGNIZED -> State.UNRECOGNIZED
   }
 
-/** Converts a public [Requisition.State] to an internal [State]. */
-private fun Requisition.State.toInternal(): State =
+/** Converts a public [State] to an internal [InternalState]. */
+private fun State.toInternal(): InternalState =
   when (this) {
-    Requisition.State.UNFULFILLED -> State.UNFULFILLED
-    Requisition.State.FULFILLED -> State.FULFILLED
-    Requisition.State.REFUSED -> State.REFUSED
-    else -> State.STATE_UNSPECIFIED
+    State.UNFULFILLED -> InternalState.UNFULFILLED
+    State.FULFILLED -> InternalState.FULFILLED
+    State.REFUSED -> InternalState.REFUSED
+    State.STATE_UNSPECIFIED -> InternalState.STATE_UNSPECIFIED
+    State.UNRECOGNIZED -> InternalState.UNRECOGNIZED
   }
 
 internal inline fun buildDuchyEntryValue(fill: (@Builder DuchyEntry.Value.Builder).() -> Unit) =
@@ -261,7 +269,7 @@ private fun DuchyValue.toDuchyEntryValue(): DuchyEntry.Value {
             signature = this@toDuchyEntryValue.liquidLegionsV2.elGamalPublicKeySignature
           }
         }
-      else -> {}
+      DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> {}
     }
   }
 }
@@ -270,12 +278,13 @@ internal inline fun buildDuchyEntry(fill: (@Builder DuchyEntry.Builder).() -> Un
   DuchyEntry.newBuilder().apply(fill).build()
 
 /** Converts an internal duchy map entry to a public [DuchyEntry]. */
-private fun MutableMap.MutableEntry<String, DuchyValue>.toDuchyEntry(): DuchyEntry {
+private fun Map.Entry<String, DuchyValue>.toDuchyEntry(): DuchyEntry {
   return buildDuchyEntry {
     key = this@toDuchyEntry.key
     value = this@toDuchyEntry.value.toDuchyEntryValue()
   }
 }
 
-internal inline fun buildPageToken(fill: (@Builder PageToken.Builder).() -> Unit) =
-  PageToken.newBuilder().apply(fill).build().toByteArray().base64UrlEncode()
+internal inline fun buildStreamRequisitionsRequest(
+  fill: (@Builder StreamRequisitionsRequest.Builder).() -> Unit
+) = StreamRequisitionsRequest.newBuilder().apply(fill).build()
