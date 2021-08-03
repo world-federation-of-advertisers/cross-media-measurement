@@ -200,8 +200,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("INVALID_ARGUMENT: Duchy not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: Duchy not found")
   }
 
   @Test
@@ -285,10 +285,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception)
       .hasMessageThat()
-      .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
+      .contains("NOT_FOUND: MeasurementConsumer not found")
   }
 
   @Test
@@ -398,8 +398,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("INVALID_ARGUMENT: DataProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: DataProvider not found")
   }
 
   @Test

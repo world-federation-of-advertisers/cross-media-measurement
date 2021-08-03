@@ -58,8 +58,8 @@ class CreateCertificate(private val certificate: Certificate) :
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
       getOwnerInternalId(transactionContext),
-      certificateId,
-      externalMapId
+      certificateId.value,
+      externalMapId.value
     )
       .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
@@ -98,16 +98,16 @@ class CreateCertificate(private val certificate: Certificate) :
 
   private fun createCertificateMapTableMutation(
     internalOwnerId: Long,
-    internalCertificateId: InternalId,
-    externalMapId: ExternalId
+    internalCertificateId: Long,
+    externalMapId: Long
   ): Mutation {
     val tableName = "${ownerTableName}Certificates"
     val internalIdField = "${ownerTableName}Id"
     val externalIdField = "External${ownerTableName}CertificateId"
     return insertMutation(tableName) {
       set(internalIdField to internalOwnerId)
-      set("CertificateId" to internalCertificateId.value)
-      set(externalIdField to externalMapId.value)
+      set("CertificateId" to internalCertificateId)
+      set(externalIdField to externalMapId)
     }
   }
 

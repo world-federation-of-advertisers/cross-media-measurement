@@ -43,7 +43,7 @@ class CertificateReader(val request: GetCertificateRequest) :
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
 
-  private val tabledResourceBaseSql: String =
+  private val tableBaseSql: String =
     """SELECT
             ${tableName}Certificates.CertificateId,
             Certificates.SubjectKeyIdentifier,
@@ -59,7 +59,7 @@ class CertificateReader(val request: GetCertificateRequest) :
           JOIN Certificates USING (CertificateId)
           """.trimIndent()
 
-  private val configResourceBaseSql: String =
+  private val configBaseSql: String =
     """SELECT
             ${tableName}Certificates.CertificateId,
             Certificates.SubjectKeyIdentifier,
@@ -77,9 +77,9 @@ class CertificateReader(val request: GetCertificateRequest) :
 
   private fun constructBaseSql(): String {
     return when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> configResourceBaseSql
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> tabledResourceBaseSql
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> tabledResourceBaseSql
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> configBaseSql
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> tableBaseSql
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> tableBaseSql
       GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
     }
@@ -99,7 +99,7 @@ class CertificateReader(val request: GetCertificateRequest) :
           GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
             externalDuchyId = DuchyIds.getExternalId(struct.getLong("DuchyId"))
           GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-            throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+            error("Parent field of GetCertificateRequest is not set")
         }
       }
       .build()
