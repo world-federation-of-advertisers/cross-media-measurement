@@ -15,33 +15,32 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.internal.kingdom.Exchange
-import org.wfanet.measurement.kingdom.db.StreamExchangesFilter
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.db.hasDataProviderFilter
 import org.wfanet.measurement.kingdom.db.hasModelProviderFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.StreamExchangesFilterSqlConverter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.StreamRecurringExchangesFilterSqlConverter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.toSql
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 /**
- * Streams [Exchange]s matching [filter] from Spanner ordered by ascending updateTime.
+ * Streams [RecurringExchange]s matching [filter] from Spanner ordered by ascending updateTime.
  *
- * @param filter a filter to control which [Exchange]s to return
- * @param limit how many [Exchange]s to return -- if zero, there is no limit
+ * @param filter a filter to control which [RecurringExchange]s to return
+ * @param limit how many [RecurringExchange]s to return -- if zero, there is no limit
  */
-class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
-  SpannerQuery<ExchangeReader.Result, Exchange>() {
-  override val reader: BaseSpannerReader<ExchangeReader.Result> by lazy {
-    ExchangeReader(forcedIndex).withBuilder {
+class StreamRecurringExchanges(filter: StreamRecurringExchangesFilter, limit: Long = 0) :
+  SpannerQuery<RecurringExchangeReader.Result, RecurringExchangeReader.Result>() {
+  override val reader: BaseSpannerReader<RecurringExchangeReader.Result> by lazy {
+    RecurringExchangeReader(forcedIndex).withBuilder {
       if (!filter.empty) {
         appendClause("WHERE ")
-        filter.toSql(this, StreamExchangesFilterSqlConverter)
+        filter.toSql(this, StreamRecurringExchangesFilterSqlConverter)
       }
 
-      appendClause("ORDER BY NextExchangeDate, Date ASC")
+      appendClause("ORDER BY NextExchangeDate ASC")
 
       if (limit > 0) {
         appendClause("LIMIT @limit")
@@ -50,15 +49,16 @@ class StreamExchanges(filter: StreamExchangesFilter, limit: Long) :
     }
   }
 
-  private val forcedIndex: ExchangeReader.Index by lazy {
+  private val forcedIndex: RecurringExchangeReader.Index by lazy {
     if (filter.hasDataProviderFilter()) {
-      ExchangeReader.Index.DATA_PROVIDER_ID
+      RecurringExchangeReader.Index.DATA_PROVIDER_ID
     } else if (filter.hasModelProviderFilter()) {
-      ExchangeReader.Index.MODEL_PROVIDER_ID
+      RecurringExchangeReader.Index.MODEL_PROVIDER_ID
     } else {
-      ExchangeReader.Index.NONE
+      RecurringExchangeReader.Index.NONE
     }
   }
 
-  override fun Flow<ExchangeReader.Result>.transform(): Flow<Exchange> = map { it.exchange }
+  override fun Flow<RecurringExchangeReader.Result>.transform():
+    Flow<RecurringExchangeReader.Result> = this
 }

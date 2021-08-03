@@ -8,17 +8,6 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "util",
-    srcs = [
-        "DateUtil.kt",
-    ],
-    visibility = [test_target("__pkg__")],
-    deps = [
-        "@com_google_googleapis//google/type:type_java_proto",
-    ],
-)
-
-kt_jvm_library(
     name = "builder",
     srcs = ["Builder.kt"],
     visibility = [test_target("__pkg__")],
@@ -85,7 +74,6 @@ kt_jvm_library(
     name = "exchange_step_attempts_service",
     srcs = ["ExchangeStepAttemptsService.kt"],
     deps = [
-        ":util",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
@@ -105,7 +93,6 @@ kt_jvm_library(
     name = "exchange_steps_service",
     srcs = ["ExchangeStepsService.kt"],
     deps = [
-        ":util",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
