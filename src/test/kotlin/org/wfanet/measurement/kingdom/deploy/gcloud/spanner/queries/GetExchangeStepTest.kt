@@ -130,7 +130,7 @@ class GetExchangeStepTest : KingdomDatabaseTestBase() {
   @Test
   fun `the Exchange Step with Data Provider exists`() = runBlocking {
     val filter =
-      getExchangeStepFilter(externalDataProviderId = ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+      getExchangeStepFilter(externalDataProviderIds = listOf(ExternalId(EXTERNAL_DATA_PROVIDER_ID)))
     val exchangeStep =
       GetExchangeStep(filter).executeSingle(databaseClient.singleUse()).exchangeStep
 
@@ -151,7 +151,9 @@ class GetExchangeStepTest : KingdomDatabaseTestBase() {
   @Test
   fun `the Exchange Step with Model Provider exists`() = runBlocking {
     val filter =
-      getExchangeStepFilter(externalModelProviderId = ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
+      getExchangeStepFilter(
+        externalModelProviderIds = listOf(ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
+      )
     val exchangeStep =
       GetExchangeStep(filter).executeSingle(databaseClient.singleUse()).exchangeStep
 
@@ -199,7 +201,7 @@ class GetExchangeStepTest : KingdomDatabaseTestBase() {
     runBlocking<Unit> {
       val filter =
         getExchangeStepFilter(
-          externalDataProviderId = ExternalId(EXTERNAL_DATA_PROVIDER_ID),
+          externalDataProviderIds = listOf(ExternalId(EXTERNAL_DATA_PROVIDER_ID)),
           states = listOf(ExchangeStep.State.READY_FOR_RETRY)
         )
 

@@ -16,32 +16,29 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/type/date.proto";
-import "wfa/measurement/internal/kingdom/recurring_exchange_details.proto";
-
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Represents a Panel Matching exchange that happens between a `DataProvider`
-// and a `ModelProvider` on some schedule. This is instantiated once per date in
-// the schedule via `Exchange` resources.
-message RecurringExchange {
-  fixed64 external_recurring_exchange_id = 1;
-  fixed64 external_model_provider_id = 2;
-  fixed64 external_data_provider_id = 3;
-
-  RecurringExchangeDetails details = 4;
-
-  enum State {
-    STATE_UNSPECIFIED = 0;
-
-    // New Exchanges should be started according to the schedule.
-    ACTIVE = 1;
-
-    // New Exchanges will not be created.
-    RETIRED = 2;
+// A manifestation of an ExchangeWorkflow.Step for a particular Exchange.
+message ExchangeWorkflow {
+  // The type of participant that executes each step.
+  enum Party {
+    PARTY_UNSPECIFIED = 0;
+    MODEL_PROVIDER = 1;
+    DATA_PROVIDER = 2;
   }
-  State state = 5;
 
-  google.type.Date next_exchange_date = 6;
+  // Building blocks of the ExchangeWorkflow.
+  message Step {
+    // Identifier unique to the ExchangeStep.
+    int32 step_index = 1;
+
+    // Each step may or may not expect some prerequisite steps to be finished.
+    repeated int32 prerequisite_step_indices = 3;
+
+    // The party that should execute this step.
+    Party party = 2;
+  }
+  // Sequence of steps of the workflow.
+  repeated Step steps = 1;
 }
