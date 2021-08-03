@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.batchlookup.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.google.protobuf.ByteString
 import kotlin.random.Random
 import org.apache.beam.sdk.transforms.Create
@@ -44,7 +45,7 @@ abstract class AbstractBatchLookupWorkflowEndToEndTest : BeamTestBase() {
   fun endToEnd() {
     for (numShards in listOf(1, 10, 100)) {
       for (numBucketsPerShard in listOf(1, 10, 100, 1000)) {
-        for (subshardSizeBytes in listOf(1, 10, 100)) {
+        for (subshardSizeBytes in listOf(500, 1000, 100000)) {
           val parameters =
             Parameters(
               numShards = numShards,
@@ -106,7 +107,9 @@ abstract class AbstractBatchLookupWorkflowEndToEndTest : BeamTestBase() {
           .map { result -> localHelper.decodeResultData(result).toStringUtf8() }
           .flatMap { decodedResult -> splitConcatenatedPayloads(decodedResult) }
           .toSet()
-      assertThat(uniqueResults).containsAtLeastElementsIn(expectedResults)
+      assertWithMessage("with $parameters")
+        .that(uniqueResults)
+        .containsAtLeastElementsIn(expectedResults)
       null
     }
   }
