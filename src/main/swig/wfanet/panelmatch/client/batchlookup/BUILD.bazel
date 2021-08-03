@@ -8,7 +8,7 @@ package(default_visibility = [
 java_wrap_cc(
     name = "query_evaluator",
     src = "query_evaluator.swig",
-    module = "SwigQueryEvaluator",
+    module = "QueryEvaluatorWrapper",
     package = "org.wfanet.panelmatch.client.batchlookup",
     deps = [
         "//src/main/cc/wfa/panelmatch/client/batchlookup:query_evaluator_wrapper",

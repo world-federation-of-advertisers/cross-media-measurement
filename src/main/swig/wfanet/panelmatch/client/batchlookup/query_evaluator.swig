@@ -64,4 +64,4 @@
 // Follow Java style for function names.
 %rename("%(lowercamelcase)s",%$isfunction) "";
 
-#include "wfa/panelmatch/client/batchlookup/query_evaluator_wrapper.h"
+%include "wfa/panelmatch/client/batchlookup/query_evaluator_wrapper.h"
