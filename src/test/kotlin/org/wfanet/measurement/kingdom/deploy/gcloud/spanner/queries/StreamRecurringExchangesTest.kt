@@ -24,11 +24,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
-import org.wfanet.measurement.kingdom.db.StreamExchangesFilter
-import org.wfanet.measurement.kingdom.db.streamExchangesFilter
+import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
+import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesFilter
+import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 private const val DATA_PROVIDER_ID = 1L
@@ -69,14 +69,42 @@ private val DATE3 =
 private val EXCHANGE_DETAILS =
   ExchangeDetails.newBuilder().setAuditTrailHash(ByteString.copyFromUtf8("123")).build()
 
-private val EXCHANGE1 = buildExchange(DATE1, Exchange.State.ACTIVE)
-private val EXCHANGE2 = buildExchange(DATE2, Exchange.State.FAILED)
-private val EXCHANGE3 = buildExchange(DATE3, Exchange.State.ACTIVE)
+private val RECURRING_EXCHANGE_DETAILS = RecurringExchangeDetails.getDefaultInstance()
+
+private val RECURRING_EXCHANGE1 =
+  RecurringExchange.newBuilder()
+    .apply {
+      this.externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+      this.externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      this.externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      this.nextExchangeDate = DATE1
+      this.state = RecurringExchange.State.ACTIVE
+      this.details = RECURRING_EXCHANGE_DETAILS
+    }
+    .build()
+
+private val RECURRING_EXCHANGE2 =
+  RecurringExchange.newBuilder()
+    .apply {
+      this.externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
+      this.externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
+      this.externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      this.nextExchangeDate = DATE2
+      this.state = RecurringExchange.State.RETIRED
+      this.details = RECURRING_EXCHANGE_DETAILS
+    }
+    .build()
 
 @RunWith(JUnit4::class)
-class StreamExchangesTest : KingdomDatabaseTestBase() {
-  private suspend fun executeToList(filter: StreamExchangesFilter, limit: Long): List<Exchange> {
-    return StreamExchanges(filter, limit).execute(databaseClient.singleUse()).toList()
+class StreamRecurringExchangesTest : KingdomDatabaseTestBase() {
+  private suspend fun executeToList(
+    filter: StreamRecurringExchangesFilter,
+    limit: Long
+  ): List<RecurringExchange> {
+    return StreamRecurringExchanges(filter, limit)
+      .execute(databaseClient.singleUse())
+      .toList()
+      .map { it.recurringExchange }
   }
 
   @Before
@@ -101,28 +129,25 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
       RecurringExchange.State.RETIRED,
       DATE2
     )
-    insertExchange(RECURRING_EXCHANGE_ID1, DATE1, Exchange.State.ACTIVE, EXCHANGE_DETAILS)
-    insertExchange(RECURRING_EXCHANGE_ID2, DATE2, Exchange.State.FAILED, EXCHANGE_DETAILS)
-    insertExchange(RECURRING_EXCHANGE_ID1, DATE3, Exchange.State.ACTIVE, EXCHANGE_DETAILS)
   }
 
   @Test
   fun `database sanity check`() {
-    assertThat(readAllExchangesInSpanner())
+    assertThat(readAllRecurringExchangesInSpanner())
       .comparingExpectedFieldsOnly()
-      .containsExactly(EXCHANGE1, EXCHANGE2, EXCHANGE3)
+      .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
   }
 
   @Test
   fun `next exchange date filter`() =
     runBlocking<Unit> {
-      fun filter(date: Date) = streamExchangesFilter(nextExchangeDate = date)
+      fun filter(date: Date) = streamRecurringExchangesFilter(nextExchangeDateBefore = date)
 
       assertThat(executeToList(filter(DATE1), 10)).comparingExpectedFieldsOnly().containsExactly()
 
       assertThat(executeToList(filter(DATE2), 10))
         .comparingExpectedFieldsOnly()
-        .containsExactly(EXCHANGE1, EXCHANGE3)
+        .containsExactly(RECURRING_EXCHANGE1)
 
       val date =
         Date.newBuilder()
@@ -135,23 +160,23 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
 
       assertThat(executeToList(filter(date), 10))
         .comparingExpectedFieldsOnly()
-        .containsExactly(EXCHANGE1, EXCHANGE2, EXCHANGE3)
+        .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
     }
 
   @Test
   fun `limit filter`() =
     runBlocking<Unit> {
-      assertThat(executeToList(streamExchangesFilter(), 10))
+      assertThat(executeToList(streamRecurringExchangesFilter(), 10))
         .comparingExpectedFieldsOnly()
-        .containsExactly(EXCHANGE1, EXCHANGE2, EXCHANGE3)
+        .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
 
-      assertThat(executeToList(streamExchangesFilter(), 2))
+      assertThat(executeToList(streamRecurringExchangesFilter(), 2))
         .comparingExpectedFieldsOnly()
-        .containsExactly(EXCHANGE1, EXCHANGE3)
+        .containsExactly(RECURRING_EXCHANGE1, RECURRING_EXCHANGE2)
 
-      assertThat(executeToList(streamExchangesFilter(), 1))
+      assertThat(executeToList(streamRecurringExchangesFilter(), 1))
         .comparingExpectedFieldsOnly()
-        .containsExactly(EXCHANGE1)
+        .containsExactly(RECURRING_EXCHANGE1)
     }
 
   @Test
@@ -165,25 +190,15 @@ class StreamExchangesTest : KingdomDatabaseTestBase() {
         }
         .build()
     val filter =
-      streamExchangesFilter(
+      streamRecurringExchangesFilter(
         externalModelProviderIds = listOf(ExternalId(EXTERNAL_MODEL_PROVIDER_ID)),
         externalDataProviderIds = listOf(ExternalId(EXTERNAL_DATA_PROVIDER_ID)),
         states = listOf(RecurringExchange.State.ACTIVE),
-        nextExchangeDate = date,
+        nextExchangeDateBefore = date,
       )
     assertThat(executeToList(filter, 10))
       .comparingExpectedFieldsOnly()
-      .containsExactly(EXCHANGE1, EXCHANGE3)
+      .containsExactly(RECURRING_EXCHANGE1)
       .inOrder()
   }
-}
-
-private fun buildExchange(date: Date, state: Exchange.State): Exchange {
-  return Exchange.newBuilder()
-    .apply {
-      this.date = date
-      this.state = state
-      this.details = EXCHANGE_DETAILS
-    }
-    .build()
 }

@@ -45,8 +45,8 @@ import org.wfanet.measurement.internal.kingdom.ReportDetails
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
@@ -425,8 +425,11 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
     RequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
   }
 
-  protected fun readAllExchangesInSpanner(): List<Exchange> = runBlocking {
-    ExchangeReader().execute(databaseClient.singleUse()).map { it.exchange }.toList()
+  protected fun readAllRecurringExchangesInSpanner(): List<RecurringExchange> = runBlocking {
+    RecurringExchangeReader()
+      .execute(databaseClient.singleUse())
+      .map { it.recurringExchange }
+      .toList()
   }
 
   protected fun readAllExchangeStepsInSpanner(): List<ExchangeStep> = runBlocking {

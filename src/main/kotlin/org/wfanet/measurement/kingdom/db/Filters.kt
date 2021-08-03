@@ -32,7 +32,7 @@ typealias StreamRequisitionsFilter = AllOfClause<StreamRequisitionsClause>
 
 typealias StreamReportsFilter = AllOfClause<StreamReportsClause>
 
-typealias StreamExchangesFilter = AllOfClause<StreamExchangesClause>
+typealias StreamRecurringExchangesFilter = AllOfClause<StreamRecurringExchangesClause>
 
 typealias GetExchangeStepFilter = AllOfClause<GetExchangeStepClause>
 
@@ -106,35 +106,40 @@ fun streamReportsFilter(
   )
 
 /**
- * Creates a filter for Exchanges.
+ * Creates a filter for RecurringExchanges.
  *
  * The list inputs are treated as disjunctions, and all non-null inputs are conjoined.
  *
  * For example,
  *
- * streamExchangesFilter(externalModelProviderIds = listOf(ID1, ID2), nextExchangeDate = SOME_DATE)
+ * streamRecurringExchangesFilter(externalModelProviderIds = listOf(ID1, ID2),
+ * nextExchangeDateBefore = SOME_DATE)
  *
- * would match each Exchange that matches both these criteria:
+ * would match each RecurringExchange that matches both these criteria:
  * - it is associated with a ModelProvider with external id either ID1 or ID2, and
  * - it was associated with exchanges created before SOME_DATE.
  *
  * @param externalModelProviderIds a list of Model Providers
  * @param externalDataProviderIds a list of Data Providers
  * @param states a list of [RecurringExchange.State]s
- * @param nextExchangeDate a time before next exchange date scheduled
+ * @param nextExchangeDateBefore a time before next exchange date scheduled
  */
-fun streamExchangesFilter(
+fun streamRecurringExchangesFilter(
   externalModelProviderIds: List<ExternalId>? = null,
   externalDataProviderIds: List<ExternalId>? = null,
   states: List<RecurringExchange.State>? = null,
-  nextExchangeDate: Date? = null
-): StreamExchangesFilter =
+  nextExchangeDateBefore: Date? = null
+): StreamRecurringExchangesFilter =
   allOf(
     listOfNotNull(
-      externalModelProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalModelProviderId),
-      externalDataProviderIds.ifNotNullOrEmpty(StreamExchangesClause::ExternalDataProviderId),
-      states.ifNotNullOrEmpty(StreamExchangesClause::State),
-      nextExchangeDate.ifNotNull(StreamExchangesClause::NextExchangeDate)
+      externalModelProviderIds.ifNotNullOrEmpty(
+        StreamRecurringExchangesClause::ExternalModelProviderId
+      ),
+      externalDataProviderIds.ifNotNullOrEmpty(
+        StreamRecurringExchangesClause::ExternalDataProviderId
+      ),
+      states.ifNotNullOrEmpty(StreamRecurringExchangesClause::State),
+      nextExchangeDateBefore.ifNotNull(StreamRecurringExchangesClause::NextExchangeDateBefore)
     )
   )
 
@@ -160,8 +165,8 @@ fun streamExchangesFilter(
  * @param states list of [ExchangeStep.State]s
  */
 fun getExchangeStepFilter(
-  externalModelProviderId: ExternalId? = null,
-  externalDataProviderId: ExternalId? = null,
+  externalModelProviderIds: List<ExternalId>? = null,
+  externalDataProviderIds: List<ExternalId>? = null,
   recurringExchangeId: Long? = null,
   date: Date? = null,
   stepIndex: Long? = null,
@@ -169,8 +174,8 @@ fun getExchangeStepFilter(
 ): GetExchangeStepFilter =
   allOf(
     listOfNotNull(
-      externalModelProviderId.ifNotNull(GetExchangeStepClause::ExternalModelProviderId),
-      externalDataProviderId.ifNotNull(GetExchangeStepClause::ExternalDataProviderId),
+      externalModelProviderIds.ifNotNullOrEmpty(GetExchangeStepClause::ExternalModelProviderId),
+      externalDataProviderIds.ifNotNullOrEmpty(GetExchangeStepClause::ExternalDataProviderId),
       recurringExchangeId.ifNotNull(GetExchangeStepClause::RecurringExchangeId),
       date.ifNotNull(GetExchangeStepClause::Date),
       stepIndex.ifNotNull(GetExchangeStepClause::StepIndex),
@@ -228,41 +233,41 @@ fun StreamReportsFilter.hasStateFilter(): Boolean {
 }
 
 /** Base class for filtering Exchange streams. Never directly instantiated. */
-sealed class StreamExchangesClause : TerminalClause {
+sealed class StreamRecurringExchangesClause : TerminalClause {
 
   /**
    * Matching RecurringExchanges must belong to an ModelProvider with an external id in [values].
    */
   data class ExternalModelProviderId internal constructor(val values: List<ExternalId>) :
-    StreamExchangesClause(), AnyOfClause
+    StreamRecurringExchangesClause(), AnyOfClause
 
   /** Matching RecurringExchanges must belong to an DataProvider with an external id in [values]. */
   data class ExternalDataProviderId internal constructor(val values: List<ExternalId>) :
-    StreamExchangesClause(), AnyOfClause
+    StreamRecurringExchangesClause(), AnyOfClause
 
   /** Matching RecurringExchanges must have a state among those in [values]. */
   data class State internal constructor(val values: List<RecurringExchange.State>) :
-    StreamExchangesClause(), AnyOfClause
+    StreamRecurringExchangesClause(), AnyOfClause
 
-  /** Matching RecurringExchanges must have [NextExchangeDate] before [value]. */
-  data class NextExchangeDate internal constructor(val value: Date) :
-    StreamExchangesClause(), LessThanClause
+  /** Matching RecurringExchanges must have [NextExchangeDateBefore] before [value]. */
+  data class NextExchangeDateBefore internal constructor(val value: Date) :
+    StreamRecurringExchangesClause(), LessThanClause
 }
 
 /**
- * Returns whether the filter acts on a DataProviderId of the Exchange. This is useful for forcing
- * indexes.
+ * Returns whether the filter acts on a DataProviderId of the RecurringExchange. This is useful for
+ * forcing indexes.
  */
-fun StreamExchangesFilter.hasDataProviderFilter(): Boolean {
-  return clauses.any { it is StreamExchangesClause.ExternalDataProviderId }
+fun StreamRecurringExchangesFilter.hasDataProviderFilter(): Boolean {
+  return clauses.any { it is StreamRecurringExchangesClause.ExternalDataProviderId }
 }
 
 /**
- * Returns whether the filter acts on a ModelProviderId of the Exchange. This is useful for forcing
- * indexes.
+ * Returns whether the filter acts on a ModelProviderId of the RecurringExchange. This is useful for
+ * forcing indexes.
  */
-fun StreamExchangesFilter.hasModelProviderFilter(): Boolean {
-  return clauses.any { it is StreamExchangesClause.ExternalModelProviderId }
+fun StreamRecurringExchangesFilter.hasModelProviderFilter(): Boolean {
+  return clauses.any { it is StreamRecurringExchangesClause.ExternalModelProviderId }
 }
 
 // TODO(@yunyeng): Move EqualCase to common-jvm.
@@ -270,13 +275,13 @@ interface EqualClause : TerminalClause
 
 /** Base class for filtering to get an Exchange Step. Never directly instantiated. */
 sealed class GetExchangeStepClause : TerminalClause {
-  /** Matching ExchangeStep must belong to a ModelProvider with an external id of [value]. */
-  data class ExternalModelProviderId internal constructor(val value: ExternalId) :
-    GetExchangeStepClause(), EqualClause
+  /** Matching ExchangeStep must belong to a ModelProvider with an external id of [values]. */
+  data class ExternalModelProviderId internal constructor(val values: List<ExternalId>) :
+    GetExchangeStepClause(), AnyOfClause
 
-  /** Matching ExchangeStep must belong to a DataProvider with an external id of [value]. */
-  data class ExternalDataProviderId internal constructor(val value: ExternalId) :
-    GetExchangeStepClause(), EqualClause
+  /** Matching ExchangeStep must belong to a DataProvider with an external id of [values]. */
+  data class ExternalDataProviderId internal constructor(val values: List<ExternalId>) :
+    GetExchangeStepClause(), AnyOfClause
 
   /** Matching ExchangeStep must belong to a RecurringExchange with an external id of [value]. */
   data class RecurringExchangeId internal constructor(val value: Long) :

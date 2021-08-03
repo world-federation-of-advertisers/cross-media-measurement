@@ -31,7 +31,7 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.kingdom.db.EqualClause
 import org.wfanet.measurement.kingdom.db.GetExchangeStepClause
-import org.wfanet.measurement.kingdom.db.StreamExchangesClause
+import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesClause
 import org.wfanet.measurement.kingdom.db.StreamReportsClause
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsClause
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.SqlConverter.SqlData
@@ -109,24 +109,24 @@ object StreamReportsFilterSqlConverter : SqlConverter<StreamReportsClause> {
     }
 }
 
-object StreamExchangesFilterSqlConverter : SqlConverter<StreamExchangesClause> {
-  override fun sqlData(v: StreamExchangesClause): SqlData =
+object StreamRecurringExchangesFilterSqlConverter : SqlConverter<StreamRecurringExchangesClause> {
+  override fun sqlData(v: StreamRecurringExchangesClause): SqlData =
     when (v) {
-      is StreamExchangesClause.ExternalModelProviderId ->
+      is StreamRecurringExchangesClause.ExternalModelProviderId ->
         SqlData(
           "ModelProviders.ExternalModelProviderId",
           "external_model_provider_id",
           externalIdValueArray(v.values)
         )
-      is StreamExchangesClause.ExternalDataProviderId ->
+      is StreamRecurringExchangesClause.ExternalDataProviderId ->
         SqlData(
           "DataProviders.ExternalDataProviderId",
           "external_data_provider_id",
           externalIdValueArray(v.values)
         )
-      is StreamExchangesClause.State ->
+      is StreamRecurringExchangesClause.State ->
         SqlData("RecurringExchanges.State", "state", enumValueArray(v.values))
-      is StreamExchangesClause.NextExchangeDate ->
+      is StreamRecurringExchangesClause.NextExchangeDateBefore ->
         SqlData("RecurringExchanges.NextExchangeDate", "next_exchange_date", dateValue(v.value))
     }
 }
@@ -138,13 +138,13 @@ object GetExchangeStepFilterSqlConverter : SqlConverter<GetExchangeStepClause> {
         SqlData(
           "ModelProviders.ExternalModelProviderId",
           "external_model_provider_id",
-          Value.int64(v.value.value)
+          externalIdValueArray(v.values)
         )
       is GetExchangeStepClause.ExternalDataProviderId ->
         SqlData(
           "DataProviders.ExternalDataProviderId",
           "external_data_provider_id",
-          Value.int64(v.value.value)
+          externalIdValueArray(v.values)
         )
       is GetExchangeStepClause.RecurringExchangeId ->
         SqlData("ExchangeSteps.RecurringExchangeId", "recurring_exchange_id", Value.int64(v.value))
