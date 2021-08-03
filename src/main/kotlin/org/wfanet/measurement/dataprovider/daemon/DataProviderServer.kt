@@ -14,89 +14,33 @@
 
 package org.wfanet.measurement.dataprovider.daemon
 
-import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
-import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import picocli.CommandLine
-import org.wfanet.measurement.api.v2alpha.CombinedPublicKeysGrpcKt.CombinedPublicKeysCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.Sketch
-import org.wfanet.measurement.api.v2alpha.SketchConfig
-import org.wfanet.measurement.api.v2alpha.SketchConfigsGrpcKt.SketchConfigsCoroutineStub
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildPlaintextChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import picocli.CommandLine
 
 abstract class DataProviderServer : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: Flags
     private set
 
-  private fun run(@CommandLine.Mixin flags: Flags) {
-    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
-
-    /*
-        val workflow = RequisitionFulfillmentWorkflow(
-          GrpcUnfulfilledRequisitionProvider(
-            ApiId(flags.externalDataProviderId).externalId,
-            flags.requisitionsStub
-          ),
-          FakeRequisitionDecoder(),
-          DefaultEncryptedSketchGenerator(
-            GrpcElGamalPublicKeyCache(flags.combinedPublicKeysStub),
-            GrpcSketchConfigCache(flags.sketchConfigsStub),
-            EmptySketchGenerator::generate
-          ),
-          GrpcRequisitionFulfiller(flags.requisitionFulfillmentStub)
-        )
-    */
-
-    runBlocking {
-      throttler.loopOnReadySuppressingExceptions {
-        //        workflow.execute()
-      }
-    }
-  }
+  private fun run(@CommandLine.Mixin flags: Flags) {}
 
   protected class Flags {
 
-    @CommandLine.Option(
-      names = ["--combined-public-keys-service-target"],
-      required = true
-    )
+    @CommandLine.Option(names = ["--combined-public-keys-service-target"], required = true)
     lateinit var combinedPublicKeysServiceTarget: String
       private set
 
-    val combinedPublicKeysStub by lazy {
-      CombinedPublicKeysCoroutineStub(
-        buildChannel(combinedPublicKeysServiceTarget)
-          .withVerboseLogging(debugVerboseGrpcClientLogging)
-      )
-    }
-
-    @CommandLine.Option(
-      names = ["--sketch-configs-service-target"],
-      required = true
-    )
+    @CommandLine.Option(names = ["--sketch-configs-service-target"], required = true)
     lateinit var sketchConfigsServiceTarget: String
       private set
 
-    val sketchConfigsStub by lazy {
-      SketchConfigsCoroutineStub(
-        buildChannel(sketchConfigsServiceTarget)
-          .withVerboseLogging(debugVerboseGrpcClientLogging)
-      )
-    }
-
-    @CommandLine.Option(
-      names = ["--external-data-provider-id"],
-      required = true
-    )
+    @CommandLine.Option(names = ["--external-data-provider-id"], required = true)
     lateinit var externalDataProviderId: String
       private set
 
@@ -128,7 +72,18 @@ abstract class DataProviderServer : Runnable {
 
     val requisitionsStub by lazy {
       RequisitionsCoroutineStub(
-        buildChannel(systemRequisitionsServiceTarget)
+        buildPlaintextChannel(systemRequisitionsServiceTarget)
+          .withVerboseLogging(debugVerboseGrpcClientLogging)
+      )
+    }
+
+    @CommandLine.Option(names = ["--requisition-fulfillment-service-target"], required = true)
+    lateinit var requisitionFulfillmentServiceTarget: String
+      private set
+
+    val requisitionFulfillmentStub by lazy {
+      RequisitionFulfillmentCoroutineStub(
+        buildPlaintextChannel(requisitionFulfillmentServiceTarget)
           .withVerboseLogging(debugVerboseGrpcClientLogging)
       )
     }
@@ -140,10 +95,7 @@ abstract class DataProviderServer : Runnable {
     )
     var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
       private set
-
   }
-
-
 
   companion object {
     const val SERVICE_NAME = "DataProvider"

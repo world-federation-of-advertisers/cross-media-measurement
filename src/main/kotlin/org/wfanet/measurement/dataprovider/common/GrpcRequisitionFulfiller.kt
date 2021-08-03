@@ -20,33 +20,25 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 
-/**
- * Implementation of [RequisitionFulfiller] for gRPC.
- */
-class GrpcRequisitionFulfiller(
-  private val stub: RequisitionFulfillmentCoroutineStub
-) : RequisitionFulfiller {
-  override suspend fun fulfillRequisition(key: Requisition.Key, data: Flow<ByteString>) {
+/** Implementation of [RequisitionFulfiller] for gRPC. */
+class GrpcRequisitionFulfiller(private val stub: RequisitionFulfillmentCoroutineStub) :
+  RequisitionFulfiller {
+  override suspend fun fulfillRequisition(name: String, data: Flow<ByteString>) {
     stub.fulfillRequisition(
       flow {
-        emit(makeFulfillRequisitionHeader(key))
+        emit(makeFulfillRequisitionHeader(name))
         emitAll(data.map { makeFulfillRequisitionBody(it) })
       }
     )
   }
 
-  private fun makeFulfillRequisitionHeader(key: Requisition.Key): FulfillRequisitionRequest {
-    return FulfillRequisitionRequest.newBuilder().apply {
-      headerBuilder.key = key
-    }.build()
+  private fun makeFulfillRequisitionHeader(name: String): FulfillRequisitionRequest {
+    return FulfillRequisitionRequest.newBuilder().apply { headerBuilder.name = name }.build()
   }
 
   private fun makeFulfillRequisitionBody(bytes: ByteString): FulfillRequisitionRequest {
-    return FulfillRequisitionRequest.newBuilder().apply {
-      bodyChunkBuilder.data = bytes
-    }.build()
+    return FulfillRequisitionRequest.newBuilder().apply { bodyChunkBuilder.data = bytes }.build()
   }
 }
