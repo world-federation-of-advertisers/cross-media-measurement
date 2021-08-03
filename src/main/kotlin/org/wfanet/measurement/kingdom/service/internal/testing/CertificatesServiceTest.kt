@@ -24,21 +24,21 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.junit.Rule
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
@@ -85,43 +85,43 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
-      MeasurementConsumer.newBuilder()
-        .apply {
-              preferredCertificateBuilder.apply {
-                notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
-              }
-          detailsBuilder.apply {
-                apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-              }
+        MeasurementConsumer.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
             }
-        .build()
-    )
+            detailsBuilder.apply {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
+          }
+          .build()
+      )
       .externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
     return dataProvidersService.createDataProvider(
-      DataProvider.newBuilder()
-        .apply {
-              preferredCertificateBuilder.apply {
-                notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
-              }
-          detailsBuilder.apply {
-                apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-              }
+        DataProvider.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
             }
-        .build()
-    )
+            detailsBuilder.apply {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
+          }
+          .build()
+      )
       .externalDataProviderId
   }
 
@@ -286,9 +286,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("NOT_FOUND: MeasurementConsumer not found")
+    assertThat(exception).hasMessageThat().contains("NOT_FOUND: MeasurementConsumer not found")
   }
 
   @Test

@@ -57,10 +57,10 @@ class CreateCertificate(private val certificate: Certificate) :
     val externalMapId = idGenerator.generateExternalId()
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
-      getOwnerInternalId(transactionContext),
-      certificateId.value,
-      externalMapId.value
-    )
+        getOwnerInternalId(transactionContext),
+        certificateId.value,
+        externalMapId.value
+      )
       .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
   }
