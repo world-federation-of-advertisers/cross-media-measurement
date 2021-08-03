@@ -18,21 +18,22 @@ import java.util.ArrayDeque
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.identity.ExternalId
 
 /**
  * Implementation of [UnfulfilledRequisitionProvider] that loads pages of unfulfilled [Requisition]s
  * via gRPC and caches them until needed.
  */
 class GrpcUnfulfilledRequisitionProvider(
-  externalDataProviderId: ExternalId,
+  externalDataProviderId: String,
   private val requisitions: RequisitionsCoroutineStub
 ) : UnfulfilledRequisitionProvider {
   private val requestTemplate =
-    ListRequisitionsRequest.newBuilder().apply {
-      parentBuilder.dataProviderId = externalDataProviderId.apiId.value
-      filterBuilder.addStates(Requisition.State.UNFULFILLED)
-    }.build()
+    ListRequisitionsRequest.newBuilder()
+      .apply {
+        parent = externalDataProviderId
+        filterBuilder.addStates(Requisition.State.UNFULFILLED)
+      }
+      .build()
 
   private val buffer = ArrayDeque<Requisition>()
   private var pageToken = ""
@@ -45,10 +46,7 @@ class GrpcUnfulfilledRequisitionProvider(
   }
 
   suspend fun refillBuffer() {
-    val request =
-      requestTemplate.toBuilder()
-        .setPageToken(pageToken)
-        .build()
+    val request = requestTemplate.toBuilder().setPageToken(pageToken).build()
     val response = requisitions.listRequisitions(request)
     pageToken = response.nextPageToken
     buffer.addAll(response.requisitionsList)
