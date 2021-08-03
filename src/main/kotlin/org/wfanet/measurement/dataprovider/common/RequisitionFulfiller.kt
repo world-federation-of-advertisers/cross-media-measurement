@@ -18,9 +18,7 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.Requisition
 
-/**
- * Interface for Dependency Injection of [Requisition] fulfillment responsibility.
- */
+/** Interface for Dependency Injection of [Requisition] fulfillment responsibility. */
 interface RequisitionFulfiller {
-  suspend fun fulfillRequisition(key: Requisition.Key, data: Flow<ByteString>)
+  suspend fun fulfillRequisition(name: String, data: Flow<ByteString>)
 }

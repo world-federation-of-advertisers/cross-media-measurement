@@ -17,15 +17,14 @@ package org.wfanet.measurement.dataprovider.deploy.fake
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.dataprovider.common.DefaultEncryptedSketchGenerator
-import org.wfanet.measurement.dataprovider.common.GrpcElGamalPublicKeyCache
-import org.wfanet.measurement.dataprovider.common.GrpcSketchConfigCache
+import org.wfanet.measurement.dataprovider.common.GrpcRequisitionFulfiller
 import org.wfanet.measurement.dataprovider.common.GrpcUnfulfilledRequisitionProvider
 import org.wfanet.measurement.dataprovider.daemon.DataProviderServer
 import org.wfanet.measurement.dataprovider.daemon.RequisitionFulfillmentWorkflow
 import org.wfanet.measurement.dataprovider.fake.FakeRequisitionDecoder
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 
 /** Implementation of [FakeDataProviderServer] using Fake Data Provider Service. */
@@ -40,27 +39,17 @@ class FakeDataProviderServer : DataProviderServer() {
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
 
-    val workflow = RequisitionFulfillmentWorkflow (
-      GrpcUnfulfilledRequisitionProvider(
-        ApiId(flags.externalDataProviderId).externalId,
-        flags.requisitionsStub
-      ),
-      FakeRequisitionDecoder(),
-      DefaultEncryptedSketchGenerator(
-        GrpcElGamalPublicKeyCache(flags.combinedPublicKeysStub),
-        GrpcSketchConfigCache(flags.sketchConfigsStub),
-        EmptySketchGenerator::generate
-      ),
-      GrpcRequisitionFulfiller(flags.requisitionFulfillmentStub)
-    )
+    val storageClient = FileSystemStorageClient(createTempDir())
+    val workflow =
+      RequisitionFulfillmentWorkflow(
+        GrpcUnfulfilledRequisitionProvider(flags.externalDataProviderId, flags.requisitionsStub),
+        FakeRequisitionDecoder(),
+        DefaultEncryptedSketchGenerator(),
+        GrpcRequisitionFulfiller(flags.requisitionFulfillmentStub),
+        storageClient,
+      )
 
-    runBlocking {
-      throttler.loopOnReadySuppressingExceptions {
-        workflow.execute()
-      }
-    }
-
-
+    runBlocking { throttler.loopOnReady { workflow.execute() } }
   }
 }
 

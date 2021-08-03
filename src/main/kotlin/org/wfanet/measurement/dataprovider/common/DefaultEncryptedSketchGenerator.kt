@@ -16,23 +16,40 @@ package org.wfanet.measurement.dataprovider.common
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.anysketch.Sketch
+import org.wfanet.anysketch.crypto.EncryptSketchRequest
+import org.wfanet.anysketch.crypto.EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY
+import org.wfanet.anysketch.crypto.EncryptSketchResponse
+import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.SketchConfig
+import org.wfanet.measurement.common.asBufferedFlow
 
 /** [EncryptedSketchGenerator] that delegates to helpers. */
-class DefaultEncryptedSketchGenerator(
-  private val elGamalPublicKeyStore: ElGamalPublicKeyStore,
-  private val sketchConfigStore: SketchConfigStore,
-  private val generateSketch: (RequisitionSpec, ElGamalPublicKey, SketchConfig) -> Flow<ByteString>
-) : EncryptedSketchGenerator {
+class DefaultEncryptedSketchGenerator : EncryptedSketchGenerator {
+
+  private val MAX_COUNTER_VALUE = 5
+
+  fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): Flow<ByteString> {
+    val request: EncryptSketchRequest =
+      EncryptSketchRequest.newBuilder()
+        .apply {
+          this.sketch = sketch
+          maximumValue = MAX_COUNTER_VALUE
+          curveId = combinedPublicKey.ellipticCurveId.toLong()
+          elGamalKeysBuilder.generator = combinedPublicKey.generator
+          elGamalKeysBuilder.element = combinedPublicKey.element
+          destroyedRegisterStrategy = FLAGGED_KEY // for LL_V2 protocol
+        }
+        .build()
+    val response =
+      EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
+    return response.encryptedSketch.asBufferedFlow(1024)
+  }
+
   override suspend fun generate(
-    requisitionSpec: RequisitionSpec,
-    encryptedSketch: MeasurementSpec.EncryptedSketch
+    sketch: Sketch,
+    combinedPublicKey: ElGamalPublicKey
   ): Flow<ByteString> {
-    val publicKey = elGamalPublicKeyStore.get(encryptedSketch.combinedPublicKey)
-    val sketchConfig = sketchConfigStore.get(encryptedSketch.sketchConfig)
-    return generateSketch(requisitionSpec, publicKey, sketchConfig)
+    return encryptSketch(sketch, combinedPublicKey)
   }
 }
