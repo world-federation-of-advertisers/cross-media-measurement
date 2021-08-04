@@ -29,4 +29,10 @@ message RecurringExchangeDetails {
 
   // ExchangeWorkflow proto.
   ExchangeWorkflow exchange_workflow = 2;
+
+  // Serialized ExchangeWorkflow proto from the public API.
+  //
+  // This is serialized because DataProviders and ModelProviders will sign the
+  // ExchangeWorkflow to keep a record that they agreed to it.
+  bytes external_exchange_workflow = 3;
 }
