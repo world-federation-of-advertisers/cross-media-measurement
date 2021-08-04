@@ -63,7 +63,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
       }
     grpcRequire(
       (request.filter.measurement.isNotBlank() && parentKey.dataProviderId == WILDCARD) ||
-        (request.parent.isNotBlank() && parentKey.dataProviderId != WILDCARD)
+        parentKey.dataProviderId != WILDCARD
     ) { "Either parent data provider or measurement filter must be provided" }
 
     val pageSize =
