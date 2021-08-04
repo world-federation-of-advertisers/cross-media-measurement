@@ -57,9 +57,13 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+    val parentKey: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
     grpcRequire(
-      (request.filter.measurement.isNotBlank() && request.parent.equals(WILDCARD)) ||
-        (request.parent.isNotBlank() && request.parent != WILDCARD)
+      (request.filter.measurement.isNotBlank() && parentKey.dataProviderId == WILDCARD) ||
+        (request.parent.isNotBlank() && parentKey.dataProviderId != WILDCARD)
     ) { "Either parent data provider or measurement filter must be provided" }
 
     val pageSize =
@@ -76,16 +80,14 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
           createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
         }
         if (request.filter.measurement.isNotBlank()) {
-          val key: MeasurementKey =
+          val measurementKey: MeasurementKey =
             grpcRequireNotNull(MeasurementKey.fromName(request.filter.measurement)) {
               "Resource name invalid"
             }
-          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+          externalMeasurementConsumerId = apiIdToExternalId(measurementKey.measurementConsumerId)
         }
-        if (request.parent.isNotBlank() && request.parent != WILDCARD) {
-          val key: DataProviderKey =
-            grpcRequireNotNull(DataProviderKey.fromName(request.parent)) { "Resource name invalid" }
-          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        if (parentKey.dataProviderId != WILDCARD) {
+          externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
         }
         addAllStates(request.filter.statesList.map(State::toInternal))
       }

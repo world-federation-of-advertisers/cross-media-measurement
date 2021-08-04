@@ -67,7 +67,7 @@ private val CREATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
 private const val DEFAULT_LIMIT = 50
 
-private const val WILDCARD = "-"
+private const val WILDCARD_NAME = "dataProviders/-"
 
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
@@ -301,21 +301,12 @@ class RequisitionServiceTest {
   }
 
   @Test
-  fun `listRequisitions throws INVALID_ARGUMENT when missing both parent and measurement filter`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listRequisitions(buildListRequisitionsRequest {}) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Either parent data provider or measurement filter must be provided")
-  }
-
-  @Test
   fun `listRequisitions throws INVALID_ARGUMENT when only wildcard parent`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listRequisitions(buildListRequisitionsRequest { parent = WILDCARD }) }
+        runBlocking {
+          service.listRequisitions(buildListRequisitionsRequest { parent = WILDCARD_NAME })
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
@@ -331,7 +322,7 @@ class RequisitionServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name invalid")
+    assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid")
   }
 
   @Test
