@@ -26,7 +26,7 @@ import org.wfanet.measurement.kingdom.db.RequisitionUpdate
 import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRequisition
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.LegacyCreateRequisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FulfillRequisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RefuseRequisition
 
@@ -36,7 +36,7 @@ class SpannerRequisitionDatabase(
   client: AsyncDatabaseClient
 ) : RequisitionDatabase, BaseSpannerDatabase(clock, idGenerator, client) {
   override suspend fun createRequisition(requisition: Requisition): Requisition {
-    return CreateRequisition(requisition).execute()
+    return LegacyCreateRequisition(requisition).execute()
   }
 
   override suspend fun getRequisition(externalRequisitionId: ExternalId): Requisition? {

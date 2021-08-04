@@ -21,6 +21,8 @@ import picocli.CommandLine
 object DuchyIds {
   private lateinit var entries: List<Entry>
 
+  fun getEntries() = entries
+
   fun initializeFromFlags(flags: DuchyIdsFlags) {
     require(!DuchyIds::entries.isInitialized)
     val configMessage =

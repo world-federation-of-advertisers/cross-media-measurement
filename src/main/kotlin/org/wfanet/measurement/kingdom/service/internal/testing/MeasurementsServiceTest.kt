@@ -32,8 +32,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private const val FIXED_INTERNAL_ID = 2345L
+private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
@@ -50,10 +50,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   )
 
   protected val idGenerator =
-    FixedIdGenerator(
-      InternalId(FIXED_GENERATED_INTERNAL_ID),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
-    )
+    FixedIdGenerator(InternalId(FIXED_INTERNAL_ID), ExternalId(FIXED_EXTERNAL_ID))
 
   protected lateinit var measurementsService: T
     private set
@@ -72,28 +69,53 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
-      MeasurementConsumer.newBuilder()
-        .apply {
-              preferredCertificateBuilder.apply {
-                notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
-              }
-          detailsBuilder.apply {
-                apiVersion = "2"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-              }
+        MeasurementConsumer.newBuilder()
+          .apply {
+            preferredCertificateBuilder.apply {
+              notValidBeforeBuilder.seconds = 12345
+              notValidAfterBuilder.seconds = 23456
+              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
             }
-        .build()
-    )
+            detailsBuilder.apply {
+              apiVersion = "2"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
+          }
+          .build()
+      )
       .externalMeasurementConsumerId
   }
 
   @Test fun `getMeasurement fails for missing Measurement`() = runBlocking {}
 
-  @Test fun `createMeasurement fails for missing fields`() = runBlocking {}
+  @Test
+  fun `createMeasurement fails for missing fields`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          it.putAllDataProviders(
+            mapOf(
+              1L to
+                Measurement.DataProviderValue.newBuilder()
+                  .apply { externalDataProviderCertificateId = 0L }
+                  .build(),
+              2L to
+                Measurement.DataProviderValue.newBuilder()
+                  .apply { externalDataProviderCertificateId = 1L }
+                  .build()
+            )
+          )
+        }
+        .build()
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+  }
 
   @Test fun `createMeasurement succeeds`() = runBlocking {}
 

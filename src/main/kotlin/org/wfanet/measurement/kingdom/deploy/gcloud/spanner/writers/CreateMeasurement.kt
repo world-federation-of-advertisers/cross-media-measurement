@@ -23,18 +23,17 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
-/**
- * Creates a measurement in the database.
- *
- * Throw KingdomInternalException with code CERT_SUBJECT_KEY_ID_ALREADY_EXISTS when executed if
- */
+/** Creates a measurement in the database. */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
+  data class CreatedMeasurement(val measurement: Measurement, val measurementId: Long)
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val measurementConsumerId =
@@ -52,17 +51,40 @@ class CreateMeasurement(private val measurement: Measurement) :
     if (existingMeasurement != null) {
       return existingMeasurement
     }
+
+    // Insert this measurment into Measurements
+    val createdMeasurement = createNewMeasurement(measurementConsumerId)
+
     // Insert into Requisitions for each EDP
+    println("measurement.getDataProvidersMap()")
+    println(measurement.getDataProvidersMap())
+    // measurement.getDataProvidersMap().forEach { externalDataProviderId, _ ->
+    //   createRequisition(
+    //     externalDataProviderId,
+    //     measurementConsumerId,
+    //     createdMeasurement.measurementId,
+    //     DataProviderReader()
+    //       .readExternalIdOrNull(transactionContext, ExternalId(externalDataProviderId))
+    //       ?.dataProviderId
+    //       ?: throw
+    // KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+    //   )
+    // }
 
     // Insert into ComputationParticipants for each Duchy
-
-    // Insert this into Measurements
-    return createNewMeasurement(measurementConsumerId)
+    DuchyIds.getEntries().forEach { entry ->
+      createComputationParticipant(
+        measurementConsumerId,
+        createdMeasurement.measurementId,
+        entry.internalDuchyId
+      )
+    }
+    return createdMeasurement.measurement
   }
 
   private suspend fun TransactionScope.createNewMeasurement(
     measurementConsumerId: Long
-  ): Measurement {
+  ): CreatedMeasurement {
     val internalMeasurementId = idGenerator.generateInternalId()
     val externalMeasurementId = idGenerator.generateExternalId()
     val externalComputationId = idGenerator.generateExternalId()
@@ -81,14 +103,69 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
       .bufferTo(transactionContext)
 
-    return measurement
-      .toBuilder()
-      .also {
-        it.externalMeasurementId = externalMeasurementId.value
-        it.externalComputationId = externalComputationId.value
-      }
-      .build()
+    return CreatedMeasurement(
+      measurement
+        .toBuilder()
+        .also {
+          it.externalMeasurementId = externalMeasurementId.value
+          it.externalComputationId = externalComputationId.value
+        }
+        .build(),
+      internalMeasurementId.value
+    )
   }
+
+  private suspend fun TransactionScope.createComputationParticipant(
+    measurementConsumerId: Long,
+    measurementId: Long,
+    duchyId: Long
+  ) {
+
+    insertMutation("Requisitions") {
+        set("MeasurementConsumerId" to measurementConsumerId)
+        set("MeasurementId" to measurementId)
+        set("DuchyId" to duchyId)
+        set("State" to ComputationParticipant.State.CREATED)
+        // set("ParticipantDetails" to measurement.details)
+        // setJson("ParticipantDetailsJson" to measurement.details)
+      }
+      .bufferTo(transactionContext)
+
+    // return ComputationParticipant.newBuilder()
+    //   .also {
+    //     it.externalMeasurementId = externalMeasurementId.value
+    //     it.externalComputationId = externalComputationId.value
+    //   }
+    //   .build()
+  }
+
+  //   private suspend fun TransactionScope.createRequisition(
+  //     externalDataProviderId: Long,
+  //     measurementConsumerId: Long,
+  //     measurementId: Long,
+  //     dataProviderId: Long
+  //   ): Requisition {
+  //     val internalRequisitionId = idGenerator.generateInternalId()
+  //     val externalRequisitionId = idGenerator.generateExternalId()
+
+  //     insertMutation("Requisitions") {
+  //         set("MeasurementConsumerId" to measurementConsumerId)
+  //         set("MeasurementId" to measurementId)
+  //         set("RequisitionId" to internalRequisitionId.value)
+  //         set("DataProviderId" to dataProviderId)
+  //         set("CreateTime" to Value.COMMIT_TIMESTAMP)
+  //         set("ExternalRequisitionId" to externalRequisitionId)
+  //         set("State" to Requisition.State.UNFULFILLED)
+  //       }
+  //       .bufferTo(transactionContext)
+
+  //     return Requisition.newBuilder()
+  //       .also {
+  //         it.externalMeasurementId = externalMeasurementId.value
+  //         it.externalComputationId = externalComputationId.value
+  //       }
+  //       .build()
+  //   }
 
   private suspend fun TransactionScope.findExistingMeasurement(
     measurementConsumerId: Long
