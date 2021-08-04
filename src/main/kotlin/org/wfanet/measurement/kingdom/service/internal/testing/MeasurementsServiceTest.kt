@@ -17,8 +17,11 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -32,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -65,8 +69,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   protected val idGenerator =
     RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-  // protected val idGenerator =
-  //   FixedIdGenerator(InternalId(FIXED_INTERNAL_ID), ExternalId(FIXED_EXTERNAL_ID))
 
   protected lateinit var measurementsService: T
     private set
@@ -129,34 +131,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       .externalDataProviderId
   }
 
-  @Test fun `getMeasurement fails for missing Measurement`() = runBlocking {}
+  @Test
+  fun `getMeasurementByComputationId fails for missing Measurement`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.getMeasurementByComputationId(
+          GetMeasurementByComputationIdRequest.newBuilder().setExternalComputationId(1L).build()
+        )
+      }
 
-  //   @Test
-  //   fun `createMeasurement fails for missing fields`() = runBlocking {
-  //     val externalMeasurementConsumerId = insertMeasurementConsumer()
-  //     val measurement =
-  //       Measurement.newBuilder()
-  //         .also {
-  //           it.detailsBuilder.apiVersion = "v2alpha"
-  //           it.externalMeasurementConsumerId = externalMeasurementConsumerId
-  //           it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  //           it.putAllDataProviders(
-  //             mapOf(
-  //               1L to
-  //                 Measurement.DataProviderValue.newBuilder()
-  //                   .apply { externalDataProviderCertificateId = 0L }
-  //                   .build(),
-  //               2L to
-  //                 Measurement.DataProviderValue.newBuilder()
-  //                   .apply { externalDataProviderCertificateId = 1L }
-  //                   .build()
-  //             )
-  //           )
-  //         }
-  //         .build()
-
-  //     val createdMeasurement = measurementsService.createMeasurement(measurement)
-  //   }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Measurement not found")
+  }
 
   @Test
   fun `createMeasurement succeeds`() = runBlocking {
