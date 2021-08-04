@@ -202,8 +202,18 @@ class ClaimReadyExchangeStep(
       createExchangeStep(
         step = exchangeStep,
         recurringExchangeId = recurringExchangeId,
-        modelProviderId = modelProviderId,
-        dataProviderId = dataProviderId,
+        modelProviderId =
+          if (step.party == ExchangeWorkflow.Party.MODEL_PROVIDER) {
+            modelProviderId
+          } else {
+            null
+          },
+        dataProviderId =
+          if (step.party == ExchangeWorkflow.Party.DATA_PROVIDER) {
+            dataProviderId
+          } else {
+            null
+          },
       )
 
       if (firstStep == null && exchangeStep.state == ExchangeStep.State.IN_PROGRESS) {
