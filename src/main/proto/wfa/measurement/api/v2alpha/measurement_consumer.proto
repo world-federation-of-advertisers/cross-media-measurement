@@ -48,8 +48,8 @@ message MeasurementConsumer {
   // be verified using `certificate`. Required.
   SignedData public_key = 4;
 
-  // Official name of the `MeasurementConsumer`.
-  string title = 5;
+  // Display name of the `MeasurementConsumer`.
+  string display_name = 5;
 
   // Resource names of owner `Account`s. Output-only.
   repeated string owners = 6
