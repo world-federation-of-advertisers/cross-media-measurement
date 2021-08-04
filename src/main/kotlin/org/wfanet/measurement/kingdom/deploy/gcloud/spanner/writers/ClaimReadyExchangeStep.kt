@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
@@ -164,47 +165,63 @@ class ClaimReadyExchangeStep(
     // Create all steps for the Exchange, then return the first step to start.
     val readyStep =
       createExchangeSteps(
+        recurringExchange = recurringExchange,
         recurringExchangeId = recurringExchangeId,
-        externalRecurringExchangeId = recurringExchange.externalRecurringExchangeId,
         modelProviderId = modelProviderId,
-        dataProviderId = dataProviderId,
-        date = nextExchangeDate
+        dataProviderId = dataProviderId
       )
+        ?: return null
 
     return FirstReadyStep(readyStep, recurringExchangeId)
   }
 
   private fun TransactionScope.createExchangeSteps(
+    recurringExchange: RecurringExchange,
     recurringExchangeId: Long,
-    externalRecurringExchangeId: Long,
     modelProviderId: Long,
-    dataProviderId: Long,
-    date: Date
-  ): ExchangeStep {
-    // TODO: Create all ExchangeSteps for this Exchange based on the workflow.
-    val exchangeStep =
-      ExchangeStep.newBuilder()
-        .also {
-          it.externalRecurringExchangeId = externalRecurringExchangeId
-          if (externalModelProviderId != null) {
-            it.externalModelProviderId = externalModelProviderId
+    dataProviderId: Long
+  ): ExchangeStep? {
+    val workflow = recurringExchange.details.exchangeWorkflow
+    var firstStep: ExchangeStep? = null
+    workflow.stepsList.forEach { step ->
+      val exchangeStep =
+        ExchangeStep.newBuilder()
+          .also {
+            it.externalRecurringExchangeId = recurringExchange.externalRecurringExchangeId
+            if (step.party == ExchangeWorkflow.Party.MODEL_PROVIDER) {
+              it.externalModelProviderId = externalModelProviderIds.first().value
+            } else if (step.party == ExchangeWorkflow.Party.DATA_PROVIDER) {
+              it.externalDataProviderId = externalDataProviderIds.first().value
+            }
+            it.date = recurringExchange.nextExchangeDate
+            it.state = setStepState(step.prerequisiteStepIndicesCount, firstStep == null)
+            it.stepIndex = step.stepIndex
           }
-          if (externalDataProviderId != null) {
-            it.externalDataProviderId = externalDataProviderId
-          }
-          it.date = date
-          it.state = ExchangeStep.State.IN_PROGRESS
-          it.stepIndex = 1
-        }
-        .build()
+          .build()
 
-    // TODO: Only pick one of model/data provider id based on the workflow.party.
-    return createExchangeStep(
-      step = exchangeStep,
-      recurringExchangeId = recurringExchangeId,
-      modelProviderId = modelProviderId,
-      dataProviderId = dataProviderId,
-    )
+      createExchangeStep(
+        step = exchangeStep,
+        recurringExchangeId = recurringExchangeId,
+        modelProviderId = modelProviderId,
+        dataProviderId = dataProviderId,
+      )
+
+      if (firstStep == null && exchangeStep.state == ExchangeStep.State.IN_PROGRESS) {
+        firstStep = exchangeStep
+      }
+    }
+
+    return firstStep
+  }
+
+  private fun setStepState(prerequisites: Int, isFirst: Boolean): ExchangeStep.State {
+    return if (prerequisites > 0) {
+      ExchangeStep.State.BLOCKED
+    } else if (isFirst) {
+      ExchangeStep.State.IN_PROGRESS
+    } else {
+      ExchangeStep.State.READY
+    }
   }
 
   private fun TransactionScope.createExchange(
@@ -284,7 +301,10 @@ class ClaimReadyExchangeStep(
     stepIndex: Long
   ): ExchangeStepAttempt {
     // TODO: Set ExchangeStepAttemptDetails with suitable fields.
-    val details = ExchangeStepAttemptDetails.getDefaultInstance()
+    val details =
+      ExchangeStepAttemptDetails.newBuilder()
+        .apply { startTime = Value.COMMIT_TIMESTAMP.toProto() }
+        .build()
     val exchangeStepAttempt =
       ExchangeStepAttempt.newBuilder()
         .also {
