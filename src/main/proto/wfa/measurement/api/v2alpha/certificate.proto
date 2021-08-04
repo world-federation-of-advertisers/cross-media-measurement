@@ -32,6 +32,9 @@ message Certificate {
   };
 
   // Resource name.
+  //
+  // The resource ID alias "preferred" may be used in place of the `Certificate`
+  // ID to refer to the *preferred* `Certificate`.
   string name = 1;
 
   // X.509 certificate in DER format. Required. Immutable.

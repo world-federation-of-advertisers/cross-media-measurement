@@ -34,19 +34,19 @@ message DataProvider {
   // Resource name.
   string name = 1;
 
-  // The *preferred* X.509 certificate belonging to this `DataProvider` in DER
-  // format. Required.
-  bytes preferred_certificate_der = 2;
+  // The X.509 certificate belonging to this `DataProvider` in DER format which
+  // can be used to verify `public_key`. Required.
+  bytes certificate_der = 2;
 
-  // Resource name of the *preferred* `Certificate` belonging to this
-  // `DataProvider`. Output-only.
+  // Resource name of the `Certificate` belonging to this `DataProvider` which
+  // can be used to verify `public_key`. Output-only.
   //
-  // The `x509_der` field of this resource matches `preferred_certificate_der`.
-  string preferred_certificate = 3
+  // The `x509_der` field of this resource matches `certificate_der`.
+  string certificate = 3
       [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `EncryptionPublicKey` for this `DataProvider`, which can be
-  // verified using `preferred_certificate`. Required.
+  // verified using `certificate`. Required.
   SignedData public_key = 4;
 
   // Display name of the data provider.

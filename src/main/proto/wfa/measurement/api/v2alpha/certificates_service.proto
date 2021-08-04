@@ -25,6 +25,9 @@ option java_outer_classname = "CertificatesServiceProto";
 
 // Service for interacting with `Certificate` resources.
 service Certificates {
+  // Returns the `Certificate` with the specified resource name.
+  rpc GetCertificate(GetCertificateRequest) returns (Certificate) {}
+
   // Creates (adds) a `Certificate`.
   rpc CreateCertificate(CreateCertificateRequest) returns (Certificate) {}
 
@@ -35,6 +38,13 @@ service Certificates {
   // revocation state.
   rpc ReleaseCertificateHold(ReleaseCertificateHoldRequest)
       returns (Certificate) {}
+}
+
+// Request message for `GetCertificate` method.
+message GetCertificateRequest {
+  // Resource name.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 }
 
 // Request message for `CreateCertificate` method.
