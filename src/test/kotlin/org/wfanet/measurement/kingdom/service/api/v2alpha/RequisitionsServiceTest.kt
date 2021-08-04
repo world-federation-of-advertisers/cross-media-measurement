@@ -138,13 +138,13 @@ private val REQUISITION: Requisition = buildRequisition {
     signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
   }
 
-  val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]
+  val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]!!
   addAllDuchies(
     List(1) {
       buildDuchyEntry {
         key = DUCHIES_MAP_KEY
         value {
-          duchyCertificate = externalIdToApiId(entry!!.externalDuchyCertificateId)
+          duchyCertificate = externalIdToApiId(entry.externalDuchyCertificateId)
           buildLiquidLegionsV2 {
             elGamalPublicKey {
               data = entry.liquidLegionsV2.elGamalPublicKey
@@ -174,12 +174,11 @@ class RequisitionServiceTest {
   }
 
   @Test
-  fun `listRequisitions without page token and without filter returns unfiltered results`() =
-      runBlocking {
+  fun `listRequisitions with parent uses filter with parent`() = runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
-    val request = buildListRequisitionsRequest { pageSize = 2 }
+    val request = buildListRequisitionsRequest { parent = DATA_PROVIDER_NAME }
 
     val result = service.listRequisitions(request)
 
@@ -201,8 +200,11 @@ class RequisitionServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         buildStreamRequisitionsRequest {
-          limit = 2
-          filter = StreamRequisitionsRequest.Filter.getDefaultInstance()
+          limit = DEFAULT_LIMIT
+          filterBuilder.apply {
+            externalDataProviderId =
+              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+          }
         }
       )
 
@@ -216,6 +218,7 @@ class RequisitionServiceTest {
       .thenReturn(flowOf(INTERNAL_REQUISITION.rebuild { createTime = CREATE_TIME_B }))
 
     val request = buildListRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
       pageSize = 2
       pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
       filterBuilder.apply { addStates(State.UNFULFILLED) }
@@ -242,6 +245,8 @@ class RequisitionServiceTest {
         buildStreamRequisitionsRequest {
           limit = 2
           filterBuilder.apply {
+            externalDataProviderId =
+              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
             createdAfter = CREATE_TIME
             addStates(InternalState.UNFULFILLED)
           }
@@ -283,15 +288,26 @@ class RequisitionServiceTest {
         buildStreamRequisitionsRequest {
           limit = DEFAULT_LIMIT
           filterBuilder.apply {
-            val measurementKey: MeasurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
-            externalMeasurementConsumerId = apiIdToExternalId(measurementKey.measurementConsumerId)
-            val dataProviderKey: DataProviderKey = DataProviderKey.fromName(DATA_PROVIDER_NAME)!!
-            externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+            externalMeasurementConsumerId =
+              apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
+            externalDataProviderId =
+              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
           }
         }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRequisitions throws INVALID_ARGUMENT when missing both parent and measurement filter`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.listRequisitions(buildListRequisitionsRequest {}) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Either parent data provider or measurement filter must be provided")
   }
 
   @Test

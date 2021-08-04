@@ -56,6 +56,9 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+    grpcRequire(request.filter.measurement.isNotBlank() || request.parent.isNotBlank()) {
+      "Either parent data provider or measurement filter must be provided"
+    }
 
     val pageSize =
       when {
@@ -208,9 +211,8 @@ private fun InternalRefusal.Justification.toRefusalJustification(): Refusal.Just
       Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     InternalRefusal.Justification.UNFULFILLABLE -> Refusal.Justification.UNFULFILLABLE
     InternalRefusal.Justification.DECLINED -> Refusal.Justification.DECLINED
-    InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED ->
-      Refusal.Justification.JUSTIFICATION_UNSPECIFIED
-    InternalRefusal.Justification.UNRECOGNIZED -> Refusal.Justification.UNRECOGNIZED
+    InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED,
+    InternalRefusal.Justification.UNRECOGNIZED -> Refusal.Justification.JUSTIFICATION_UNSPECIFIED
   }
 
 /** Converts a public [Refusal.Justification] to an internal [InternalRefusal.Justification]. */
