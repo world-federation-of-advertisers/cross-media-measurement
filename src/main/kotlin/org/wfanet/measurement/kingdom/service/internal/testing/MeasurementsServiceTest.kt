@@ -145,6 +145,62 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `createMeasurement fails for missing data provider`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalDataProviderId = 0L
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.putAllDataProviders(
+            mapOf(
+              externalDataProviderId to
+                Measurement.DataProviderValue.newBuilder()
+                  .apply { externalDataProviderCertificateId = 0L }
+                  .build()
+            )
+          )
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(measurement) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
+  }
+
+  @Test
+  fun `createMeasurement fails for missing measurement consumer`() = runBlocking {
+    val externalMeasurementConsumerId = 0L
+    val externalDataProviderId = insertDataProvider()
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.putAllDataProviders(
+            mapOf(
+              externalDataProviderId to
+                Measurement.DataProviderValue.newBuilder()
+                  .apply { externalDataProviderCertificateId = 0L }
+                  .build()
+            )
+          )
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(measurement) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+  }
+
+  @Test
   fun `createMeasurement succeeds`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
     val externalDataProviderId = insertDataProvider()
@@ -198,5 +254,5 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
   }
 
-  @Test fun `getMeasurement succeeds`() = runBlocking {}
+  @Test fun `getMeasurementByComputationId succeeds`() = runBlocking {}
 }
