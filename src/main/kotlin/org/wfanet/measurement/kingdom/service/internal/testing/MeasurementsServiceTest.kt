@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,6 +31,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 private const val FIXED_INTERNAL_ID = 2345L
@@ -40,9 +42,12 @@ private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public ke
 private val PREFERRED_MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
 private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a MC subject key identifier.")
+private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
+
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val measurementsService: T,
@@ -69,22 +74,22 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   private suspend fun insertMeasurementConsumer(): Long {
     return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            preferredCertificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+      MeasurementConsumer.newBuilder()
+        .apply {
+              preferredCertificateBuilder.apply {
+                notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
+              }
+          detailsBuilder.apply {
+                apiVersion = "2"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+              }
             }
-            detailsBuilder.apply {
-              apiVersion = "2"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
+        .build()
+    )
       .externalMeasurementConsumerId
   }
 
@@ -117,7 +122,32 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val createdMeasurement = measurementsService.createMeasurement(measurement)
   }
 
-  @Test fun `createMeasurement succeeds`() = runBlocking {}
+  @Test
+  fun `createMeasurement succeeds`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+
+    assertThat(createdMeasurement)
+      .isEqualTo(
+        measurement
+          .toBuilder().apply{
+            externalMeasurementId = FIXED_EXTERNAL_ID
+            externalComputationId = FIXED_EXTERNAL_ID
+            createTime = createdMeasurement.createTime
+          }
+          .build()
+      )
+  }
 
   @Test
   fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
