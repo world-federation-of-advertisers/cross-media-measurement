@@ -306,6 +306,9 @@ proto_and_java_proto_library(
 
 proto_and_java_proto_library(
     name = "recurring_exchange_details",
+    deps = [
+        ":exchange_workflow_proto",
+    ],
 )
 
 proto_library(

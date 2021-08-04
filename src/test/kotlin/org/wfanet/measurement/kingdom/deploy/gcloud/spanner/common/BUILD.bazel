@@ -14,3 +14,17 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_test(
+    name = "ExchangeStepsHierarchyTest",
+    srcs = ["ExchangeStepsHierarchyTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepsHierarchyTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
