@@ -24,9 +24,9 @@ import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 class SpannerMeasurementsService(
   private val clock: Clock,
@@ -40,8 +40,9 @@ class SpannerMeasurementsService(
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND -> throw e
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND -> throw e
       }
     }
   }

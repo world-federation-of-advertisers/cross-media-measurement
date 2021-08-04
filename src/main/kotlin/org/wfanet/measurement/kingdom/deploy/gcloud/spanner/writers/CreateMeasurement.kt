@@ -120,8 +120,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementId: Long,
     duchyId: Long
   ) {
-
-    insertMutation("Requisitions") {
+    insertMutation("ComputationParticipants") {
         set("MeasurementConsumerId" to measurementConsumerId)
         set("MeasurementId" to measurementId)
         set("DuchyId" to duchyId)
