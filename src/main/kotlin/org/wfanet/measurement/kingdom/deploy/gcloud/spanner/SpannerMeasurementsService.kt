@@ -40,9 +40,11 @@ class SpannerMeasurementsService(
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.DUCHY_NOT_FOUND -> throw e
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
       }
     }
   }

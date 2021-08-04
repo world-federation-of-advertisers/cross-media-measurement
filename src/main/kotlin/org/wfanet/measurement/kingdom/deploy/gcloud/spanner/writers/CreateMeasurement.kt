@@ -25,8 +25,10 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
@@ -58,18 +60,19 @@ class CreateMeasurement(private val measurement: Measurement) :
     // Insert into Requisitions for each EDP
     println("measurement.getDataProvidersMap()")
     println(measurement.getDataProvidersMap())
-    // measurement.getDataProvidersMap().forEach { externalDataProviderId, _ ->
-    //   createRequisition(
-    //     externalDataProviderId,
-    //     measurementConsumerId,
-    //     createdMeasurement.measurementId,
-    //     DataProviderReader()
-    //       .readExternalIdOrNull(transactionContext, ExternalId(externalDataProviderId))
-    //       ?.dataProviderId
-    //       ?: throw
-    // KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-    //   )
-    // }
+    for ((externalDataProviderId, _) in measurement.getDataProvidersMap()) {
+      val dataProviderId =
+        DataProviderReader()
+          .readExternalIdOrNull(transactionContext, ExternalId(externalDataProviderId))
+          ?.dataProviderId
+          ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+      createRequisition(
+        externalDataProviderId,
+        measurementConsumerId,
+        createdMeasurement.measurementId,
+        dataProviderId
+      )
+    }
 
     // Insert into ComputationParticipants for each Duchy
     DuchyIds.getEntries().forEach { entry ->
@@ -129,42 +132,28 @@ class CreateMeasurement(private val measurement: Measurement) :
         // setJson("ParticipantDetailsJson" to measurement.details)
       }
       .bufferTo(transactionContext)
-
-    // return ComputationParticipant.newBuilder()
-    //   .also {
-    //     it.externalMeasurementId = externalMeasurementId.value
-    //     it.externalComputationId = externalComputationId.value
-    //   }
-    //   .build()
   }
 
-  //   private suspend fun TransactionScope.createRequisition(
-  //     externalDataProviderId: Long,
-  //     measurementConsumerId: Long,
-  //     measurementId: Long,
-  //     dataProviderId: Long
-  //   ): Requisition {
-  //     val internalRequisitionId = idGenerator.generateInternalId()
-  //     val externalRequisitionId = idGenerator.generateExternalId()
+  private suspend fun TransactionScope.createRequisition(
+    externalDataProviderId: Long,
+    measurementConsumerId: Long,
+    measurementId: Long,
+    dataProviderId: Long
+  ) {
+    val internalRequisitionId = idGenerator.generateInternalId()
+    val externalRequisitionId = idGenerator.generateExternalId()
 
-  //     insertMutation("Requisitions") {
-  //         set("MeasurementConsumerId" to measurementConsumerId)
-  //         set("MeasurementId" to measurementId)
-  //         set("RequisitionId" to internalRequisitionId.value)
-  //         set("DataProviderId" to dataProviderId)
-  //         set("CreateTime" to Value.COMMIT_TIMESTAMP)
-  //         set("ExternalRequisitionId" to externalRequisitionId)
-  //         set("State" to Requisition.State.UNFULFILLED)
-  //       }
-  //       .bufferTo(transactionContext)
-
-  //     return Requisition.newBuilder()
-  //       .also {
-  //         it.externalMeasurementId = externalMeasurementId.value
-  //         it.externalComputationId = externalComputationId.value
-  //       }
-  //       .build()
-  //   }
+    insertMutation("Requisitions") {
+        set("MeasurementConsumerId" to measurementConsumerId)
+        set("MeasurementId" to measurementId)
+        set("RequisitionId" to internalRequisitionId.value)
+        set("DataProviderId" to dataProviderId)
+        set("CreateTime" to Value.COMMIT_TIMESTAMP)
+        set("ExternalRequisitionId" to externalRequisitionId.value)
+        set("State" to Requisition.State.UNFULFILLED)
+      }
+      .bufferTo(transactionContext)
+  }
 
   private suspend fun TransactionScope.findExistingMeasurement(
     measurementConsumerId: Long
