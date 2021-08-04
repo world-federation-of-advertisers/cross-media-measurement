@@ -36,7 +36,7 @@ class MeasurementReader : SpannerReader<MeasurementReader.Result>() {
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "Measurements.ExternalMeasurementId"
+  override val externalIdColumn: String = "Measurements.ExternalComputationId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
