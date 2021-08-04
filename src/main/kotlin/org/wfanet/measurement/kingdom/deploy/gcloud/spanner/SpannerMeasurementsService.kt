@@ -39,7 +39,7 @@ class SpannerMeasurementsService(
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
@@ -49,11 +49,7 @@ class SpannerMeasurementsService(
     }
   }
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    // return MeasurementReader()
-    //   .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
-    //   ?.measurement
-    //   ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
-    TODO("later")
+    TODO("Not implemented yet.")
   }
   override suspend fun getMeasurementByComputationId(
     request: GetMeasurementByComputationIdRequest
