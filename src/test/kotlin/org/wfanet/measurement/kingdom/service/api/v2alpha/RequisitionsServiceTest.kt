@@ -65,8 +65,9 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val CREATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
-private const val MIN_LIMIT = 1
 private const val DEFAULT_LIMIT = 50
+
+private const val WILDCARD = "-"
 
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
@@ -304,6 +305,17 @@ class RequisitionServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking { service.listRequisitions(buildListRequisitionsRequest {}) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Either parent data provider or measurement filter must be provided")
+  }
+
+  @Test
+  fun `listRequisitions throws INVALID_ARGUMENT when only wildcard parent`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.listRequisitions(buildListRequisitionsRequest { parent = WILDCARD }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)

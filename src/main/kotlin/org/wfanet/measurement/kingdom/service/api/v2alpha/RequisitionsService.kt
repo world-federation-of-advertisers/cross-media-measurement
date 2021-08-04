@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
+private const val WILDCARD = "-"
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
   RequisitionsCoroutineImplBase() {
@@ -56,9 +57,10 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
-    grpcRequire(request.filter.measurement.isNotBlank() || request.parent.isNotBlank()) {
-      "Either parent data provider or measurement filter must be provided"
-    }
+    grpcRequire(
+      (request.filter.measurement.isNotBlank() && request.parent.equals(WILDCARD)) ||
+        (request.parent.isNotBlank() && request.parent != WILDCARD)
+    ) { "Either parent data provider or measurement filter must be provided" }
 
     val pageSize =
       when {
@@ -80,7 +82,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
             }
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
         }
-        if (request.parent.isNotBlank()) {
+        if (request.parent.isNotBlank() && request.parent != WILDCARD) {
           val key: DataProviderKey =
             grpcRequireNotNull(DataProviderKey.fromName(request.parent)) { "Resource name invalid" }
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
