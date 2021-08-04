@@ -15,11 +15,24 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
+<<<<<<< HEAD
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:advertiser_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:campaign_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:computation_participant_java_proto",
+>>>>>>> 6e5c216c (still working on it)
         "//src/main/proto/wfa/measurement/internal/kingdom:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_details_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_java_proto",
+<<<<<<< HEAD
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+>>>>>>> 6e5c216c (still working on it)
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
