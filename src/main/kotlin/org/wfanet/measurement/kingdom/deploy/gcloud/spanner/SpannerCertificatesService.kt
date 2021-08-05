@@ -39,7 +39,8 @@ class SpannerCertificatesService(
     grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
       "Certificate is missing parent field"
     }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#178)
+    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
+    // accordingly.
     try {
       return CreateCertificate(request).execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {

@@ -39,39 +39,6 @@ class CertificateReader(private val request: GetCertificateRequest) :
       }
   }
 
-  companion object {
-
-    private fun getTableBaseSql(tableName: String) =
-      """SELECT
-            ${tableName}Certificates.CertificateId,
-            Certificates.SubjectKeyIdentifier,
-            Certificates.NotValidBefore,
-            Certificates.NotValidAfter,
-            Certificates.RevocationState,
-            Certificates.CertificateDetails,
-            ${tableName}Certificates.External${tableName}CertificateId,
-            ${tableName}Certificates.${tableName}Id,
-            ${tableName}s.External${tableName}Id
-          FROM ${tableName}Certificates
-          JOIN ${tableName}s USING (${tableName}Id)
-          JOIN Certificates USING (CertificateId)
-          """.trimIndent()
-
-    private fun getConfigBaseSql(tableName: String) =
-      """SELECT
-              ${tableName}Certificates.CertificateId,
-              Certificates.SubjectKeyIdentifier,
-              Certificates.NotValidBefore,
-              Certificates.NotValidAfter,
-              Certificates.RevocationState,
-              Certificates.CertificateDetails,
-              ${tableName}Certificates.External${tableName}CertificateId,
-              ${tableName}Certificates.${tableName}Id,
-            FROM ${tableName}Certificates
-            JOIN Certificates USING (CertificateId)
-            """.trimIndent()
-  }
-
   override val externalIdColumn: String =
     "${tableName}Certificates.External${tableName}CertificateId"
 
@@ -124,5 +91,38 @@ class CertificateReader(private val request: GetCertificateRequest) :
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
       }
     return populateExternalId(certificateBuilder, struct)
+  }
+
+  companion object {
+
+    private fun getTableBaseSql(tableName: String) =
+      """SELECT
+            ${tableName}Certificates.CertificateId,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ${tableName}Certificates.External${tableName}CertificateId,
+            ${tableName}Certificates.${tableName}Id,
+            ${tableName}s.External${tableName}Id
+          FROM ${tableName}Certificates
+          JOIN ${tableName}s USING (${tableName}Id)
+          JOIN Certificates USING (CertificateId)
+          """.trimIndent()
+
+    private fun getConfigBaseSql(tableName: String) =
+      """SELECT
+              ${tableName}Certificates.CertificateId,
+              Certificates.SubjectKeyIdentifier,
+              Certificates.NotValidBefore,
+              Certificates.NotValidAfter,
+              Certificates.RevocationState,
+              Certificates.CertificateDetails,
+              ${tableName}Certificates.External${tableName}CertificateId,
+              ${tableName}Certificates.${tableName}Id,
+            FROM ${tableName}Certificates
+            JOIN Certificates USING (CertificateId)
+            """.trimIndent()
   }
 }
