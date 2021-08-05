@@ -14,8 +14,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "preferred_certificates",
-    srcs = ["PreferredCertificates.kt"],
+    name = "certificates",
+    srcs = ["Certificates.kt"],
     visibility = [test_target("__pkg__")],
     deps = [
         ":builder",
@@ -30,7 +30,7 @@ kt_jvm_library(
     srcs = ["DataProvidersService.kt"],
     deps = [
         ":builder",
-        ":preferred_certificates",
+        ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc",
@@ -114,7 +114,7 @@ kt_jvm_library(
     srcs = ["MeasurementConsumersService.kt"],
     deps = [
         ":builder",
-        ":preferred_certificates",
+        ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc",
