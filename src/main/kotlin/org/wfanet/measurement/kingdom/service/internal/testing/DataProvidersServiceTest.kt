@@ -82,7 +82,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           preferredCertificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
+            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
           }
           detailsBuilder.apply {
             apiVersion = "2"
@@ -109,7 +109,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           preferredCertificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
+            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
           }
           detailsBuilder.apply {
             apiVersion = "2"
@@ -144,7 +144,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           preferredCertificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
+            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
           }
           detailsBuilder.apply {
             apiVersion = "2"
