@@ -24,17 +24,16 @@ import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 class CertificateReader(val request: GetCertificateRequest) :
   SpannerReader<CertificateReader.Result>() {
   data class Result(val certificate: Certificate, val certificateId: Long)
-  private val tableName: String
-  init {
-    tableName =
-      when (request.parentCase) {
-        GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-        GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-        GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-        GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-          throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
-      }
-  }
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  private val tableName: String =
+    when (request.parentCase) {
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+    }
 
   override val baseSql: String =
     """
@@ -66,6 +65,7 @@ class CertificateReader(val request: GetCertificateRequest) :
     val externalResourceIdColumn = "External${tableName}Id"
     return certificateBuilder
       .apply {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (request.parentCase) {
           GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
             externalDataProviderId = struct.getLong(externalResourceIdColumn)
