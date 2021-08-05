@@ -35,7 +35,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 /** Creates a measurement in the database. */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
-  data class CreatedMeasurement(val measurement: Measurement, val measurementId: Long)
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val measurementConsumerId =
@@ -54,8 +53,9 @@ class CreateMeasurement(private val measurement: Measurement) :
       return existingMeasurement
     }
 
-    // Insert this measurment into Measurements
-    val createdMeasurement = createNewMeasurement(measurementConsumerId)
+    // Insert this measurement into Measurements
+    val measurementId = idGenerator.generateInternalId().value
+    val measurement = createNewMeasurement(measurementId, measurementConsumerId)
 
     // Insert into Requisitions for each EDP
     for ((externalDataProviderId, _) in measurement.getDataProvidersMap()) {
@@ -67,31 +67,27 @@ class CreateMeasurement(private val measurement: Measurement) :
       createRequisition(
         externalDataProviderId,
         measurementConsumerId,
-        createdMeasurement.measurementId,
+        measurementId,
         dataProviderId
       )
     }
 
     // Insert into ComputationParticipants for each Duchy
-    DuchyIds.getEntries().forEach { entry ->
-      createComputationParticipant(
-        measurementConsumerId,
-        createdMeasurement.measurementId,
-        entry.internalDuchyId
-      )
+    DuchyIds.entries.forEach { entry ->
+      createComputationParticipant(measurementConsumerId, measurementId, entry.internalDuchyId)
     }
-    return createdMeasurement.measurement
+    return measurement
   }
 
   private suspend fun TransactionScope.createNewMeasurement(
+    measurementId: Long,
     measurementConsumerId: Long
-  ): CreatedMeasurement {
-    val internalMeasurementId = idGenerator.generateInternalId()
+  ): Measurement {
     val externalMeasurementId = idGenerator.generateExternalId()
     val externalComputationId = idGenerator.generateExternalId()
 
     insertMutation("Measurements") {
-        set("MeasurementId" to internalMeasurementId.value)
+        set("MeasurementId" to measurementId)
         set("MeasurementConsumerId" to measurementConsumerId)
         set("ExternalMeasurementId" to externalMeasurementId.value)
         set("ExternalComputationId" to externalComputationId.value)
@@ -104,16 +100,13 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
       .bufferTo(transactionContext)
 
-    return CreatedMeasurement(
-      measurement
-        .toBuilder()
-        .also {
-          it.externalMeasurementId = externalMeasurementId.value
-          it.externalComputationId = externalComputationId.value
-        }
-        .build(),
-      internalMeasurementId.value
-    )
+    return measurement
+      .toBuilder()
+      .also {
+        it.externalMeasurementId = externalMeasurementId.value
+        it.externalComputationId = externalComputationId.value
+      }
+      .build()
   }
 
   private suspend fun TransactionScope.createComputationParticipant(
@@ -121,13 +114,12 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementId: Long,
     duchyId: Long
   ) {
+    // TODO(@uakyol): populate all the relevant fields for a computationParticipants.
     insertMutation("ComputationParticipants") {
         set("MeasurementConsumerId" to measurementConsumerId)
         set("MeasurementId" to measurementId)
         set("DuchyId" to duchyId)
         set("State" to ComputationParticipant.State.CREATED)
-        // set("ParticipantDetails" to measurement.details)
-        // setJson("ParticipantDetailsJson" to measurement.details)
       }
       .bufferTo(transactionContext)
   }

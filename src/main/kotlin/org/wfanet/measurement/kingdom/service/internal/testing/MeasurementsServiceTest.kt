@@ -102,7 +102,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             detailsBuilder.setX509Der(PREFERRED_MC_CERTIFICATE_DER)
               }
           detailsBuilder.apply {
-                apiVersion = "2"
+                apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
               }
@@ -123,7 +123,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             detailsBuilder.setX509Der(PREFERRED_DP_CERTIFICATE_DER)
               }
           detailsBuilder.apply {
-                apiVersion = "2"
+                apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
               }
@@ -291,7 +291,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           .build()
       )
 
-    // TODO(@google.com uakyol) : replace the hard coded ids below with a parallel id generator
+    // TODO(@uakyol) : replace the hard coded ids below with a parallel id generator
     // output.
 
     val expectedMeasurement =
@@ -302,7 +302,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           addAllRequisitions(
             listOf(
               Requisition.newBuilder()
-                .apply { externalRequisitionId = 2086105008983782123L }
+                .also {
+                  it.externalMeasurementId = createdMeasurement.externalMeasurementId
+                  it.externalMeasurementConsumerId =
+                    createdMeasurement.externalMeasurementConsumerId
+                }
                 .build()
             )
           )
@@ -312,27 +316,30 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               ComputationParticipant.newBuilder()
                 .also {
                   it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-                  it.externalMeasurementId = 8631840922791064299L
-                  it.externalMeasurementConsumerId = 4912341421557271829L
-                  it.externalComputationId = 3122507882207890709L
+                  it.externalMeasurementId = createdMeasurement.externalMeasurementId
+                  it.externalMeasurementConsumerId =
+                    createdMeasurement.externalMeasurementConsumerId
+                  it.externalComputationId = createdMeasurement.externalComputationId
                   it.state = ComputationParticipant.State.CREATED
                 }
                 .build(),
               ComputationParticipant.newBuilder()
                 .also {
                   it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-                  it.externalMeasurementId = 8631840922791064299L
-                  it.externalMeasurementConsumerId = 4912341421557271829L
-                  it.externalComputationId = 3122507882207890709L
+                  it.externalMeasurementId = createdMeasurement.externalMeasurementId
+                  it.externalMeasurementConsumerId =
+                    createdMeasurement.externalMeasurementConsumerId
+                  it.externalComputationId = createdMeasurement.externalComputationId
                   it.state = ComputationParticipant.State.CREATED
                 }
                 .build(),
               ComputationParticipant.newBuilder()
                 .also {
                   it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(2)
-                  it.externalMeasurementId = 8631840922791064299L
-                  it.externalMeasurementConsumerId = 4912341421557271829L
-                  it.externalComputationId = 3122507882207890709L
+                  it.externalMeasurementId = createdMeasurement.externalMeasurementId
+                  it.externalMeasurementConsumerId =
+                    createdMeasurement.externalMeasurementConsumerId
+                  it.externalComputationId = createdMeasurement.externalComputationId
                   it.state = ComputationParticipant.State.CREATED
                 }
                 .build()
@@ -340,6 +347,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           )
         }
         .build()
-    assertThat(measurement).isEqualTo(expectedMeasurement)
+    assertThat(measurement).comparingExpectedFieldsOnly().isEqualTo(expectedMeasurement)
   }
 }

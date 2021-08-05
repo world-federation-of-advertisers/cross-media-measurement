@@ -5,9 +5,16 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
 ])
 
+LEGACY_READERS = [
+    "LegacyRequisitionReader.kt",
+]
+
 kt_jvm_library(
     name = "readers",
-    srcs = glob(["*.kt"]),
+    srcs = glob(
+        ["*.kt"],
+        exclude = LEGACY_READERS,
+    ),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
@@ -25,6 +32,30 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_java_proto",
 >>>>>>> 31430425 (building)
         "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_details_java_proto",
+<<<<<<< HEAD
+=======
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_config_details_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_config_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_config_schedule_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
+    name = "legacy_readers",
+    srcs = LEGACY_READERS,
+    deps = [
+        ":readers",
+        "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
+>>>>>>> d9925c65 (addressed comments)
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

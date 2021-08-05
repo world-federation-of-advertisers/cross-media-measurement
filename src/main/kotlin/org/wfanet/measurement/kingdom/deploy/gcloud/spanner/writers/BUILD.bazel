@@ -5,17 +5,19 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
 ])
 
+LEGACY_WRITERS = [
+    "CreateLegacyRequisition.kt",
+    "AssociateRequisitionAndReport.kt",
+    "FulfillRequisition.kt",
+    "RefuseRequisition.kt",
+    "UpdateReportState.kt",
+]
+
 kt_jvm_library(
     name = "writers",
     srcs = glob(
         ["*.kt"],
-        exclude = [
-            "LegacyCreateRequisition.kt",
-            "AssociateRequisitionAndReport.kt",
-            "FulfillRequisition.kt",
-            "RefuseRequisition.kt",
-            "UpdateReportState.kt",
-        ],
+        exclude = LEGACY_WRITERS,
     ),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -52,13 +54,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "legacy_writers",
-    srcs = [
-        "AssociateRequisitionAndReport.kt",
-        "FulfillRequisition.kt",
-        "LegacyCreateRequisition.kt",
-        "RefuseRequisition.kt",
-        "UpdateReportState.kt",
-    ],
+    srcs = LEGACY_WRITERS,
     deps = [
         ":writers",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -67,6 +63,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers:legacy_readers",
         "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_java_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
