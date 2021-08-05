@@ -17,8 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
-import java.lang.IllegalArgumentException
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -296,11 +294,11 @@ class CreateExchangesAndStepsTest : KingdomDatabaseTestBase() {
   @Test
   fun `createExchangesAndSteps with wrong provider id`() =
     runBlocking<Unit> {
-          CreateExchangesAndSteps(
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
-              externalDataProviderId = null
-            )
-            .execute(databaseClient)
+      CreateExchangesAndSteps(
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
+          externalDataProviderId = null
+        )
+        .execute(databaseClient)
 
       assertThat(readAllExchangeStepsInSpanner()).hasSize(0)
     }
