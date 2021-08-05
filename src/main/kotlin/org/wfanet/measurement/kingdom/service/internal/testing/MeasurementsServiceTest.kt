@@ -33,9 +33,10 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -240,11 +241,20 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
       runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalDataProviderId = insertDataProvider()
     val measurement =
       Measurement.newBuilder()
         .also {
           it.detailsBuilder.apiVersion = "v2alpha"
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          // it.putAllDataProviders(
+          //   mapOf(
+          //     externalDataProviderId to
+          //       Measurement.DataProviderValue.newBuilder()
+          //         .apply { externalDataProviderCertificateId = 0L }
+          //         .build()
+          //   )
+          // )
           it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
         }
         .build()
@@ -254,5 +264,53 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
   }
 
-  @Test fun `getMeasurementByComputationId succeeds`() = runBlocking {}
+  @Test
+  fun `getMeasurementByComputationId COMPUTATION View succeeds`() = runBlocking {
+    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalDataProviderId = insertDataProvider()
+
+    val request =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.putAllDataProviders(
+            mapOf(
+              externalDataProviderId to
+                Measurement.DataProviderValue.newBuilder()
+                  .apply { externalDataProviderCertificateId = 0L }
+                  .build()
+            )
+          )
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    val createdMeasurement = measurementsService.createMeasurement(request)
+
+    val measurement =
+      measurementsService.getMeasurementByComputationId(
+        GetMeasurementByComputationIdRequest.newBuilder()
+          .apply {
+            externalComputationId = createdMeasurement.externalComputationId
+            measurementView = Measurement.View.COMPUTATION
+          }
+          .build()
+      )
+    val expectedMeasurement =
+      createdMeasurement
+        .toBuilder()
+        .apply {
+          clearDataProviders()
+          addAllRequisitions(
+            listOf(
+              Requisition.newBuilder()
+                .apply { externalRequisitionId = 2086105008983782123L }
+                .build()
+            )
+          )
+        }
+        .build()
+    assertThat(measurement).isEqualTo(expectedMeasurement)
+  }
 }

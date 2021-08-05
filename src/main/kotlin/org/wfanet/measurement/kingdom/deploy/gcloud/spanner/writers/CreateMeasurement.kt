@@ -58,8 +58,6 @@ class CreateMeasurement(private val measurement: Measurement) :
     val createdMeasurement = createNewMeasurement(measurementConsumerId)
 
     // Insert into Requisitions for each EDP
-    println("measurement.getDataProvidersMap()")
-    println(measurement.getDataProvidersMap())
     for ((externalDataProviderId, _) in measurement.getDataProvidersMap()) {
       val dataProviderId =
         DataProviderReader()
@@ -164,9 +162,14 @@ class CreateMeasurement(private val measurement: Measurement) :
         AND Measurements.ProvidedMeasurementId = @provided_measurement_id
       """.trimIndent()
 
-    return MeasurementReader()
+    val groupByClause = """
+      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+      """.trimIndent()
+
+    return MeasurementReader(Measurement.View.DEFAULT)
       .withBuilder {
         appendClause(whereClause)
+        appendClause(groupByClause)
         bind("measurement_consumer_id").to(measurementConsumerId)
         bind("provided_measurement_id").to(measurement.providedMeasurementId)
       }

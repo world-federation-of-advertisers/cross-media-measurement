@@ -15,14 +15,77 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.Requisition
 
-class MeasurementReader : SpannerReader<MeasurementReader.Result>() {
+class MeasurementReader(private val view: Measurement.View) :
+  SpannerReader<MeasurementReader.Result>() {
   data class Result(val measurement: Measurement, val measurementId: Long)
 
-  override val baseSql: String =
-    """
+  override val baseSql: String = constructBaseSql(view)
+
+  override val externalIdColumn: String = "Measurements.ExternalComputationId"
+
+  override suspend fun translate(struct: Struct): Result =
+    Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
+
+  private fun buildMeasurement(struct: Struct): Measurement {
+    val commonMeasurement =
+      Measurement.newBuilder().apply {
+        externalMeasurementId = struct.getLong("ExternalMeasurementId")
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalComputationId = struct.getLong("ExternalComputationId")
+        providedMeasurementId = struct.getString("ProvidedMeasurementId")
+        details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+        createTime = struct.getTimestamp("CreateTime").toProto()
+      }
+
+    return when (view) {
+      Measurement.View.DEFAULT -> commonMeasurement.build()
+      Measurement.View.COMPUTATION -> {
+        val requisitions =
+          struct
+            .getStructList("Requisitions")
+            .map {
+              Requisition.newBuilder()
+                .apply { externalRequisitionId = it.getLong("ExternalRequisitionId") }
+                .build()
+            }
+            .sortedBy { it.externalRequisitionId }
+            .toList()
+
+        commonMeasurement.also{
+          it.addAllRequisitions(requisitions)
+        }.build()
+      }
+      Measurement.View.UNRECOGNIZED ->
+        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
+    }
+  }
+
+  suspend fun readExternalIdWithGroupByOrNull(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalId: ExternalId
+  ): Result? {
+    return this.withBuilder {
+        appendClause("WHERE $externalIdColumn = @external_id")
+        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8")
+        bind("external_id").to(externalId.value)
+
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+}
+
+private fun getDefaultViewBaseSql() =
+  """
     SELECT
       Measurements.MeasurementId,
       Measurements.MeasurementConsumerId,
@@ -36,20 +99,33 @@ class MeasurementReader : SpannerReader<MeasurementReader.Result>() {
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "Measurements.ExternalComputationId"
+private fun getComputationViewBaseSql() =
+  """
+    SELECT
+      Measurements.MeasurementId,
+      Measurements.MeasurementConsumerId,
+      Measurements.ExternalMeasurementId,
+      Measurements.ExternalComputationId,
+      Measurements.ProvidedMeasurementId,
+      Measurements.MeasurementDetails,
+      Measurements.CreateTime,
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+      ARRAY(
+         SELECT AS STRUCT
+           r.ExternalRequisitionId
+         FROM Requisitions AS r
+         WHERE Measurements.MeasurementId = r.MeasurementId
+         AND Measurements.MeasurementConsumerId = r.MeasurementConsumerId
+       ) AS Requisitions
+    FROM Measurements
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    """.trimIndent()
 
-  override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
-
-  private fun buildMeasurement(struct: Struct): Measurement =
-    Measurement.newBuilder()
-      .apply {
-        externalMeasurementId = struct.getLong("ExternalMeasurementId")
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalComputationId = struct.getLong("ExternalComputationId")
-        providedMeasurementId = struct.getString("ProvidedMeasurementId")
-        details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-        createTime = struct.getTimestamp("CreateTime").toProto()
-      }
-      .build()
+private fun constructBaseSql(view: Measurement.View): String {
+  return when (view) {
+    Measurement.View.DEFAULT -> getDefaultViewBaseSql()
+    Measurement.View.COMPUTATION -> getComputationViewBaseSql()
+    Measurement.View.UNRECOGNIZED ->
+      throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
+  }
 }
