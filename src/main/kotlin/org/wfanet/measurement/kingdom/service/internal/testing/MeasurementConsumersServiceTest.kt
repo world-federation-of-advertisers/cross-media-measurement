@@ -79,13 +79,13 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val measurementConsumer =
       MeasurementConsumer.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
+          certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
+            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "2"
+            apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
           }
         }
@@ -106,13 +106,13 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val measurementConsumer =
       MeasurementConsumer.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
+          certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
+            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "2"
+            apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
@@ -127,8 +127,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           .toBuilder()
           .apply {
             externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-            externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
-            preferredCertificateBuilder.apply {
+            certificateBuilder.apply {
               externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
               externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
             }
@@ -142,13 +141,13 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val measurementConsumer =
       MeasurementConsumer.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
+          certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
             detailsBuilder.setX509Der(PREFERRED_CERTIFICATE_DER)
           }
           detailsBuilder.apply {
-            apiVersion = "2"
+            apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }

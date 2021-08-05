@@ -15,7 +15,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "preferred_certificates",
-    srcs = ["PreferredCertificates.kt"],
+    srcs = ["Certificates.kt"],
     visibility = [test_target("__pkg__")],
     deps = [
         ":builder",
