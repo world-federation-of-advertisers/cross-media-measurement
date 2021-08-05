@@ -29,7 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyRequisitionReader
 
 /**
  * Persists a Requisition in Spanner if it doesn't yet exist.
@@ -39,7 +39,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  * This does not enforce any preconditions on [requisition]. For example, there is no guarantee that
  * the startTime is before the endTime or the state is valid.
  */
-class LegacyCreateRequisition(private val requisition: Requisition) :
+class CreateLegacyRequisition(private val requisition: Requisition) :
   SpannerWriter<Requisition, Requisition>() {
   data class Parent(val dataProviderId: Long, val campaignId: Long, val providedCampaignId: String)
 
@@ -105,7 +105,7 @@ class LegacyCreateRequisition(private val requisition: Requisition) :
         AND Requisitions.WindowEndTime = @window_end_time
       """.trimIndent()
 
-    return RequisitionReader()
+    return LegacyRequisitionReader()
       .withBuilder {
         appendClause(whereClause)
         bind("external_data_provider_id").to(requisition.externalDataProviderId)

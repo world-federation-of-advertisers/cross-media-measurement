@@ -22,7 +22,7 @@ import org.wfanet.measurement.kingdom.db.StreamRequisitionsFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.StreamRequisitionsFilterSqlConverter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.toSql
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyRequisitionReader
 
 /**
  * Streams [Requisition]s matching [filter] from Spanner ordered by ascending CreateTime.
@@ -31,10 +31,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  * @param limit how many [Requisition]s to return -- if zero, there is no limit
  */
 class StreamRequisitions(filter: StreamRequisitionsFilter, limit: Long) :
-  SpannerQuery<RequisitionReader.Result, Requisition>() {
+  SpannerQuery<LegacyRequisitionReader.Result, Requisition>() {
 
-  override val reader: BaseSpannerReader<RequisitionReader.Result> by lazy {
-    RequisitionReader().withBuilder {
+  override val reader: BaseSpannerReader<LegacyRequisitionReader.Result> by lazy {
+    LegacyRequisitionReader().withBuilder {
       if (!filter.empty) {
         appendClause("WHERE")
         filter.toSql(this, StreamRequisitionsFilterSqlConverter)
@@ -46,7 +46,7 @@ class StreamRequisitions(filter: StreamRequisitionsFilter, limit: Long) :
     }
   }
 
-  override fun Flow<RequisitionReader.Result>.transform(): Flow<Requisition> {
+  override fun Flow<LegacyRequisitionReader.Result>.transform(): Flow<Requisition> {
     return map { it.requisition }
   }
 }

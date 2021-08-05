@@ -19,9 +19,8 @@ import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
 
 object DuchyIds {
-  private lateinit var entries: List<Entry>
-
-  fun getEntries() = entries
+  public lateinit var entries: List<Entry>
+    private set
 
   fun initializeFromFlags(flags: DuchyIdsFlags) {
     require(!DuchyIds::entries.isInitialized)

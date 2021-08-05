@@ -29,7 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.toProtoJson
 import org.wfanet.measurement.internal.kingdom.Report
 import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyRequisitionReader
 
 class AssociateRequisitionAndReport(
   private val externalRequisitionId: ExternalId,
@@ -110,7 +110,7 @@ class AssociateRequisitionAndReport(
   private suspend fun TransactionScope.readReportAndRequisition(
     externalReportId: ExternalId,
     externalRequisitionId: ExternalId
-  ): Pair<ReportReader.Result, RequisitionReader.Result> = coroutineScope {
+  ): Pair<ReportReader.Result, LegacyRequisitionReader.Result> = coroutineScope {
     val reportDeferred = async {
       ReportReader().readExternalId(transactionContext, externalReportId)
     }
@@ -121,8 +121,8 @@ class AssociateRequisitionAndReport(
 
   private suspend fun TransactionScope.readRequisition(
     externalRequisitionId: ExternalId
-  ): RequisitionReader.Result {
-    return RequisitionReader()
+  ): LegacyRequisitionReader.Result {
+    return LegacyRequisitionReader()
       .withBuilder {
         appendClause("WHERE Requisitions.ExternalRequisitionId = @external_requisition_id")
         bind("external_requisition_id").to(externalRequisitionId.value)

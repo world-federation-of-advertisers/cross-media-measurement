@@ -19,16 +19,106 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 
 class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
+
   data class Result(val measurement: Measurement, val measurementId: Long)
+
+  private fun constructBaseSql(view: Measurement.View): String {
+    return when (view) {
+      Measurement.View.DEFAULT -> defaultViewBaseSql
+      Measurement.View.COMPUTATION -> computationViewBaseSql
+      Measurement.View.UNRECOGNIZED ->
+        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
+    }
+  }
+  override val baseSql: String = constructBaseSql(view)
+
+  override val externalIdColumn: String = "Measurements.ExternalComputationId"
+
+  override suspend fun translate(struct: Struct): Result =
+    Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
+
+  private fun buildMeasurement(struct: Struct): Measurement {
+    // TODO(@google.com uakyol): populate all the relevant fields for a measurement.
+    val measurementBuilder =
+      Measurement.newBuilder().apply {
+        externalMeasurementId = struct.getLong("ExternalMeasurementId")
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalComputationId = struct.getLong("ExternalComputationId")
+        providedMeasurementId = struct.getString("ProvidedMeasurementId")
+        details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+        createTime = struct.getTimestamp("CreateTime").toProto()
+      }
+
+    return when (view) {
+      // TODO(@google.com uakyol): populate all the relevant fields for a measurement.
+      Measurement.View.DEFAULT -> measurementBuilder.build()
+      Measurement.View.COMPUTATION -> {
+        // TODO(@uakyol): populate all the relevant fields for a requisition.
+        val requisitions =
+          struct
+            .getStructList("Requisitions")
+            .map {
+              Requisition.newBuilder()
+                .apply {
+                  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+                  externalMeasurementId = struct.getLong("ExternalMeasurementId")
+                  externalRequisitionId = it.getLong("ExternalRequisitionId")
+                }
+                .build()
+            }
+            .toList()
+        // TODO(@uakyol) : populate all the relevant fields for a computationParticipant.
+        val computationParticipants =
+          struct
+            .getStructList("ComputationParticipants")
+            .map {
+              ComputationParticipant.newBuilder()
+                .apply {
+                  externalDuchyId = DuchyIds.getExternalId(it.getLong("DuchyId"))
+                  externalMeasurementId = struct.getLong("ExternalMeasurementId")
+                  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+                  externalComputationId = struct.getLong("ExternalComputationId")
+                  state = it.getProtoEnum("State", ComputationParticipant.State::forNumber)
+                }
+                .build()
+            }
+            .toList()
+
+        measurementBuilder
+          .also {
+            it.addAllRequisitions(requisitions)
+            it.addAllComputationParticipants(computationParticipants)
+          }
+          .build()
+      }
+      Measurement.View.UNRECOGNIZED ->
+        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
+    }
+  }
+
+  suspend fun readExternalIdWithGroupByOrNull(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalId: ExternalId
+  ): Result? {
+    return withBuilder {
+        appendClause("WHERE $externalIdColumn = @external_id")
+        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8")
+        bind("external_id").to(externalId.value)
+
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 
   companion object {
     private val defaultViewBaseSql =
@@ -75,89 +165,5 @@ class MeasurementReader(private val view: Measurement.View) :
     FROM Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     """.trimIndent()
-  }
-
-  private fun constructBaseSql(view: Measurement.View): String {
-    return when (view) {
-      Measurement.View.DEFAULT -> defaultViewBaseSql
-      Measurement.View.COMPUTATION -> computationViewBaseSql
-      Measurement.View.UNRECOGNIZED ->
-        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
-    }
-  }
-  override val baseSql: String = constructBaseSql(view)
-
-  override val externalIdColumn: String = "Measurements.ExternalComputationId"
-
-  override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
-
-  private fun buildMeasurement(struct: Struct): Measurement {
-    val commonMeasurement =
-      Measurement.newBuilder().apply {
-        externalMeasurementId = struct.getLong("ExternalMeasurementId")
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalComputationId = struct.getLong("ExternalComputationId")
-        providedMeasurementId = struct.getString("ProvidedMeasurementId")
-        details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-        createTime = struct.getTimestamp("CreateTime").toProto()
-      }
-
-    return when (view) {
-      Measurement.View.DEFAULT -> commonMeasurement.build()
-      Measurement.View.COMPUTATION -> {
-        // TODO(@google.com uakyol): populate all the relevant fields for a requisition.
-        val requisitions =
-          struct
-            .getStructList("Requisitions")
-            .map {
-              Requisition.newBuilder()
-                .apply { externalRequisitionId = it.getLong("ExternalRequisitionId") }
-                .build()
-            }
-            .sortedBy { it.externalRequisitionId }
-            .toList()
-        // TODO(@google.com uakyol) : populate all the relevant fields for a computationParticipant.
-        val computationParticipants =
-          struct
-            .getStructList("ComputationParticipants")
-            .map {
-              ComputationParticipant.newBuilder()
-                .apply {
-                  externalDuchyId = DuchyIds.getExternalId(it.getLong("DuchyId"))
-                  externalMeasurementId = struct.getLong("ExternalMeasurementId")
-                  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-                  externalComputationId = struct.getLong("ExternalComputationId")
-                  state = it.getProtoEnum("State", ComputationParticipant.State::forNumber)
-                }
-                .build()
-            }
-            .toList()
-
-        commonMeasurement
-          .also {
-            it.addAllRequisitions(requisitions)
-            it.addAllComputationParticipants(computationParticipants)
-          }
-          .build()
-      }
-      Measurement.View.UNRECOGNIZED ->
-        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
-    }
-  }
-
-  suspend fun readExternalIdWithGroupByOrNull(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalId: ExternalId
-  ): Result? {
-    return this.withBuilder {
-        appendClause("WHERE $externalIdColumn = @external_id")
-        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8")
-        bind("external_id").to(externalId.value)
-
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
   }
 }

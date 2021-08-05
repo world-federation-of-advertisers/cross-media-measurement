@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyRequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
 
 private const val COMBINED_PUBLIC_KEY_RESOURCE_ID = "combined-public-key-1"
@@ -422,7 +422,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
   }
 
   protected fun readAllRequisitionsInSpanner(): List<Requisition> = runBlocking {
-    RequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
+    LegacyRequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
   }
 
   protected fun readAllRecurringExchangesInSpanner(): List<RecurringExchange> = runBlocking {

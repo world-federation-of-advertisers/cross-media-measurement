@@ -82,7 +82,7 @@ class CreateRequisitionTest : KingdomDatabaseTestBase() {
     FixedIdGenerator(InternalId(NEW_REQUISITION_ID), ExternalId(NEW_EXTERNAL_REQUISITION_ID))
 
   private fun createRequisition(requisition: Requisition): Requisition = runBlocking {
-    LegacyCreateRequisition(requisition).execute(databaseClient, idGenerator)
+    CreateLegacyRequisition(requisition).execute(databaseClient, idGenerator)
   }
 
   @Before

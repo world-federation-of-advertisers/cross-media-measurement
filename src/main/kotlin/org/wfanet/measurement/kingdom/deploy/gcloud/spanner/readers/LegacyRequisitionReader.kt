@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition.RequisitionState
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 
 /** Reads [Requisition] protos (and their internal primary keys) from Spanner. */
-class RequisitionReader : SpannerReader<RequisitionReader.Result>() {
+class LegacyRequisitionReader : SpannerReader<LegacyRequisitionReader.Result>() {
   data class Result(
     val requisition: Requisition,
     val dataProviderId: Long,

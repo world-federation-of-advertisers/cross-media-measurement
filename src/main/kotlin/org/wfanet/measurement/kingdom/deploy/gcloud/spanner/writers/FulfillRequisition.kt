@@ -29,7 +29,7 @@ import org.wfanet.measurement.kingdom.db.RequisitionUpdate
 import org.wfanet.measurement.kingdom.db.to
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportRequisitionReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyRequisitionReader
 
 /**
  * [SpannerWriter] for reading a [Requisition] and, if its state is [RequisitionState.UNFULFILLED],
@@ -42,7 +42,10 @@ class FulfillRequisition(
   private val duchyId: String
 ) : SimpleSpannerWriter<RequisitionUpdate>() {
   override suspend fun TransactionScope.runTransaction(): RequisitionUpdate {
-    val readResult = RequisitionReader().readExternalId(transactionContext, externalRequisitionId)
+    val readResult = LegacyRequisitionReader().readExternalId(
+      transactionContext,
+      externalRequisitionId
+    )
     val requisition = readResult.requisition
     if (requisition.state != RequisitionState.UNFULFILLED) {
       return RequisitionUpdate.noOp(requisition)
@@ -63,11 +66,11 @@ class FulfillRequisition(
       .bufferTo(transactionContext)
 
     ReportRequisitionReader.readReportsWithAssociatedRequisition(
-        transactionContext,
-        InternalId(readResult.dataProviderId),
-        InternalId(readResult.campaignId),
-        InternalId(readResult.requisitionId)
-      )
+      transactionContext,
+      InternalId(readResult.dataProviderId),
+      InternalId(readResult.campaignId),
+      InternalId(readResult.requisitionId)
+    )
       .collect { updateReportDetails(it) }
 
     return requisition to
