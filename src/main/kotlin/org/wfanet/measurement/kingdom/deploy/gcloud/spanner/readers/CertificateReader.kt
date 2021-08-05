@@ -22,9 +22,11 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-class CertificateReader(val request: GetCertificateRequest) :
+class CertificateReader(private val request: GetCertificateRequest) :
   SpannerReader<CertificateReader.Result>() {
+
   data class Result(val certificate: Certificate, val certificateId: Long)
+
   private val tableName: String
   init {
     tableName =
@@ -37,14 +39,10 @@ class CertificateReader(val request: GetCertificateRequest) :
       }
   }
 
-  override val externalIdColumn: String =
-    "${tableName}Certificates.External${tableName}CertificateId"
+  companion object {
 
-  override suspend fun translate(struct: Struct): Result =
-    Result(buildCertificate(struct), struct.getLong("CertificateId"))
-
-  private val tableBaseSql: String =
-    """SELECT
+    private fun getTableBaseSql(tableName: String) =
+      """SELECT
             ${tableName}Certificates.CertificateId,
             Certificates.SubjectKeyIdentifier,
             Certificates.NotValidBefore,
@@ -59,31 +57,40 @@ class CertificateReader(val request: GetCertificateRequest) :
           JOIN Certificates USING (CertificateId)
           """.trimIndent()
 
-  private val configBaseSql: String =
-    """SELECT
-            ${tableName}Certificates.CertificateId,
-            Certificates.SubjectKeyIdentifier,
-            Certificates.NotValidBefore,
-            Certificates.NotValidAfter,
-            Certificates.RevocationState,
-            Certificates.CertificateDetails,
-            ${tableName}Certificates.External${tableName}CertificateId,
-            ${tableName}Certificates.${tableName}Id,
-          FROM ${tableName}Certificates
-          JOIN Certificates USING (CertificateId)
-          """.trimIndent()
+    private fun getConfigBaseSql(tableName: String) =
+      """SELECT
+              ${tableName}Certificates.CertificateId,
+              Certificates.SubjectKeyIdentifier,
+              Certificates.NotValidBefore,
+              Certificates.NotValidAfter,
+              Certificates.RevocationState,
+              Certificates.CertificateDetails,
+              ${tableName}Certificates.External${tableName}CertificateId,
+              ${tableName}Certificates.${tableName}Id,
+            FROM ${tableName}Certificates
+            JOIN Certificates USING (CertificateId)
+            """.trimIndent()
+  }
 
-  override val baseSql: String = constructBaseSql()
+  override val externalIdColumn: String =
+    "${tableName}Certificates.External${tableName}CertificateId"
 
-  private fun constructBaseSql(): String {
+  override suspend fun translate(struct: Struct): Result =
+    Result(buildCertificate(struct), struct.getLong("CertificateId"))
+
+  override val baseSql: String = constructBaseSql(request)
+
+  private fun constructBaseSql(request: GetCertificateRequest): String {
     return when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> configBaseSql
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> tableBaseSql
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> tableBaseSql
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> getConfigBaseSql(tableName)
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> getTableBaseSql(tableName)
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+        getTableBaseSql(tableName)
       GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
     }
   }
+
   private fun populateExternalId(
     certificateBuilder: Certificate.Builder,
     struct: Struct
