@@ -15,19 +15,39 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelProvider
 import org.wfanet.measurement.kingdom.service.internal.testing.RecurringExchangesServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerRecurringExchangesServiceTest : RecurringExchangesServiceTest() {
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
+
+  override fun createModelProvider(idGenerator: IdGenerator): ModelProvider {
+    return runBlocking {
+      CreateModelProvider().execute(spannerDatabase.databaseClient, idGenerator, clock)
+    }
+  }
+
+  override fun createDataProvider(
+    dataProvider: DataProvider,
+    idGenerator: IdGenerator
+  ): DataProvider {
+    return runBlocking {
+      CreateDataProvider(dataProvider).execute(spannerDatabase.databaseClient, idGenerator, clock)
+    }
+  }
 
   override fun newService(idGenerator: IdGenerator): RecurringExchangesCoroutineImplBase {
     return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)

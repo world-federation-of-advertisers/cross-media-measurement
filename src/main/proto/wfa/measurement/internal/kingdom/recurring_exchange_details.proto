@@ -23,6 +23,7 @@ option java_multiple_files = true;
 message RecurringExchangeDetails {
   // Expects a valid CRON expression.
   // See https://en.wikipedia.org/wiki/Cron#CRON_expression.
+  // TODO: this is too complex; change to just DAILY/WEEKLY/MONTHLY or similar.
   string cron_schedule = 1;
 
   // Serialized ExchangeWorkflow proto from the public API.
