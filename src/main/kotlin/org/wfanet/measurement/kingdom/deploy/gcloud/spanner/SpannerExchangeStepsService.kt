@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.internal
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -22,7 +24,9 @@ import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStep
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStep.Result
 
 class SpannerExchangeStepsService(
   private val clock: Clock,
@@ -36,23 +40,45 @@ class SpannerExchangeStepsService(
     grpcRequire(request.partyCase != PartyCase.PARTY_NOT_SET) {
       "external_data_provider_id or external_model_provider_id must be provided."
     }
-    val result =
-      ClaimReadyExchangeStep(
-          externalModelProviderId =
-            if (request.hasExternalModelProviderId()) request.externalModelProviderId else null,
-          externalDataProviderId =
-            if (request.hasExternalDataProviderId()) request.externalDataProviderId else null,
+    val externalModelProviderId =
+      if (request.hasExternalModelProviderId()) request.externalModelProviderId else null
+    val externalDataProviderId =
+      if (request.hasExternalDataProviderId()) request.externalDataProviderId else null
+
+    var result =
+      FindReadyExchangeStep(
+          externalModelProviderId = externalModelProviderId,
+          externalDataProviderId = externalDataProviderId
         )
-        .execute(client)
+        .execute(client, idGenerator, clock)
 
-    require(result.isPresent)
-    val exchangeStep = result.get().step
-    val attemptNumber = result.get().attemptNumber
+    if (result.isPresent) {
+      return result.get().buildResponse()
+    }
 
+    CreateExchangesAndSteps(
+        externalModelProviderId = externalModelProviderId,
+        externalDataProviderId = externalDataProviderId
+      )
+      .execute(client, idGenerator, clock)
+
+    result =
+      FindReadyExchangeStep(
+          externalModelProviderId = externalModelProviderId,
+          externalDataProviderId = externalDataProviderId
+        )
+        .execute(client, idGenerator, clock)
+
+    grpcRequire(result.isPresent) { failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" } }
+
+    return result.get().buildResponse()
+  }
+
+  private fun Result.buildResponse(): ClaimReadyExchangeStepResponse {
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
-        this.exchangeStep = exchangeStep
-        this.attemptNumber = attemptNumber
+        this.exchangeStep = step
+        this.attemptNumber = attemptIndex
       }
       .build()
   }
