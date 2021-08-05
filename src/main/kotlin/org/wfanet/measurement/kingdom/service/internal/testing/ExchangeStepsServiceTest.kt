@@ -15,9 +15,9 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -66,5 +66,27 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
     assertThat(exception)
       .hasMessageThat()
       .contains("external_data_provider_id or external_model_provider_id must be provided.")
+  }
+
+  @Test
+  fun `claimReadyExchangeStepRequest fails without recurring exchange`() = runBlocking {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        exchangeStepsService.claimReadyExchangeStep(
+          ClaimReadyExchangeStepRequest.newBuilder().setExternalModelProviderId(6L).build()
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("No Recurring Exchange was found.")
+  }
+
+  @Test
+  fun `claimReadyExchangeStepRequest succeeds`() = runBlocking {
+    // TODO(yunyeng): Add test once underlying services complete.
+  }
+
+  @Test
+  fun `claimReadyExchangeStepRequest succeeds with ready exchange step`() = runBlocking {
+    // TODO(yunyeng): Add test once underlying services complete.
   }
 }

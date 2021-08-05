@@ -35,4 +35,7 @@ message RecurringExchangeDetails {
   // This is serialized because DataProviders and ModelProviders will sign the
   // ExchangeWorkflow to keep a record that they agreed to it.
   bytes external_exchange_workflow = 3;
+
+  // Version the public API for `external_exchange_workflow`.
+  string api_version = 4;
 }

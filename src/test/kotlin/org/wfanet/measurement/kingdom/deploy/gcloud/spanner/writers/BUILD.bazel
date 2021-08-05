@@ -123,8 +123,15 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "ClaimReadyExchangeStepTest",
-    srcs = ["ClaimReadyExchangeStepTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStepTest",
+    name = "CreateExchangesAndStepsTest",
+    srcs = ["CreateExchangesAndStepsTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndStepsTest",
+    deps = _TEST_DEPS,
+)
+
+spanner_emulator_test(
+    name = "FindReadyExchangeStepTest",
+    srcs = ["FindReadyExchangeStepTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStepTest",
     deps = _TEST_DEPS,
 )

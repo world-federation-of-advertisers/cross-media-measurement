@@ -14,12 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
-import java.lang.IllegalStateException
-import java.time.Instant
+import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -27,11 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.internal.kingdom.Exchange
-import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
@@ -87,50 +81,20 @@ private val DATE2_UPDATED =
       day = 4
     }
     .build()
-
-private val EXCHANGE_STEP =
-  ExchangeStep.newBuilder()
+private val DATE3 =
+  Date.newBuilder()
     .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      date = DATE1
-      stepIndex = 1
-      state = ExchangeStep.State.IN_PROGRESS
+      year = 2021
+      month = 5
+      day = 5
     }
     .build()
-
-private val EXCHANGE_STEP_ATTEMPT =
-  ExchangeStepAttempt.newBuilder()
+private val DATE3_UPDATED =
+  Date.newBuilder()
     .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-      date = DATE1
-      stepIndex = 1
-      state = ExchangeStepAttempt.State.ACTIVE
-      attemptNumber = 1
-      details = ExchangeStepAttemptDetails.getDefaultInstance()
-    }
-    .build()
-
-private val EXCHANGE_STEP2 =
-  ExchangeStep.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
-      date = DATE2
-      stepIndex = 4
-      state = ExchangeStep.State.IN_PROGRESS
-    }
-    .build()
-
-private val EXCHANGE_STEP_ATTEMPT2 =
-  ExchangeStepAttempt.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
-      date = DATE2
-      stepIndex = 1
-      state = ExchangeStepAttempt.State.ACTIVE
-      attemptNumber = 1
-      details = ExchangeStepAttemptDetails.getDefaultInstance()
+      year = 2021
+      month = 6
+      day = 5
     }
     .build()
 
@@ -155,7 +119,7 @@ private val EXCHANGE_WORKFLOW1 =
             .build(),
           ExchangeWorkflow.Step.newBuilder()
             .apply {
-              party = ExchangeWorkflow.Party.DATA_PROVIDER
+              party = ExchangeWorkflow.Party.MODEL_PROVIDER
               stepIndex = 3
               addAllPrerequisiteStepIndices(listOf(1, 2))
             }
@@ -251,7 +215,7 @@ private val RECURRING_EXCHANGE_DETAILS3 =
     .build()
 
 @RunWith(JUnit4::class)
-class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
+class CreateExchangesAndStepsTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
@@ -282,28 +246,19 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
       modelProviderId = MODEL_PROVIDER_ID,
       dataProviderId = DATA_PROVIDER_ID3,
       state = RecurringExchange.State.ACTIVE,
-      nextExchangeDate = DATE2,
+      nextExchangeDate = DATE3,
       recurringExchangeDetails = RECURRING_EXCHANGE_DETAILS3
     )
   }
 
   @Test
-  fun `claimReadyExchangeStep with model provider`() =
+  fun `createExchangesAndSteps with model provider`() =
     runBlocking<Unit> {
-      val expected: ClaimReadyExchangeStep.Result =
-        ClaimReadyExchangeStep.Result(
-          step = EXCHANGE_STEP,
-          attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
+      CreateExchangesAndSteps(
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
+          externalDataProviderId = null
         )
-
-      val actual =
-        ClaimReadyExchangeStep(
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          )
-          .execute(databaseClient)
-
-      assertThat(actual.get()).isEqualTo(expected)
+        .execute(databaseClient)
 
       // Assert that RecurringExchange.nextExchangeDate updated.
       assertThat(
@@ -313,25 +268,18 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
             .nextExchangeDate
         )
         .isEqualTo(DATE1_UPDATED)
+      // Assert that all the ExchangeSteps are created.
+      assertThat(readAllExchangeStepsInSpanner()).hasSize(EXCHANGE_WORKFLOW1.stepsCount)
     }
 
   @Test
-  fun `claimReadyExchangeStep with data provider`() =
+  fun `createExchangesAndSteps with data provider`() =
     runBlocking<Unit> {
-      val expected: ClaimReadyExchangeStep.Result =
-        ClaimReadyExchangeStep.Result(
-          step = EXCHANGE_STEP2,
-          attemptNumber = EXCHANGE_STEP_ATTEMPT2.attemptNumber
+      CreateExchangesAndSteps(
+          externalModelProviderId = null,
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
         )
-
-      val actual =
-        ClaimReadyExchangeStep(
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
-          )
-          .execute(databaseClient)
-
-      assertThat(actual.get()).isEqualTo(expected)
+        .execute(databaseClient)
 
       // Assert that RecurringExchange.nextExchangeDate updated.
       assertThat(
@@ -341,76 +289,44 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
             .nextExchangeDate
         )
         .isEqualTo(DATE2_UPDATED)
+      // Assert that all the ExchangeSteps are created.
+      assertThat(readAllExchangeStepsInSpanner()).hasSize(EXCHANGE_WORKFLOW2.stepsCount)
     }
 
   @Test
-  fun `claimReadyExchangeStep with wrong provider id`() =
+  fun `createExchangesAndSteps with wrong provider id`() =
     runBlocking<Unit> {
       val exception =
-        assertFailsWith<IllegalStateException> {
-          ClaimReadyExchangeStep(
+        assertFailsWith<IllegalArgumentException> {
+          CreateExchangesAndSteps(
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
               externalDataProviderId = null
             )
             .execute(databaseClient)
         }
-      assertThat(exception.localizedMessage).isEqualTo("No Exchange Steps were found.")
+      assertThat(exception.localizedMessage).isEqualTo("No Recurring Exchange was found.")
     }
 
   @Test
-  fun `claimReadyExchangeStep with existing step`() =
+  fun `createExchangesAndSteps with invalid workflow`() =
     runBlocking<Unit> {
-      insertExchange(
-        recurringExchangeId = RECURRING_EXCHANGE_ID1,
-        date = DATE1,
-        state = Exchange.State.ACTIVE,
-        exchangeDetails = ExchangeDetails.getDefaultInstance()
-      )
-      insertExchangeStep(
-        recurringExchangeId = RECURRING_EXCHANGE_ID1,
-        date = DATE1,
-        stepIndex = 1L,
-        state = ExchangeStep.State.READY,
-        updateTime = Instant.now().minusSeconds(1000),
-        modelProviderId = MODEL_PROVIDER_ID,
-        dataProviderId = null
-      )
-      val expected =
-        ExchangeStep.newBuilder()
-          .apply {
-            this.externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-            this.externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            this.date = DATE1
-            this.state = ExchangeStep.State.IN_PROGRESS
-            this.stepIndex = 1
-            this.updateTime = Value.COMMIT_TIMESTAMP.toProto()
-          }
-          .build()
+      CreateExchangesAndSteps(
+          externalModelProviderId = null,
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID3
+        )
+        .execute(databaseClient)
 
-      val actual =
-        ClaimReadyExchangeStep(
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
-            externalDataProviderId = null
-          )
-          .execute(databaseClient)
-
-      assertThat(actual.get().step).isEqualTo(expected)
-      // Assert that ExchangeStep.Status updated to IN_PROGRESS.
-      assertThat(readAllExchangeStepsInSpanner().first().state)
-        .isEqualTo(ExchangeStep.State.IN_PROGRESS)
-    }
-
-  @Test
-  fun `claimReadyExchangeStep with invalid workflow`() =
-    runBlocking<Unit> {
-      val exception =
-        assertFailsWith<IllegalStateException> {
-          ClaimReadyExchangeStep(
-              externalModelProviderId = null,
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID3
-            )
-            .execute(databaseClient)
-        }
-      assertThat(exception).hasMessageThat().contains("No Exchange Steps were found.")
+      // Assert that RecurringExchange.nextExchangeDate updated.
+      assertThat(
+          RecurringExchangeReader()
+            .readExternalId(databaseClient.singleUse(), ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID3))
+            .recurringExchange
+            .nextExchangeDate
+        )
+        .isEqualTo(DATE3_UPDATED)
+      // Assert that all the ExchangeSteps are created.
+      val steps = readAllExchangeStepsInSpanner()
+      assertThat(steps).hasSize(EXCHANGE_WORKFLOW3.stepsCount)
+      assertThat(steps.filter { it.state == ExchangeStep.State.READY }).hasSize(0)
     }
 }
