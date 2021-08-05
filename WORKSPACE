@@ -58,9 +58,9 @@ load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 wfa_repo_archive(
     name = "wfa_measurement_proto",
-    commit = "584b40ca7b4275d194cc4cedfb877c05ec5ab24e",
     repo = "cross-media-measurement-api",
-    sha256 = "12f231fe7c8f75e3170ee9c6e308d355eccc354ed60ef4505f6f537812652626",
+    sha256 = "f1cb9a71bf17b84a1b8e28b05080da3ed9a1cdd99c3c1100205c388984999f6b",
+    version = "0.1.0",
 )
 
 wfa_repo_archive(

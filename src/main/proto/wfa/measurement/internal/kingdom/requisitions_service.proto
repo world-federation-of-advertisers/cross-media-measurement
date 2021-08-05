@@ -55,8 +55,9 @@ message StreamRequisitionsRequest {
   // disjunctions of their items.
   message Filter {
     int64 external_measurement_consumer_id = 1;
-    repeated Requisition.State states = 2;
-    google.protobuf.Timestamp created_after = 3;
+    int64 external_data_provider_id = 2;
+    repeated Requisition.State states = 3;
+    google.protobuf.Timestamp created_after = 4;
   }
   Filter filter = 1;
 
@@ -82,4 +83,9 @@ message RefuseRequisitionRequest {
   fixed64 external_requisition_id = 2;
 
   Requisition.Refusal refusal = 3;
+}
+
+message PageToken {
+  google.protobuf.Timestamp created_after = 1;
+  StreamRequisitionsRequest.Filter filter = 2;
 }
