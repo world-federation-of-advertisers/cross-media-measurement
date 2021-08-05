@@ -31,14 +31,15 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -247,14 +248,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .also {
           it.detailsBuilder.apiVersion = "v2alpha"
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          // it.putAllDataProviders(
-          //   mapOf(
-          //     externalDataProviderId to
-          //       Measurement.DataProviderValue.newBuilder()
-          //         .apply { externalDataProviderCertificateId = 0L }
-          //         .build()
-          //   )
-          // )
           it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
         }
         .build()
@@ -297,6 +290,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
           .build()
       )
+
+    // TODO(@google.com uakyol) : replace the hard coded ids below with a parallel id generator
+    // output.
+
     val expectedMeasurement =
       createdMeasurement
         .toBuilder()
@@ -306,6 +303,38 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             listOf(
               Requisition.newBuilder()
                 .apply { externalRequisitionId = 2086105008983782123L }
+                .build()
+            )
+          )
+
+          addAllComputationParticipants(
+            listOf(
+              ComputationParticipant.newBuilder()
+                .also {
+                  it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+                  it.externalMeasurementId = 8631840922791064299L
+                  it.externalMeasurementConsumerId = 4912341421557271829L
+                  it.externalComputationId = 3122507882207890709L
+                  it.state = ComputationParticipant.State.CREATED
+                }
+                .build(),
+              ComputationParticipant.newBuilder()
+                .also {
+                  it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
+                  it.externalMeasurementId = 8631840922791064299L
+                  it.externalMeasurementConsumerId = 4912341421557271829L
+                  it.externalComputationId = 3122507882207890709L
+                  it.state = ComputationParticipant.State.CREATED
+                }
+                .build(),
+              ComputationParticipant.newBuilder()
+                .also {
+                  it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(2)
+                  it.externalMeasurementId = 8631840922791064299L
+                  it.externalMeasurementConsumerId = 4912341421557271829L
+                  it.externalComputationId = 3122507882207890709L
+                  it.state = ComputationParticipant.State.CREATED
+                }
                 .build()
             )
           )

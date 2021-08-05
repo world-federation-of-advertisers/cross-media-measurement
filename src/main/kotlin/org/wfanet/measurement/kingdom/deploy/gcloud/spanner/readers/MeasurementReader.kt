@@ -20,13 +20,71 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 
 class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
   data class Result(val measurement: Measurement, val measurementId: Long)
 
+  companion object {
+    private val defaultViewBaseSql =
+      """
+    SELECT
+      Measurements.MeasurementId,
+      Measurements.MeasurementConsumerId,
+      Measurements.ExternalMeasurementId,
+      Measurements.ExternalComputationId,
+      Measurements.ProvidedMeasurementId,
+      Measurements.MeasurementDetails,
+      Measurements.CreateTime,
+      MeasurementConsumers.ExternalMeasurementConsumerId
+    FROM Measurements
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    """.trimIndent()
+
+    private val computationViewBaseSql =
+      """
+    SELECT
+      Measurements.MeasurementId,
+      Measurements.MeasurementConsumerId,
+      Measurements.ExternalMeasurementId,
+      Measurements.ExternalComputationId,
+      Measurements.ProvidedMeasurementId,
+      Measurements.MeasurementDetails,
+      Measurements.CreateTime,
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+      ARRAY(
+         SELECT AS STRUCT
+           r.ExternalRequisitionId
+         FROM Requisitions AS r
+         WHERE Measurements.MeasurementId = r.MeasurementId
+         AND Measurements.MeasurementConsumerId = r.MeasurementConsumerId
+       ) AS Requisitions,
+      ARRAY(
+         SELECT AS STRUCT
+           c.DuchyId,
+           c.State
+         FROM ComputationParticipants AS c
+         WHERE Measurements.MeasurementId = c.MeasurementId
+         AND Measurements.MeasurementConsumerId = c.MeasurementConsumerId
+       ) AS ComputationParticipants
+    FROM Measurements
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    """.trimIndent()
+  }
+
+  private fun constructBaseSql(view: Measurement.View): String {
+    return when (view) {
+      Measurement.View.DEFAULT -> defaultViewBaseSql
+      Measurement.View.COMPUTATION -> computationViewBaseSql
+      Measurement.View.UNRECOGNIZED ->
+        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
+    }
+  }
   override val baseSql: String = constructBaseSql(view)
 
   override val externalIdColumn: String = "Measurements.ExternalComputationId"
@@ -48,6 +106,7 @@ class MeasurementReader(private val view: Measurement.View) :
     return when (view) {
       Measurement.View.DEFAULT -> commonMeasurement.build()
       Measurement.View.COMPUTATION -> {
+        // TODO(@google.com uakyol): populate all the relevant fields for a requisition.
         val requisitions =
           struct
             .getStructList("Requisitions")
@@ -58,10 +117,29 @@ class MeasurementReader(private val view: Measurement.View) :
             }
             .sortedBy { it.externalRequisitionId }
             .toList()
+        // TODO(@google.com uakyol) : populate all the relevant fields for a computationParticipant.
+        val computationParticipants =
+          struct
+            .getStructList("ComputationParticipants")
+            .map {
+              ComputationParticipant.newBuilder()
+                .apply {
+                  externalDuchyId = DuchyIds.getExternalId(it.getLong("DuchyId"))
+                  externalMeasurementId = struct.getLong("ExternalMeasurementId")
+                  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+                  externalComputationId = struct.getLong("ExternalComputationId")
+                  state = it.getProtoEnum("State", ComputationParticipant.State::forNumber)
+                }
+                .build()
+            }
+            .toList()
 
-        commonMeasurement.also{
-          it.addAllRequisitions(requisitions)
-        }.build()
+        commonMeasurement
+          .also {
+            it.addAllRequisitions(requisitions)
+            it.addAllComputationParticipants(computationParticipants)
+          }
+          .build()
       }
       Measurement.View.UNRECOGNIZED ->
         throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
@@ -81,51 +159,5 @@ class MeasurementReader(private val view: Measurement.View) :
       }
       .execute(readContext)
       .singleOrNull()
-  }
-}
-
-private fun getDefaultViewBaseSql() =
-  """
-    SELECT
-      Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
-      Measurements.ExternalMeasurementId,
-      Measurements.ExternalComputationId,
-      Measurements.ProvidedMeasurementId,
-      Measurements.MeasurementDetails,
-      Measurements.CreateTime,
-      MeasurementConsumers.ExternalMeasurementConsumerId
-    FROM Measurements
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    """.trimIndent()
-
-private fun getComputationViewBaseSql() =
-  """
-    SELECT
-      Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
-      Measurements.ExternalMeasurementId,
-      Measurements.ExternalComputationId,
-      Measurements.ProvidedMeasurementId,
-      Measurements.MeasurementDetails,
-      Measurements.CreateTime,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      ARRAY(
-         SELECT AS STRUCT
-           r.ExternalRequisitionId
-         FROM Requisitions AS r
-         WHERE Measurements.MeasurementId = r.MeasurementId
-         AND Measurements.MeasurementConsumerId = r.MeasurementConsumerId
-       ) AS Requisitions
-    FROM Measurements
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    """.trimIndent()
-
-private fun constructBaseSql(view: Measurement.View): String {
-  return when (view) {
-    Measurement.View.DEFAULT -> getDefaultViewBaseSql()
-    Measurement.View.COMPUTATION -> getComputationViewBaseSql()
-    Measurement.View.UNRECOGNIZED ->
-      throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
   }
 }
