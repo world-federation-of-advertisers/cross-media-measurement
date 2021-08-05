@@ -296,15 +296,13 @@ class CreateExchangesAndStepsTest : KingdomDatabaseTestBase() {
   @Test
   fun `createExchangesAndSteps with wrong provider id`() =
     runBlocking<Unit> {
-      val exception =
-        assertFailsWith<IllegalArgumentException> {
           CreateExchangesAndSteps(
               externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
               externalDataProviderId = null
             )
             .execute(databaseClient)
-        }
-      assertThat(exception.localizedMessage).isEqualTo("No Recurring Exchange was found.")
+
+      assertThat(readAllExchangeStepsInSpanner()).hasSize(0)
     }
 
   @Test

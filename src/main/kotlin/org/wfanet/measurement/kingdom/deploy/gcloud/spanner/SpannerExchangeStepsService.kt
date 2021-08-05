@@ -14,9 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal
 
-import io.grpc.Status
 import java.time.Clock
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -45,7 +43,13 @@ class SpannerExchangeStepsService(
     val externalDataProviderId =
       if (request.hasExternalDataProviderId()) request.externalDataProviderId else null
 
-    var result =
+    CreateExchangesAndSteps(
+        externalModelProviderId = externalModelProviderId,
+        externalDataProviderId = externalDataProviderId
+      )
+      .execute(client, idGenerator, clock)
+
+    val result =
       FindReadyExchangeStep(
           externalModelProviderId = externalModelProviderId,
           externalDataProviderId = externalDataProviderId
@@ -53,28 +57,13 @@ class SpannerExchangeStepsService(
         .execute(client, idGenerator, clock)
 
     if (result.isPresent) {
-      return result.get().buildResponse()
+      return result.get().toClaimReadyExchangeStepResponse()
     }
 
-    CreateExchangesAndSteps(
-        externalModelProviderId = externalModelProviderId,
-        externalDataProviderId = externalDataProviderId
-      )
-      .execute(client, idGenerator, clock)
-
-    result =
-      FindReadyExchangeStep(
-          externalModelProviderId = externalModelProviderId,
-          externalDataProviderId = externalDataProviderId
-        )
-        .execute(client, idGenerator, clock)
-
-    grpcRequire(result.isPresent) { failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" } }
-
-    return result.get().buildResponse()
+    return ClaimReadyExchangeStepResponse.getDefaultInstance()
   }
 
-  private fun Result.buildResponse(): ClaimReadyExchangeStepResponse {
+  private fun Result.toClaimReadyExchangeStepResponse(): ClaimReadyExchangeStepResponse {
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
         this.exchangeStep = step
