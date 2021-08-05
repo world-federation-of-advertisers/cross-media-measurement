@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -72,9 +71,9 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
   @Test
   fun `claimReadyExchangeStepRequest fails without recurring exchange`() = runBlocking {
     val response =
-        exchangeStepsService.claimReadyExchangeStep(
-          ClaimReadyExchangeStepRequest.newBuilder().setExternalModelProviderId(6L).build()
-        )
+      exchangeStepsService.claimReadyExchangeStep(
+        ClaimReadyExchangeStepRequest.newBuilder().setExternalModelProviderId(6L).build()
+      )
 
     assertThat(response).isEqualTo(ClaimReadyExchangeStepResponse.getDefaultInstance())
   }
