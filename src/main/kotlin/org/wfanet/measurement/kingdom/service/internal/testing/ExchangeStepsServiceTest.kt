@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -70,14 +71,12 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
 
   @Test
   fun `claimReadyExchangeStepRequest fails without recurring exchange`() = runBlocking {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
+    val response =
         exchangeStepsService.claimReadyExchangeStep(
           ClaimReadyExchangeStepRequest.newBuilder().setExternalModelProviderId(6L).build()
         )
-      }
 
-    assertThat(exception).hasMessageThat().contains("No Recurring Exchange was found.")
+    assertThat(response).isEqualTo(ClaimReadyExchangeStepResponse.getDefaultInstance())
   }
 
   @Test

@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchanges
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 class CreateExchangesAndSteps(
   private val externalModelProviderId: Long?,
@@ -51,22 +52,12 @@ class CreateExchangesAndSteps(
     if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
 
   override suspend fun TransactionScope.runTransaction() {
-    // First, retrieve a single Recurring Exchange based on the filter below.
-    val streamFilter =
-      streamRecurringExchangesFilter(
-        externalModelProviderIds = externalModelProviderIds,
-        externalDataProviderIds = externalDataProviderIds,
-        states = listOf(RecurringExchange.State.ACTIVE),
-        nextExchangeDateBefore = LocalDate.now().plusDays(1).toProtoDate() // TOMORROW
-      )
-    val streamResult =
-      StreamRecurringExchanges(streamFilter, limit = 1).execute(transactionContext).singleOrNull()
-        ?: throw IllegalArgumentException("No Recurring Exchange was found.")
+    val recurringExchangeResult: RecurringExchangeReader.Result = findRecurringExchange() ?: return
 
-    val recurringExchange = streamResult.recurringExchange
-    val recurringExchangeId = streamResult.recurringExchangeId
-    val modelProviderId = streamResult.modelProviderId
-    val dataProviderId = streamResult.dataProviderId
+    val recurringExchange = recurringExchangeResult.recurringExchange
+    val recurringExchangeId = recurringExchangeResult.recurringExchangeId
+    val modelProviderId = recurringExchangeResult.modelProviderId
+    val dataProviderId = recurringExchangeResult.dataProviderId
     val nextExchangeDate = recurringExchange.nextExchangeDate
     val workflow = recurringExchange.details.exchangeWorkflow
 
@@ -98,6 +89,20 @@ class CreateExchangesAndSteps(
       recurringExchangeId = recurringExchangeId,
       date = nextExchangeDate
     )
+  }
+
+  private suspend fun TransactionScope.findRecurringExchange(): RecurringExchangeReader.Result? {
+    // First, retrieve a single Recurring Exchange based on the filter below.
+    val streamFilter =
+      streamRecurringExchangesFilter(
+        externalModelProviderIds = externalModelProviderIds,
+        externalDataProviderIds = externalDataProviderIds,
+        states = listOf(RecurringExchange.State.ACTIVE),
+        nextExchangeDateBefore = LocalDate.now().plusDays(1).toProtoDate() // TOMORROW
+      )
+    return StreamRecurringExchanges(streamFilter, limit = 1)
+      .execute(transactionContext)
+      .singleOrNull()
   }
 
   private fun TransactionScope.createExchange(recurringExchangeId: Long, date: Date) {
@@ -138,6 +143,7 @@ class CreateExchangesAndSteps(
       AND ExchangeStepAttempts.StepIndex = @step_index
       """.trimIndent()
 
+    // TODO(yunyeng): Use makeStatement from common-jvm.
     val statement: Statement =
       Statement.newBuilder(sql)
         .bind("recurring_exchange_id")
@@ -237,6 +243,8 @@ class CreateExchangesAndSteps(
   }
 }
 
+// TODO: Decide on the format for cronSchedule.
+// See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/180.
 internal fun Date.applyCronSchedule(cronSchedule: String): Date {
   return when (cronSchedule) {
     "DAILY" -> this.toLocalDate().plusDays(1).toProtoDate()
