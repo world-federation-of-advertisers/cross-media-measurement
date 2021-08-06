@@ -39,9 +39,9 @@ class SpannerExchangeStepsService(
       "external_data_provider_id or external_model_provider_id must be provided."
     }
     val externalModelProviderId =
-      if (request.hasExternalModelProviderId()) request.externalModelProviderId else null
+      if (request.externalModelProviderId > 0) request.externalModelProviderId else null
     val externalDataProviderId =
-      if (request.hasExternalDataProviderId()) request.externalDataProviderId else null
+      if (request.externalDataProviderId > 0) request.externalDataProviderId else null
 
     CreateExchangesAndSteps(
         externalModelProviderId = externalModelProviderId,
