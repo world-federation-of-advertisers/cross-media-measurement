@@ -26,7 +26,7 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     val internalCertificateId = idGenerator.generateInternalId()
 
     measurementConsumer
-      .preferredCertificate
+      .certificate
       .toInsertMutation(internalCertificateId)
       .bufferTo(transactionContext)
 
@@ -58,8 +58,7 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
       .toBuilder()
       .also {
         it.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-        it.externalPublicKeyCertificateId = externalMeasurementConsumerCertificateId.value
-        it.preferredCertificateBuilder.also {
+        it.certificateBuilder.also {
           it.externalMeasurementConsumerId = externalMeasurementConsumerId.value
           it.externalCertificateId = externalMeasurementConsumerCertificateId.value
         }
