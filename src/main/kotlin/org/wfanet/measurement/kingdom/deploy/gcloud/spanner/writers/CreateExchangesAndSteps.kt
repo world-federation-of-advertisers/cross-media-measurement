@@ -50,7 +50,7 @@ class CreateExchangesAndSteps(
     if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
 
   override suspend fun TransactionScope.runTransaction() {
-    val recurringExchangeResult: RecurringExchangeReader.Result = findRecurringExchange() ?: return
+    val recurringExchangeResult: RecurringExchangeReader.Result = getRecurringExchange() ?: return
 
     val recurringExchange = recurringExchangeResult.recurringExchange
     val recurringExchangeId = recurringExchangeResult.recurringExchangeId
@@ -81,15 +81,22 @@ class CreateExchangesAndSteps(
       dataProviderId = dataProviderId
     )
 
+    val steps =
+      findReadyExchangeSteps(
+        workflow = workflow,
+        recurringExchangeId = recurringExchangeId,
+        date = nextExchangeDate
+      )
+
     // Update all Steps States based on the workflow.
     updateExchangeSteps(
-      workflow = workflow,
+      steps = steps,
       recurringExchangeId = recurringExchangeId,
       date = nextExchangeDate
     )
   }
 
-  private suspend fun TransactionScope.findRecurringExchange(): RecurringExchangeReader.Result? {
+  private suspend fun TransactionScope.getRecurringExchange(): RecurringExchangeReader.Result? {
     val streamFilter =
       streamRecurringExchangesFilter(
         externalModelProviderIds = externalModelProviderIds,
@@ -153,62 +160,62 @@ class CreateExchangesAndSteps(
     }
   }
 
-  private suspend fun TransactionScope.updateExchangeSteps(
+  private suspend fun TransactionScope.findReadyExchangeSteps(
     workflow: ExchangeWorkflow,
     recurringExchangeId: Long,
     date: Date
-  ) {
-    val completedSteps = getCompletedSteps(recurringExchangeId, date)
-    for (step in findReadySteps(workflow, completedSteps)) {
-      updateMutation("ExchangeSteps") {
-          set("RecurringExchangeId" to recurringExchangeId)
-          set("Date" to date.toCloudDate())
-          set("StepIndex" to step.stepIndex.toLong())
-          set("State" to ExchangeStep.State.READY)
-          set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-        }
-        .bufferTo(transactionContext)
-    }
-  }
-
-  private fun findReadySteps(
-    workflow: ExchangeWorkflow,
-    completedStepIndexes: Set<Int>
   ): List<ExchangeWorkflow.Step> {
+    val completedStepIndexes = getCompletedExchangeSteps(recurringExchangeId, date)
     return workflow.stepsList.filter { step ->
       step.prerequisiteStepIndicesCount == 0 ||
         step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
     }
   }
+}
 
-  private suspend fun TransactionScope.getCompletedSteps(
-    recurringExchangeId: Long,
-    date: Date
-  ): Set<Int> {
-    val sql =
-      """
-      SELECT ExchangeSteps.StepIndex
+internal fun SpannerWriter.TransactionScope.updateExchangeSteps(
+  steps: List<ExchangeWorkflow.Step>,
+  recurringExchangeId: Long,
+  date: Date
+) {
+  for (step in steps) {
+    updateMutation("ExchangeSteps") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("StepIndex" to step.stepIndex.toLong())
+        set("State" to ExchangeStep.State.READY)
+        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      }
+      .bufferTo(transactionContext)
+  }
+}
+
+internal suspend fun SpannerWriter.TransactionScope.getCompletedExchangeSteps(
+  recurringExchangeId: Long,
+  date: Date
+): Set<Int> {
+  val sql =
+    """
+      SELECT
+       ExchangeSteps.StepIndex
       FROM ExchangeSteps
       WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
       AND ExchangeSteps.Date = @date
       AND ExchangeSteps.State = @state
       ORDER BY ExchangeSteps.StepIndex
       """.trimIndent()
-    val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("recurring_exchange_id")
-        .to(recurringExchangeId)
-        .bind("date")
-        .to(date.toCloudDate())
-        .bind("state")
-        .toProtoEnum(ExchangeStep.State.SUCCEEDED)
-        .build()
-    val result = mutableSetOf<Int>()
-    transactionContext.executeQuery(statement).collect {
-      result.add(it.getLong("StepIndex").toInt())
-    }
-    return result
-  }
+  val statement: Statement =
+    Statement.newBuilder(sql)
+      .bind("recurring_exchange_id")
+      .to(recurringExchangeId)
+      .bind("date")
+      .to(date.toCloudDate())
+      .bind("state")
+      .toProtoEnum(ExchangeStep.State.SUCCEEDED)
+      .build()
+  val result = mutableSetOf<Int>()
+  transactionContext.executeQuery(statement).collect { it.getLong("StepIndex").toInt() }
+  return result
 }
 
 // TODO: Decide on the format for cronSchedule.

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
@@ -31,6 +32,7 @@ class SpannerExchangeStepAttemptsService(
   override suspend fun finishExchangeStepAttempt(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
+    grpcRequire(request.hasDate()) { "Date must be provided in the request." }
     return FinishExchangeStepAttempt(request).execute(client, idGenerator, clock)
   }
 }

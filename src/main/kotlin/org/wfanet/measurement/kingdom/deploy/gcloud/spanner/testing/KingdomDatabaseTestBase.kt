@@ -24,10 +24,13 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
@@ -119,6 +122,28 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
         set("ModelProviderId" to modelProviderId)
         set("DataProviderId" to dataProviderId)
+      }
+    )
+  }
+
+  suspend fun insertExchangeStepAttempt(
+    recurringExchangeId: Long,
+    date: Date,
+    stepIndex: Long,
+    attemptIndex: Long,
+    state: ExchangeStepAttempt.State,
+    exchangeStepAttemptDetails: ExchangeStepAttemptDetails =
+      ExchangeStepAttemptDetails.getDefaultInstance()
+  ) {
+    write(
+      insertMutation("ExchangeStepAttempts") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("StepIndex" to stepIndex)
+        set("AttemptIndex" to attemptIndex)
+        set("State" to state)
+        set("ExchangeStepAttemptDetails" to exchangeStepAttemptDetails)
+        setJson("ExchangeStepAttemptDetailsJson" to exchangeStepAttemptDetails)
       }
     )
   }
