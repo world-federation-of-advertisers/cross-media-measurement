@@ -34,6 +34,7 @@ import org.mockito.kotlin.capture
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -53,6 +54,7 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest as InternalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -78,6 +80,7 @@ class MeasurementsServiceTest {
       onBlocking { createMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { getMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { streamMeasurements(any()) }.thenReturn(flowOf(INTERNAL_MEASUREMENT))
+      onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsMock) }
@@ -267,7 +270,8 @@ class MeasurementsServiceTest {
             State.FAILED,
             State.SUCCEEDED,
             State.AWAITING_REQUISITION_FULFILLMENT,
-            State.COMPUTING
+            State.COMPUTING,
+            State.CANCELLED
           )
         )
       }
@@ -343,6 +347,42 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+  }
+
+  @Test
+  fun `cancelMeasurement returns measurement`() {
+    val request = buildCancelMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val result = runBlocking { service.cancelMeasurement(request) }
+
+    val expected = MEASUREMENT
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::cancelMeasurement
+      )
+      .isEqualTo(
+        buildInternalCancelMeasurementRequest {
+          externalMeasurementConsumerId =
+            apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
+          externalMeasurementId =
+            apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
+          measurementView = InternalMeasurement.View.DEFAULT
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `cancelMeasurement throws INVALID_ARGUMENT when resource name is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.cancelMeasurement(CancelMeasurementRequest.getDefaultInstance()) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Resource name is either unspecified or invalid")
   }
 }
 
@@ -429,6 +469,10 @@ private inline fun buildGetMeasurementRequest(
   fill: (@Builder GetMeasurementRequest.Builder).() -> Unit
 ) = GetMeasurementRequest.newBuilder().apply(fill).build()
 
+private inline fun buildCancelMeasurementRequest(
+  fill: (@Builder CancelMeasurementRequest.Builder).() -> Unit
+) = CancelMeasurementRequest.newBuilder().apply(fill).build()
+
 private inline fun buildCreateMeasurementRequest(
   fill: (@Builder CreateMeasurementRequest.Builder).() -> Unit
 ) = CreateMeasurementRequest.newBuilder().apply(fill).build()
@@ -440,3 +484,7 @@ private inline fun buildListMeasurementsRequest(
 private inline fun buildInternalGetMeasurementRequest(
   fill: (@Builder InternalGetMeasurementRequest.Builder).() -> Unit
 ) = InternalGetMeasurementRequest.newBuilder().apply(fill).build()
+
+private inline fun buildInternalCancelMeasurementRequest(
+  fill: (@Builder InternalCancelMeasurementRequest.Builder).() -> Unit
+) = InternalCancelMeasurementRequest.newBuilder().apply(fill).build()

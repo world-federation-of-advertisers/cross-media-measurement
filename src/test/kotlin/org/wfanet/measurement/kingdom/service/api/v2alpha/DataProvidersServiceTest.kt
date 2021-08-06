@@ -95,7 +95,7 @@ class DataProvidersServiceTest {
   fun `create fills created resource names`() {
     val request = buildCreateDataProviderRequest {
       dataProviderBuilder.apply {
-        preferredCertificateDer = SERVER_CERTIFICATE_DER
+        certificateDer = SERVER_CERTIFICATE_DER
         publicKey = SIGNED_PUBLIC_KEY
       }
     }
@@ -105,7 +105,7 @@ class DataProvidersServiceTest {
     val expectedDataProvider =
       request.dataProvider.rebuild {
         name = DATA_PROVIDER_NAME
-        preferredCertificate = CERTIFICATE_NAME
+        certificate = CERTIFICATE_NAME
       }
     assertThat(createdDataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::createDataProvider)
@@ -138,7 +138,7 @@ class DataProvidersServiceTest {
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
     val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply { preferredCertificateDer = SERVER_CERTIFICATE_DER }
+      dataProviderBuilder.apply { certificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
@@ -157,8 +157,8 @@ class DataProvidersServiceTest {
 
     val expectedDataProvider = buildDataProvider {
       name = DATA_PROVIDER_NAME
-      preferredCertificate = CERTIFICATE_NAME
-      preferredCertificateDer = SERVER_CERTIFICATE_DER
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)

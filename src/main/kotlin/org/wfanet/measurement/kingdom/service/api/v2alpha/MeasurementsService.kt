@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -39,6 +40,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest as InternalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
@@ -151,7 +153,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
                 )
               )
             State.SUCCEEDED -> addStates(InternalState.SUCCEEDED)
-            State.FAILED -> addAllStates(listOf(InternalState.CANCELLED, InternalState.FAILED))
+            State.FAILED -> addStates(InternalState.FAILED)
+            State.CANCELLED -> addStates(InternalState.CANCELLED)
           }
         }
       }
@@ -168,6 +171,27 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       .addAllMeasurement(results.map(InternalMeasurement::toMeasurement))
       .setNextPageToken(results.last().updateTime.toByteArray().base64UrlEncode())
       .build()
+  }
+
+  override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
+    val key =
+      grpcRequireNotNull(MeasurementKey.fromName(request.name)) {
+        "Resource name is either unspecified or invalid"
+      }
+
+    val internalCancelMeasurementRequest =
+      InternalCancelMeasurementRequest.newBuilder()
+        .apply {
+          externalMeasurementId = apiIdToExternalId(key.measurementId)
+          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+          measurementView = InternalMeasurementView.DEFAULT
+        }
+        .build()
+
+    val internalMeasurement =
+      internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+
+    return internalMeasurement.toMeasurement()
   }
 }
 
@@ -187,7 +211,8 @@ private fun InternalState.toState(): State =
     InternalState.PENDING_PARTICIPANT_CONFIRMATION, InternalState.PENDING_COMPUTATION ->
       State.COMPUTING
     InternalState.SUCCEEDED -> State.SUCCEEDED
-    InternalState.CANCELLED, InternalState.FAILED -> State.FAILED
+    InternalState.FAILED -> State.FAILED
+    InternalState.CANCELLED -> State.CANCELLED
   }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */

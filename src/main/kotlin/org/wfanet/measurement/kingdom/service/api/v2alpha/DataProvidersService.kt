@@ -44,7 +44,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
     val internalResponse: InternalDataProvider =
       internalClient.createDataProvider(
         buildInternalDataProvider {
-          preferredCertificate = parsePreferredCertificateDer(dataProvider.preferredCertificateDer)
+          preferredCertificate = parsePreferredCertificateDer(dataProvider.certificateDer)
           details {
             apiVersion = API_VERSION.string
             publicKey = dataProvider.publicKey.data
@@ -111,8 +111,8 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
 
   return buildDataProvider {
     name = DataProviderKey(dataProviderId).toName()
-    preferredCertificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
-    preferredCertificateDer = internalDataProvider.preferredCertificate.details.x509Der
+    certificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
+    certificateDer = internalDataProvider.preferredCertificate.details.x509Der
     publicKey {
       data = internalDataProvider.details.publicKey
       signature = internalDataProvider.details.publicKeySignature

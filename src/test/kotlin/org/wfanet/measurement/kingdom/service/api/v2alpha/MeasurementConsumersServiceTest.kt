@@ -96,7 +96,7 @@ class MeasurementConsumersServiceTest {
   fun `create fills created resource names`() {
     val request = buildCreateMeasurementConsumerRequest {
       measurementConsumerBuilder.apply {
-        preferredCertificateDer = SERVER_CERTIFICATE_DER
+        certificateDer = SERVER_CERTIFICATE_DER
         publicKey = SIGNED_PUBLIC_KEY
       }
     }
@@ -106,7 +106,7 @@ class MeasurementConsumersServiceTest {
     val expectedMeasurementConsumer =
       request.measurementConsumer.rebuild {
         name = MEASUREMENT_CONSUMER_NAME
-        preferredCertificate = CERTIFICATE_NAME
+        certificate = CERTIFICATE_NAME
       }
     assertThat(createdMeasurementConsumer).isEqualTo(expectedMeasurementConsumer)
     verifyProtoArgument(
@@ -142,7 +142,7 @@ class MeasurementConsumersServiceTest {
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
     val request = buildCreateMeasurementConsumerRequest {
-      measurementConsumerBuilder.apply { preferredCertificateDer = SERVER_CERTIFICATE_DER }
+      measurementConsumerBuilder.apply { certificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
@@ -163,8 +163,8 @@ class MeasurementConsumersServiceTest {
 
     val expectedMeasurementConsumer = buildMeasurementConsumer {
       name = MEASUREMENT_CONSUMER_NAME
-      preferredCertificate = CERTIFICATE_NAME
-      preferredCertificateDer = SERVER_CERTIFICATE_DER
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
     }
     assertThat(measurementConsumer).isEqualTo(expectedMeasurementConsumer)

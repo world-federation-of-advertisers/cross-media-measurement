@@ -48,8 +48,7 @@ class MeasurementConsumersService(
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
         buildInternalMeasurementConsumer {
-          preferredCertificate =
-            parsePreferredCertificateDer(measurementConsumer.preferredCertificateDer)
+          preferredCertificate = parsePreferredCertificateDer(measurementConsumer.certificateDer)
           details {
             apiVersion = API_VERSION.string
             publicKey = measurementConsumer.publicKey.data
@@ -121,9 +120,8 @@ private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementCons
 
   return buildMeasurementConsumer {
     name = MeasurementConsumerKey(measurementConsumerId).toName()
-    preferredCertificate =
-      MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
-    preferredCertificateDer = internalMeasurementConsumer.preferredCertificate.details.x509Der
+    certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
+    certificateDer = internalMeasurementConsumer.preferredCertificate.details.x509Der
     publicKey {
       data = internalMeasurementConsumer.details.publicKey
       signature = internalMeasurementConsumer.details.publicKeySignature

@@ -35,6 +35,9 @@ service Measurements {
       returns (stream Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
+
+  // Marks a Measurement as CANCELLED by transitioning its state.
+  rpc CancelMeasurement(CancelMeasurementRequest) returns (Measurement);
 }
 
 message GetMeasurementRequest {
@@ -81,4 +84,11 @@ message SetMeasurementResultRequest {
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`.
   bytes encrypted_result = 4;
+}
+
+message CancelMeasurementRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+
+  Measurement.View measurement_view = 3;
 }
