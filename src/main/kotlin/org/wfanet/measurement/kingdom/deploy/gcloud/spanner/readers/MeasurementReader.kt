@@ -47,7 +47,7 @@ class MeasurementReader(private val view: Measurement.View) :
     Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
 
   private fun buildMeasurement(struct: Struct): Measurement {
-    // TODO(@google.com uakyol): populate all the relevant fields for a measurement.
+    // TODO(@uakyol): populate all the relevant fields for a measurement.
     val measurementBuilder =
       Measurement.newBuilder().apply {
         externalMeasurementId = struct.getLong("ExternalMeasurementId")
@@ -59,7 +59,7 @@ class MeasurementReader(private val view: Measurement.View) :
       }
 
     return when (view) {
-      // TODO(@google.com uakyol): populate all the relevant fields for a measurement.
+      // TODO(@uakyol): populate all the relevant fields for a measurement.
       Measurement.View.DEFAULT -> measurementBuilder.build()
       Measurement.View.COMPUTATION -> {
         // TODO(@uakyol): populate all the relevant fields for a requisition.

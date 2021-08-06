@@ -58,18 +58,13 @@ class CreateMeasurement(private val measurement: Measurement) :
     val measurement = createNewMeasurement(measurementId, measurementConsumerId)
 
     // Insert into Requisitions for each EDP
-    for ((externalDataProviderId, _) in measurement.getDataProvidersMap()) {
+    measurement.dataProvidersMap.forEach {
       val dataProviderId =
         DataProviderReader()
-          .readExternalIdOrNull(transactionContext, ExternalId(externalDataProviderId))
+          .readExternalIdOrNull(transactionContext, ExternalId(it.key))
           ?.dataProviderId
           ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-      createRequisition(
-        externalDataProviderId,
-        measurementConsumerId,
-        measurementId,
-        dataProviderId
-      )
+      createRequisition(it.key, measurementConsumerId, measurementId, dataProviderId)
     }
 
     // Insert into ComputationParticipants for each Duchy
