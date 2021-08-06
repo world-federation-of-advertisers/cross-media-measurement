@@ -131,6 +131,9 @@ CREATE TABLE ExchangeStepAttempts (
   StepIndex            INT64 NOT NULL,
   AttemptIndex         INT64 NOT NULL,
 
+  -- ExchangeStepAttempt.State enum as int.
+    State                INT64 NOT NULL,
+
   -- Serialized ExchangeStepAttemptDetails protocol buffer
   ExchangeStepAttemptDetails      BYTES(MAX) NOT NULL,
   ExchangeStepAttemptDetailsJson  STRING(MAX) NOT NULL,
