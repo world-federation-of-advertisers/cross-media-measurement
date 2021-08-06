@@ -34,6 +34,12 @@ service Measurements {
   // Lists `Measurement`s for the parent `MeasurementConsumer`.
   rpc ListMeasurements(ListMeasurementsRequest)
       returns (ListMeasurementsResponse) {}
+
+  // Transitions a `Measurement` to the `CANCELLED` state. This is a terminal
+  // state for the `Measurement`.
+  //
+  // This is a state transition method (see https://aip.dev/216).
+  rpc CancelMeasurement(CancelMeasurementRequest) returns (Measurement) {}
 }
 
 // Request message for `GetMeasurement` method.
@@ -84,4 +90,11 @@ message ListMeasurementsResponse {
   // A token, which can be sent as `page_token` to retrieve the next page.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
+}
+
+// Request message for `CancelMeasurement` method.
+message CancelMeasurementRequest {
+  // Resource name of the `Measurement` to mark as `CANCELLED`. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Measurement"];
 }
