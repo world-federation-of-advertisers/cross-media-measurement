@@ -26,7 +26,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest as InternalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
@@ -48,8 +47,7 @@ class MeasurementConsumersService(
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
         buildInternalMeasurementConsumer {
-          preferredCertificate =
-            parsePreferredCertificateDer(measurementConsumer.preferredCertificateDer)
+          certificate = parseCertificateDer(measurementConsumer.certificateDer)
           details {
             apiVersion = API_VERSION.string
             publicKey = measurementConsumer.publicKey.data
@@ -95,12 +93,6 @@ internal inline fun buildInternalMeasurementConsumer(
   fill: (@Builder InternalMeasurementConsumer.Builder).() -> Unit
 ) = InternalMeasurementConsumer.newBuilder().apply(fill).build()
 
-internal inline fun InternalMeasurementConsumer.Builder.preferredCertificate(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) {
-  preferredCertificateBuilder.apply(fill)
-}
-
 internal inline fun InternalMeasurementConsumer.Builder.details(
   fill: (@Builder InternalMeasurementConsumer.Details.Builder).() -> Unit
 ) {
@@ -117,13 +109,12 @@ private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementCons
   }
   val internalMeasurementConsumer = this
   val measurementConsumerId: String = externalIdToApiId(externalMeasurementConsumerId)
-  val certificateId: String = externalIdToApiId(preferredCertificate.externalCertificateId)
+  val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
 
   return buildMeasurementConsumer {
     name = MeasurementConsumerKey(measurementConsumerId).toName()
-    preferredCertificate =
-      MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
-    preferredCertificateDer = internalMeasurementConsumer.preferredCertificate.details.x509Der
+    certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
+    certificateDer = internalMeasurementConsumer.certificate.details.x509Der
     publicKey {
       data = internalMeasurementConsumer.details.publicKey
       signature = internalMeasurementConsumer.details.publicKeySignature

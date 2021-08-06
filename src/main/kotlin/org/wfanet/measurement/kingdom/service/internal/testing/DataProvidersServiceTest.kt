@@ -38,7 +38,7 @@ private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val PREFERRED_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
 @RunWith(JUnit4::class)
 abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
@@ -79,13 +79,13 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
     val dataProvider =
       DataProvider.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
+          certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
+            detailsBuilder.x509Der = CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "2"
+            apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
           }
         }
@@ -106,13 +106,13 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
     val dataProvider =
       DataProvider.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
+          certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
+            detailsBuilder.x509Der = CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "2"
+            apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
@@ -126,8 +126,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           .toBuilder()
           .apply {
             externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
-            externalPublicKeyCertificateId = FIXED_GENERATED_EXTERNAL_ID
-            preferredCertificateBuilder.apply {
+            certificateBuilder.apply {
               externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
               externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
             }
@@ -141,13 +140,13 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
     val dataProvider =
       DataProvider.newBuilder()
         .apply {
-          preferredCertificateBuilder.apply {
+          certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = PREFERRED_CERTIFICATE_DER
+            detailsBuilder.x509Der = CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "2"
+            apiVersion = "v2alpha"
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }

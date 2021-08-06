@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as InternalMeasurementConsumersService
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersClient
@@ -96,7 +97,7 @@ class MeasurementConsumersServiceTest {
   fun `create fills created resource names`() {
     val request = buildCreateMeasurementConsumerRequest {
       measurementConsumerBuilder.apply {
-        preferredCertificateDer = SERVER_CERTIFICATE_DER
+        certificateDer = SERVER_CERTIFICATE_DER
         publicKey = SIGNED_PUBLIC_KEY
       }
     }
@@ -106,7 +107,7 @@ class MeasurementConsumersServiceTest {
     val expectedMeasurementConsumer =
       request.measurementConsumer.rebuild {
         name = MEASUREMENT_CONSUMER_NAME
-        preferredCertificate = CERTIFICATE_NAME
+        certificate = CERTIFICATE_NAME
       }
     assertThat(createdMeasurementConsumer).isEqualTo(expectedMeasurementConsumer)
     verifyProtoArgument(
@@ -116,8 +117,7 @@ class MeasurementConsumersServiceTest {
       .isEqualTo(
         INTERNAL_MEASUREMENT_CONSUMER.rebuild {
           clearExternalMeasurementConsumerId()
-          clearExternalPublicKeyCertificateId()
-          preferredCertificate {
+          certificate {
             clearExternalMeasurementConsumerId()
             clearExternalCertificateId()
           }
@@ -126,7 +126,7 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
-  fun `create throws INVALID_ARGUMENT when preferred certificate DER is missing`() {
+  fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
     val request = buildCreateMeasurementConsumerRequest {
       measurementConsumerBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
     }
@@ -136,13 +136,13 @@ class MeasurementConsumersServiceTest {
         runBlocking { service.createMeasurementConsumer(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("preferred_certificate_der is not specified")
+    assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
   }
 
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
     val request = buildCreateMeasurementConsumerRequest {
-      measurementConsumerBuilder.apply { preferredCertificateDer = SERVER_CERTIFICATE_DER }
+      measurementConsumerBuilder.apply { certificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
@@ -163,8 +163,8 @@ class MeasurementConsumersServiceTest {
 
     val expectedMeasurementConsumer = buildMeasurementConsumer {
       name = MEASUREMENT_CONSUMER_NAME
-      preferredCertificate = CERTIFICATE_NAME
-      preferredCertificateDer = SERVER_CERTIFICATE_DER
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
     }
     assertThat(measurementConsumer).isEqualTo(expectedMeasurementConsumer)
@@ -236,13 +236,12 @@ class MeasurementConsumersServiceTest {
     private val INTERNAL_MEASUREMENT_CONSUMER: InternalMeasurementConsumer =
         buildInternalMeasurementConsumer {
       externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-      externalPublicKeyCertificateId = CERTIFICATE_ID
       details {
         apiVersion = Version.V2_ALPHA.string
         publicKey = SIGNED_PUBLIC_KEY.data
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
       }
-      preferredCertificate {
+      certificate {
         externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         externalCertificateId = CERTIFICATE_ID
         subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier
@@ -276,3 +275,7 @@ private inline fun MeasurementConsumer.rebuild(
 private inline fun InternalMeasurementConsumer.rebuild(
   fill: (@Builder InternalMeasurementConsumer.Builder).() -> Unit
 ) = toBuilder().apply(fill).build()
+
+private inline fun InternalMeasurementConsumer.Builder.certificate(
+  fill: (@Builder InternalCertificate.Builder).() -> Unit
+) = certificateBuilder.apply(fill).build()
