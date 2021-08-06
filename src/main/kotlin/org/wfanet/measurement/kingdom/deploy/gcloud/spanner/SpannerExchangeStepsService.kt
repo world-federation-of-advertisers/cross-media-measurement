@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.internal
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -39,9 +39,9 @@ class SpannerExchangeStepsService(
     val result =
       ClaimReadyExchangeStep(
           externalModelProviderId =
-            if (request.hasExternalModelProviderId()) request.externalModelProviderId else null,
+            if (request.externalModelProviderId > 0) request.externalModelProviderId else null,
           externalDataProviderId =
-            if (request.hasExternalDataProviderId()) request.externalDataProviderId else null,
+            if (request.externalDataProviderId > 0) request.externalDataProviderId else null,
         )
         .execute(client)
 
