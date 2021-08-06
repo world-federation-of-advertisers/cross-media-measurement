@@ -3,20 +3,6 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
-    name = "legacy_kingdom_data_server",
-    srcs = ["LegacyKingdomDataServer.kt"],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal:legacy",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
     name = "kingdom_data_server",
     srcs = ["KingdomDataServer.kt"],
     visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__"],
@@ -33,8 +19,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "kingdom_api_server",
-    srcs = ["KingdomApiServer.kt"],
+    name = "utils",
+    srcs = ["Utils.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
@@ -46,12 +32,18 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "requisition_server",
-    srcs = ["RequisitionServer.kt"],
+    name = "v2alpha_public_api_server",
+    srcs = ["V2alphaPublicApiServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        ":kingdom_api_server",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v1alpha:requisition_service",
+        ":utils",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchanges_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurement_consumers_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:recurring_exchanges_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -60,17 +52,17 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "RequisitionServer",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.RequisitionServerKt",
-    runtime_deps = [":requisition_server"],
+    name = "V2alphaPublicApiServer",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServer",
+    runtime_deps = [":v2alpha_public_api_server"],
 )
 
 java_image(
-    name = "requisition_server_image",
+    name = "v2alpha_public_api_server_image",
     data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.RequisitionServerKt",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServer",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":requisition_server"],
+    runtime_deps = [":v2alpha_public_api_server"],
 )
 
 kt_jvm_library(
@@ -78,7 +70,7 @@ kt_jvm_library(
     srcs = ["SystemApiServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        ":kingdom_api_server",
+        ":utils",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_log_entries_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_participants_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computations_service",
