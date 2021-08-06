@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.CreateRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.GetRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -59,7 +60,7 @@ private val RECURRING_EXCHANGE: RecurringExchange =
       state = RecurringExchange.State.ACTIVE
       detailsBuilder.apply {
         cronSchedule = "some arbitrary cron_schedule"
-        exchangeWorkflow = ByteString.copyFromUtf8("some arbitrary exchange_workflow")
+        exchangeWorkflow = ExchangeWorkflow.getDefaultInstance()
       }
       nextExchangeDateBuilder.apply {
         year = 2021

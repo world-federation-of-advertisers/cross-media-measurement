@@ -396,7 +396,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
     date: Date,
     stepIndex: Long,
     state: ExchangeStep.State,
-    updateTime: Instant? = null,
     modelProviderId: Long? = null,
     dataProviderId: Long? = null
   ) {
@@ -406,7 +405,7 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_LEGACY_SCH
         set("Date" to date.toCloudDate())
         set("StepIndex" to stepIndex)
         set("State" to state)
-        set("UpdateTime" to (updateTime?.toGcloudTimestamp() ?: Value.COMMIT_TIMESTAMP))
+        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
         set("ModelProviderId" to modelProviderId)
         set("DataProviderId" to dataProviderId)
       }
