@@ -159,6 +159,19 @@ load(
 #    # Kotlin release used by rules_kotlin.
 #    "com.squareup:kotlinpoet": "1.8.0",
 #})
+#
+#maven_install(
+#    artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS),
+#    fetch_sources = True,
+#    generate_compat_repositories = True,
+#    override_targets = dict(
+#        IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS.items() +
+#        IO_GRPC_GRPC_KOTLIN_OVERRIDE_TARGETS.items(),
+#    ),
+#    repositories = [
+#        "https://repo.maven.apache.org/maven2/",
+#    ],
+#)
 
 load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_TARGETS", "common_jvm_maven_artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")
