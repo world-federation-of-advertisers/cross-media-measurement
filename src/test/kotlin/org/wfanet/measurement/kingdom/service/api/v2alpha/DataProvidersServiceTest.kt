@@ -46,6 +46,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
@@ -95,7 +96,7 @@ class DataProvidersServiceTest {
   fun `create fills created resource names`() {
     val request = buildCreateDataProviderRequest {
       dataProviderBuilder.apply {
-        preferredCertificateDer = SERVER_CERTIFICATE_DER
+        certificateDer = SERVER_CERTIFICATE_DER
         publicKey = SIGNED_PUBLIC_KEY
       }
     }
@@ -105,15 +106,14 @@ class DataProvidersServiceTest {
     val expectedDataProvider =
       request.dataProvider.rebuild {
         name = DATA_PROVIDER_NAME
-        preferredCertificate = CERTIFICATE_NAME
+        certificate = CERTIFICATE_NAME
       }
     assertThat(createdDataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::createDataProvider)
       .isEqualTo(
         INTERNAL_DATA_PROVIDER.rebuild {
           clearExternalDataProviderId()
-          clearExternalPublicKeyCertificateId()
-          preferredCertificate {
+          certificate {
             clearExternalDataProviderId()
             clearExternalCertificateId()
           }
@@ -122,7 +122,7 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `create throws INVALID_ARGUMENT when preferred certificate DER is missing`() {
+  fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
     val request = buildCreateDataProviderRequest {
       dataProviderBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
     }
@@ -132,13 +132,13 @@ class DataProvidersServiceTest {
         runBlocking { service.createDataProvider(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("preferred_certificate_der is not specified")
+    assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
   }
 
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
     val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply { preferredCertificateDer = SERVER_CERTIFICATE_DER }
+      dataProviderBuilder.apply { certificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
@@ -157,8 +157,8 @@ class DataProvidersServiceTest {
 
     val expectedDataProvider = buildDataProvider {
       name = DATA_PROVIDER_NAME
-      preferredCertificate = CERTIFICATE_NAME
-      preferredCertificateDer = SERVER_CERTIFICATE_DER
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
       publicKey = SIGNED_PUBLIC_KEY
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
@@ -218,13 +218,12 @@ class DataProvidersServiceTest {
 
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = buildInternalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
-      externalPublicKeyCertificateId = CERTIFICATE_ID
       details {
         apiVersion = Version.V2_ALPHA.string
         publicKey = SIGNED_PUBLIC_KEY.data
         publicKeySignature = SIGNED_PUBLIC_KEY.signature
       }
-      preferredCertificate {
+      certificate {
         externalDataProviderId = DATA_PROVIDER_ID
         externalCertificateId = CERTIFICATE_ID
         subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier
@@ -257,3 +256,7 @@ private inline fun DataProvider.rebuild(fill: (@Builder DataProvider.Builder).()
 private inline fun InternalDataProvider.rebuild(
   fill: (@Builder InternalDataProvider.Builder).() -> Unit
 ) = toBuilder().apply(fill).build()
+
+private inline fun InternalDataProvider.Builder.certificate(
+  fill: (@Builder InternalCertificate.Builder).() -> Unit
+) = certificateBuilder.apply(fill).build()

@@ -26,7 +26,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest as InternalGetDataProviderRequest
@@ -44,7 +43,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
     val internalResponse: InternalDataProvider =
       internalClient.createDataProvider(
         buildInternalDataProvider {
-          preferredCertificate = parsePreferredCertificateDer(dataProvider.preferredCertificateDer)
+          certificate = parseCertificateDer(dataProvider.certificateDer)
           details {
             apiVersion = API_VERSION.string
             publicKey = dataProvider.publicKey.data
@@ -85,12 +84,6 @@ internal inline fun buildInternalDataProvider(
   fill: (@Builder InternalDataProvider.Builder).() -> Unit
 ) = InternalDataProvider.newBuilder().apply(fill).build()
 
-internal inline fun InternalDataProvider.Builder.preferredCertificate(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) {
-  preferredCertificateBuilder.apply(fill)
-}
-
 internal inline fun InternalDataProvider.Builder.details(
   fill: (@Builder InternalDataProvider.Details.Builder).() -> Unit
 ) {
@@ -107,12 +100,12 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
   }
   val internalDataProvider = this
   val dataProviderId: String = externalIdToApiId(externalDataProviderId)
-  val certificateId: String = externalIdToApiId(preferredCertificate.externalCertificateId)
+  val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
 
   return buildDataProvider {
     name = DataProviderKey(dataProviderId).toName()
-    preferredCertificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
-    preferredCertificateDer = internalDataProvider.preferredCertificate.details.x509Der
+    certificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
+    certificateDer = internalDataProvider.certificate.details.x509Der
     publicKey {
       data = internalDataProvider.details.publicKey
       signature = internalDataProvider.details.publicKeySignature
