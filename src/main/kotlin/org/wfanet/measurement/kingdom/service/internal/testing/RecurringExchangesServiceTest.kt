@@ -73,7 +73,7 @@ private val RECURRING_EXCHANGE: RecurringExchange =
 private val DATA_PROVIDER: DataProvider =
   DataProvider.newBuilder()
     .apply {
-      preferredCertificateBuilder.apply {
+      certificateBuilder.apply {
         notValidBeforeBuilder.seconds = 12345
         notValidAfterBuilder.seconds = 23456
         detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")

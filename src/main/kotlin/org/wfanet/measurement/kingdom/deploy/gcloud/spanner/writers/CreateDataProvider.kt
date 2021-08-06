@@ -25,10 +25,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val internalCertificateId = idGenerator.generateInternalId()
 
-    dataProvider
-      .preferredCertificate
-      .toInsertMutation(internalCertificateId)
-      .bufferTo(transactionContext)
+    dataProvider.certificate.toInsertMutation(internalCertificateId).bufferTo(transactionContext)
 
     val internalDataProviderId = idGenerator.generateInternalId()
     val externalDataProviderId = idGenerator.generateExternalId()
@@ -55,8 +52,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       .toBuilder()
       .also {
         it.externalDataProviderId = externalDataProviderId.value
-        it.externalPublicKeyCertificateId = externalDataProviderCertificateId.value
-        it.preferredCertificateBuilder.also {
+        it.certificateBuilder.also {
           it.externalDataProviderId = externalDataProviderId.value
           it.externalCertificateId = externalDataProviderCertificateId.value
         }
