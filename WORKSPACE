@@ -1,32 +1,38 @@
 workspace(name = "wfa_measurement_system")
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
-# @bazel_skylib
-
-http_archive(
-    name = "bazel_skylib",
-    sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
-    urls = [
-        "https://github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.0.3/bazel-skylib-1.0.3.tar.gz",
-    ],
+wfa_repo_archive(
+    name = "wfa_common_jvm",
+    repo = "common-jvm",
+    sha256 = "1a035fc675551f24ae6d1f7249d64cf0e3db085036f725ce63a444759bbf3d7d",
+    version = "0.4.0",
 )
 
-load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
+load("@wfa_common_jvm//build:common_jvm_repositories.bzl", "common_jvm_deps_repositories")
 
-bazel_skylib_workspace()
+common_jvm_deps_repositories()
 
-# @platforms
+load("@wfa_common_jvm//build:common_jvm_deps.bzl", "common_jvm_deps")
 
+common_jvm_deps()
+
+# Common-cpp
 http_archive(
-    name = "platforms",
-    sha256 = "079945598e4b6cc075846f7fd6a9d0857c33a7afc0de868c2ccb96405225135d",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.4/platforms-0.0.4.tar.gz",
-        "https://github.com/bazelbuild/platforms/releases/download/0.0.4/platforms-0.0.4.tar.gz",
-    ],
+    name = "wfa_common_cpp",
+    sha256 = "63f923b38a3519c57d18db19b799d2040817c636be520c8c82830f7a0d63af47",
+    strip_prefix = "common-cpp-215be9e75b6d9f362d419e21c9804bd0d8d68916",
+    url = "https://github.com/world-federation-of-advertisers/common-cpp/archive/215be9e75b6d9f362d419e21c9804bd0d8d68916.tar.gz",
 )
+
+load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
+
+common_cpp_deps()
+
+load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
+
+common_cpp_repositories()
 
 http_archive(
     name = "com_google_protobuf",
@@ -43,18 +49,6 @@ http_archive(
     strip_prefix = "googletest-release-1.10.0",
     urls = ["https://github.com/google/googletest/archive/release-1.10.0.zip"],
 )
-
-# Abseil C++ libraries
-http_archive(
-    name = "com_google_absl",
-    sha256 = "dd7db6815204c2a62a2160e32c55e97113b0a0178b2f090d6bab5ce36111db4b",
-    strip_prefix = "abseil-cpp-20210324.0",
-    urls = [
-        "https://github.com/abseil/abseil-cpp/archive/refs/tags/20210324.0.tar.gz",
-    ],
-)
-
-load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 wfa_repo_archive(
     name = "wfa_measurement_proto",
@@ -82,13 +76,6 @@ wfa_repo_archive(
     commit = "a63d47ace86d025ec3330f341d1ba4b5573fe756",
     repo = "any-sketch-java",
     sha256 = "9dc3cea71dfeecad40ef67a6198846177d750d84401336d196d4d83059e8301e",
-)
-
-wfa_repo_archive(
-    name = "wfa_common_jvm",
-    repo = "common-jvm",
-    sha256 = "a1fa7136cf95ed7d00fe98ab33a862d20b35dc468cff041158fe7850315ec405",
-    version = "0.3.0",
 )
 
 # @com_google_truth_truth
@@ -135,56 +122,60 @@ load(
 
 # Maven
 
-http_archive(
-    name = "rules_jvm_external",
-    sha256 = "f36441aa876c4f6427bfb2d1f2d723b48e9d930b62662bf723ddfb8fc80f0140",
-    strip_prefix = "rules_jvm_external-4.1",
-    url = "https://github.com/bazelbuild/rules_jvm_external/archive/4.1.zip",
-)
+#http_archive(
+#    name = "rules_jvm_external",
+#    sha256 = "f36441aa876c4f6427bfb2d1f2d723b48e9d930b62662bf723ddfb8fc80f0140",
+#    strip_prefix = "rules_jvm_external-4.1",
+#    url = "https://github.com/bazelbuild/rules_jvm_external/archive/4.1.zip",
+#)
+#
+#load("@rules_jvm_external//:defs.bzl", "maven_install")
+#load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
+#
+#MAVEN_ARTIFACTS = artifacts.list_to_dict(
+#    IO_GRPC_GRPC_JAVA_ARTIFACTS +
+#    IO_GRPC_GRPC_KOTLIN_ARTIFACTS,
+#)
+#
+#MAVEN_ARTIFACTS.update(com_google_truth_artifact_dict(version = "1.0.1"))
+#
+## kotlinx.coroutines version should be compatible with Kotlin release used by
+## rules_kotlin. See https://kotlinlang.org/docs/releases.html#release-details.
+#MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.4.3"))
+#
+## Add Maven artifacts or override versions (e.g. those pulled in by gRPC Kotlin
+## or default dependency versions).
+#MAVEN_ARTIFACTS.update({
+#    "com.google.api.grpc:grpc-google-cloud-pubsub-v1": "0.1.24",
+#    "com.google.cloud:google-cloud-nio": "0.122.0",
+#    "com.google.cloud:google-cloud-spanner": "3.0.3",
+#    "com.google.code.gson:gson": "2.8.6",
+#    "com.google.guava:guava": "30.0-jre",
+#    "org.mockito.kotlin:mockito-kotlin": "3.2.0",
+#    "info.picocli:picocli": "4.4.0",
+#    "junit:junit": "4.13",
+#
+#    # For grpc-kotlin. This should be a version that is compatible with the
+#    # Kotlin release used by rules_kotlin.
+#    "com.squareup:kotlinpoet": "1.8.0",
+#})
 
+load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_TARGETS", "common_jvm_maven_artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")
-load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
-
-MAVEN_ARTIFACTS = artifacts.list_to_dict(
-    IO_GRPC_GRPC_JAVA_ARTIFACTS +
-    IO_GRPC_GRPC_KOTLIN_ARTIFACTS,
-)
-
-MAVEN_ARTIFACTS.update(com_google_truth_artifact_dict(version = "1.0.1"))
-
-# kotlinx.coroutines version should be compatible with Kotlin release used by
-# rules_kotlin. See https://kotlinlang.org/docs/releases.html#release-details.
-MAVEN_ARTIFACTS.update(kotlinx_coroutines_artifact_dict(version = "1.4.3"))
-
-# Add Maven artifacts or override versions (e.g. those pulled in by gRPC Kotlin
-# or default dependency versions).
-MAVEN_ARTIFACTS.update({
-    "com.google.api.grpc:grpc-google-cloud-pubsub-v1": "0.1.24",
-    "com.google.cloud:google-cloud-nio": "0.122.0",
-    "com.google.cloud:google-cloud-spanner": "3.0.3",
-    "com.google.code.gson:gson": "2.8.6",
-    "com.google.guava:guava": "30.0-jre",
-    "org.mockito.kotlin:mockito-kotlin": "3.2.0",
-    "info.picocli:picocli": "4.4.0",
-    "junit:junit": "4.13",
-
-    # For grpc-kotlin. This should be a version that is compatible with the
-    # Kotlin release used by rules_kotlin.
-    "com.squareup:kotlinpoet": "1.8.0",
-})
 
 maven_install(
-    artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS),
+    artifacts = common_jvm_maven_artifacts(),
     fetch_sources = True,
     generate_compat_repositories = True,
-    override_targets = dict(
-        IO_GRPC_GRPC_JAVA_OVERRIDE_TARGETS.items() +
-        IO_GRPC_GRPC_KOTLIN_OVERRIDE_TARGETS.items(),
-    ),
+    override_targets = COMMON_JVM_MAVEN_TARGETS,
     repositories = [
         "https://repo.maven.apache.org/maven2/",
     ],
 )
+
+load("@wfa_common_jvm//build:common_jvm_extra_deps.bzl", "common_jvm_extra_deps")
+
+common_jvm_extra_deps()
 
 load("@maven//:compat.bzl", "compat_repositories")
 
@@ -200,11 +191,7 @@ grpc_java_repositories()  # For gRPC Kotlin.
 
 load("@wfa_common_jvm//build/io_bazel_rules_docker:repo.bzl", "rules_docker_repo")
 
-rules_docker_repo(
-    name = "io_bazel_rules_docker",
-    commit = "f929d80c5a4363994968248d87a892b1c2ef61d4",
-    sha256 = "efda18e39a63ee3c1b187b1349f61c48c31322bf84227d319b5dece994380bb6",
-)
+rules_docker_repo()
 
 load(
     "@io_bazel_rules_docker//repositories:repositories.bzl",
@@ -221,12 +208,7 @@ load("@wfa_common_jvm//build/io_bazel_rules_docker:base_images.bzl", "base_java_
 
 # Defualt base images for java_image targets. Must come before
 # java_image_repositories().
-base_java_images(
-    # gcr.io/distroless/java:11-debug
-    debug_digest = "sha256:c3fe781de55d375de2675c3f23beb3e76f007e53fed9366ba931cc6d1df4b457",
-    # gcr.io/distroless/java:11
-    digest = "sha256:7fc091e8686df11f7bf0b7f67fd7da9862b2b9a3e49978d1184f0ff62cb673cc",
-)
+base_java_images()
 
 load(
     "@io_bazel_rules_docker//java:image.bzl",
@@ -235,7 +217,7 @@ load(
 
 java_image_repositories()
 
-# gRPC
+## gRPC
 http_archive(
     name = "com_github_grpc_grpc",
     sha256 = "8eb9d86649c4d4a7df790226df28f081b97a62bf12c5c5fe9b5d31a29cd6541a",
@@ -262,13 +244,9 @@ private_join_and_compute_repo(
 
 load("@wfa_common_jvm//build/cloud_spanner_emulator:defs.bzl", "cloud_spanner_emulator_binaries")
 
-cloud_spanner_emulator_binaries(
-    name = "cloud_spanner_emulator",
-    sha256 = "7a3cdd5db7f5a427230ab67a8dc09cfcb6752dd7f0b28d51e8d08150b2641506",
-    version = "1.1.1",
-)
+cloud_spanner_emulator_binaries()
 
-# CUE binaries.
+## CUE binaries.
 
 load("//build/cue:repo.bzl", "cue_binaries")
 
@@ -304,15 +282,3 @@ switched_rules_by_language(
     name = "com_google_googleapis_imports",
     java = True,
 )
-
-# Common-cpp
-http_archive(
-    name = "wfa_common_cpp",
-    sha256 = "e0e1f5eed832ef396109354a64c6c1306bf0fb5ea0b449ce6ee1e8edc6fe279d",
-    strip_prefix = "common-cpp-43c75acc3394e19bcfd2cfe8e8e2454365d26d60",
-    url = "https://github.com/world-federation-of-advertisers/common-cpp/archive/43c75acc3394e19bcfd2cfe8e8e2454365d26d60.tar.gz",
-)
-
-load("@wfa_common_cpp//build:deps.bzl", "common_cpp_deps")
-
-common_cpp_deps()
