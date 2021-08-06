@@ -26,7 +26,7 @@ import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStep.Result
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
 private const val DATA_PROVIDER_ID = 1L
 private const val EXTERNAL_DATA_PROVIDER_ID = 2L
@@ -87,7 +87,7 @@ private val EXCHANGE_STEP2 =
     .build()
 
 @RunWith(JUnit4::class)
-class FindReadyExchangeStepTest : KingdomDatabaseTestBase() {
+class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
   @Before
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
@@ -160,12 +160,12 @@ class FindReadyExchangeStepTest : KingdomDatabaseTestBase() {
   }
 
   @Test
-  fun `findReadyExchangeStep with model provider`() =
+  fun `claimReadyExchangeStep with model provider`() =
     runBlocking<Unit> {
       val expected = Result(step = EXCHANGE_STEP, attemptIndex = 1)
 
       val actual =
-        FindReadyExchangeStep(
+        ClaimReadyExchangeStep(
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
             externalDataProviderId = null
           )
@@ -175,12 +175,12 @@ class FindReadyExchangeStepTest : KingdomDatabaseTestBase() {
     }
 
   @Test
-  fun `findReadyExchangeStep with data provider`() =
+  fun `claimReadyExchangeStep with data provider`() =
     runBlocking<Unit> {
       val expected = Result(step = EXCHANGE_STEP2, attemptIndex = 1)
 
       val actual =
-        FindReadyExchangeStep(
+        ClaimReadyExchangeStep(
             externalModelProviderId = null,
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
           )
@@ -190,10 +190,10 @@ class FindReadyExchangeStepTest : KingdomDatabaseTestBase() {
     }
 
   @Test
-  fun `findReadyExchangeStep returns empty with wrong provider id`() =
+  fun `claimReadyExchangeStep returns empty with wrong provider id`() =
     runBlocking<Unit> {
       val actual =
-        FindReadyExchangeStep(
+        ClaimReadyExchangeStep(
             externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
             externalDataProviderId = null
           )
@@ -203,10 +203,10 @@ class FindReadyExchangeStepTest : KingdomDatabaseTestBase() {
     }
 
   @Test
-  fun `findReadyExchangeStep returns empty without ready step`() =
+  fun `claimReadyExchangeStep returns empty without ready step`() =
     runBlocking<Unit> {
       val actual =
-        FindReadyExchangeStep(
+        ClaimReadyExchangeStep(
             externalModelProviderId = EXTERNAL_DATA_PROVIDER_ID,
             externalDataProviderId = null
           )

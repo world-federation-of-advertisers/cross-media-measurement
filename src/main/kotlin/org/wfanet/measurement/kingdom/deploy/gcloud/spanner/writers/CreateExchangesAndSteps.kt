@@ -15,12 +15,10 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Date
 import java.time.LocalDate
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toLocalDate
@@ -61,7 +59,7 @@ class CreateExchangesAndSteps(
     val nextExchangeDate = recurringExchange.nextExchangeDate
     val workflow = recurringExchange.details.exchangeWorkflow
 
-    // Then, create the Exchange with the date equal to next exchange date.
+    // Create the Exchange with the date equal to next exchange date.
     createExchange(recurringExchangeId = recurringExchangeId, date = nextExchangeDate)
 
     // Calculate the new next exchange date for the recurring exchange.
@@ -92,7 +90,6 @@ class CreateExchangesAndSteps(
   }
 
   private suspend fun TransactionScope.findRecurringExchange(): RecurringExchangeReader.Result? {
-    // First, retrieve a single Recurring Exchange based on the filter below.
     val streamFilter =
       streamRecurringExchangesFilter(
         externalModelProviderIds = externalModelProviderIds,
@@ -127,35 +124,6 @@ class CreateExchangesAndSteps(
         set("NextExchangeDate" to nextExchangeDate.toCloudDate())
       }
       .bufferTo(transactionContext)
-  }
-
-  private suspend fun TransactionScope.findAttemptIndex(
-    recurringExchangeId: Long,
-    date: Date,
-    stepIndex: Long
-  ): Long {
-    val sql =
-      """
-      SELECT IFNULL(MAX(AttemptIndex), 0) AS MaxAttemptIndex
-      FROM ExchangeStepAttempts
-      WHERE ExchangeStepAttempts.RecurringExchangeId = @recurring_exchange_id
-      AND ExchangeStepAttempts.Date = @date
-      AND ExchangeStepAttempts.StepIndex = @step_index
-      """.trimIndent()
-
-    // TODO(yunyeng): Use makeStatement from common-jvm.
-    val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("recurring_exchange_id")
-        .to(recurringExchangeId)
-        .bind("date")
-        .to(date.toCloudDate())
-        .bind("step_index")
-        .to(stepIndex)
-        .build()
-    val row: Struct = transactionContext.executeQuery(statement).single()
-
-    return row.getLong("MaxAttemptIndex") + 1L
   }
 
   private fun TransactionScope.createExchangeSteps(
