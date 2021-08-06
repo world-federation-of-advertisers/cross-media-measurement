@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "wfa/measurement/internal/kingdom/exchange_workflow.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
@@ -25,9 +27,15 @@ message RecurringExchangeDetails {
   // See https://en.wikipedia.org/wiki/Cron#CRON_expression.
   string cron_schedule = 1;
 
+  // ExchangeWorkflow proto.
+  ExchangeWorkflow exchange_workflow = 2;
+
   // Serialized ExchangeWorkflow proto from the public API.
   //
   // This is serialized because DataProviders and ModelProviders will sign the
   // ExchangeWorkflow to keep a record that they agreed to it.
-  bytes exchange_workflow = 2;
+  bytes external_exchange_workflow = 3;
+
+  // Version the public API for `external_exchange_workflow`.
+  string api_version = 4;
 }

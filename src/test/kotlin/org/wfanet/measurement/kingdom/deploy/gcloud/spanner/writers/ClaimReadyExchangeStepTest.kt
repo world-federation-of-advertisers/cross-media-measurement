@@ -16,26 +16,17 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.Date
-import java.lang.IllegalStateException
-import java.time.Instant
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.Exchange
-import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
-import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
 private const val DATA_PROVIDER_ID = 1L
 private const val EXTERNAL_DATA_PROVIDER_ID = 2L
@@ -49,6 +40,10 @@ private const val RECURRING_EXCHANGE_ID1 = 9L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID1 = 10L
 private const val RECURRING_EXCHANGE_ID2 = 11L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID2 = 12L
+private const val RECURRING_EXCHANGE_ID3 = 13L
+private const val EXTERNAL_RECURRING_EXCHANGE_ID3 = 14L
+private const val DATA_PROVIDER_ID3 = 15L
+private const val EXTERNAL_DATA_PROVIDER_ID3 = 16L
 
 private val DATE1 =
   Date.newBuilder()
@@ -66,26 +61,6 @@ private val DATE2 =
       day = 25
     }
     .build()
-private val DATE1_UPDATED =
-  Date.newBuilder()
-    .apply {
-      year = 2021
-      month = 1
-      day = 16
-    }
-    .build()
-private val DATE2_UPDATED =
-  Date.newBuilder()
-    .apply {
-      year = 2021
-      month = 3
-      day = 4
-    }
-    .build()
-private val RECURRING_EXCHANGE_DETAILS =
-  RecurringExchangeDetails.newBuilder().setCronSchedule("DAILY").build()
-private val RECURRING_EXCHANGE_DETAILS2 =
-  RecurringExchangeDetails.newBuilder().setCronSchedule("WEEKLY").build()
 
 private val EXCHANGE_STEP =
   ExchangeStep.newBuilder()
@@ -99,39 +74,15 @@ private val EXCHANGE_STEP =
     }
     .build()
 
-private val EXCHANGE_STEP_ATTEMPT =
-  ExchangeStepAttempt.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-      date = DATE1
-      stepIndex = 1
-      state = ExchangeStepAttempt.State.ACTIVE
-      attemptNumber = 1
-      details = ExchangeStepAttemptDetails.getDefaultInstance()
-    }
-    .build()
-
 private val EXCHANGE_STEP2 =
   ExchangeStep.newBuilder()
     .apply {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
       externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID2
       date = DATE2
-      stepIndex = 1
+      stepIndex = 4
       state = ExchangeStep.State.IN_PROGRESS
       updateTime = Value.COMMIT_TIMESTAMP.toProto()
-    }
-    .build()
-
-private val EXCHANGE_STEP_ATTEMPT2 =
-  ExchangeStepAttempt.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID2
-      date = DATE2
-      stepIndex = 1
-      state = ExchangeStepAttempt.State.ACTIVE
-      attemptNumber = 1
-      details = ExchangeStepAttemptDetails.getDefaultInstance()
     }
     .build()
 
@@ -141,6 +92,7 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
   fun populateDatabase() = runBlocking {
     insertDataProvider(DATA_PROVIDER_ID, EXTERNAL_DATA_PROVIDER_ID)
     insertDataProvider(DATA_PROVIDER_ID2, EXTERNAL_DATA_PROVIDER_ID2)
+    insertDataProvider(DATA_PROVIDER_ID3, EXTERNAL_DATA_PROVIDER_ID3)
     insertModelProvider(MODEL_PROVIDER_ID, EXTERNAL_MODEL_PROVIDER_ID)
     insertRecurringExchange(
       recurringExchangeId = RECURRING_EXCHANGE_ID1,
@@ -148,8 +100,7 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
       modelProviderId = MODEL_PROVIDER_ID,
       dataProviderId = DATA_PROVIDER_ID,
       state = RecurringExchange.State.ACTIVE,
-      nextExchangeDate = DATE1,
-      recurringExchangeDetails = RECURRING_EXCHANGE_DETAILS
+      nextExchangeDate = DATE1
     )
     insertRecurringExchange(
       recurringExchangeId = RECURRING_EXCHANGE_ID2,
@@ -157,19 +108,61 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
       modelProviderId = MODEL_PROVIDER_ID,
       dataProviderId = DATA_PROVIDER_ID2,
       state = RecurringExchange.State.ACTIVE,
-      nextExchangeDate = DATE2,
-      recurringExchangeDetails = RECURRING_EXCHANGE_DETAILS2
+      nextExchangeDate = DATE2
+    )
+    insertRecurringExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID3,
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID3,
+      modelProviderId = MODEL_PROVIDER_ID,
+      dataProviderId = DATA_PROVIDER_ID3,
+      state = RecurringExchange.State.ACTIVE,
+      nextExchangeDate = DATE2
+    )
+    insertExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      date = DATE1,
+      state = Exchange.State.ACTIVE
+    )
+    insertExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID2,
+      date = DATE2,
+      state = Exchange.State.ACTIVE
+    )
+    insertExchange(
+      recurringExchangeId = RECURRING_EXCHANGE_ID3,
+      date = DATE1,
+      state = Exchange.State.ACTIVE
+    )
+    insertExchangeStep(
+      recurringExchangeId = RECURRING_EXCHANGE_ID1,
+      date = DATE1,
+      stepIndex = 1L,
+      state = ExchangeStep.State.READY,
+      modelProviderId = MODEL_PROVIDER_ID,
+      dataProviderId = null
+    )
+    insertExchangeStep(
+      recurringExchangeId = RECURRING_EXCHANGE_ID2,
+      date = DATE2,
+      stepIndex = 4L,
+      state = ExchangeStep.State.READY,
+      modelProviderId = null,
+      dataProviderId = DATA_PROVIDER_ID2
+    )
+    insertExchangeStep(
+      recurringExchangeId = RECURRING_EXCHANGE_ID3,
+      date = DATE1,
+      stepIndex = 1L,
+      state = ExchangeStep.State.BLOCKED,
+      modelProviderId = null,
+      dataProviderId = DATA_PROVIDER_ID
     )
   }
 
   @Test
-  fun claimReadyExchangeStepWithModelProvider() =
+  fun `claimReadyExchangeStep with model provider`() =
     runBlocking<Unit> {
-      val expected: ClaimReadyExchangeStep.Result =
-        ClaimReadyExchangeStep.Result(
-          step = EXCHANGE_STEP,
-          attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
-        )
+      val expected = Result(step = EXCHANGE_STEP, attemptIndex = 1)
 
       val actual =
         ClaimReadyExchangeStep(
@@ -179,25 +172,12 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
           .execute(databaseClient)
 
       assertThat(actual.get()).isEqualTo(expected)
-
-      // Assert that RecurringExchange.nextExchangeDate updated.
-      assertThat(
-          RecurringExchangeReader()
-            .readExternalId(databaseClient.singleUse(), ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID1))
-            .recurringExchange
-            .nextExchangeDate
-        )
-        .isEqualTo(DATE1_UPDATED)
     }
 
   @Test
-  fun claimReadyExchangeStepWithDataProvider() =
+  fun `claimReadyExchangeStep with data provider`() =
     runBlocking<Unit> {
-      val expected: ClaimReadyExchangeStep.Result =
-        ClaimReadyExchangeStep.Result(
-          step = EXCHANGE_STEP2,
-          attemptNumber = EXCHANGE_STEP_ATTEMPT2.attemptNumber
-        )
+      val expected = Result(step = EXCHANGE_STEP2, attemptIndex = 1)
 
       val actual =
         ClaimReadyExchangeStep(
@@ -207,71 +187,31 @@ class ClaimReadyExchangeStepTest : KingdomDatabaseTestBase() {
           .execute(databaseClient)
 
       assertThat(actual.get()).isEqualTo(expected)
-
-      // Assert that RecurringExchange.nextExchangeDate updated.
-      assertThat(
-          RecurringExchangeReader()
-            .readExternalId(databaseClient.singleUse(), ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID2))
-            .recurringExchange
-            .nextExchangeDate
-        )
-        .isEqualTo(DATE2_UPDATED)
     }
 
   @Test
-  fun claimReadyExchangeStepWithWrongProviderId() =
+  fun `claimReadyExchangeStep returns empty with wrong provider id`() =
     runBlocking<Unit> {
-      val exception =
-        assertFailsWith<IllegalStateException> {
-          ClaimReadyExchangeStep(
-              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
-              externalDataProviderId = null
-            )
-            .execute(databaseClient)
-        }
-      assertThat(exception.localizedMessage).isEqualTo("No Exchange Steps were found.")
-    }
-
-  @Test
-  fun claimReadyExchangeStepWithExistingStep() =
-    runBlocking<Unit> {
-      insertExchange(
-        recurringExchangeId = RECURRING_EXCHANGE_ID1,
-        date = DATE1,
-        state = Exchange.State.ACTIVE,
-        exchangeDetails = ExchangeDetails.getDefaultInstance()
-      )
-      insertExchangeStep(
-        recurringExchangeId = RECURRING_EXCHANGE_ID1,
-        date = DATE1,
-        stepIndex = 1L,
-        state = ExchangeStep.State.READY,
-        updateTime = Instant.now().minusSeconds(1000),
-        modelProviderId = MODEL_PROVIDER_ID,
-        dataProviderId = null
-      )
-      val expected =
-        ExchangeStep.newBuilder()
-          .apply {
-            this.externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-            this.externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-            this.date = DATE1
-            this.state = ExchangeStep.State.IN_PROGRESS
-            this.stepIndex = 1
-            this.updateTime = Value.COMMIT_TIMESTAMP.toProto()
-          }
-          .build()
-
       val actual =
         ClaimReadyExchangeStep(
-            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID,
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID2,
             externalDataProviderId = null
           )
           .execute(databaseClient)
 
-      assertThat(actual.get().step).isEqualTo(expected)
-      // Assert that ExchangeStep.Status updated to IN_PROGRESS.
-      assertThat(readAllExchangeStepsInSpanner().first().state)
-        .isEqualTo(ExchangeStep.State.IN_PROGRESS)
+      assertThat(actual).isAbsent()
+    }
+
+  @Test
+  fun `claimReadyExchangeStep returns empty without ready step`() =
+    runBlocking<Unit> {
+      val actual =
+        ClaimReadyExchangeStep(
+            externalModelProviderId = EXTERNAL_DATA_PROVIDER_ID,
+            externalDataProviderId = null
+          )
+          .execute(databaseClient)
+
+      assertThat(actual).isAbsent()
     }
 }

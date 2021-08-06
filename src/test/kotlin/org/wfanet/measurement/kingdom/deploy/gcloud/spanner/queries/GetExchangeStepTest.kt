@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.Date
-import java.time.Instant
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -103,7 +102,6 @@ class GetExchangeStepTest : KingdomDatabaseTestBase() {
       DATE1,
       1L,
       ExchangeStep.State.READY,
-      Instant.now().minusSeconds(1000),
       null,
       DATA_PROVIDER_ID
     )
@@ -112,7 +110,6 @@ class GetExchangeStepTest : KingdomDatabaseTestBase() {
       DATE2,
       1L,
       ExchangeStep.State.BLOCKED,
-      Instant.now(),
       null,
       DATA_PROVIDER_ID
     )
@@ -121,7 +118,6 @@ class GetExchangeStepTest : KingdomDatabaseTestBase() {
       DATE3,
       2L,
       ExchangeStep.State.READY_FOR_RETRY,
-      Instant.now(),
       MODEL_PROVIDER_ID,
       null
     )
