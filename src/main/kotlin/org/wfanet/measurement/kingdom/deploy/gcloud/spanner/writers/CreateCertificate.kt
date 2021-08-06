@@ -40,17 +40,15 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {
 
-  private val ownerTableName: String
-  init {
-    ownerTableName =
-      when (certificate.parentCase) {
-        Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-        Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-        Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-        Certificate.ParentCase.PARENT_NOT_SET ->
-          throw IllegalArgumentException("Parent field of Certificate is not set")
-      }
-  }
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  private val ownerTableName: String =
+    when (certificate.parentCase) {
+      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+      Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+      Certificate.ParentCase.PARENT_NOT_SET ->
+        throw IllegalArgumentException("Parent field of Certificate is not set")
+    }
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val certificateId = idGenerator.generateInternalId()
@@ -72,6 +70,7 @@ class CreateCertificate(private val certificate: Certificate) :
   private suspend fun getOwnerInternalId(
     transactionContext: AsyncDatabaseClient.TransactionContext
   ): InternalId {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (certificate.parentCase) {
       Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
         val dataProviderId =
