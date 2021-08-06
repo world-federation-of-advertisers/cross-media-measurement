@@ -198,17 +198,17 @@ private val EXCHANGE_WORKFLOW3 =
 
 private val RECURRING_EXCHANGE_DETAILS =
   RecurringExchangeDetails.newBuilder()
-    .setCronSchedule("DAILY")
+    .setCronSchedule("@daily")
     .setExchangeWorkflow(EXCHANGE_WORKFLOW1)
     .build()
 private val RECURRING_EXCHANGE_DETAILS2 =
   RecurringExchangeDetails.newBuilder()
-    .setCronSchedule("WEEKLY")
+    .setCronSchedule("@weekly")
     .setExchangeWorkflow(EXCHANGE_WORKFLOW2)
     .build()
 private val RECURRING_EXCHANGE_DETAILS3 =
   RecurringExchangeDetails.newBuilder()
-    .setCronSchedule("MONTHLY")
+    .setCronSchedule("@monthly")
     .setExchangeWorkflow(EXCHANGE_WORKFLOW3)
     .build()
 

@@ -215,10 +215,10 @@ class CreateExchangesAndSteps(
 // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/180.
 internal fun Date.applyCronSchedule(cronSchedule: String): Date {
   return when (cronSchedule) {
-    "DAILY" -> this.toLocalDate().plusDays(1).toProtoDate()
-    "WEEKLY" -> this.toLocalDate().plusWeeks(1).toProtoDate()
-    "MONTHLY" -> this.toLocalDate().plusMonths(1).toProtoDate()
-    "YEARLY" -> this.toLocalDate().plusYears(1).toProtoDate()
+    "@daily" -> this.toLocalDate().plusDays(1).toProtoDate()
+    "@weekly" -> this.toLocalDate().plusWeeks(1).toProtoDate()
+    "@monthly" -> this.toLocalDate().plusMonths(1).toProtoDate()
+    "@yearly" -> this.toLocalDate().plusYears(1).toProtoDate()
     else -> error("Cannot support this.")
   }
 }
