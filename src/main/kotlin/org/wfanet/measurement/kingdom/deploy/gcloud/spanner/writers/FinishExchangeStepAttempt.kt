@@ -14,11 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import com.google.type.Date
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
@@ -26,7 +23,6 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -34,6 +30,8 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
@@ -47,35 +45,48 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
   private val reqAttemptIndex = request.attemptNumber
 
   override suspend fun TransactionScope.runTransaction(): ExchangeStepAttempt {
-    return when (request.state) {
-      ExchangeStepAttempt.State.SUCCEEDED -> succeed()
-      ExchangeStepAttempt.State.FAILED -> temporarilyFail()
-      ExchangeStepAttempt.State.FAILED_STEP -> permanentlyFail()
-      else -> ExchangeStepAttempt.getDefaultInstance()
-    }
-  }
-
-  private suspend fun TransactionScope.succeed(): ExchangeStepAttempt {
     val stepAttemptResult =
-      findStepAttempt(
+      getExchangeStepAttempt(
         externalRecurringExchangeId = externalRecurringExchangeId,
         date = reqDate,
         stepIndex = reqStepIndex,
         attemptIndex = reqAttemptIndex,
       )
         ?: throw error("Attempt for Step: $reqStepIndex not found.")
+    val stepResult =
+      GetExchangeStep(
+          getExchangeStepFilter(
+            recurringExchangeId = stepAttemptResult.recurringExchangeId,
+            date = reqDate,
+            stepIndex = reqStepIndex.toLong(),
+          )
+        )
+        .execute(transactionContext)
+        .singleOrNull()
+        ?: throw error("Step: $reqStepIndex not found.")
 
+    return when (request.state) {
+      ExchangeStepAttempt.State.SUCCEEDED -> succeed(stepResult, stepAttemptResult)
+      ExchangeStepAttempt.State.FAILED -> temporarilyFail(stepResult, stepAttemptResult)
+      ExchangeStepAttempt.State.FAILED_STEP -> permanentlyFail(stepResult, stepAttemptResult)
+      else -> ExchangeStepAttempt.getDefaultInstance()
+    }
+  }
+
+  private suspend fun TransactionScope.succeed(
+    stepResult: ExchangeStepReader.Result,
+    stepAttemptResult: ExchangeStepAttemptReader.Result
+  ): ExchangeStepAttempt {
     val exchangeStepAttempt = stepAttemptResult.exchangeStepAttempt
     val recurringExchangeId = stepAttemptResult.recurringExchangeId
+    val exchangeStep = stepResult.exchangeStep
 
     updateExchangeStepState(
+      exchangeStep = exchangeStep,
       recurringExchangeId = recurringExchangeId,
-      date = exchangeStepAttempt.date,
-      stepIndex = exchangeStepAttempt.stepIndex,
       state = ExchangeStep.State.SUCCEEDED
     )
 
-    // TODO(yunyeng): Update to externalExchangeWorkflow
     val workflow =
       RecurringExchangeReader()
         .readExternalId(transactionContext, ExternalId(externalRecurringExchangeId))
@@ -83,11 +94,13 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
         .details
         .exchangeWorkflow
 
-    updateExchangeSteps(
-      workflow = ExchangeWorkflow.getDefaultInstance(),
-      recurringExchangeId = recurringExchangeId,
-      date = reqDate
-    )
+    val steps =
+      findReadyExchangeSteps(
+        workflow = workflow,
+        recurringExchangeId = recurringExchangeId,
+        date = reqDate
+      )
+    updateExchangeSteps(steps = steps, recurringExchangeId = recurringExchangeId, date = reqDate)
 
     return updateExchangeStepAttempt(
       recurringExchangeId = recurringExchangeId,
@@ -96,23 +109,17 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     )
   }
 
-  private suspend fun TransactionScope.temporarilyFail(): ExchangeStepAttempt {
-    val stepAttemptResult =
-      findStepAttempt(
-        externalRecurringExchangeId = externalRecurringExchangeId,
-        date = reqDate,
-        stepIndex = reqStepIndex,
-        attemptIndex = reqAttemptIndex,
-      )
-        ?: throw error("Attempt for Step: $reqStepIndex not found.")
-
+  private fun TransactionScope.temporarilyFail(
+    stepResult: ExchangeStepReader.Result,
+    stepAttemptResult: ExchangeStepAttemptReader.Result
+  ): ExchangeStepAttempt {
     val exchangeStepAttempt = stepAttemptResult.exchangeStepAttempt
     val recurringExchangeId = stepAttemptResult.recurringExchangeId
+    val exchangeStep = stepResult.exchangeStep
 
     updateExchangeStepState(
+      exchangeStep = exchangeStep,
       recurringExchangeId = recurringExchangeId,
-      date = exchangeStepAttempt.date,
-      stepIndex = exchangeStepAttempt.stepIndex,
       state = ExchangeStep.State.READY_FOR_RETRY
     )
 
@@ -123,40 +130,25 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     )
   }
 
-  private suspend fun TransactionScope.permanentlyFail(): ExchangeStepAttempt {
-    val stepAttemptResult =
-      findStepAttempt(
-        externalRecurringExchangeId = externalRecurringExchangeId,
-        date = reqDate,
-        stepIndex = reqStepIndex,
-        attemptIndex = reqAttemptIndex,
-      )
-        ?: throw error("Attempt for Step: $reqStepIndex not found.")
-
+  private fun TransactionScope.permanentlyFail(
+    stepResult: ExchangeStepReader.Result,
+    stepAttemptResult: ExchangeStepAttemptReader.Result
+  ): ExchangeStepAttempt {
     val exchangeStepAttempt = stepAttemptResult.exchangeStepAttempt
     val recurringExchangeId = stepAttemptResult.recurringExchangeId
+    val exchangeStep = stepResult.exchangeStep
 
     updateExchangeStepState(
+      exchangeStep = exchangeStep,
       recurringExchangeId = recurringExchangeId,
-      date = exchangeStepAttempt.date,
-      stepIndex = exchangeStepAttempt.stepIndex,
       state = ExchangeStep.State.FAILED
     )
 
-    var exchangeFailed = true
-    getAllExchangeSteps(recurringExchangeId = recurringExchangeId, date = reqDate).collect {
-      if (!it.exchangeStep.state.isTerminal) {
-        exchangeFailed = false
-      }
-    }
-
-    if (exchangeFailed) {
-      updateExchangeState(
-        recurringExchangeId = recurringExchangeId,
-        date = exchangeStepAttempt.date,
-        state = Exchange.State.FAILED
-      )
-    }
+    updateExchangeState(
+      recurringExchangeId = recurringExchangeId,
+      date = exchangeStep.date,
+      state = Exchange.State.FAILED
+    )
 
     return updateExchangeStepAttempt(
       recurringExchangeId = recurringExchangeId,
@@ -165,25 +157,19 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     )
   }
 
-  private suspend fun TransactionScope.updateExchangeSteps(
+  private suspend fun TransactionScope.findReadyExchangeSteps(
     workflow: ExchangeWorkflow,
     recurringExchangeId: Long,
     date: Date
-  ) {
-    val completedSteps = getCompletedSteps(recurringExchangeId, date)
-    for (step in findReadyExchangeSteps(workflow, completedSteps)) {
-      updateMutation("ExchangeSteps") {
-          set("RecurringExchangeId" to recurringExchangeId)
-          set("Date" to date.toCloudDate())
-          set("StepIndex" to step.stepIndex.toLong())
-          set("State" to ExchangeStep.State.READY)
-          set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-        }
-        .bufferTo(transactionContext)
+  ): List<ExchangeWorkflow.Step> {
+    val completedStepIndexes = getCompletedExchangeSteps(recurringExchangeId, date)
+    return workflow.stepsList.filter { step ->
+      step.prerequisiteStepIndicesCount > 0 &&
+        step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
     }
   }
 
-  private suspend fun TransactionScope.findStepAttempt(
+  private suspend fun TransactionScope.getExchangeStepAttempt(
     externalRecurringExchangeId: Long,
     date: Date,
     stepIndex: Int,
@@ -207,61 +193,6 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       .singleOrNull()
   }
 
-  private fun findReadyExchangeSteps(
-    workflow: ExchangeWorkflow,
-    completedStepIndexes: Set<Int>
-  ): List<ExchangeWorkflow.Step> {
-    return workflow.stepsList.filter { step ->
-      step.prerequisiteStepIndicesCount == 0 ||
-        step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
-    }
-  }
-
-  private suspend fun TransactionScope.getCompletedSteps(
-    recurringExchangeId: Long,
-    date: Date
-  ): Set<Int> {
-    val sql =
-      """
-      SELECT ExchangeSteps.StepIndex
-      FROM ExchangeSteps
-      WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
-      AND ExchangeSteps.Date = @date
-      AND ExchangeSteps.State = @state
-      ORDER BY ExchangeSteps.StepIndex
-      """.trimIndent()
-    val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("recurring_exchange_id")
-        .to(recurringExchangeId)
-        .bind("date")
-        .to(date.toCloudDate())
-        .bind("state")
-        .toProtoEnum(ExchangeStep.State.SUCCEEDED)
-        .build()
-    val result = mutableSetOf<Int>()
-    transactionContext.executeQuery(statement).collect {
-      result.add(it.getLong("StepIndex").toInt())
-    }
-    return result
-  }
-
-  private fun TransactionScope.getAllExchangeSteps(
-    recurringExchangeId: Long,
-    date: Date
-  ): Flow<ExchangeStepReader.Result> {
-    return ExchangeStepReader()
-      .withBuilder {
-        appendClause("WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id")
-        appendClause("AND ExchangeSteps.Date = @date")
-        bind("recurring_exchange_id").to(recurringExchangeId)
-        bind("date").to(date.toCloudDate())
-
-        appendClause("ORDER BY ExchangeSteps.StepIndex")
-      }
-      .execute(transactionContext)
-  }
-
   private fun TransactionScope.updateExchangeState(
     recurringExchangeId: Long,
     date: Date,
@@ -275,22 +206,6 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       .bufferTo(transactionContext)
   }
 
-  private fun TransactionScope.updateExchangeStepState(
-    recurringExchangeId: Long,
-    date: Date,
-    stepIndex: Int,
-    state: ExchangeStep.State
-  ) {
-    updateMutation("ExchangeSteps") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to date.toCloudDate())
-        set("StepIndex" to stepIndex.toLong())
-        set("State" to state)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
-  }
-
   private fun TransactionScope.updateExchangeStepAttempt(
     recurringExchangeId: Long,
     exchangeStepAttempt: ExchangeStepAttempt,
@@ -299,16 +214,19 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     if (exchangeStepAttempt.state == state) {
       return exchangeStepAttempt
     }
-
     require(!exchangeStepAttempt.state.isTerminal) {
       "Attempt for Step: ${exchangeStepAttempt.stepIndex} is in a terminal state."
+    }
+    var logMessage = "Attempt for Step: ${exchangeStepAttempt.stepIndex} Failed."
+    if (state == ExchangeStepAttempt.State.SUCCEEDED) {
+      logMessage = "Attempt for Step: ${exchangeStepAttempt.stepIndex} Succeeded."
     }
 
     val updatedTime = Value.COMMIT_TIMESTAMP.toProto()
     val debugLog =
       ExchangeStepAttemptDetails.DebugLog.newBuilder()
         .apply {
-          message = "Attempt for Step: ${exchangeStepAttempt.stepIndex} Failed."
+          message = logMessage
           time = updatedTime
         }
         .build()
@@ -333,22 +251,9 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       }
       .bufferTo(transactionContext)
 
-    return exchangeStepAttempt.toBuilder().setDetails(details).build()
+    return exchangeStepAttempt.toBuilder().setState(state).setDetails(details).build()
   }
 }
-
-private val ExchangeStep.State.isTerminal: Boolean
-  get() =
-    when (this) {
-      ExchangeStep.State.READY,
-      ExchangeStep.State.READY_FOR_RETRY,
-      ExchangeStep.State.SUCCEEDED,
-      ExchangeStep.State.IN_PROGRESS -> false
-      ExchangeStep.State.BLOCKED,
-      ExchangeStep.State.FAILED,
-      ExchangeStep.State.UNRECOGNIZED,
-      ExchangeStep.State.STATE_UNSPECIFIED -> true
-    }
 
 private val ExchangeStepAttempt.State.isTerminal: Boolean
   get() =
