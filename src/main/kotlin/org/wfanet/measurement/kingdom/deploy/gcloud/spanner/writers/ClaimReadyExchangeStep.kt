@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
@@ -99,6 +100,7 @@ class ClaimReadyExchangeStep(
         set("Date" to date.toCloudDate())
         set("StepIndex" to stepIndex)
         set("AttemptIndex" to attemptIndex)
+        set("State" to ExchangeStepAttempt.State.ACTIVE)
         set("ExchangeStepAttemptDetails" to details)
         setJson("ExchangeStepAttemptDetailsJson" to details)
       }
@@ -134,21 +136,41 @@ class ClaimReadyExchangeStep(
 
     return row.getLong("MaxAttemptIndex") + 1L
   }
-
-  private fun TransactionScope.updateExchangeStepState(
-    exchangeStep: ExchangeStep,
-    recurringExchangeId: Long,
-    state: ExchangeStep.State
-  ): ExchangeStep {
-    val updateTime = Value.COMMIT_TIMESTAMP
-    updateMutation("ExchangeSteps") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to exchangeStep.date.toCloudDate())
-        set("StepIndex" to exchangeStep.stepIndex.toLong())
-        set("State" to state)
-        set("UpdateTime" to updateTime)
-      }
-      .bufferTo(transactionContext)
-    return exchangeStep.toBuilder().setState(state).setUpdateTime(updateTime.toProto()).build()
-  }
 }
+
+internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
+  exchangeStep: ExchangeStep,
+  recurringExchangeId: Long,
+  state: ExchangeStep.State
+): ExchangeStep {
+  if (exchangeStep.state == state) {
+    return exchangeStep
+  }
+  require(!exchangeStep.state.isTerminal) {
+    "ExchangeStep with StepIndex: ${exchangeStep.stepIndex} is in a terminal state."
+  }
+  val updateTime = Value.COMMIT_TIMESTAMP
+  updateMutation("ExchangeSteps") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to exchangeStep.date.toCloudDate())
+      set("StepIndex" to exchangeStep.stepIndex.toLong())
+      set("State" to state)
+      set("UpdateTime" to updateTime)
+    }
+    .bufferTo(transactionContext)
+
+  return exchangeStep.toBuilder().setState(state).setUpdateTime(updateTime.toProto()).build()
+}
+
+internal val ExchangeStep.State.isTerminal: Boolean
+  get() =
+    when (this) {
+      ExchangeStep.State.BLOCKED,
+      ExchangeStep.State.READY,
+      ExchangeStep.State.READY_FOR_RETRY,
+      ExchangeStep.State.IN_PROGRESS -> false
+      ExchangeStep.State.SUCCEEDED,
+      ExchangeStep.State.FAILED,
+      ExchangeStep.State.UNRECOGNIZED,
+      ExchangeStep.State.STATE_UNSPECIFIED -> true
+    }
