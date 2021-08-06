@@ -32,9 +32,9 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStep.Result
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
-class FindReadyExchangeStep(
+class ClaimReadyExchangeStep(
   private val externalModelProviderId: Long?,
   private val externalDataProviderId: Long?
 ) : SimpleSpannerWriter<Optional<Result>>() {

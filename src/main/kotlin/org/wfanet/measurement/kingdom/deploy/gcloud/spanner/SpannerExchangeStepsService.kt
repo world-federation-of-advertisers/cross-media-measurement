@@ -22,9 +22,9 @@ import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStep
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FindReadyExchangeStep.Result
 
 class SpannerExchangeStepsService(
   private val clock: Clock,
@@ -50,7 +50,7 @@ class SpannerExchangeStepsService(
       .execute(client, idGenerator, clock)
 
     val result =
-      FindReadyExchangeStep(
+      ClaimReadyExchangeStep(
           externalModelProviderId = externalModelProviderId,
           externalDataProviderId = externalDataProviderId
         )
