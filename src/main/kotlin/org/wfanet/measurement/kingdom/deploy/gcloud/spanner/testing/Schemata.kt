@@ -32,12 +32,8 @@ private val SCHEMA_DIR =
     "gcloud",
     "spanner"
   )
-private val KINGDOM_LEGACY_SCHEMA_FILE =
-  checkNotNull(getRuntimePath(SCHEMA_DIR.resolve("kingdom_legacy.sdl"))).toFile()
 
 private val KINGDOM_SCHEMA_FILE =
   checkNotNull(getRuntimePath(SCHEMA_DIR.resolve("kingdom.sdl"))).toFile()
-
-val KINGDOM_LEGACY_SCHEMA = SpannerSchema(KINGDOM_LEGACY_SCHEMA_FILE)
 
 val KINGDOM_SCHEMA = SpannerSchema(KINGDOM_SCHEMA_FILE)

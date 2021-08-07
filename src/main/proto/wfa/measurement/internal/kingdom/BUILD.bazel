@@ -5,14 +5,6 @@ load(":macros.bzl", "IMPORT_PREFIX", "proto_and_java_proto_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_and_java_proto_library(
-    name = "advertiser",
-)
-
-proto_and_java_proto_library(
-    name = "campaign",
-)
-
-proto_and_java_proto_library(
     name = "computation_participant",
     deps = [
         ":measurement_log_entry_proto",
@@ -324,90 +316,6 @@ kt_jvm_grpc_and_java_proto_library(
 )
 
 proto_and_java_proto_library(
-    name = "repetition_spec",
-    deps = [
-        ":time_period_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "report",
-    deps = [
-        ":report_details_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "report_config",
-    deps = [
-        ":report_config_details_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "report_config_details",
-    deps = [
-        ":time_period_proto",
-        "//src/main/proto/wfa/measurement/internal:metric_definition_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "report_details",
-    deps = [
-        ":protocol_metadata_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "report_log_entry",
-    deps = [
-        ":report_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_library(
-    name = "report_log_entries_service_proto",
-    srcs = ["report_log_entries_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":report_log_entry_proto",
-    ],
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "report_log_entries_service_kt_jvm_grpc",
-    srcs = [":report_log_entries_service_proto"],
-)
-
-proto_library(
-    name = "reports_service_proto",
-    srcs = ["reports_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":report_details_proto",
-        ":report_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "reports_service_kt_jvm_grpc",
-    srcs = [":reports_service_proto"],
-)
-
-proto_and_java_proto_library(
-    name = "report_config_schedule",
-    deps = [
-        ":repetition_spec_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_and_java_proto_library(
     name = "requisition",
     deps = [
         ":computation_participant_proto",
@@ -428,48 +336,6 @@ proto_library(
 kt_jvm_grpc_and_java_proto_library(
     name = "requisitions_service_kt_jvm_grpc",
     srcs = [":requisitions_service_proto"],
-)
-
-proto_and_java_proto_library(
-    name = "legacy_requisition",
-    deps = [
-        ":requisition_details_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "requisition_details",
-    deps = [
-        "//src/main/proto/wfa/measurement/internal:metric_definition_proto",
-    ],
-)
-
-proto_library(
-    name = "legacy_requisition_service_proto",
-    srcs = ["legacy_requisitions_service.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-    deps = [
-        ":legacy_requisition_proto",
-        "@com_google_protobuf//:timestamp_proto",
-    ],
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "legacy_requisitions_service_kt_jvm_grpc",
-    srcs = [":legacy_requisition_service_proto"],
-)
-
-proto_and_java_proto_library(
-    name = "requisition_template",
-    deps = [
-        ":requisition_details_proto",
-        "//src/main/proto/wfa/measurement/internal:metric_definition_proto",
-    ],
-)
-
-proto_and_java_proto_library(
-    name = "time_period",
 )
 
 proto_and_java_proto_library(
