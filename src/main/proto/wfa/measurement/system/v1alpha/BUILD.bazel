@@ -180,11 +180,3 @@ kt_jvm_grpc_and_java_proto_library(
     srcs = [":computation_control_service_proto"],
     visibility = ["//visibility:public"],
 )
-
-# Legacy targets.
-
-proto_library(
-    name = "public_resource_proto",
-    srcs = ["public_resource.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
