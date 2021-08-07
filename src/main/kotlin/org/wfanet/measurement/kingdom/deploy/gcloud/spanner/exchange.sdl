@@ -24,7 +24,7 @@
 --
 -- The important foreign key relationships between the tables are:
 --
---   RecurringExchanges <- many:many -> DataProviders (Defined in report.sdl)
+--   RecurringExchanges <- many:many -> DataProviders (Defined in measurement.sdl)
 --   RecurringExchanges <- many:many -> ModelProviders
 --
 -- Identifiers are random INT64s. APIs (and therefore by extension, UIs) should
