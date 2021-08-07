@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Timestamp
+import io.grpc.Status
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -33,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -89,7 +91,11 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         if (parentKey.dataProviderId != WILDCARD) {
           externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
         }
-        addAllStates(request.filter.statesList.map(State::toInternal))
+        try {
+          addAllStates(request.filter.statesList.map(State::toInternal))
+        } catch (e: Exception) {
+          failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
+        }
       }
     }
 
@@ -121,7 +127,11 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalRequisitionId = apiIdToExternalId(key.requisitionId)
           refusalBuilder.apply {
-            justification = request.refusal.justification.toInternal()
+            try {
+              justification = request.refusal.justification.toInternal()
+            } catch (e: Exception) {
+              failGrpc(Status.INVALID_ARGUMENT) { "Justification must be valid" }
+            }
             message = request.refusal.message
           }
         }
@@ -231,7 +241,7 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
     Refusal.Justification.JUSTIFICATION_UNSPECIFIED, Refusal.Justification.UNRECOGNIZED ->
-      InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
+      throw Exception("Invalid justification")
   }
 
 /** Converts an internal [InternalState] to a public [State]. */
@@ -249,7 +259,7 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
-    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
+    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> throw Exception("Invalid state")
   }
 
 internal inline fun buildDuchyEntryValue(fill: (@Builder DuchyEntry.Value.Builder).() -> Unit) =
@@ -267,6 +277,7 @@ internal inline fun DuchyEntry.Value.Builder.buildLiquidLegionsV2(
 private fun DuchyValue.toDuchyEntryValue(): DuchyEntry.Value {
   return buildDuchyEntryValue {
     duchyCertificate = externalIdToApiId(externalDuchyCertificateId)
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (this@toDuchyEntryValue.protocolCase) {
       DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 ->
         buildLiquidLegionsV2 {

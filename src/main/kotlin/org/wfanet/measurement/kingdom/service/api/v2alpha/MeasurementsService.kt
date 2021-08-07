@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Timestamp
+import io.grpc.Status
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
@@ -35,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -84,21 +86,17 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
 
     val measurementSpec = measurement.measurementSpec
-    grpcRequire(
-      measurementSpec.data.isValidUtf8 &&
-        !measurementSpec.data.isEmpty &&
-        measurementSpec.signature.isValidUtf8 &&
-        !measurementSpec.signature.isEmpty
-    ) { "Measurement spec is either unspecified or invalid" }
+    grpcRequire(!measurementSpec.data.isEmpty && !measurementSpec.signature.isEmpty) {
+      "Measurement spec is either unspecified or invalid"
+    }
 
-    grpcRequire(
-      !measurement.serializedDataProviderList.isEmpty &&
-        measurement.serializedDataProviderList.isValidUtf8
-    ) { "Serialized Data Provider list is either unspecified or invalid" }
+    grpcRequire(!measurement.serializedDataProviderList.isEmpty) {
+      "Serialized Data Provider list is either unspecified or invalid"
+    }
 
-    grpcRequire(
-      !measurement.dataProviderListSalt.isEmpty && measurement.dataProviderListSalt.isValidUtf8
-    ) { "Data Provider list salt is either unspecified or invalid" }
+    grpcRequire(!measurement.dataProviderListSalt.isEmpty) {
+      "Data Provider list salt is either unspecified or invalid"
+    }
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
 
@@ -135,9 +133,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
           updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
         }
         for (state in request.filter.statesList) {
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (state) {
-            State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-              addStates(InternalState.STATE_UNSPECIFIED)
             State.AWAITING_REQUISITION_FULFILLMENT ->
               addAllStates(
                 listOf(
@@ -155,6 +152,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
             State.SUCCEEDED -> addStates(InternalState.SUCCEEDED)
             State.FAILED -> addStates(InternalState.FAILED)
             State.CANCELLED -> addStates(InternalState.CANCELLED)
+            State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
+              failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
           }
         }
       }
@@ -184,7 +183,6 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         .apply {
           externalMeasurementId = apiIdToExternalId(key.measurementId)
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-          measurementView = InternalMeasurementView.DEFAULT
         }
         .build()
 
@@ -205,7 +203,6 @@ internal inline fun Measurement.Builder.measurementSpec(
 /** Converts an internal [InternalState] to a public [State]. */
 private fun InternalState.toState(): State =
   when (this) {
-    InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
     InternalState.PENDING_REQUISITION_PARAMS, InternalState.PENDING_REQUISITION_FULFILLMENT ->
       State.AWAITING_REQUISITION_FULFILLMENT
     InternalState.PENDING_PARTICIPANT_CONFIRMATION, InternalState.PENDING_COMPUTATION ->
@@ -213,6 +210,7 @@ private fun InternalState.toState(): State =
     InternalState.SUCCEEDED -> State.SUCCEEDED
     InternalState.FAILED -> State.FAILED
     InternalState.CANCELLED -> State.CANCELLED
+    InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
@@ -322,17 +320,13 @@ private fun Measurement.toInternal(
             ) { "Data Provider certificate resource name is either unspecified or invalid" }
 
           val publicKey = it.value.dataProviderPublicKey
-          grpcRequire(
-            publicKey.data.isValidUtf8 &&
-              !publicKey.data.isEmpty &&
-              publicKey.signature.isValidUtf8 &&
-              !publicKey.signature.isEmpty
-          ) { "Data Provider public key is either unspecified or invalid" }
+          grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
+            "Data Provider public key is either unspecified or invalid"
+          }
 
-          grpcRequire(
-            !it.value.encryptedRequisitionSpec.isEmpty &&
-              it.value.encryptedRequisitionSpec.isValidUtf8
-          ) { "Encrypted Requisition spec is either unspecified or invalid" }
+          grpcRequire(!it.value.encryptedRequisitionSpec.isEmpty) {
+            "Encrypted Requisition spec is either unspecified or invalid"
+          }
 
           DataProviderValue.newBuilder()
             .apply {

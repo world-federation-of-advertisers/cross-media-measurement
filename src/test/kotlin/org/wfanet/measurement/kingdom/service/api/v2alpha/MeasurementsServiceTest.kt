@@ -367,7 +367,6 @@ class MeasurementsServiceTest {
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
           externalMeasurementId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
-          measurementView = InternalMeasurement.View.DEFAULT
         }
       )
 

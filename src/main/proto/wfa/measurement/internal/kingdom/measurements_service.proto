@@ -89,6 +89,4 @@ message SetMeasurementResultRequest {
 message CancelMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
-
-  Measurement.View measurement_view = 3;
 }
