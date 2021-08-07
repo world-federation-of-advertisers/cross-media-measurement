@@ -59,7 +59,7 @@ import ("strings")
 				image:           _images[name]
 				imagePullPolicy: _kingdom_image_pull_policy
 				args:            [
-							"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom_legacy.sdl",
+							"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
 				] + _spanner_schema_push_flags
 			}]
 			restartPolicy: "OnFailure"

@@ -13,13 +13,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",
-        "//src/main/proto/wfa/measurement/internal/kingdom:advertiser_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:campaign_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:data_provider_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -65,17 +58,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
-)
-
-genrule(
-    name = "concat_kingdom_legacy",
-    srcs = [
-        "report.sdl",
-        "exchange.sdl",
-    ],
-    outs = ["kingdom_legacy.sdl"],
-    cmd = "cat $(SRCS) > $@",
-    visibility = ["//visibility:public"],
 )
 
 genrule(

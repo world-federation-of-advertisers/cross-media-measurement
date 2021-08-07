@@ -12,7 +12,6 @@ _TEST_DEPS = [
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-    "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",
 ]
@@ -21,117 +20,5 @@ spanner_emulator_test(
     name = "SpannerWriterTest",
     srcs = ["SpannerWriterTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriterTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "AssociateRequisitionAndReportTest",
-    srcs = ["AssociateRequisitionAndReportTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.AssociateRequisitionAndReportTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "ConfirmDuchyReadinessTest",
-    srcs = ["ConfirmDuchyReadinessTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmDuchyReadinessTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateAdvertiserTest",
-    srcs = ["CreateAdvertiserTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAdvertiserTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateCampaignTest",
-    srcs = ["CreateCampaignTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCampaignTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateLegacyDataProviderTest",
-    srcs = ["CreateLegacyDataProviderTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateLegacyDataProviderTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateModelProviderTest",
-    srcs = ["CreateModelProviderTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelProviderTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateNextReportTest",
-    srcs = ["CreateNextReportTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateNextReportTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateReportConfigTest",
-    srcs = ["CreateReportConfigTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportConfigTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateReportLogEntryTest",
-    srcs = ["CreateReportLogEntryTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateReportLogEntryTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateRequisitionTest",
-    srcs = ["CreateRequisitionTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRequisitionTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateScheduleTest",
-    srcs = ["CreateScheduleTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateScheduleTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "FulfillRequisitionTest",
-    srcs = ["FulfillRequisitionTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FulfillRequisitionTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "FinishReportTest",
-    srcs = ["FinishReportTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishReportTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "UpdateReportStateTest",
-    srcs = ["UpdateReportStateTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateReportStateTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "CreateExchangesAndStepsTest",
-    srcs = ["CreateExchangesAndStepsTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndStepsTest",
-    deps = _TEST_DEPS,
-)
-
-spanner_emulator_test(
-    name = "ClaimReadyExchangeStepTest",
-    srcs = ["ClaimReadyExchangeStepTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStepTest",
     deps = _TEST_DEPS,
 )
