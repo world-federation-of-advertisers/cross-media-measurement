@@ -25,7 +25,7 @@ import picocli.CommandLine
 
 /** Implementation of [KingdomDataServer] using Google Cloud Spanner. */
 @CommandLine.Command(
-  name = "LegacySpannerKingdomDataServer",
+  name = "SpannerKingdomDataServer",
   description = ["Start the internal Kingdom data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
