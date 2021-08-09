@@ -32,8 +32,6 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.kingdom.db.EqualClause
 import org.wfanet.measurement.kingdom.db.GetExchangeStepClause
 import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesClause
-import org.wfanet.measurement.kingdom.db.StreamReportsClause
-import org.wfanet.measurement.kingdom.db.StreamRequisitionsClause
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.SqlConverter.SqlData
 
 interface SqlConverter<V> {
@@ -58,55 +56,6 @@ fun <V : TerminalClause> AllOfClause<V>.toSql(
     }
     query.bind(bindName).to(sqlData.spannerValue)
   }
-}
-
-object StreamRequisitionsFilterSqlConverter : SqlConverter<StreamRequisitionsClause> {
-  override fun sqlData(v: StreamRequisitionsClause): SqlData =
-    when (v) {
-      is StreamRequisitionsClause.ExternalDataProviderId ->
-        SqlData(
-          "DataProviders.ExternalDataProviderId",
-          "external_data_provider_id",
-          externalIdValueArray(v.values)
-        )
-      is StreamRequisitionsClause.ExternalCampaignId ->
-        SqlData(
-          "Campaigns.ExternalCampaignId",
-          "external_campaignId",
-          externalIdValueArray(v.values)
-        )
-      is StreamRequisitionsClause.CreatedAfter ->
-        SqlData("Requisitions.CreateTime", "create_time", timestampValue(v.value))
-      is StreamRequisitionsClause.State ->
-        SqlData("Requisitions.State", "state", enumValueArray(v.values))
-    }
-}
-
-object StreamReportsFilterSqlConverter : SqlConverter<StreamReportsClause> {
-  override fun sqlData(v: StreamReportsClause): SqlData =
-    when (v) {
-      is StreamReportsClause.ExternalAdvertiserId ->
-        SqlData(
-          "Advertisers.ExternalAdvertiserId",
-          "external_advertiser_id",
-          externalIdValueArray(v.values)
-        )
-      is StreamReportsClause.ExternalReportConfigId ->
-        SqlData(
-          "ReportConfigs.ExternalReportConfigId",
-          "external_report_config_id",
-          externalIdValueArray(v.values)
-        )
-      is StreamReportsClause.ExternalScheduleId ->
-        SqlData(
-          "ReportConfigSchedules.ExternalScheduleId",
-          "external_schedule_id",
-          externalIdValueArray(v.values)
-        )
-      is StreamReportsClause.State -> SqlData("Reports.State", "state", enumValueArray(v.values))
-      is StreamReportsClause.UpdatedAfter ->
-        SqlData("Reports.UpdateTime", "update_time", timestampValue(v.value))
-    }
 }
 
 object StreamRecurringExchangesFilterSqlConverter : SqlConverter<StreamRecurringExchangesClause> {

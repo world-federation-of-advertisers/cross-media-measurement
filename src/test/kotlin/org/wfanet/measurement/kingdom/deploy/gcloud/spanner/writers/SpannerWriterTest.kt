@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KingdomDatabaseTestBase
 
 @RunWith(JUnit4::class)
+// TODO: Stop using the KingdomDatabaseTestBase, use some toy schema to test.
 class SpannerWriterTest : KingdomDatabaseTestBase() {
   private val idGenerator = FixedIdGenerator()
 
@@ -57,15 +58,21 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         override suspend fun TransactionScope.runTransaction(): InternalId {
           val internalId = idGenerator.generateInternalId()
           transactionContext.buffer(
-            Mutation.newInsertBuilder("Advertisers")
-              .set("AdvertiserId")
+            Mutation.newInsertBuilder("Certificates")
+              .set("CertificateId")
               .to(internalId.value)
-              .set("ExternalAdvertiserId")
-              .to(idGenerator.generateExternalId().value)
-              .set("AdvertiserDetails")
+              .set("SubjectKeyIdentifier")
+              .to(ByteArray.copyFrom("something"))
+              .set("NotValidBefore")
+              .to("2021-09-27T12:30:00.45Z")
+              .set("NotValidAfter")
+              .to("2022-09-27T12:30:00.45Z")
+              .set("RevocationState")
+              .to(1)
+              .set("CertificateDetails")
               .to(ByteArray.copyFrom(""))
-              .set("AdvertiserDetailsJson")
-              .to("irrelevant-advertiser-details-json")
+              .set("CertificateDetailsJson")
+              .to("irrelevant-certificate-details-json")
               .build()
           )
           return internalId
@@ -82,8 +89,8 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
     val bound = TimestampBound.ofReadTimestamp(commitTimestamp)
     val readContext = databaseClient.singleUse(bound)
     val key = Key.of(idGenerator.internalId.value)
-    val row = readContext.readRow("Advertisers", key, listOf("ExternalAdvertiserId"))
-    assertThat(requireNotNull(row).getLong(0)).isEqualTo(idGenerator.externalId.value)
+    val row = readContext.readRow("Certificates", key, listOf("RevocationState"))
+    assertThat(requireNotNull(row).getLong(0)).isEqualTo(1)
   }
 
   @Test

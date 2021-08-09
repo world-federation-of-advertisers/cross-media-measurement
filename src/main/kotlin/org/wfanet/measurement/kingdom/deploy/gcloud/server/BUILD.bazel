@@ -7,7 +7,6 @@ kt_jvm_library(
     srcs = ["SpannerKingdomDataServer.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:kingdom_data_server",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

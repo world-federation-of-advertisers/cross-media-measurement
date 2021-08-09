@@ -27,13 +27,13 @@ option java_multiple_files = true;
 message LiquidLegionsV2MetaData {
   // Initial configurations
   LiquidLegionsV2Config config = 1;
-  // ElGamal keys used for a certain report.
+  // ElGamal keys used for a certain measurement.
   map<string, ElGamalPublicKey> duchy_keys = 2;
 }
 
 // Protocol-specific configuration for the Liquid Legions V2 Protocol.
-// Used internally in the report details. The fields should be set when a report
-// is created and then immutable.
+// Used internally in the measurement details. The fields should be set when a
+// measurement is created and then immutable.
 message LiquidLegionsV2Config {
   // Parameters of the Liquid Legion sketch.
   message Sketch {
