@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey.Type.EC_P256
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.consent.client.dataprovider.signEncryptionPublicKey as signEdpEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey as signMcEncryptionPublicKey
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
@@ -76,7 +77,7 @@ class ResourceSetupImpl(
               signEdpEncryptionPublicKey(
                 encryptionPublicKey,
                 privateKeyHandle,
-                dataProviderContent.consentSignalCertificateDer
+                readCertificate(dataProviderContent.consentSignalCertificateDer)
               )
             displayName = dataProviderContent.displayName
           }
@@ -106,7 +107,7 @@ class ResourceSetupImpl(
               signMcEncryptionPublicKey(
                 encryptionPublicKey,
                 privateKeyHandle,
-                measurementConsumerContent.consentSignalCertificateDer
+                readCertificate(measurementConsumerContent.consentSignalCertificateDer)
               )
             displayName = measurementConsumerContent.displayName
           }

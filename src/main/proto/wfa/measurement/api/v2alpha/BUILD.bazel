@@ -83,6 +83,13 @@ kt_jvm_grpc_and_java_proto_library(
 )
 
 java_proto_library(
+    name = "event_group_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
+    ],
+)
+
+java_proto_library(
     name = "exchange_java_proto",
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_proto",
