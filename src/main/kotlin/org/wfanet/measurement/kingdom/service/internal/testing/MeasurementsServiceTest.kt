@@ -291,8 +291,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           .build()
       )
 
-    // TODO(@uakyol) : replace the hard coded ids below with a parallel id generator
-    // output.
+    // TODO(@uakyol) : Populate the expected proto fields once the field popultaion is implemented.
 
     val expectedMeasurement =
       createdMeasurement
