@@ -16,8 +16,8 @@
 #define WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
 
 #include "absl/status/statusor.h"
-#include "crypto/ec_group.h"
-#include "crypto/ec_point.h"
+#include "private_join_and_compute/crypto/ec_group.h"
+#include "private_join_and_compute/crypto/ec_point.h"
 
 namespace wfa::measurement::common::crypto {
 

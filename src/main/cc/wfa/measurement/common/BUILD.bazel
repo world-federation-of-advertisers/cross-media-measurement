@@ -6,11 +6,10 @@ _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
     name = "string_block_sorter",
-    hdrs = [
-        "string_block_sorter.h",
-    ],
+    hdrs = ["string_block_sorter.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "@com_google_private_join_and_compute//util:status_includes",
+        "@com_google_absl//absl/status",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )
