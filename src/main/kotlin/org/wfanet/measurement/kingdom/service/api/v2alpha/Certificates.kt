@@ -25,38 +25,36 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 
-private const val PREFERRED_CERTIFICATE_DER_FIELD_NAME = "preferred_certificate_der"
+private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
 
 /**
- * Parses a `preferred_certificate_der` [ByteString] request field into an [InternalCertificate].
+ * Parses a `certificate_der` [ByteString] request field into an [InternalCertificate].
  *
- * @throws io.grpc.StatusRuntimeException if [preferredCertificateDer] cannot be parsed into an
+ * @throws io.grpc.StatusRuntimeException if [certificateDer] cannot be parsed into an
  * [InternalCertificate].
  */
-fun parsePreferredCertificateDer(preferredCertificateDer: ByteString): InternalCertificate {
-  grpcRequire(!preferredCertificateDer.isEmpty) {
-    "$PREFERRED_CERTIFICATE_DER_FIELD_NAME is not specified"
-  }
+fun parseCertificateDer(certificateDer: ByteString): InternalCertificate {
+  grpcRequire(!certificateDer.isEmpty) { "$CERTIFICATE_DER_FIELD_NAME is not specified" }
 
   val x509Certificate: X509Certificate =
     try {
-      readCertificate(preferredCertificateDer)
+      readCertificate(certificateDer)
     } catch (e: CertificateException) {
       throw Status.INVALID_ARGUMENT
         .withCause(e)
-        .withDescription("Cannot parse $PREFERRED_CERTIFICATE_DER_FIELD_NAME")
+        .withDescription("Cannot parse $CERTIFICATE_DER_FIELD_NAME")
         .asRuntimeException()
     }
   val skid: ByteString =
     grpcRequireNotNull(x509Certificate.subjectKeyIdentifier) {
-      "Cannot find Subject Key Identifier of $PREFERRED_CERTIFICATE_DER_FIELD_NAME"
+      "Cannot find Subject Key Identifier of $CERTIFICATE_DER_FIELD_NAME"
     }
 
   return buildInternalCertificate {
     subjectKeyIdentifier = skid
     notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
     notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
-    detailsBuilder.x509Der = preferredCertificateDer
+    detailsBuilder.x509Der = certificateDer
   }
 }
 

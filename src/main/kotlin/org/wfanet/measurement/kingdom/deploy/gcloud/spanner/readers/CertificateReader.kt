@@ -27,6 +27,7 @@ class CertificateReader(private val request: GetCertificateRequest) :
 
   data class Result(val certificate: Certificate, val certificateId: Long)
 
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   private val tableName: String
   init {
     tableName =
@@ -65,6 +66,7 @@ class CertificateReader(private val request: GetCertificateRequest) :
     val externalResourceIdColumn = "External${tableName}Id"
     return certificateBuilder
       .apply {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (request.parentCase) {
           GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
             externalDataProviderId = struct.getLong(externalResourceIdColumn)

@@ -49,12 +49,12 @@ private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val PREFERRED_MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
-private val PREFERRED_DP_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a DP certificate der.")
+private val MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
+private val DP_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a DP certificate der.")
 
-private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
+private val MC_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a MC subject key identifier.")
-private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
+private val DP_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a DP subject key identifier.")
 
 private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
@@ -87,11 +87,11 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     return measurementConsumersService.createMeasurementConsumer(
         MeasurementConsumer.newBuilder()
           .apply {
-            preferredCertificateBuilder.apply {
+            certificateBuilder.apply {
               notValidBeforeBuilder.seconds = 12345
               notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
+              subjectKeyIdentifier = MC_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.x509Der = MC_CERTIFICATE_DER
             }
             detailsBuilder.apply {
               apiVersion = "v2alpha"
@@ -108,11 +108,11 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     return dataProvidersService.createDataProvider(
         DataProvider.newBuilder()
           .apply {
-            preferredCertificateBuilder.apply {
+            certificateBuilder.apply {
               notValidBeforeBuilder.seconds = 12345
               notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
+              subjectKeyIdentifier = DP_SUBJECT_KEY_IDENTIFIER
+              detailsBuilder.x509Der = DP_CERTIFICATE_DER
             }
             detailsBuilder.apply {
               apiVersion = "v2alpha"

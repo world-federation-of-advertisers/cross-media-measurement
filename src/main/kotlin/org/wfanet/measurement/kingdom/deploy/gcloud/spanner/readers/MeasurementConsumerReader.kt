@@ -52,10 +52,9 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     MeasurementConsumer.newBuilder()
       .apply {
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalPublicKeyCertificateId = struct.getLong("ExternalMeasurementConsumerCertificateId")
         details =
           struct.getProtoMessage("MeasurementConsumerDetails", MeasurementConsumer.Details.parser())
-        preferredCertificate = buildCertificate(struct)
+        certificate = buildCertificate(struct)
       }
       .build()
 

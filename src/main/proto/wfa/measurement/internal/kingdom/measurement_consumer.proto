@@ -25,12 +25,9 @@ option java_multiple_files = true;
 message MeasurementConsumer {
   fixed64 external_measurement_consumer_id = 1;
 
-  // External ID of Certificate for public key signature verification.
-  // Output-only.
-  fixed64 external_public_key_certificate_id = 2;
-
-  // The *preferred* Certificate belonging to this MeasurementConsumer.
-  Certificate preferred_certificate = 3;
+  // The Certificate belonging to this MeasurementConsumer for public key
+  // signature verification.
+  Certificate certificate = 2;
 
   message Details {
     // Version the public API for serialized message definitions.
@@ -40,5 +37,5 @@ message MeasurementConsumer {
     bytes public_key = 2;
     bytes public_key_signature = 3;
   }
-  Details details = 4;
+  Details details = 3;
 }

@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.internal
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
-import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
@@ -23,6 +24,8 @@ import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest.Par
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
 
 class SpannerExchangeStepsService(
   private val clock: Clock,
@@ -33,26 +36,42 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    grpcRequire(request.partyCase != PartyCase.PARTY_NOT_SET) {
-      "external_data_provider_id or external_model_provider_id must be provided."
-    }
+    val (externalModelProviderId, externalDataProviderId) =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      when (request.partyCase) {
+        PartyCase.EXTERNAL_DATA_PROVIDER_ID -> Pair(null, request.externalDataProviderId)
+        PartyCase.EXTERNAL_MODEL_PROVIDER_ID -> Pair(request.externalModelProviderId, null)
+        PartyCase.PARTY_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "external_data_provider_id or external_model_provider_id must be provided."
+          }
+      }
+
+    CreateExchangesAndSteps(
+        externalModelProviderId = externalModelProviderId,
+        externalDataProviderId = externalDataProviderId
+      )
+      .execute(client, idGenerator, clock)
+
     val result =
       ClaimReadyExchangeStep(
-          externalModelProviderId =
-            if (request.hasExternalModelProviderId()) request.externalModelProviderId else null,
-          externalDataProviderId =
-            if (request.hasExternalDataProviderId()) request.externalDataProviderId else null,
+          externalModelProviderId = externalModelProviderId,
+          externalDataProviderId = externalDataProviderId
         )
-        .execute(client)
+        .execute(client, idGenerator, clock)
 
-    require(result.isPresent)
-    val exchangeStep = result.get().step
-    val attemptNumber = result.get().attemptNumber
+    if (result.isPresent) {
+      return result.get().toClaimReadyExchangeStepResponse()
+    }
 
+    return ClaimReadyExchangeStepResponse.getDefaultInstance()
+  }
+
+  private fun Result.toClaimReadyExchangeStepResponse(): ClaimReadyExchangeStepResponse {
     return ClaimReadyExchangeStepResponse.newBuilder()
       .apply {
-        this.exchangeStep = exchangeStep
-        this.attemptNumber = attemptNumber
+        this.exchangeStep = step
+        this.attemptNumber = attemptIndex
       }
       .build()
   }
