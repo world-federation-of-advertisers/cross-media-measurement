@@ -14,8 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
-import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
@@ -35,13 +36,16 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    grpcRequire(request.partyCase != PartyCase.PARTY_NOT_SET) {
-      "external_data_provider_id or external_model_provider_id must be provided."
-    }
-    val externalModelProviderId =
-      if (request.hasExternalModelProviderId()) request.externalModelProviderId else null
-    val externalDataProviderId =
-      if (request.hasExternalDataProviderId()) request.externalDataProviderId else null
+    val (externalModelProviderId, externalDataProviderId) =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      when (request.partyCase) {
+        PartyCase.EXTERNAL_DATA_PROVIDER_ID -> Pair(null, request.externalDataProviderId)
+        PartyCase.EXTERNAL_MODEL_PROVIDER_ID -> Pair(request.externalModelProviderId, null)
+        PartyCase.PARTY_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "external_data_provider_id or external_model_provider_id must be provided."
+          }
+      }
 
     CreateExchangesAndSteps(
         externalModelProviderId = externalModelProviderId,
