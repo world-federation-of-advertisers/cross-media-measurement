@@ -53,7 +53,7 @@ class CreateCertificate(private val certificate: Certificate) :
           throw IllegalArgumentException("Parent field of Certificate is not set")
       }
   }
-  
+
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val certificateId = idGenerator.generateInternalId()
     val externalMapId = idGenerator.generateExternalId()
