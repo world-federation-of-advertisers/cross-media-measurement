@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Timestamp
-import io.grpc.Status
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -34,7 +33,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -91,11 +89,13 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         if (parentKey.dataProviderId != WILDCARD) {
           externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
         }
-        try {
-          addAllStates(request.filter.statesList.map(State::toInternal))
-        } catch (e: Exception) {
-          failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
-        }
+        addAllStates(
+          request.filter.statesList.map { state ->
+            state.toInternal().also { internalState ->
+              grpcRequire(internalState != InternalState.STATE_UNSPECIFIED) { "State is invalid" }
+            }
+          }
+        )
       }
     }
 
@@ -127,11 +127,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalRequisitionId = apiIdToExternalId(key.requisitionId)
           refusalBuilder.apply {
-            try {
-              justification = request.refusal.justification.toInternal()
-            } catch (e: Exception) {
-              failGrpc(Status.INVALID_ARGUMENT) { "Justification must be valid" }
-            }
+            justification = request.refusal.justification.toInternal()
             message = request.refusal.message
           }
         }
@@ -241,7 +237,8 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
     Refusal.Justification.JUSTIFICATION_UNSPECIFIED, Refusal.Justification.UNRECOGNIZED ->
-      throw Exception("Invalid justification")
+      org.wfanet.measurement.internal.kingdom.Requisition.Refusal.Justification
+        .JUSTIFICATION_UNSPECIFIED
   }
 
 /** Converts an internal [InternalState] to a public [State]. */
@@ -259,7 +256,7 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
-    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> throw Exception("Invalid state")
+    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
   }
 
 internal inline fun buildDuchyEntryValue(fill: (@Builder DuchyEntry.Value.Builder).() -> Unit) =
