@@ -4,6 +4,13 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file"
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 wfa_repo_archive(
+    name = "wfa_consent_signaling_client",
+    repo = "consent-signaling-client",
+    sha256 = "8fb6b2770e93384dcb3476f80c53443c54af1e1fd6deff4c0ce7e78df5f5fe0f",
+    version = "0.1.0",
+)
+
+wfa_repo_archive(
     name = "wfa_common_jvm",
     repo = "common-jvm",
     sha256 = "d08bbabe8f78592fe58109ddad17dab1a4a2d0e910d602bf3fa3b3f00ff5ddf3",
@@ -64,9 +71,14 @@ wfa_repo_archive(
 # Maven
 load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_TARGETS", "common_jvm_maven_artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")
+load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
+
+ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
+     "com.google.crypto.tink:tink": "1.6.0",
+})
 
 maven_install(
-    artifacts = common_jvm_maven_artifacts(),
+    artifacts = common_jvm_maven_artifacts() + ADDITIONAL_MAVEN_ARTIFACTS,
     fetch_sources = True,
     generate_compat_repositories = True,
     override_targets = COMMON_JVM_MAVEN_TARGETS,
