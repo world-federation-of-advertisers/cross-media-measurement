@@ -6,8 +6,8 @@ load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 wfa_repo_archive(
     name = "wfa_common_jvm",
     repo = "common-jvm",
-    sha256 = "1a035fc675551f24ae6d1f7249d64cf0e3db085036f725ce63a444759bbf3d7d",
-    version = "0.4.0",
+    sha256 = "d08bbabe8f78592fe58109ddad17dab1a4a2d0e910d602bf3fa3b3f00ff5ddf3",
+    version = "0.6.0",
 )
 
 load("@wfa_common_jvm//build:common_jvm_repositories.bzl", "common_jvm_deps_repositories")
