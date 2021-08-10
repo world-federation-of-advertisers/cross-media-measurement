@@ -17,21 +17,23 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import picocli.CommandLine
 
-private const val SERVER_NAME = "SystemApiServer"
+private const val SERVER_NAME = "V2alphaPublicApiServer"
 
 @CommandLine.Command(
-  name = "SystemApiServer",
-  description = ["Server daemon for Kingdom system API services."],
+  name = SERVER_NAME,
+  description = ["Server daemon for Kingdom v2alpha public API services."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
@@ -43,11 +45,13 @@ private fun run(
   runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
     channel ->
     listOf(
-      ComputationsService(InternalMeasurementsCoroutineStub(channel)),
-      ComputationParticipantsService(InternalComputationParticipantsCoroutineStub(channel)),
-      ComputationLogEntriesService(InternalMeasurementLogEntriesCoroutineStub(channel)),
+      DataProvidersService(InternalDataProvidersCoroutineStub(channel)),
+      ExchangeStepAttemptsService(InternalExchangeStepAttemptsCoroutineStub(channel)),
+      ExchangeStepsService(InternalExchangeStepsCoroutineStub(channel)),
+      MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel)),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel))
-    )
+      // TODO: add missing services, e.g. CertificatesService, etc.
+      )
   }
 }
 

@@ -43,13 +43,18 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "kingdom_data_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_legacy_kingdom_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image",
         repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(
         name = "kingdom_system_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
         repository = _PREFIX + "/kingdom/system-api",
+    ),
+    struct(
+        name = "kingdom_v2alpha_public_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image",
+        repository = _PREFIX + "/kingdom/v2alpha-public-api",
     ),
     struct(
         name = "setup_spanner_schema_image",
