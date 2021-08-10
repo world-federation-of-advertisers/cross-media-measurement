@@ -31,12 +31,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 private const val RANDOM_SEED = 1
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
-private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
-
 @RunWith(JUnit4::class)
 abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCoroutineImplBase> {
 
