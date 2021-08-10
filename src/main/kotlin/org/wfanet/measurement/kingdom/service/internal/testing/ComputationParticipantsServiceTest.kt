@@ -15,14 +15,21 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.protobuf.ByteString
+import java.time.Instant
+import kotlin.random.Random
+import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 
+private const val RANDOM_SEED = 1
+private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
@@ -55,4 +62,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     computationParticipantsService = services.computationParticipantsService
     measurementsService = services.measurementsService
   }
+
+  @Test fun `computationParticipant Test`() = runBlocking {}
 }
