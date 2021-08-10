@@ -58,6 +58,23 @@ cc_library(
 )
 
 cc_library(
+    name = "ec_commutative_cipher_key_generator",
+    srcs = [
+        "ec_commutative_cipher_key_generator.cc",
+    ],
+    hdrs = [
+        "ec_commutative_cipher_key_generator.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
+        "@tink_base//cc/util:secret_data",
+    ],
+)
+
+cc_library(
     name = "hkdf",
     srcs = [
         "hkdf.cc",
@@ -88,5 +105,22 @@ cc_library(
         "@com_google_absl//absl/status",
         "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+    ],
+)
+
+cc_library(
+    name = "random_bytes_key_generator",
+    srcs = [
+        "random_bytes_key_generator.cc",
+    ],
+    hdrs = [
+        "random_bytes_key_generator.h",
+    ],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@boringssl//:crypto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@tink_base//cc/util:secret_data",
     ],
 )
