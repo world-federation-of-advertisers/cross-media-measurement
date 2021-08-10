@@ -18,7 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.lang.IllegalStateException
+import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -34,6 +34,8 @@ import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private val idGenerator =
+  FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 private const val STEP_INDEX = 1
 
 private val DATE =
@@ -46,18 +48,12 @@ private val DATE =
     .build()
 
 @RunWith(JUnit4::class)
-abstract class ExchangeStepAttemptsServiceTest<T : ExchangeStepAttemptsCoroutineImplBase> {
+abstract class ExchangeStepAttemptsServiceTest {
 
-  protected val idGenerator =
-    FixedIdGenerator(
-      InternalId(FIXED_GENERATED_INTERNAL_ID),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
-    )
+  /** Creates a /ExchangeStepAttempts service implementation using [idGenerator]. */
+  protected abstract fun newService(idGenerator: IdGenerator): ExchangeStepAttemptsCoroutineImplBase
 
-  protected lateinit var exchangeStepAttemptsService: T
-    private set
-
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
 
   @Before
   fun initService() {
@@ -80,7 +76,7 @@ abstract class ExchangeStepAttemptsServiceTest<T : ExchangeStepAttemptsCoroutine
   @Test
   fun `finishExchangeStepAttempt fails without exchange step attempt`() = runBlocking {
     val exception =
-      assertFailsWith<IllegalStateException> {
+      assertFailsWith<IllegalArgumentException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(
           FinishExchangeStepAttemptRequest.newBuilder()
             .apply {

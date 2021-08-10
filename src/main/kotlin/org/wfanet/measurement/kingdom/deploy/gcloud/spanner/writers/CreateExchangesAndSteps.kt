@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import com.google.type.Date
 import java.time.LocalDate
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toLocalDate
@@ -28,7 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
@@ -81,16 +78,9 @@ class CreateExchangesAndSteps(
       dataProviderId = dataProviderId
     )
 
-    val steps =
-      findReadyExchangeSteps(
-        workflow = workflow,
-        recurringExchangeId = recurringExchangeId,
-        date = nextExchangeDate
-      )
-
     // Update all Steps States based on the workflow.
-    updateExchangeSteps(
-      steps = steps,
+    updateExchangeStepsToReady(
+      steps = workflow.stepsList.filter { step -> step.prerequisiteStepIndicesCount == 0 },
       recurringExchangeId = recurringExchangeId,
       date = nextExchangeDate
     )
@@ -160,72 +150,15 @@ class CreateExchangesAndSteps(
     }
   }
 
-  private suspend fun TransactionScope.findReadyExchangeSteps(
-    workflow: ExchangeWorkflow,
-    recurringExchangeId: Long,
-    date: Date
-  ): List<ExchangeWorkflow.Step> {
-    val completedStepIndexes = getCompletedExchangeSteps(recurringExchangeId, date)
-    return workflow.stepsList.filter { step ->
-      step.prerequisiteStepIndicesCount == 0 ||
-        step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
+  // TODO: Decide on the format for cronSchedule.
+  // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/180.
+  private fun Date.applyCronSchedule(cronSchedule: String): Date {
+    return when (cronSchedule) {
+      "@daily" -> this.toLocalDate().plusDays(1).toProtoDate()
+      "@weekly" -> this.toLocalDate().plusWeeks(1).toProtoDate()
+      "@monthly" -> this.toLocalDate().plusMonths(1).toProtoDate()
+      "@yearly" -> this.toLocalDate().plusYears(1).toProtoDate()
+      else -> error("Cannot support this.")
     }
-  }
-}
-
-internal fun SpannerWriter.TransactionScope.updateExchangeSteps(
-  steps: List<ExchangeWorkflow.Step>,
-  recurringExchangeId: Long,
-  date: Date
-) {
-  for (step in steps) {
-    updateMutation("ExchangeSteps") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to date.toCloudDate())
-        set("StepIndex" to step.stepIndex.toLong())
-        set("State" to ExchangeStep.State.READY)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
-  }
-}
-
-internal suspend fun SpannerWriter.TransactionScope.getCompletedExchangeSteps(
-  recurringExchangeId: Long,
-  date: Date
-): Set<Int> {
-  val sql =
-    """
-      SELECT
-       ExchangeSteps.StepIndex
-      FROM ExchangeSteps
-      WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
-      AND ExchangeSteps.Date = @date
-      AND ExchangeSteps.State = @state
-      ORDER BY ExchangeSteps.StepIndex
-      """.trimIndent()
-  val statement: Statement =
-    Statement.newBuilder(sql)
-      .bind("recurring_exchange_id")
-      .to(recurringExchangeId)
-      .bind("date")
-      .to(date.toCloudDate())
-      .bind("state")
-      .toProtoEnum(ExchangeStep.State.SUCCEEDED)
-      .build()
-  val result = mutableSetOf<Int>()
-  transactionContext.executeQuery(statement).collect { it.getLong("StepIndex").toInt() }
-  return result
-}
-
-// TODO: Decide on the format for cronSchedule.
-// See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/180.
-internal fun Date.applyCronSchedule(cronSchedule: String): Date {
-  return when (cronSchedule) {
-    "@daily" -> this.toLocalDate().plusDays(1).toProtoDate()
-    "@weekly" -> this.toLocalDate().plusWeeks(1).toProtoDate()
-    "@monthly" -> this.toLocalDate().plusMonths(1).toProtoDate()
-    "@yearly" -> this.toLocalDate().plusYears(1).toProtoDate()
-    else -> error("Cannot support this.")
   }
 }
