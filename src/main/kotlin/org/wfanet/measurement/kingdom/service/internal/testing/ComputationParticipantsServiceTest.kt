@@ -30,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 
 private const val RANDOM_SEED = 1
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-private const val EXTERNAL_DATA_PROVIDER_ID = 123L
+
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -63,5 +63,11 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementsService = services.measurementsService
   }
 
-  @Test fun `computationParticipant Test`() = runBlocking {}
+  @Test fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {}
+  @Test fun `setParticipantRequisitionParams succeeds for last duchy`() = runBlocking {}
+
+  @Test fun `confirmComputationParticipant succeeds for non-last duchy`() = runBlocking {}
+  @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
+
+  @Test fun `failComputationParticipant succeeds`() = runBlocking {}
 }
