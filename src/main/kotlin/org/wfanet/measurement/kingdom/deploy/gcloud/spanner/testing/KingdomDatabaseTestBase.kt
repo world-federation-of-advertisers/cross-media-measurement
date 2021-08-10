@@ -32,12 +32,6 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
-<<<<<<< HEAD
-=======
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ReportReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.LegacyRequisitionReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ScheduleReader
->>>>>>> d9925c65 (addressed comments)
 
 // TODO(@yunyeng): Delete once not used.
 abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
@@ -129,21 +123,6 @@ abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA) {
     )
   }
 
-<<<<<<< HEAD
-=======
-  protected fun readAllReportsInSpanner(): List<Report> = runBlocking {
-    ReportReader().execute(databaseClient.singleUse()).map { it.report }.toList()
-  }
-
-  protected fun readAllSchedulesInSpanner(): List<ReportConfigSchedule> = runBlocking {
-    ScheduleReader().execute(databaseClient.singleUse()).map { it.schedule }.toList()
-  }
-
-  protected fun readAllRequisitionsInSpanner(): List<Requisition> = runBlocking {
-    LegacyRequisitionReader().execute(databaseClient.singleUse()).map { it.requisition }.toList()
-  }
-
->>>>>>> d9925c65 (addressed comments)
   protected fun readAllRecurringExchangesInSpanner(): List<RecurringExchange> = runBlocking {
     RecurringExchangeReader()
       .execute(databaseClient.singleUse())

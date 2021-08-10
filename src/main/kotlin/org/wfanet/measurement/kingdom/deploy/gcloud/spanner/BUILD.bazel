@@ -12,19 +12,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers:legacy_readers",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",
-<<<<<<< HEAD
-=======
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers:legacy_writers",
-        "//src/main/proto/wfa/measurement/internal/kingdom:advertiser_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:campaign_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:data_provider_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:legacy_requisition_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_details_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_java_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:report_log_entry_java_proto",
->>>>>>> 06bc0692 (fixed legacy import conflict)
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -59,11 +48,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entry_java_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_java_proto",
-<<<<<<< HEAD
         "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchanges_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:requisition_java_proto",
-=======
->>>>>>> d9925c65 (addressed comments)
         "//src/main/proto/wfa/measurement/internal/kingdom:requisitions_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/io/grpc:api",

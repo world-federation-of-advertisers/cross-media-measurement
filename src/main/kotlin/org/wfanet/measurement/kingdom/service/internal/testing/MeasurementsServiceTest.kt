@@ -95,7 +95,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     return measurementConsumersService.createMeasurementConsumer(
       MeasurementConsumer.newBuilder()
         .apply {
-              preferredCertificateBuilder.apply {
+              certificateBuilder.apply {
                 notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
             subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
@@ -116,7 +116,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     return dataProvidersService.createDataProvider(
       DataProvider.newBuilder()
         .apply {
-              preferredCertificateBuilder.apply {
+              certificateBuilder.apply {
                 notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
             subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
