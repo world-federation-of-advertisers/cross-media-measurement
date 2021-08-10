@@ -16,9 +16,9 @@ kt_jvm_library(
 kt_jvm_library(
     name = "certificates",
     srcs = ["Certificates.kt"],
+    associates = [":builder"],
     visibility = [test_target("__pkg__")],
     deps = [
-        ":builder",
         "//src/main/proto/wfa/measurement/internal/kingdom:certificate_java_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -28,8 +28,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "data_providers_service",
     srcs = ["DataProvidersService.kt"],
+    associates = [":builder"],
     deps = [
-        ":builder",
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -45,6 +45,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "recurring_exchanges_service",
     srcs = ["RecurringExchangesService.kt"],
+    associates = [":builder"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_java_proto",
@@ -112,8 +113,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "measurement_consumers_service",
     srcs = ["MeasurementConsumersService.kt"],
+    associates = [":builder"],
     deps = [
-        ":builder",
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -129,8 +130,8 @@ kt_jvm_library(
 kt_jvm_library(
     name = "requisitions_service",
     srcs = ["RequisitionsService.kt"],
+    associates = [":builder"],
     deps = [
-        ":builder",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc",

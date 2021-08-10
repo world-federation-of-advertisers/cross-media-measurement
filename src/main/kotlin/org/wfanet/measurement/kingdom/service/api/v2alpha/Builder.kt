@@ -14,4 +14,4 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-@DslMarker @Target(AnnotationTarget.CLASS, AnnotationTarget.TYPE) annotation class Builder
+@DslMarker @Target(AnnotationTarget.CLASS, AnnotationTarget.TYPE) internal annotation class Builder
