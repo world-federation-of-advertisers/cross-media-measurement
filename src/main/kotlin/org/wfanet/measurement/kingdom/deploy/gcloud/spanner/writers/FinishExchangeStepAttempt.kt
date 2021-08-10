@@ -80,6 +80,8 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
           .singleOrNull()
       ) { "Step: $reqStepIndex not found." }
 
+    // TODO(yunyeng): Think about an ACTIVE case for auto-fail scenario.
+    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/190.
     return when (request.state) {
       ExchangeStepAttempt.State.SUCCEEDED -> succeed(stepResult, stepAttemptResult)
       ExchangeStepAttempt.State.FAILED -> temporarilyFail(stepResult, stepAttemptResult)
