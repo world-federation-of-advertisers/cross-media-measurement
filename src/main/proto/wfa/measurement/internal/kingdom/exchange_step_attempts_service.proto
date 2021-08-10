@@ -87,4 +87,10 @@ message FinishExchangeStepAttemptRequest {
 
   // Final log entries.
   repeated ExchangeStepAttemptDetails.DebugLog debug_log_entries = 6;
+
+  // Denormalized party that executes this ExchangeStepAttempt.
+  oneof party {
+    fixed64 external_data_provider_id = 7;
+    fixed64 external_model_provider_id = 8;
+  }
 }

@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.type.Date
+import java.lang.IllegalArgumentException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -148,6 +150,7 @@ class FinishExchangeStepAttemptTest : KingdomDatabaseTestBase() {
         FinishExchangeStepAttemptRequest.newBuilder()
           .apply {
             externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
             date = DATE1
             stepIndex = EXCHANGE_STEP.stepIndex
             attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
@@ -188,12 +191,36 @@ class FinishExchangeStepAttemptTest : KingdomDatabaseTestBase() {
     }
 
   @Test
+  fun `finishExchangeStepAttempt fails with wrong Provider id`() =
+    runBlocking<Unit> {
+      val request =
+        FinishExchangeStepAttemptRequest.newBuilder()
+          .apply {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+            date = DATE1
+            stepIndex = EXCHANGE_STEP.stepIndex
+            attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
+            state = ExchangeStepAttempt.State.SUCCEEDED
+          }
+          .build()
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          FinishExchangeStepAttempt(request).execute(databaseClient)
+        }
+
+      assertThat(exception).hasMessageThat().contains("Step: ${EXCHANGE_STEP.stepIndex} not found.")
+    }
+
+  @Test
   fun `finishExchangeStepAttempt temporarilyFails`() =
     runBlocking<Unit> {
       val request =
         FinishExchangeStepAttemptRequest.newBuilder()
           .apply {
             externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
             date = DATE1
             stepIndex = EXCHANGE_STEP.stepIndex
             attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
@@ -234,50 +261,49 @@ class FinishExchangeStepAttemptTest : KingdomDatabaseTestBase() {
         )
     }
 
-    @Test
-    fun `finishExchangeStepAttempt permanentlyFails`() =
-      runBlocking<Unit> {
-        val request =
-          FinishExchangeStepAttemptRequest.newBuilder()
-            .apply {
-              externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
-              date = DATE1
-              stepIndex = EXCHANGE_STEP.stepIndex
-              attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
-              state = ExchangeStepAttempt.State.FAILED_STEP
-            }
-            .build()
+  @Test
+  fun `finishExchangeStepAttempt permanentlyFails`() =
+    runBlocking<Unit> {
+      val request =
+        FinishExchangeStepAttemptRequest.newBuilder()
+          .apply {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID1
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            date = DATE1
+            stepIndex = EXCHANGE_STEP.stepIndex
+            attemptNumber = EXCHANGE_STEP_ATTEMPT.attemptNumber
+            state = ExchangeStepAttempt.State.FAILED_STEP
+          }
+          .build()
 
-        val debugLog =
-          ExchangeStepAttemptDetails.DebugLog.newBuilder()
-            .apply {
-              message = "Attempt for Step: ${EXCHANGE_STEP.stepIndex} Failed."
-              time = Value.COMMIT_TIMESTAMP.toProto()
-            }
-            .build()
+      val debugLog =
+        ExchangeStepAttemptDetails.DebugLog.newBuilder()
+          .apply {
+            message = "Attempt for Step: ${EXCHANGE_STEP.stepIndex} Failed."
+            time = Value.COMMIT_TIMESTAMP.toProto()
+          }
+          .build()
 
-        val logDetails =
-          ExchangeStepAttemptDetails.newBuilder()
-            .apply {
-              updateTime = Value.COMMIT_TIMESTAMP.toProto()
-              addDebugLogEntries(debugLog)
-            }
-            .build()
+      val logDetails =
+        ExchangeStepAttemptDetails.newBuilder()
+          .apply {
+            updateTime = Value.COMMIT_TIMESTAMP.toProto()
+            addDebugLogEntries(debugLog)
+          }
+          .build()
 
-        val expected =
-          EXCHANGE_STEP_ATTEMPT
-            .toBuilder()
-            .apply {
-              state = ExchangeStepAttempt.State.FAILED_STEP
-              details = logDetails
-            }
-            .build()
-        val actual = FinishExchangeStepAttempt(request).execute(databaseClient)
+      val expected =
+        EXCHANGE_STEP_ATTEMPT
+          .toBuilder()
+          .apply {
+            state = ExchangeStepAttempt.State.FAILED_STEP
+            details = logDetails
+          }
+          .build()
+      val actual = FinishExchangeStepAttempt(request).execute(databaseClient)
 
-        assertThat(actual).isEqualTo(expected)
-        assertThat(readAllExchangeStepsInSpanner())
-          .containsExactly(
-            EXCHANGE_STEP.toBuilder().setState(ExchangeStep.State.FAILED).build()
-          )
-      }
+      assertThat(actual).isEqualTo(expected)
+      assertThat(readAllExchangeStepsInSpanner())
+        .containsExactly(EXCHANGE_STEP.toBuilder().setState(ExchangeStep.State.FAILED).build())
+    }
 }
