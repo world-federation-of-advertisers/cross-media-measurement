@@ -21,10 +21,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.reduce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.StorageClient.Blob
+import org.wfanet.measurement.storage.read
 
 /** Interface for Storage adapter. */
 interface Storage {
@@ -36,7 +37,7 @@ interface Storage {
    * @param path String location of input data to read from.
    * @return Input data.
    */
-  @Throws(NotFoundException::class) suspend fun read(path: String): Flow<ByteString>
+  @Throws(NotFoundException::class) suspend fun read(path: String): Blob
 
   /**
    * Writes output data into given path.
@@ -45,35 +46,36 @@ interface Storage {
    */
   suspend fun write(path: String, data: Flow<ByteString>)
 
-  // TODO: migrate batchRead to return a Map<String, Blob>
   /**
    * Transforms values of [inputLabels] into the underlying blobs.
    *
    * If any blob can't be found, it throws [NotFoundException].
    */
   @Throws(NotFoundException::class)
-  suspend fun batchRead(inputLabels: Map<String, String>): Map<String, ByteString> =
+  suspend fun batchRead(inputLabels: Map<String, String>): Map<String, Blob> =
     withContext(Dispatchers.IO) {
       coroutineScope {
         inputLabels
-          .mapValues { entry ->
-            async(start = CoroutineStart.DEFAULT) {
-              read(path = entry.value).reduce { a, b -> a.concat(b) }
-            }
-          }
+          .mapValues { entry -> async(start = CoroutineStart.DEFAULT) { read(path = entry.value) } }
           .mapValues { entry -> entry.value.await() }
       }
     }
 
-  // TODO: migrate batchWrite to accept build Blobs (and accept Flows)
   /** Writes output [data] based on [outputLabels] */
-  suspend fun batchWrite(outputLabels: Map<String, String>, data: Map<String, ByteString>) =
+  suspend fun batchWrite(outputLabels: Map<String, String>, data: Map<String, Flow<ByteString>>) =
     withContext(Dispatchers.IO) {
       coroutineScope {
         for ((key, value) in outputLabels) {
           val payload = requireNotNull(data[key]) { "Key $key not found in ${data.keys}" }
-          launch { write(path = value, data = payload.asBufferedFlow(4096)) }
+          launch { write(path = value, data = payload) }
         }
       }
     }
 }
+
+// TODO: add this as a method to StorageClient.kt as StorageClient.Blob.toByteString
+/**
+ * Aggregates the [Flow] contained within a [StorageClient.Blob] object into a single concatenated
+ * [ByteString].
+ */
+suspend fun Blob.toByteString(): ByteString = this.read().flatten()

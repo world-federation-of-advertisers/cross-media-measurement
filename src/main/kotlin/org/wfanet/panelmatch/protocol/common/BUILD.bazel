@@ -11,5 +11,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/protocol/exchangesteps:exchangesteps_java_proto",
         "//src/main/swig/wfanet/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

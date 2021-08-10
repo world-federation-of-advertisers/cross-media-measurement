@@ -15,29 +15,42 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.StorageClient.Blob
+import org.wfanet.measurement.storage.read
+import org.wfanet.panelmatch.client.storage.toByteString
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
 /**
- * Validates that input data. In current iteration, it makes sure it is less than a maxSize and
- * compares it to the previous validated data to make sure it has minimum overlap.
+ * Validates input data. In current iteration, it makes sure it is not empty, has less than a
+ * maxSize number of items, and has a substantially overlapping membership to the previous validated
+ * data.
  */
 class IntersectValidateTask(val maxSize: Int, val minimumOverlap: Float) : ExchangeTask {
 
-  override suspend fun execute(input: Map<String, ByteString>): Map<String, ByteString> {
-    val currentData: Set<ByteString> =
-      parseSerializedSharedInputs(requireNotNull(input["current-data"])).toSet()
-    val currentDataSize: Int = currentData.size
+  override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
+
+    // Flatten the Blob's underlying Flow and record the buffer size for output creation.
+    val currentData: ByteString = requireNotNull(input["current-data"]).read().flatten()
+    val bufferSize: Int = requireNotNull(input["current-data"]).storageClient.defaultBufferSizeBytes
+    val currentSetData: Set<ByteString> = parseSerializedSharedInputs(currentData).toSet()
+    val currentDataSize: Int = currentSetData.size
+
     require(currentDataSize < maxSize) {
       "Current data size of $currentDataSize is greater than $maxSize"
     }
-    val oldData: Set<ByteString> =
-      parseSerializedSharedInputs(requireNotNull(input["previous-data"])).toSet()
-    val overlapItemsCount: Int = currentData.count { it in oldData }
     require(currentDataSize > 0)
+
+    val oldData: Set<ByteString> =
+      parseSerializedSharedInputs(requireNotNull(input["previous-data"]).toByteString()).toSet()
+    val overlapItemsCount: Int = currentSetData.count { it in oldData }
     val currentOverlap: Float = overlapItemsCount.toFloat() / currentDataSize
+
     require(currentOverlap > minimumOverlap) {
       "Overlap of $currentOverlap is less than $minimumOverlap"
     }
-    return mapOf("current-data" to requireNotNull(input["current-data"])).toMap()
+    return mapOf("current-data" to currentData.asBufferedFlow(bufferSize)).toMap()
   }
 }
