@@ -35,11 +35,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner",
-        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
