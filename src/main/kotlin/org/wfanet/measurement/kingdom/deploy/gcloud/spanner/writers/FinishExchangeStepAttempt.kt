@@ -200,7 +200,9 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
         .toProtoEnum(ExchangeStep.State.SUCCEEDED)
         .build()
     val result = mutableSetOf<Int>()
-    transactionContext.executeQuery(statement).collect { it.getLong("StepIndex").toInt() }
+    transactionContext.executeQuery(statement).collect {
+      result.add(it.getLong("StepIndex").toInt())
+    }
     return result
   }
 
