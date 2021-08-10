@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest.PartyCase
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
@@ -42,10 +43,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExc
 class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRequest) :
   SimpleSpannerWriter<ExchangeStepAttempt>() {
   private val externalModelProviderIds =
-    if (request.hasExternalModelProviderId()) listOf(ExternalId(request.externalModelProviderId))
+    if (request.partyCase == PartyCase.EXTERNAL_MODEL_PROVIDER_ID)
+      listOf(ExternalId(request.externalModelProviderId))
     else emptyList()
   private val externalDataProviderIds =
-    if (request.hasExternalDataProviderId()) listOf(ExternalId(request.externalDataProviderId))
+    if (request.partyCase == PartyCase.EXTERNAL_DATA_PROVIDER_ID)
+      listOf(ExternalId(request.externalDataProviderId))
     else emptyList()
   private val externalRecurringExchangeId = request.externalRecurringExchangeId
   private val reqDate = request.date
