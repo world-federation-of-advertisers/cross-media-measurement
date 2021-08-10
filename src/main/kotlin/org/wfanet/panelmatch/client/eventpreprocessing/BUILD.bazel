@@ -2,12 +2,35 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
+# There is a bug in kt_jvm_library that does not allow specifying a .so file in
+# the `resources` parameter, so instead we make a `java_library` containing the
+# .so file.
+#
+# See also https://github.com/world-federation-of-advertisers/panel-exchange-client/issues/77.
+#
+# TODO: Drop this if rules_swig gains support for embedding the native shared library as a resource
+java_library(
+    name = "swig_resources",
+    resources = [
+        "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:libpreprocess_events.so",
+    ],
+)
+
 kt_jvm_library(
     name = "eventpreprocessing",
-    srcs = glob(["*.kt"]),
+    srcs = glob(
+        ["*.kt"],
+        exclude = ["*Main.kt"],
+    ),
+    runtime_deps = [
+        ":swig_resources",
+    ],
     deps = [
         "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//imports/java/org/apache/beam/runners:core",
         "//imports/java/org/joda",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",

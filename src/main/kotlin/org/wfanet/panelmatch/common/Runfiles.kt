@@ -42,6 +42,8 @@ fun getRuntimePath(runfilesRelativePath: Path): Path? {
 fun loadLibrary(name: String, directoryPath: Path) {
   val relativePath = directoryPath.resolve(System.mapLibraryName(name))
   val runtimePath = requireNotNull(getRuntimePath(relativePath))
-
+  check(runtimePath.toFile().exists())
+  check(runtimePath.toFile().canExecute())
+  check(runtimePath.toFile().canRead())
   System.load(runtimePath.toAbsolutePath().toString())
 }

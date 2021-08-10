@@ -49,6 +49,9 @@ fun preprocessEventsInPipeline(
   cryptoKeyProvider: SerializableFunction<Void?, ByteString>
 ): PCollection<KV<Long, ByteString>> {
   return events
-    .parDo(BatchingDoFn(maxByteSize, EventSize))
-    .parDo(EncryptionEventsDoFn(EncryptEvents(), pepperProvider, cryptoKeyProvider))
+    .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
+    .parDo(
+      EncryptionEventsDoFn(EncryptEvents(), pepperProvider, cryptoKeyProvider),
+      name = "Encrypt"
+    )
 }

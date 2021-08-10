@@ -1,0 +1,28 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+kt_jvm_library(
+    name = "preprocess_events_main",
+    srcs = ["PreprocessEventsMain.kt"],
+    runtime_deps = [
+        "//imports/java/org/slf4j:simple",
+    ],
+    deps = [
+        "//imports/java/com/google/api/services:cloud_bigquery",
+        "//imports/java/com/google/api/services:services_bigquery",
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:google_cloud_platform_core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//imports/java/org/apache/beam/io:google_cloud_platform",
+        "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+    ],
+)
+
+java_binary(
+    name = "process_events",
+    main_class = "org.wfanet.panelmatch.client.eventpreprocessing.deploy.gcloud.PreprocessEventsMainKt",
+    tags = ["manual"],
+    runtime_deps = [":preprocess_events_main"],
+)
