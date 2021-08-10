@@ -14,10 +14,12 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
+import java.io.InputStream
+import java.nio.file.Files
 import java.nio.file.Paths
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
-import org.wfanet.panelmatch.common.loadLibrary
+import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.common.wrapJniException
 
 /** A [PreprocessEvents] implementation using the JNI [PreprocessEvents]. */
@@ -32,11 +34,28 @@ class JniPreprocessEvents : PreprocessEvents {
   }
 
   companion object {
+    private val logger by loggerFor()
 
     init {
-      val SWIG_PATH =
-        "panel_exchange_client/src/main/swig/wfanet/panelmatch/client/eventpreprocessing"
-      loadLibrary(name = "preprocess_events", directoryPath = Paths.get(SWIG_PATH))
+      val libraryName = System.mapLibraryName("preprocess_events")
+      val libraryPath = "/main/swig/wfanet/panelmatch/client/eventpreprocessing/$libraryName"
+
+      val tmpDir =
+        Paths.get(
+            System.getProperty("java.io.tmpdir"),
+            "panel-exchange-client",
+            "JniPreprocessEvents",
+            System.currentTimeMillis().toString()
+          )
+          .toAbsolutePath()
+      check(tmpDir.toFile().mkdirs())
+      tmpDir.toFile().deleteOnExit()
+      val outputPath = tmpDir.resolve(libraryName)
+
+      val stream: InputStream = this::class.java.getResourceAsStream(libraryPath)!!
+      stream.use { Files.copy(stream, outputPath) }
+      outputPath.toFile().deleteOnExit()
+      System.load(outputPath.toString())
     }
   }
 }

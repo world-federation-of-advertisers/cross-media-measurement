@@ -26,7 +26,6 @@
 #include "google/protobuf/descriptor.h"
 #include "google/protobuf/message.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
 #include "wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
 

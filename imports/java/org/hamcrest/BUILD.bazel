@@ -1,11 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
 alias(
-    name = "core",
-    actual = "@maven//:org_hamcrest_hamcrest_core",
-)
-
-alias(
-    name = "library",
-    actual = "@maven//:org_hamcrest_hamcrest_library",
+    name = "hamcrest",
+    actual = "@maven//:org_hamcrest_hamcrest",
 )
