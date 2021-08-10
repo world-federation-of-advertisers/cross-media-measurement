@@ -20,27 +20,32 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyZeroInteractions
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.panelmatch.client.launcher.testing.DOUBLE_BLINDED_KEYS
 import org.wfanet.panelmatch.client.launcher.testing.JOIN_KEYS
 import org.wfanet.panelmatch.client.launcher.testing.LOOKUP_KEYS
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
 import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
 import org.wfanet.panelmatch.client.launcher.testing.buildMockCryptor
+import org.wfanet.panelmatch.client.storage.InMemoryStorageClient
+import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputs
 
 private val MP_0_SECRET_KEY = ByteString.copyFromUtf8("some-key")
 
 @RunWith(JUnit4::class)
 class DeterministicCommutativeCryptorExchangeTaskTest {
+  private val mockStorage = InMemoryStorageClient(keyPrefix = "mock")
   val deterministicCommutativeCryptor = buildMockCryptor()
+
   val ATTEMPT_KEY = java.util.UUID.randomUUID().toString()
 
   @Test
@@ -51,10 +56,22 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
             CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
               .execute(
                 mapOf(
-                  "encryption-key" to MP_0_SECRET_KEY,
-                  "encrypted-data" to makeSerializedSharedInputs(DOUBLE_BLINDED_KEYS)
+                  "encryption-key" to
+                    mockStorage.createBlob(
+                      "encryption-key",
+                      MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                    ),
+                  "encrypted-data" to
+                    mockStorage.createBlob(
+                      "encrypted-data",
+                      makeSerializedSharedInputFlow(
+                        DOUBLE_BLINDED_KEYS,
+                        mockStorage.defaultBufferSizeBytes
+                      )
+                    )
                 )
               )
+              .mapValues { it.value.fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) }) }
           assertThat(result)
             .containsExactly("decrypted-data", makeSerializedSharedInputs(LOOKUP_KEYS))
         }
@@ -73,8 +90,19 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
               CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
                 .execute(
                   mapOf(
-                    "encryption-key" to MP_0_SECRET_KEY,
-                    "encrypted-data" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS)
+                    "encryption-key" to
+                      mockStorage.createBlob(
+                        "encryption-key",
+                        MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                      ),
+                    "encrypted-data" to
+                      mockStorage.createBlob(
+                        "encrypted-data",
+                        makeSerializedSharedInputFlow(
+                          SINGLE_BLINDED_KEYS,
+                          mockStorage.defaultBufferSizeBytes
+                        )
+                      )
                   )
                 )
             }
@@ -89,11 +117,30 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
       async(CoroutineName(ATTEMPT_KEY) + Dispatchers.Default) {
           assertFailsWith(IllegalArgumentException::class) {
             CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
-              .execute(mapOf("encrypted-data" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS)))
+              .execute(
+                mapOf(
+                  "encrypted-data" to
+                    mockStorage.createBlob(
+                      "encrypted-data",
+                      makeSerializedSharedInputFlow(
+                        SINGLE_BLINDED_KEYS,
+                        mockStorage.defaultBufferSizeBytes
+                      )
+                    )
+                )
+              )
           }
           assertFailsWith(IllegalArgumentException::class) {
             CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
-              .execute(mapOf("encryption-key" to MP_0_SECRET_KEY))
+              .execute(
+                mapOf(
+                  "encryption-key" to
+                    mockStorage.createBlob(
+                      "encryption-key",
+                      MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                    )
+                )
+              )
           }
           verifyZeroInteractions(deterministicCommutativeCryptor)
         }
@@ -108,10 +155,19 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
             CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
               .execute(
                 mapOf(
-                  "encryption-key" to MP_0_SECRET_KEY,
-                  "unencrypted-data" to makeSerializedSharedInputs(JOIN_KEYS)
+                  "encryption-key" to
+                    mockStorage.createBlob(
+                      "encryption-key",
+                      MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                    ),
+                  "unencrypted-data" to
+                    mockStorage.createBlob(
+                      "unencrypted-data",
+                      makeSerializedSharedInputFlow(JOIN_KEYS, mockStorage.defaultBufferSizeBytes)
+                    )
                 )
               )
+              .mapValues { it.value.fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) }) }
           assertThat(result)
             .containsExactly("encrypted-data", makeSerializedSharedInputs(SINGLE_BLINDED_KEYS))
         }
@@ -130,8 +186,16 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
               CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
                 .execute(
                   mapOf(
-                    "encryption-key" to MP_0_SECRET_KEY,
-                    "unencrypted-data" to makeSerializedSharedInputs(JOIN_KEYS)
+                    "encryption-key" to
+                      mockStorage.createBlob(
+                        "encryption-key",
+                        MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                      ),
+                    "unencrypted-data" to
+                      mockStorage.createBlob(
+                        "unencrypted-data",
+                        makeSerializedSharedInputFlow(JOIN_KEYS, mockStorage.defaultBufferSizeBytes)
+                      )
                   )
                 )
             }
@@ -147,11 +211,27 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
         async(CoroutineName(ATTEMPT_KEY) + Dispatchers.Default) {
           assertFailsWith(IllegalArgumentException::class) {
             CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
-              .execute(mapOf("unencrypted-data" to makeSerializedSharedInputs(JOIN_KEYS)))
+              .execute(
+                mapOf(
+                  "unencrypted-data" to
+                    mockStorage.createBlob(
+                      "unencrypted-data",
+                      makeSerializedSharedInputFlow(JOIN_KEYS, mockStorage.defaultBufferSizeBytes)
+                    )
+                )
+              )
           }
           assertFailsWith(IllegalArgumentException::class) {
             CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
-              .execute(mapOf("encryption-key" to MP_0_SECRET_KEY))
+              .execute(
+                mapOf(
+                  "encryption-key" to
+                    mockStorage.createBlob(
+                      "encryption-key",
+                      MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                    )
+                )
+              )
           }
           verifyZeroInteractions(deterministicCommutativeCryptor)
         }
@@ -169,10 +249,22 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
             CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
               .execute(
                 mapOf(
-                  "encryption-key" to MP_0_SECRET_KEY,
-                  "encrypted-data" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS)
+                  "encryption-key" to
+                    mockStorage.createBlob(
+                      "encryption-key",
+                      MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                    ),
+                  "encrypted-data" to
+                    mockStorage.createBlob(
+                      "encrypted-data",
+                      makeSerializedSharedInputFlow(
+                        SINGLE_BLINDED_KEYS,
+                        mockStorage.defaultBufferSizeBytes
+                      )
+                    )
                 )
               )
+              .mapValues { it.value.fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) }) }
           assertThat(result)
             .containsExactly("reencrypted-data", makeSerializedSharedInputs(DOUBLE_BLINDED_KEYS))
         }
@@ -191,8 +283,19 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
               CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
                 .execute(
                   mapOf(
-                    "encryption-key" to MP_0_SECRET_KEY,
-                    "encrypted-data" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS)
+                    "encryption-key" to
+                      mockStorage.createBlob(
+                        "encryption-key",
+                        MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                      ),
+                    "encrypted-data" to
+                      mockStorage.createBlob(
+                        "encrypted-data",
+                        makeSerializedSharedInputFlow(
+                          SINGLE_BLINDED_KEYS,
+                          mockStorage.defaultBufferSizeBytes
+                        )
+                      )
                   )
                 )
             }
@@ -207,11 +310,30 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
       async(CoroutineName(ATTEMPT_KEY) + Dispatchers.Default) {
           assertFailsWith(IllegalArgumentException::class) {
             CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
-              .execute(mapOf("encrypted-data" to makeSerializedSharedInputs(SINGLE_BLINDED_KEYS)))
+              .execute(
+                mapOf(
+                  "encrypted-data" to
+                    mockStorage.createBlob(
+                      "encrypted-data",
+                      makeSerializedSharedInputFlow(
+                        SINGLE_BLINDED_KEYS,
+                        mockStorage.defaultBufferSizeBytes
+                      )
+                    )
+                )
+              )
           }
           assertFailsWith(IllegalArgumentException::class) {
             CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
-              .execute(mapOf("encryption-key" to MP_0_SECRET_KEY))
+              .execute(
+                mapOf(
+                  "encryption-key" to
+                    mockStorage.createBlob(
+                      "encryption-key",
+                      MP_0_SECRET_KEY.asBufferedFlow(mockStorage.defaultBufferSizeBytes)
+                    )
+                )
+              )
           }
           verifyZeroInteractions(deterministicCommutativeCryptor)
         }

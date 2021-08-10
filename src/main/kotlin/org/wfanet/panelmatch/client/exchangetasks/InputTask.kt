@@ -15,8 +15,10 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.Storage
 import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
 
@@ -59,7 +61,9 @@ class InputTask(
     }
   }
 
-  override suspend fun execute(input: Map<String, ByteString>): Map<String, ByteString> {
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> {
     while (true) {
       if (throttler.onReady { isReady() }) {
         // This function only returns that input is ready. It does not return actual values.

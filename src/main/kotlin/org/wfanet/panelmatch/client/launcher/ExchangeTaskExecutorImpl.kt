@@ -20,10 +20,12 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
@@ -55,8 +57,7 @@ class ExchangeTaskExecutorImpl(
     }
   }
 
-  private suspend fun readInputs(step: ExchangeWorkflow.Step): Map<String, ByteString> =
-      coroutineScope {
+  private suspend fun readInputs(step: ExchangeWorkflow.Step): Map<String, Blob> = coroutineScope {
     val privateInputLabels = step.privateInputLabelsMap
     val sharedInputLabels = step.sharedInputLabelsMap
     awaitAll(
@@ -72,7 +73,7 @@ class ExchangeTaskExecutorImpl(
 
   private suspend fun writeOutputs(
     step: ExchangeWorkflow.Step,
-    taskOutput: Map<String, ByteString>
+    taskOutput: Map<String, Flow<ByteString>>
   ) {
     coroutineScope {
       val privateOutputLabels = step.privateOutputLabelsMap
@@ -95,15 +96,9 @@ class ExchangeTaskExecutorImpl(
     logger.addToTaskLog("Executing $step with attempt $attemptKey")
     val exchangeTask: ExchangeTask = getExchangeTaskForStep(step)
     timeout.runWithTimeout {
-      // TODO - get rid of this extra if and fold the INPUT_STEP into the normal process for all
-      // steps
-      if (step.stepCase == ExchangeWorkflow.Step.StepCase.INPUT_STEP) {
-        exchangeTask.execute(emptyMap())
-      } else {
-        val taskInput: Map<String, ByteString> = readInputs(step)
-        val taskOutput: Map<String, ByteString> = exchangeTask.execute(taskInput)
-        writeOutputs(step, taskOutput)
-      }
+      val taskInput: Map<String, Blob> = readInputs(step)
+      val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
+      writeOutputs(step, taskOutput)
     }
     markAsFinished(attemptKey, ExchangeStepAttempt.State.SUCCEEDED)
   }

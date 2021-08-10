@@ -15,6 +15,8 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.storage.StorageClient.Blob
 
 /** Interface for ExchangeTask. */
 interface ExchangeTask {
@@ -24,5 +26,5 @@ interface ExchangeTask {
    * @param input inputs specified by [task].
    * @return Executed output. It is a map from the labels to the payload associated with the label.
    */
-  suspend fun execute(input: Map<String, ByteString>): Map<String, ByteString>
+  suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>>
 }

@@ -18,10 +18,12 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.Flow
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -29,7 +31,9 @@ import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.INPUT_STEP
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
 import org.wfanet.panelmatch.client.storage.Storage
@@ -40,6 +44,10 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 class InputTaskTest {
   private val privateStorage = mock<Storage>()
   private val sharedStorage = mock<Storage>()
+  private val secretKeyBlob =
+    mock<StorageClient.Blob> {
+      on { read(any()) } doReturn MP_0_SECRET_KEY.asBufferedFlow(1024)
+    } // MP_0_SECRET_KEY
   private val throttler =
     object : Throttler {
       override suspend fun <T> onReady(block: suspend () -> T): T {
@@ -58,9 +66,9 @@ class InputTaskTest {
       .thenThrow(NotFoundException("File not found"))
       .thenThrow(NotFoundException("File not found"))
       .thenThrow(NotFoundException("File not found"))
-      .thenReturn(mapOf("input" to MP_0_SECRET_KEY))
+      .thenReturn(mapOf("input" to secretKeyBlob))
 
-    val result: Map<String, ByteString> = task.execute(emptyMap())
+    val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
@@ -80,9 +88,9 @@ class InputTaskTest {
       .thenThrow(NotFoundException("File not found"))
       .thenThrow(NotFoundException("File not found"))
       .thenThrow(NotFoundException("File not found"))
-      .thenReturn(mapOf("input" to MP_0_SECRET_KEY))
+      .thenReturn(mapOf("input" to secretKeyBlob))
 
-    val result: Map<String, ByteString> = task.execute(emptyMap())
+    val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 

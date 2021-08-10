@@ -34,7 +34,7 @@ abstract class AbstractStorageTest {
   @Test
   fun `write and read FileSystemStorage`() = runBlockingTest {
     privateStorage.write(KEY, VALUE.asBufferedFlow(1024))
-    assertThat(privateStorage.read(KEY).reduce { a, b -> a.concat(b) }).isEqualTo(VALUE)
+    assertThat(privateStorage.read(KEY).read(1024).reduce { a, b -> a.concat(b) }).isEqualTo(VALUE)
   }
 
   @Test
@@ -53,14 +53,14 @@ abstract class AbstractStorageTest {
   @Test
   fun `shared storage cannot read from private storage`() = runBlockingTest {
     privateStorage.write(KEY, VALUE.asBufferedFlow(1024))
-    privateStorage.read(KEY).reduce { a, b -> a.concat(b) } // Does not throw.
+    privateStorage.read(KEY).read(1024).reduce { a, b -> a.concat(b) } // Does not throw.
     assertFailsWith<NotFoundException> { sharedStorage.read(KEY) }
   }
 
   @Test
   fun `private storage cannot read from shared storage`() = runBlockingTest {
     sharedStorage.write(KEY, VALUE.asBufferedFlow(1024))
-    sharedStorage.read(KEY).reduce { a, b -> a.concat(b) } // Does not throw.
+    sharedStorage.read(KEY).read(1024).reduce { a, b -> a.concat(b) } // Does not throw.
     assertFailsWith<NotFoundException> { privateStorage.read(KEY) }
   }
 
