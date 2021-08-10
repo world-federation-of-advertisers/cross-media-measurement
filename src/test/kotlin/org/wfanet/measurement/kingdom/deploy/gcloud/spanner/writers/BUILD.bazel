@@ -22,10 +22,3 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriterTest",
     deps = _TEST_DEPS,
 )
-
-spanner_emulator_test(
-    name = "FinishExchangeStepAttemptTest",
-    srcs = ["FinishExchangeStepAttemptTest.kt"],
-    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttemptTest",
-    deps = _TEST_DEPS,
-)
