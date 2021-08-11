@@ -161,7 +161,7 @@ private val REQUISITION: Requisition = buildRequisition {
 }
 
 @RunWith(JUnit4::class)
-class RequisitionServiceTest {
+class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
 
@@ -326,7 +326,7 @@ class RequisitionServiceTest {
   }
 
   @Test
-  fun `refuseRequisition throws INVALID_ARGUMENT when name is missing`() = runBlocking {
+  fun `refuseRequisition throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking { service.refuseRequisition(RefuseRequisitionRequest.getDefaultInstance()) }
@@ -336,7 +336,7 @@ class RequisitionServiceTest {
   }
 
   @Test
-  fun `refuseRequisition throws INVALID_ARGUMENT when refusal details are missing`() = runBlocking {
+  fun `refuseRequisition throws INVALID_ARGUMENT when refusal details are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
