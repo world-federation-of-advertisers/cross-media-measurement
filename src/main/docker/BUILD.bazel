@@ -1,6 +1,8 @@
 load("@io_bazel_rules_docker//container:container.bzl", "container_push")
 load(":images.bzl", "ALL_GKE_IMAGES")
 
+package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+
 # These rules push Docker images to the Google Cloud container registry.
 # 'bazel build' builds the tarball, 'bazel run' will actually push it.
 [

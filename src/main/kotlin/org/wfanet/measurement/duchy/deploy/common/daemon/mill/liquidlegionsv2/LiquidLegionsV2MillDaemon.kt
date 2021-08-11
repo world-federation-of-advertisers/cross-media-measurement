@@ -17,11 +17,16 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
+import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
+import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
@@ -90,10 +95,19 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
     val computationStatsClient = ComputationStatsCoroutineStub(computationsServiceChannel)
 
+    val csCertificate =
+      Certificate(
+        flags.csCertificateName,
+        readCertificate(flags.csCertificateDerFile.readBytes().toByteString())
+      )
+    val keyStore = InMemoryKeyStore() // TODO: use real keystore
+
     val mill =
       LiquidLegionsV2Mill(
         millId = flags.millId,
         duchyId = flags.duchy.duchyName,
+        keyStore = keyStore,
+        consentSignalCert = csCertificate,
         dataClients = dataClients,
         systemComputationParticipantsClient = systemComputationParticipantsClient,
         systemComputationsClient = systemComputationsClient,
@@ -105,6 +119,13 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         requestChunkSizeBytes = flags.requestChunkSizeBytes
       )
 
-    runBlocking { mill.continuallyProcessComputationQueue() }
+    runBlocking {
+      // TODO: delete when an external keystore is used.
+      keyStore.storePrivateKeyDer(
+        CONSENT_SIGNALING_PRIVATE_KEY_ID,
+        flags.csPrivateKeyDerFile.readBytes().toByteString()
+      )
+      mill.continuallyProcessComputationQueue()
+    }
   }
 }
