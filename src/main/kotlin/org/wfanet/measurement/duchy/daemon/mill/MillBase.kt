@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill
 import com.google.protobuf.ByteString
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
+import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -34,6 +35,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
@@ -66,6 +68,9 @@ import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
  * A [MillBase] wrapping common functionalities of mills.
  *
  * @param millId The identifier of this mill, used to claim a work.
+ * @param duchyId The identifier of this duchy who owns this mill.
+ * @param keyStore The [keyStore] holding the private keys.
+ * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
@@ -83,6 +88,8 @@ import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 abstract class MillBase(
   protected val millId: String,
   protected val duchyId: String,
+  protected val keyStore: KeyStore,
+  protected val consentSignalCert: Certificate,
   protected val dataClients: ComputationDataClients,
   protected val systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
@@ -419,8 +426,16 @@ const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
 const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
 const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
+const val CONSENT_SIGNALING_PRIVATE_KEY_ID = "consent_signaling_private_key"
 
 data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
+
+data class Certificate(
+  // The public API name of this certificate.
+  val name: String,
+  // The value of the certificate.
+  val value: X509Certificate
+)
 
 class PermanentComputationError(cause: Throwable) : Exception(cause)
 

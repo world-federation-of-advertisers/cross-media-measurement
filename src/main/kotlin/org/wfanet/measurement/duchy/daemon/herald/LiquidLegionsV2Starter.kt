@@ -298,6 +298,7 @@ object LiquidLegionsV2Starter {
           )
         it.elGamalPublicKey = requisitionParams.liquidLegionsV2.elGamalPublicKey
         it.elGamalPublicKeySignature = requisitionParams.liquidLegionsV2.elGamalPublicKeySignature
+        it.duchyCertificateDer = requisitionParams.duchyCertificateDer
       }
       .build()
   }
