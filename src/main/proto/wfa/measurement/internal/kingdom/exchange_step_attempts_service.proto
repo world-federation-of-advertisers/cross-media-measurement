@@ -19,6 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "google/type/date.proto";
 import "wfa/measurement/internal/kingdom/exchange_step_attempt.proto";
 import "wfa/measurement/internal/kingdom/exchange_step_attempt_details.proto";
+import "wfa/measurement/internal/kingdom/provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -87,4 +88,7 @@ message FinishExchangeStepAttemptRequest {
 
   // Final log entries.
   repeated ExchangeStepAttemptDetails.DebugLog debug_log_entries = 6;
+
+  // Denormalized party that executes this ExchangeStepAttempt.
+  Provider provider = 7;
 }
