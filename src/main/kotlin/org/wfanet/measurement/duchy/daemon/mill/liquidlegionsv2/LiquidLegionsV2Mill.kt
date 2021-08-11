@@ -19,23 +19,42 @@ import java.nio.file.Paths
 import java.time.Clock
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2alphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.consent.client.duchy.Computation as ConsentSignalingComputation
+import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
+import org.wfanet.measurement.consent.client.duchy.encryptResult
+import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
+import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
+import org.wfanet.measurement.consent.client.duchy.verifyElgamalPublicKey
+import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
+import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
+import org.wfanet.measurement.consent.crypto.keystore.KeyStore
+import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
+import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
+import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequency
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiElGamalPublicKeyBytes
-import org.wfanet.measurement.duchy.daemon.utils.toPublicApiMeasurementResult
+import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
+import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaHybridCipherSuite
+import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaMeasurementResult
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
+import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -80,6 +99,9 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * Mill works on computations using the LiquidLegionSketchAggregationProtocol.
  *
  * @param millId The identifier of this mill, used to claim a work.
+ * @param duchyId The identifier of this duchy who owns this mill.
+ * @param keyStore The [keyStore] holding the private keys.
+ * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
@@ -99,6 +121,8 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
 class LiquidLegionsV2Mill(
   millId: String,
   duchyId: String,
+  keyStore: KeyStore,
+  consentSignalCert: Certificate,
   dataClients: ComputationDataClients,
   systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
   systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
@@ -113,6 +137,8 @@ class LiquidLegionsV2Mill(
   MillBase(
     millId,
     duchyId,
+    keyStore,
+    consentSignalCert,
     dataClients,
     systemComputationParticipantsClient,
     systemComputationsClient,
@@ -159,24 +185,26 @@ class LiquidLegionsV2Mill(
   private suspend fun sendRequisitionParamsToKingdom(token: ComputationToken) {
     val llv2ComputationDetails = token.computationDetails.liquidLegionsV2
     require(llv2ComputationDetails.hasLocalElgamalKey()) { "Missing local elgamal key." }
-    val publicApiVersion =
-      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
-    val elGamalPublicKeyBytes =
-      llv2ComputationDetails.localElgamalKey.publicKey.toPublicApiElGamalPublicKeyBytes(
-        publicApiVersion
-      )
+    val signedElgamalPublicKey =
+      when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
+        Version.V2_ALPHA ->
+          signElgamalPublicKey(
+            llv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
+            PrivateKeyHandle(CONSENT_SIGNALING_PRIVATE_KEY_ID, keyStore),
+            consentSignalCert.value
+          )
+        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+      }
 
     val request =
       SetParticipantRequisitionParamsRequest.newBuilder()
         .apply {
           name = ComputationParticipantKey(token.globalComputationId, duchyId).toName()
           requisitionParamsBuilder.apply {
-            // TODO(wangyaopw): set the correct certificate and elGamalPublicKeySignature.
-            duchyCertificate = "TODO"
-            duchyCertificateDer = ByteString.copyFromUtf8("TODO")
+            duchyCertificate = consentSignalCert.name
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = elGamalPublicKeyBytes
-              elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
+              elGamalPublicKey = signedElgamalPublicKey.data
+              elGamalPublicKeySignature = signedElgamalPublicKey.signature
             }
           }
         }
@@ -232,9 +260,28 @@ class LiquidLegionsV2Mill(
    * Verifies the Edp signature and the local existence of requisitions. Returns a list of error
    * messages if anything is wrong. Otherwise return an empty list.
    */
-  private fun verifyEdpSignatureAndRequisition(requisition: RequisitionMetadata): List<String> {
-    // TODO(wangyaopw): also verify data_provider_participation_signature
+  private fun verifyEdpSignatureAndRequisition(
+    requisition: RequisitionMetadata,
+    details: KingdomComputationDetails
+  ): List<String> {
     val errorList = mutableListOf<String>()
+    if (!verifyDataProviderParticipation(
+        requisition.details.dataProviderParticipationSignature,
+        ConsentSignalingRequisition(
+          readCertificate(requisition.details.dataProviderCertificateDer),
+          requisition.details.requisitionSpecHash
+        ),
+        ConsentSignalingComputation(
+          details.dataProviderList,
+          details.dataProviderListSalt,
+          details.measurementSpec
+        )
+      )
+    ) {
+      errorList.add(
+        "Data provider participation signature of ${requisition.externalDataProviderId} is invalid."
+      )
+    }
     if (requisition.details.externalFulfillingDuchyId == duchyId && requisition.path.isBlank()) {
       errorList.add("Missing expected data for requisition ${requisition.externalRequisitionId}.")
     }
@@ -245,11 +292,27 @@ class LiquidLegionsV2Mill(
    * Verifies the duchy Elgamal Key signature. Returns a list of error messages if anything is
    * wrong. Otherwise return an empty list.
    */
-  private fun verifyDuchySignature(duchy: ComputationParticipant): List<String> {
+  private fun verifyDuchySignature(
+    duchy: ComputationParticipant,
+    publicApiVersion: Version
+  ): List<String> {
     val errorList = mutableListOf<String>()
-    // TODO(wangyaopw): verify el_gamal_public_key_signature and update errorMessage if necessary.
     if (duchy.duchyId != duchyId && !workerStubs.containsKey(duchy.duchyId)) {
       errorList.add("Unrecognized duchy ${duchy.duchyId}.")
+    }
+    when (publicApiVersion) {
+      Version.V2_ALPHA -> {
+        val publicApiElgamalKey = V2alphaElGamalPublicKey.parseFrom(duchy.elGamalPublicKey)
+        if (!verifyElgamalPublicKey(
+            duchy.elGamalPublicKeySignature,
+            publicApiElgamalKey,
+            readCertificate(duchy.duchyCertificateDer)
+          )
+        ) {
+          errorList.add("ElGamalPublicKey signature of ${duchy.duchyId} is invalid.")
+        }
+      }
+      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
     }
     return errorList
   }
@@ -260,10 +323,8 @@ class LiquidLegionsV2Mill(
     errorList: List<String>
   ): ComputationToken {
     val errorMessage =
-      """
-        @Mill $millId, Computation ${token.globalComputationId} failed due to:
-        ${errorList.joinToString(separator = "\n")}
-        """.trimIndent()
+      "@Mill $millId, Computation ${token.globalComputationId} failed due to:\n" +
+        errorList.joinToString(separator = "\n")
     throw PermanentComputationError(Exception(errorMessage))
   }
 
@@ -349,9 +410,14 @@ class LiquidLegionsV2Mill(
   /** Processes computation in the confirmation phase */
   private suspend fun confirmationPhase(token: ComputationToken): ComputationToken {
     val errorList = mutableListOf<String>()
-    token.requisitionsList.forEach { errorList.addAll(verifyEdpSignatureAndRequisition(it)) }
+    val kingdomComputation = token.computationDetails.kingdomComputation
+    token.requisitionsList.forEach {
+      errorList.addAll(verifyEdpSignatureAndRequisition(it, kingdomComputation))
+    }
     token.computationDetails.liquidLegionsV2.participantList.forEach {
-      errorList.addAll(verifyDuchySignature(it))
+      errorList.addAll(
+        verifyDuchySignature(it, Version.fromString(kingdomComputation.publicApiVersion))
+      )
     }
     return if (errorList.isEmpty()) {
       passConfirmationPhase(token)
@@ -669,13 +735,29 @@ class LiquidLegionsV2Mill(
       CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(bytes.flatten())
         .frequencyDistributionMap
 
-    val result =
+    val reachAndFrequency =
       ReachAndFrequency(llv2Details.reachEstimate.reach, frequencyDistributionMap)
-        .toPublicApiMeasurementResult(
-          Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
-        )
-    // TODO(wangyaopw): encrypt the result.
-    sendResultToKingdom(token.globalComputationId, result)
+
+    val kingdomComputation = token.computationDetails.kingdomComputation
+    val encryptedResult =
+      when (Version.fromString(kingdomComputation.publicApiVersion)) {
+        Version.V2_ALPHA -> {
+          val signedResult =
+            signResult(
+              reachAndFrequency.toV2AlphaMeasurementResult(),
+              PrivateKeyHandle(CONSENT_SIGNALING_PRIVATE_KEY_ID, keyStore),
+              consentSignalCert.value
+            )
+          encryptResult(
+            signedResult,
+            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey(),
+            kingdomComputation.cipherSuite.toV2AlphaHybridCipherSuite(),
+            ::fakeGetHybridCryptorForCipherSuite // TODO: use the real HybridCryptor.
+          )
+        }
+        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+      }
+    sendResultToKingdom(token.globalComputationId, encryptedResult)
 
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
@@ -769,6 +851,11 @@ class LiquidLegionsV2Mill(
         dpParams = llv2Parameters.noise.frequencyNoiseConfig
       }
       .build()
+  }
+
+  // TODO: delete this fake when the EciesCryptor is done.
+  private fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
+    return ReversingHybridCryptor()
   }
 
   companion object {

@@ -140,6 +140,9 @@ message LiquidLegionsSketchAggregationV2 {
       // Cryptographic digital signature of `el_gamal_public_key`.
       // For consent signaling verification only.
       bytes el_gamal_public_key_signature = 4;
+      // The duchy's X.509 certificate in DER format which can used to verify
+      // the above el_gamal_public_key_signature
+      bytes duchy_certificate_der = 5;
     }
     // The list of duchies participating this computation.
     // The list is sorted by the duchy order in the MPC ring, with the first

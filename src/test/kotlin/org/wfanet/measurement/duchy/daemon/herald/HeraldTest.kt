@@ -367,7 +367,7 @@ class HeraldTest {
           .apply {
             name = RequisitionKey(globalId, "1").toName()
             dataProvider = "dataProviders/A"
-            dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_1")
+            dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_1")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
@@ -380,7 +380,7 @@ class HeraldTest {
           .apply {
             name = RequisitionKey(globalId, "2").toName()
             dataProvider = "dataProviders/B"
-            dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_2")
+            dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_2")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
@@ -413,9 +413,13 @@ class HeraldTest {
         SystemComputationParticipant.newBuilder()
           .apply {
             name = ComputationParticipantKey(globalId, DUCHY_ONE).toName()
-            requisitionParamsBuilder.liquidLegionsV2Builder.apply {
-              elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
-              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+            requisitionParamsBuilder.apply {
+              duchyCertificate = "duchyCertificate_1"
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+              }
             }
           }
           .build()
@@ -423,9 +427,13 @@ class HeraldTest {
         SystemComputationParticipant.newBuilder()
           .apply {
             name = ComputationParticipantKey(globalId, DUCHY_TWO).toName()
-            requisitionParamsBuilder.liquidLegionsV2Builder.apply {
-              elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
-              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+            requisitionParamsBuilder.apply {
+              duchyCertificate = "duchyCertificate_2"
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+              }
             }
           }
           .build()
@@ -433,9 +441,13 @@ class HeraldTest {
         SystemComputationParticipant.newBuilder()
           .apply {
             name = ComputationParticipantKey(globalId, DUCHY_THREE).toName()
-            requisitionParamsBuilder.liquidLegionsV2Builder.apply {
-              elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
-              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+            requisitionParamsBuilder.apply {
+              duchyCertificate = "duchyCertificate_3"
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
+              liquidLegionsV2Builder.apply {
+                elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+              }
             }
           }
           .build()
@@ -492,6 +504,7 @@ class HeraldTest {
                 }
                 elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
                 elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
               }
               .build(),
             ComputationParticipant.newBuilder()
@@ -503,6 +516,7 @@ class HeraldTest {
                 }
                 elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
                 elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
               }
               .build(),
             ComputationParticipant.newBuilder()
@@ -514,6 +528,7 @@ class HeraldTest {
                 }
                 elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
                 elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
               }
               .build()
           )
@@ -525,7 +540,7 @@ class HeraldTest {
               externalDataProviderId = "A"
               externalRequisitionId = "1"
               detailsBuilder.apply {
-                dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_1")
+                dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_1")
                 requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
                 dataProviderParticipationSignature =
                   ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
@@ -538,7 +553,7 @@ class HeraldTest {
               externalDataProviderId = "B"
               externalRequisitionId = "2"
               detailsBuilder.apply {
-                dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_2")
+                dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_2")
                 requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
                 dataProviderParticipationSignature =
                   ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
