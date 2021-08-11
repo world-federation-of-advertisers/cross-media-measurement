@@ -367,7 +367,7 @@ class HeraldTest {
           .apply {
             name = RequisitionKey(globalId, "1").toName()
             dataProvider = "dataProviders/A"
-            dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_1")
+            dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_1")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
@@ -380,7 +380,7 @@ class HeraldTest {
           .apply {
             name = RequisitionKey(globalId, "2").toName()
             dataProvider = "dataProviders/B"
-            dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_2")
+            dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_2")
             requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
             dataProviderParticipationSignature =
               ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
@@ -525,7 +525,7 @@ class HeraldTest {
               externalDataProviderId = "A"
               externalRequisitionId = "1"
               detailsBuilder.apply {
-                dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_1")
+                dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_1")
                 requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
                 dataProviderParticipationSignature =
                   ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
@@ -538,7 +538,7 @@ class HeraldTest {
               externalDataProviderId = "B"
               externalRequisitionId = "2"
               detailsBuilder.apply {
-                dataProviderCertificate = ByteString.copyFromUtf8("dataProviderCertificate_2")
+                dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_2")
                 requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
                 dataProviderParticipationSignature =
                   ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
