@@ -43,33 +43,27 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     val internalRequest =
       InternalClaimReadyExchangeStepRequest.newBuilder()
         .apply {
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-          when (request.partyCase) {
-            PartyCase.DATA_PROVIDER ->
-              provider =
-                Provider.newBuilder()
-                  .apply {
-                    externalId =
-                      apiIdToExternalId(
-                        grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider))
-                          .dataProviderId
-                      )
-                    type = Provider.Type.DATA_PROVIDER
-                  }
-                  .build()
-            PartyCase.MODEL_PROVIDER ->
-              provider =
-                Provider.newBuilder()
-                  .apply {
-                    externalId =
-                      apiIdToExternalId(
-                        grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
-                          .modelProviderId
-                      )
-                    type = Provider.Type.MODEL_PROVIDER
-                  }
-                  .build()
-            PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
+          providerBuilder.apply {
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+            when (request.partyCase) {
+              PartyCase.DATA_PROVIDER -> {
+                type = Provider.Type.DATA_PROVIDER
+                externalId =
+                  apiIdToExternalId(
+                    grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider))
+                      .dataProviderId
+                  )
+              }
+              PartyCase.MODEL_PROVIDER -> {
+                type = Provider.Type.MODEL_PROVIDER
+                externalId =
+                  apiIdToExternalId(
+                    grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
+                      .modelProviderId
+                  )
+              }
+              PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
+            }
           }
         }
         .build()

@@ -75,13 +75,10 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
       exchangeStepsService.claimReadyExchangeStep(
         ClaimReadyExchangeStepRequest.newBuilder()
           .apply {
-            provider =
-              Provider.newBuilder()
-                .apply {
-                  externalId = 6L
-                  type = Provider.Type.MODEL_PROVIDER
-                }
-                .build()
+            providerBuilder.apply {
+              externalId = 6L
+              type = Provider.Type.MODEL_PROVIDER
+            }
           }
           .build()
       )
