@@ -49,6 +49,10 @@ object DuchyIds {
     return entries.firstOrNull { it.internalDuchyId == internalDuchyId }?.externalDuchyId
   }
 
+  fun setForTest(duchyIds: List<String>) {
+    entries = duchyIds.mapIndexed { idx, value -> DuchyIds.Entry(idx.toLong(), value) }
+  }
+
   data class Entry(val internalDuchyId: Long, val externalDuchyId: String)
 }
 
