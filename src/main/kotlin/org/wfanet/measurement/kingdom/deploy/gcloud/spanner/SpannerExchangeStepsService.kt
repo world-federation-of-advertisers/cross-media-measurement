@@ -20,9 +20,9 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
@@ -38,10 +38,10 @@ class SpannerExchangeStepsService(
   ): ClaimReadyExchangeStepResponse {
     val (externalModelProviderId, externalDataProviderId) =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (request.partyCase) {
-        PartyCase.EXTERNAL_DATA_PROVIDER_ID -> Pair(null, request.externalDataProviderId)
-        PartyCase.EXTERNAL_MODEL_PROVIDER_ID -> Pair(request.externalModelProviderId, null)
-        PartyCase.PARTY_NOT_SET ->
+      when (request.provider.type) {
+        Provider.Type.DATA_PROVIDER -> Pair(null, request.provider.externalId)
+        Provider.Type.MODEL_PROVIDER -> Pair(request.provider.externalId, null)
+        Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
           failGrpc(Status.INVALID_ARGUMENT) {
             "external_data_provider_id or external_model_provider_id must be provided."
           }

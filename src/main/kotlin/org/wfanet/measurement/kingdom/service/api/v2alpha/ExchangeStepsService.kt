@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
@@ -45,16 +46,29 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.partyCase) {
             PartyCase.DATA_PROVIDER ->
-              externalDataProviderId =
-                apiIdToExternalId(
-                  grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider)).dataProviderId
-                )
+              provider =
+                Provider.newBuilder()
+                  .apply {
+                    externalId =
+                      apiIdToExternalId(
+                        grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider))
+                          .dataProviderId
+                      )
+                    type = Provider.Type.DATA_PROVIDER
+                  }
+                  .build()
             PartyCase.MODEL_PROVIDER ->
-              externalModelProviderId =
-                apiIdToExternalId(
-                  grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
-                    .modelProviderId
-                )
+              provider =
+                Provider.newBuilder()
+                  .apply {
+                    externalId =
+                      apiIdToExternalId(
+                        grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
+                          .modelProviderId
+                      )
+                    type = Provider.Type.MODEL_PROVIDER
+                  }
+                  .build()
             PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
           }
         }
