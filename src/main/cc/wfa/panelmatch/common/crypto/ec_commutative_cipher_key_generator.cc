@@ -17,7 +17,7 @@
 #include <memory>
 
 #include "absl/status/statusor.h"
-#include "crypto/ec_commutative_cipher.h"
+#include "private_join_and_compute/crypto/ec_commutative_cipher.h"
 #include "tink/util/secret_data.h"
 
 namespace wfa::panelmatch::common::crypto {

@@ -26,7 +26,6 @@
 #include "absl/types/span.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
-#include "util/status_macros.h"
 #include "wfa/panelmatch/common/crypto/cryptor.h"
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 

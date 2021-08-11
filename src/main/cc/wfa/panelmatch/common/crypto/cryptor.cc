@@ -22,8 +22,8 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "crypto/context.h"
-#include "crypto/ec_commutative_cipher.h"
+#include "private_join_and_compute/crypto/context.h"
+#include "private_join_and_compute/crypto/ec_commutative_cipher.h"
 
 namespace wfa::panelmatch::common::crypto {
 

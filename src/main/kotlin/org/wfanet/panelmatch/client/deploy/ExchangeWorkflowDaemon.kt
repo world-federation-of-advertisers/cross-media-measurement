@@ -19,7 +19,8 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.grpc.buildChannel
+import org.wfanet.measurement.common.grpc.buildPlaintextChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.panelmatch.client.launcher.BlockingJobLauncher
@@ -38,11 +39,13 @@ import picocli.CommandLine
 private fun run(@CommandLine.Mixin flags: ExchangeWorkflowFlags) {
   val exchangeStepsClient =
     ExchangeStepsCoroutineStub(
-      buildChannel(flags.exchangeStepsServiceTarget.toString(), flags.channelShutdownTimeout)
+      buildPlaintextChannel(flags.exchangeStepsServiceTarget.toString())
+        .withShutdownTimeout(flags.channelShutdownTimeout)
     )
   val exchangeStepAttemptsClient =
     ExchangeStepAttemptsCoroutineStub(
-      buildChannel(flags.exchangeStepAttemptsServiceTarget.toString(), flags.channelShutdownTimeout)
+      buildPlaintextChannel(flags.exchangeStepAttemptsServiceTarget.toString())
+        .withShutdownTimeout(flags.channelShutdownTimeout)
     )
   val grpcApiClient =
     GrpcApiClient(
