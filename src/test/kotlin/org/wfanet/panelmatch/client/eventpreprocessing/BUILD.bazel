@@ -8,6 +8,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
 
@@ -22,6 +23,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
 
@@ -32,6 +34,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
 
@@ -45,6 +48,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
@@ -62,6 +66,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
 
@@ -79,6 +84,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
@@ -97,6 +103,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
@@ -115,6 +122,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

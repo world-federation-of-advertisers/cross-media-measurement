@@ -6,12 +6,8 @@ _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
     name = "aes",
-    srcs = [
-        "aes.cc",
-    ],
-    hdrs = [
-        "aes.h",
-    ],
+    srcs = ["aes.cc"],
+    hdrs = ["aes.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_google_absl//absl/status",
@@ -25,12 +21,8 @@ cc_library(
 
 cc_library(
     name = "aes_with_hkdf",
-    srcs = [
-        "aes_with_hkdf.cc",
-    ],
-    hdrs = [
-        "aes_with_hkdf.h",
-    ],
+    srcs = ["aes_with_hkdf.cc"],
+    hdrs = ["aes_with_hkdf.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
@@ -44,14 +36,17 @@ cc_library(
 
 cc_library(
     name = "cryptor",
-    srcs = [
-        "cryptor.cc",
-    ],
-    hdrs = [
-        "cryptor.h",
-    ],
+    srcs = ["cryptor.cc"],
+    hdrs = ["cryptor.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//private_join_and_compute/util:status_includes",
     ],
@@ -59,12 +54,8 @@ cc_library(
 
 cc_library(
     name = "ec_commutative_cipher_key_generator",
-    srcs = [
-        "ec_commutative_cipher_key_generator.cc",
-    ],
-    hdrs = [
-        "ec_commutative_cipher_key_generator.h",
-    ],
+    srcs = ["ec_commutative_cipher_key_generator.cc"],
+    hdrs = ["ec_commutative_cipher_key_generator.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_google_absl//absl/status",
@@ -76,12 +67,8 @@ cc_library(
 
 cc_library(
     name = "hkdf",
-    srcs = [
-        "hkdf.cc",
-    ],
-    hdrs = [
-        "hkdf.h",
-    ],
+    srcs = ["hkdf.cc"],
+    hdrs = ["hkdf.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_google_absl//absl/status",
@@ -93,12 +80,8 @@ cc_library(
 
 cc_library(
     name = "peppered_fingerprinter",
-    srcs = [
-        "peppered_fingerprinter.cc",
-    ],
-    hdrs = [
-        "peppered_fingerprinter.h",
-    ],
+    srcs = ["peppered_fingerprinter.cc"],
+    hdrs = ["peppered_fingerprinter.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_github_glog_glog//:glog",
@@ -110,12 +93,8 @@ cc_library(
 
 cc_library(
     name = "random_bytes_key_generator",
-    srcs = [
-        "random_bytes_key_generator.cc",
-    ],
-    hdrs = [
-        "random_bytes_key_generator.h",
-    ],
+    srcs = ["random_bytes_key_generator.cc"],
+    hdrs = ["random_bytes_key_generator.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@boringssl//:crypto",

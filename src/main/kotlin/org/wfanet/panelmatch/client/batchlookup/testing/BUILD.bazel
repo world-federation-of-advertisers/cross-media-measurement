@@ -18,6 +18,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/batchlookup",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:database_java_proto",
+        "//src/main/proto/wfa/panelmatch/client/batchlookup:query_evaluator_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
