@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
-#define WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
+#ifndef SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
+#define SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
+
+#include <string>
+#include <utility>
 
 #include "absl/status/statusor.h"
-#include "crypto/ec_group.h"
-#include "crypto/ec_point.h"
+#include "private_join_and_compute/crypto/ec_group.h"
+#include "private_join_and_compute/crypto/ec_point.h"
 
 namespace wfa::measurement::common::crypto {
 
@@ -53,4 +56,4 @@ absl::StatusOr<ElGamalEcPointPair> MultiplyEcPointPairByScalar(
 
 }  // namespace wfa::measurement::common::crypto
 
-#endif  // WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
+#endif  // SRC_MAIN_CC_WFA_MEASUREMENT_COMMON_CRYPTO_EC_POINT_UTIL_H_
