@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse as
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
@@ -138,7 +139,15 @@ class ExchangeStepsServiceTest {
       )
       .isEqualTo(
         InternalClaimReadyExchangeStepRequest.newBuilder()
-          .apply { externalDataProviderId = 12345L }
+          .apply {
+            provider =
+              Provider.newBuilder()
+                .apply {
+                  externalId = 12345L
+                  type = Provider.Type.DATA_PROVIDER
+                }
+                .build()
+          }
           .build()
       )
   }
@@ -166,7 +175,15 @@ class ExchangeStepsServiceTest {
       )
       .isEqualTo(
         InternalClaimReadyExchangeStepRequest.newBuilder()
-          .apply { externalModelProviderId = 12345L }
+          .apply {
+            provider =
+              Provider.newBuilder()
+                .apply {
+                  externalId = 12345L
+                  type = Provider.Type.MODEL_PROVIDER
+                }
+                .build()
+          }
           .build()
       )
   }

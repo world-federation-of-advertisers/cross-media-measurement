@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Provider
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
@@ -72,7 +73,14 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
   fun `claimReadyExchangeStepRequest fails without recurring exchange`() = runBlocking {
     val response =
       exchangeStepsService.claimReadyExchangeStep(
-        ClaimReadyExchangeStepRequest.newBuilder().setExternalModelProviderId(6L).build()
+        ClaimReadyExchangeStepRequest.newBuilder()
+          .apply {
+            providerBuilder.apply {
+              externalId = 6L
+              type = Provider.Type.MODEL_PROVIDER
+            }
+          }
+          .build()
       )
 
     assertThat(response).isEqualTo(ClaimReadyExchangeStepResponse.getDefaultInstance())
