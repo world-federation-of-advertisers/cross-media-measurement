@@ -99,6 +99,24 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
+    measurement.dataProvidersList.forEach {
+      grpcRequireNotNull(DataProviderKey.fromName(it.key)) {
+        "Data Provider resource name is either unspecified or invalid"
+      }
+
+      grpcRequireNotNull(DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)) {
+        "Data Provider certificate resource name is either unspecified or invalid"
+      }
+
+      val publicKey = it.value.dataProviderPublicKey
+      grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
+        "Data Provider public key is either unspecified or invalid"
+      }
+
+      grpcRequire(!it.value.encryptedRequisitionSpec.isEmpty) {
+        "Encrypted Requisition spec is either unspecified or invalid"
+      }
+    }
 
     val internalMeasurement =
       internalMeasurementsStub.createMeasurement(
@@ -306,33 +324,16 @@ private fun Measurement.toInternal(
       apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
     putAllDataProviders(
       this@toInternal.dataProvidersList.associateBy(
+        { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
         {
-          val key =
-            grpcRequireNotNull(DataProviderKey.fromName(it.key)) {
-              "Data Provider resource name is either unspecified or invalid"
-            }
-          apiIdToExternalId(key.dataProviderId)
-        },
-        {
-          val key =
-            grpcRequireNotNull(
-              DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)
-            ) { "Data Provider certificate resource name is either unspecified or invalid" }
-
+          val key = DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)
           val publicKey = it.value.dataProviderPublicKey
-          grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
-            "Data Provider public key is either unspecified or invalid"
-          }
-
-          grpcRequire(!it.value.encryptedRequisitionSpec.isEmpty) {
-            "Encrypted Requisition spec is either unspecified or invalid"
-          }
 
           DataProviderValue.newBuilder()
             .apply {
-              externalDataProviderCertificateId = apiIdToExternalId(key.certificateId)
-              dataProviderPublicKey = it.value.dataProviderPublicKey.data
-              dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
+              externalDataProviderCertificateId = apiIdToExternalId(key!!.certificateId)
+              dataProviderPublicKey = publicKey.data
+              dataProviderPublicKeySignature = publicKey.signature
               encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
             }
             .build()

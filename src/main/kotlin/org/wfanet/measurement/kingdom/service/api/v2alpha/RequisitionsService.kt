@@ -237,8 +237,7 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
     Refusal.Justification.JUSTIFICATION_UNSPECIFIED, Refusal.Justification.UNRECOGNIZED ->
-      org.wfanet.measurement.internal.kingdom.Requisition.Refusal.Justification
-        .JUSTIFICATION_UNSPECIFIED
+      InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
   }
 
 /** Converts an internal [InternalState] to a public [State]. */

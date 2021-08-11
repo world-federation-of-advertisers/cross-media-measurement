@@ -260,6 +260,95 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement throws error when Data Providers Entry value is missing cert name`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  clearDataProviders()
+                  addDataProviders(
+                    Measurement.DataProviderEntry.newBuilder()
+                      .apply { key = DATA_PROVIDERS_NAME }
+                      .build()
+                  )
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Data Provider certificate resource name is either unspecified or invalid")
+  }
+
+  @Test
+  fun `createMeasurement throws error when Data Providers Entry value is missing public key`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  clearDataProviders()
+                  addDataProviders(
+                    Measurement.DataProviderEntry.newBuilder()
+                      .apply {
+                        key = DATA_PROVIDERS_NAME
+                        valueBuilder.apply {
+                          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
+                        }
+                      }
+                      .build()
+                  )
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Data Provider public key is either unspecified or invalid")
+  }
+
+  @Test
+  fun `createMeasurement throws error when Data Providers Entry value is missing spec`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  clearDataProviders()
+                  addDataProviders(
+                    Measurement.DataProviderEntry.newBuilder()
+                      .apply {
+                        key = DATA_PROVIDERS_NAME
+                        valueBuilder.apply {
+                          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
+                          dataProviderPublicKeyBuilder.apply {
+                            data = UPDATE_TIME.toByteString()
+                            signature = UPDATE_TIME.toByteString()
+                          }
+                        }
+                      }
+                      .build()
+                  )
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Encrypted Requisition spec is either unspecified or invalid")
+  }
+
+  @Test
   fun `listMeasurements with page token uses filter with timestamp from page token`() {
     val request = buildListMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
