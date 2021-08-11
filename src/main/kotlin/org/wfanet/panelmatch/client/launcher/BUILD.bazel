@@ -10,6 +10,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",

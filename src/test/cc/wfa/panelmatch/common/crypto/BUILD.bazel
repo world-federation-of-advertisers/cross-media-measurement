@@ -27,9 +27,7 @@ cc_test(
 
 cc_test(
     name = "hkdf_test",
-    srcs = [
-        "hkdf_test.cc",
-    ],
+    srcs = ["hkdf_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "@googletest//:gtest_main",
@@ -43,9 +41,7 @@ cc_test(
 
 cc_test(
     name = "aes_with_hkdf_test",
-    srcs = [
-        "aes_with_hkdf_test.cc",
-    ],
+    srcs = ["aes_with_hkdf_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
         "@com_google_absl//absl/strings",
@@ -56,9 +52,7 @@ cc_test(
 
 cc_test(
     name = "peppered_fingerprinter_test",
-    srcs = [
-        "peppered_fingerprinter_test.cc",
-    ],
+    srcs = ["peppered_fingerprinter_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:peppered_fingerprinter",
         "@googletest//:gtest_main",
