@@ -3,12 +3,11 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "LoggerTest",
     srcs = ["LoggerTest.kt"],
-    friends = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/logger:logger",
+    associates = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
     ],
     test_class = "org.wfanet.panelmatch.client.logger.LoggerTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",

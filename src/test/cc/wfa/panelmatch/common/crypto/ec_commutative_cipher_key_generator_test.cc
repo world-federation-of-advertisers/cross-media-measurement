@@ -19,8 +19,8 @@
 #include "absl/status/statusor.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
-#include "crypto/ec_commutative_cipher.h"
 #include "gtest/gtest.h"
+#include "private_join_and_compute/crypto/ec_commutative_cipher.h"
 #include "tink/util/secret_data.h"
 
 namespace wfa::panelmatch::common::crypto {

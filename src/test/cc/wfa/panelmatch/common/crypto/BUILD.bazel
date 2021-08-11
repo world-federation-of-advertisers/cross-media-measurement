@@ -6,6 +6,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
         "@com_google_absl//absl/memory",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@googletest//:gtest_main",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
@@ -72,7 +73,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:ec_commutative_cipher_key_generator",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@googletest//:gtest_main",
         "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",

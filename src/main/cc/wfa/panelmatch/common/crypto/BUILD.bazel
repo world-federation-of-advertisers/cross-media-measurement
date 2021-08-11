@@ -52,8 +52,8 @@ cc_library(
     ],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
-        "@com_google_private_join_and_compute//util:status_includes",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
+        "@com_google_private_join_and_compute//private_join_and_compute/util:status_includes",
     ],
 )
 
@@ -69,7 +69,7 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_private_join_and_compute//crypto:ec_commutative_cipher",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@tink_base//cc/util:secret_data",
     ],
 )
