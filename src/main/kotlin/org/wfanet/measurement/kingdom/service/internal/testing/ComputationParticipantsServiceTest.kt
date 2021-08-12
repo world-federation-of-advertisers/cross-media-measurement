@@ -20,6 +20,7 @@ import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
+import org.junit.Ignore
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -57,11 +58,11 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementsService = services.measurementsService
   }
 
-  @Test fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {}
-  @Test fun `setParticipantRequisitionParams succeeds for last duchy`() = runBlocking {}
+  @Ignore @Test fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {}
+  @Ignore @Test fun `setParticipantRequisitionParams succeeds for last duchy`() = runBlocking {}
 
-  @Test fun `confirmComputationParticipant succeeds for non-last duchy`() = runBlocking {}
-  @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
+  @Ignore @Test fun `confirmComputationParticipant succeeds for non-last duchy`() = runBlocking {}
+  @Ignore @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
 
-  @Test fun `failComputationParticipant succeeds`() = runBlocking {}
+  @Ignore @Test fun `failComputationParticipant succeeds`() = runBlocking {}
 }
