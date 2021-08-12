@@ -20,43 +20,44 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-class CertificateReader(val request: GetCertificateRequest) :
+class CertificateReader(private val request: GetCertificateRequest) :
   SpannerReader<CertificateReader.Result>() {
+
   data class Result(val certificate: Certificate, val certificateId: Long)
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  private val tableName: String =
-    when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
-    }
-
-  override val baseSql: String =
-    """
-    SELECT
-      ${tableName}Certificates.CertificateId,
-      Certificates.SubjectKeyIdentifier,
-      Certificates.NotValidBefore,
-      Certificates.NotValidAfter,
-      Certificates.RevocationState,
-      Certificates.CertificateDetails,
-      ${tableName}Certificates.External${tableName}CertificateId,
-      ${tableName}Certificates.${tableName}Id,
-      ${tableName}s.External${tableName}Id
-    FROM ${tableName}Certificates
-    JOIN ${tableName}s USING (${tableName}Id)
-    JOIN Certificates USING (CertificateId)
-    """.trimIndent()
+  private val tableName: String
+  init {
+    tableName =
+      when (request.parentCase) {
+        GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+        GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+        GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+        GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+          throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+      }
+  }
 
   override val externalIdColumn: String =
     "${tableName}Certificates.External${tableName}CertificateId"
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildCertificate(struct), struct.getLong("CertificateId"))
+
+  override val baseSql: String = constructBaseSql(request)
+
+  private fun constructBaseSql(request: GetCertificateRequest): String {
+    return when (request.parentCase) {
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> getConfigBaseSql(tableName)
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> getTableBaseSql(tableName)
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+        getTableBaseSql(tableName)
+      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+    }
+  }
 
   private fun populateExternalId(
     certificateBuilder: Certificate.Builder,
@@ -72,9 +73,9 @@ class CertificateReader(val request: GetCertificateRequest) :
           GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
             externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
           GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
-            TODO("uakyol implement duchy support after duchy config is implemented")
+            externalDuchyId = DuchyIds.getExternalId(struct.getLong("DuchyId"))
           GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-            throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+            error("Parent field of GetCertificateRequest is not set")
         }
       }
       .build()
@@ -92,5 +93,38 @@ class CertificateReader(val request: GetCertificateRequest) :
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
       }
     return populateExternalId(certificateBuilder, struct)
+  }
+
+  companion object {
+
+    private fun getTableBaseSql(tableName: String) =
+      """SELECT
+            ${tableName}Certificates.CertificateId,
+            Certificates.SubjectKeyIdentifier,
+            Certificates.NotValidBefore,
+            Certificates.NotValidAfter,
+            Certificates.RevocationState,
+            Certificates.CertificateDetails,
+            ${tableName}Certificates.External${tableName}CertificateId,
+            ${tableName}Certificates.${tableName}Id,
+            ${tableName}s.External${tableName}Id
+          FROM ${tableName}Certificates
+          JOIN ${tableName}s USING (${tableName}Id)
+          JOIN Certificates USING (CertificateId)
+          """.trimIndent()
+
+    private fun getConfigBaseSql(tableName: String) =
+      """SELECT
+              ${tableName}Certificates.CertificateId,
+              Certificates.SubjectKeyIdentifier,
+              Certificates.NotValidBefore,
+              Certificates.NotValidAfter,
+              Certificates.RevocationState,
+              Certificates.CertificateDetails,
+              ${tableName}Certificates.External${tableName}CertificateId,
+              ${tableName}Certificates.${tableName}Id,
+            FROM ${tableName}Certificates
+            JOIN Certificates USING (CertificateId)
+            """.trimIndent()
   }
 }

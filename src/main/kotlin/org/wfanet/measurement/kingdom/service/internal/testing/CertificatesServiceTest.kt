@@ -24,6 +24,7 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -37,11 +38,13 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 234L
 private const val EXTERNAL_DATA_PROVIDER_ID = 345L
+private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
@@ -58,6 +61,7 @@ private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in D
 
 @RunWith(JUnit4::class)
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val certificatesService: T,
@@ -160,9 +164,92 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("INVALID_ARGUMENT: Certificate is missing parent field")
+    assertThat(exception).hasMessageThat().contains("Certificate is missing parent field")
+  }
+
+  @Test
+  fun `getCertificate fails for missing DuchyCertificate`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.getCertificate(
+          GetCertificateRequest.newBuilder()
+            .apply {
+              externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+              externalCertificateId = EXTERNAL_CERTIFICATE_ID
+            }
+            .build()
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `createCertificate fails due to Duchy owner not_found `() = runBlocking {
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalDuchyId = "non-existing-duchy-id"
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Duchy not found")
+  }
+
+  @Test
+  fun `createCertificate suceeds for DuchyCertificate`() = runBlocking {
+    val certificate =
+      Certificate.newBuilder()
+        .also {
+          it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val createdCertificate = certificatesService.createCertificate(certificate)
+
+    assertThat(createdCertificate)
+      .isEqualTo(
+        certificate
+          .toBuilder()
+          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
+          .build()
+      )
+  }
+
+  @Test
+  fun `getCertificate succeeds for DuchyCertificate`() = runBlocking {
+    val request =
+      Certificate.newBuilder()
+        .also {
+          it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          it.notValidBeforeBuilder.seconds = 12345
+          it.notValidAfterBuilder.seconds = 23456
+          it.detailsBuilder.x509Der = X509_DER
+        }
+        .build()
+
+    val createdCertificate = certificatesService.createCertificate(request)
+
+    val certificate =
+      certificatesService.getCertificate(
+        GetCertificateRequest.newBuilder()
+          .also {
+            it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            it.externalCertificateId = createdCertificate.externalCertificateId
+          }
+          .build()
+      )
+
+    assertThat(certificate).isEqualTo(createdCertificate)
   }
 
   @Test
@@ -196,10 +283,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
   @Test
@@ -309,8 +394,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("INVALID_ARGUMENT: DataProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
   @Test

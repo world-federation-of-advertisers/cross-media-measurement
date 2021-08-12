@@ -22,6 +22,9 @@ class KingdomInternalException(val code: Code) : Exception() {
     /** DataProvider resource queried could not be found. */
     DATA_PROVIDER_NOT_FOUND,
 
+    /** Duchy resource queried could not be found. */
+    DUCHY_NOT_FOUND,
+
     /** Certificate with the same subject key identifier (SKID) already exists. */
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
   }
