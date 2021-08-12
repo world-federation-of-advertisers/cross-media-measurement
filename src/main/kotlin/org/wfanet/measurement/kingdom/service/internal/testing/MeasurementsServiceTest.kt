@@ -54,8 +54,6 @@ private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
 private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a DP subject key identifier.")
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
