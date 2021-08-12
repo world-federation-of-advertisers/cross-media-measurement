@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -46,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -182,8 +184,135 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement spec is either unspecified or invalid")
+    assertThat(exception.status.description).isEqualTo("Measurement spec is unspecified")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when measurement public key is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  measurementSpec {
+                    data = MEASUREMENT_SPEC.rebuild { clearMeasurementPublicKey() }
+                    signature = UPDATE_TIME.toByteString()
+                  }
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Measurement public key is unspecified")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when measurement cipher suite is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  measurementSpec {
+                    data = MEASUREMENT_SPEC.rebuild { clearCipherSuite() }
+                    signature = UPDATE_TIME.toByteString()
+                  }
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Measurement cipher suite is unspecified")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when reach privacy params are missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  measurementSpec {
+                    data =
+                      MEASUREMENT_SPEC.rebuild {
+                        clearReachAndFrequency()
+                        reachAndFrequencyBuilder.apply {
+                          frequencyPrivacyParamsBuilder.apply {
+                            epsilon = 1.0
+                            delta = 1.0
+                          }
+                        }
+                      }
+                    signature = UPDATE_TIME.toByteString()
+                  }
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Reach privacy params are unspecified")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when frequency privacy params are missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  measurementSpec {
+                    data =
+                      MEASUREMENT_SPEC.rebuild {
+                        clearReachAndFrequency()
+                        reachAndFrequencyBuilder.apply {
+                          reachPrivacyParamsBuilder.apply {
+                            epsilon = 1.0
+                            delta = 1.0
+                          }
+                        }
+                      }
+                    signature = UPDATE_TIME.toByteString()
+                  }
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Frequency privacy params are unspecified")
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when measurement type is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            buildCreateMeasurementRequest {
+              measurement =
+                MEASUREMENT.rebuild {
+                  measurementSpec {
+                    data = MEASUREMENT_SPEC.rebuild { clearMeasurementType() }
+                    signature = UPDATE_TIME.toByteString()
+                  }
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Measurement type is unspecified")
   }
 
   @Test
@@ -200,7 +329,7 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
-      .isEqualTo("Serialized Data Provider list is either unspecified or invalid")
+      .isEqualTo("Serialized Data Provider list is unspecified")
   }
 
   @Test
@@ -216,8 +345,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider list salt is either unspecified or invalid")
+    assertThat(exception.status.description).isEqualTo("Data Provider list salt is unspecified")
   }
 
   @Test
@@ -310,8 +438,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider public key is either unspecified or invalid")
+    assertThat(exception.status.description).isEqualTo("Data Provider public key is unspecified")
   }
 
   @Test
@@ -344,8 +471,7 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Encrypted Requisition spec is either unspecified or invalid")
+    assertThat(exception.status.description).isEqualTo("Encrypted Requisition spec is unspecified")
   }
 
   @Test
@@ -474,11 +600,32 @@ class MeasurementsServiceTest {
   }
 }
 
+private val MEASUREMENT_SPEC: MeasurementSpec =
+  MeasurementSpec.newBuilder()
+    .apply {
+      measurementPublicKey = UPDATE_TIME.toByteString()
+      cipherSuiteBuilder.apply {
+        kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+        dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+      }
+      reachAndFrequencyBuilder.apply {
+        reachPrivacyParamsBuilder.apply {
+          epsilon = 1.0
+          delta = 1.0
+        }
+        frequencyPrivacyParamsBuilder.apply {
+          epsilon = 1.0
+          delta = 1.0
+        }
+      }
+    }
+    .build()
+
 private val MEASUREMENT: Measurement = buildMeasurement {
   name = MEASUREMENT_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   measurementSpec {
-    data = UPDATE_TIME.toByteString()
+    data = MEASUREMENT_SPEC.toByteString()
     signature = UPDATE_TIME.toByteString()
   }
   serializedDataProviderList = UPDATE_TIME.toByteString()
@@ -545,6 +692,9 @@ private val INTERNAL_MEASUREMENT: InternalMeasurement = buildInternalMeasurement
   }
   detailsJson = details.toJson()
 }
+
+private inline fun MeasurementSpec.rebuild(fill: (@Builder MeasurementSpec.Builder).() -> Unit) =
+  toBuilder().apply(fill).build().toByteString()
 
 private inline fun Measurement.rebuild(fill: (@Builder Measurement.Builder).() -> Unit) =
   toBuilder().apply(fill).build()

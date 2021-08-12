@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import kotlinx.coroutines.flow.toList
@@ -23,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -31,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.SignedData
@@ -87,15 +90,50 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     val measurementSpec = measurement.measurementSpec
     grpcRequire(!measurementSpec.data.isEmpty && !measurementSpec.signature.isEmpty) {
-      "Measurement spec is either unspecified or invalid"
+      "Measurement spec is unspecified"
+    }
+
+    val parsedMeasurementSpec =
+      try {
+        MeasurementSpec.parseFrom(measurementSpec.data)
+      } catch (e: InvalidProtocolBufferException) {
+        failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse measurement spec" }
+      }
+
+    grpcRequire(!parsedMeasurementSpec.measurementPublicKey.isEmpty) {
+      "Measurement public key is unspecified"
+    }
+
+    grpcRequire(
+      parsedMeasurementSpec.cipherSuite.kem !=
+        HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED &&
+        parsedMeasurementSpec.cipherSuite.dem !=
+          HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
+    ) { "Measurement cipher suite is unspecified" }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (parsedMeasurementSpec.measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+        val reachPrivacyParams = parsedMeasurementSpec.reachAndFrequency.reachPrivacyParams
+        grpcRequire(reachPrivacyParams.epsilon > 0 && reachPrivacyParams.delta > 0) {
+          "Reach privacy params are unspecified"
+        }
+
+        val frequencyPrivacyParams = parsedMeasurementSpec.reachAndFrequency.frequencyPrivacyParams
+        grpcRequire(frequencyPrivacyParams.epsilon > 0 && frequencyPrivacyParams.delta > 0) {
+          "Frequency privacy params are unspecified"
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+        failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
     }
 
     grpcRequire(!measurement.serializedDataProviderList.isEmpty) {
-      "Serialized Data Provider list is either unspecified or invalid"
+      "Serialized Data Provider list is unspecified"
     }
 
     grpcRequire(!measurement.dataProviderListSalt.isEmpty) {
-      "Data Provider list salt is either unspecified or invalid"
+      "Data Provider list salt is unspecified"
     }
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
@@ -110,11 +148,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
       val publicKey = it.value.dataProviderPublicKey
       grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
-        "Data Provider public key is either unspecified or invalid"
+        "Data Provider public key is unspecified"
       }
 
       grpcRequire(!it.value.encryptedRequisitionSpec.isEmpty) {
-        "Encrypted Requisition spec is either unspecified or invalid"
+        "Encrypted Requisition spec is unspecified"
       }
     }
 
