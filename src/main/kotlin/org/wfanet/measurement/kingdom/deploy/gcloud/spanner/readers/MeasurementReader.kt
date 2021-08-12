@@ -52,6 +52,9 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurement.newBuilder().apply {
         externalMeasurementId = struct.getLong("ExternalMeasurementId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalMeasurementConsumerCertificateId = struct.getLong(
+          "ExternalMeasurementConsumerCertificateId"
+        )
         externalComputationId = struct.getLong("ExternalComputationId")
         providedMeasurementId = struct.getString("ProvidedMeasurementId")
         details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
@@ -111,7 +114,7 @@ class MeasurementReader(private val view: Measurement.View) :
   ): Result? {
     return withBuilder {
         appendClause("WHERE $externalIdColumn = @external_id")
-        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8")
+        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9")
         bind("external_id").to(externalId.value)
 
         appendClause("LIMIT 1")
@@ -131,9 +134,11 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ProvidedMeasurementId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
-      MeasurementConsumers.ExternalMeasurementConsumerId
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+    MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
     FROM Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """.trimIndent()
 
     private val computationViewBaseSql =
@@ -147,6 +152,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       MeasurementConsumers.ExternalMeasurementConsumerId,
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
       ARRAY(
          SELECT AS STRUCT
            r.ExternalRequisitionId
@@ -164,6 +170,7 @@ class MeasurementReader(private val view: Measurement.View) :
        ) AS ComputationParticipants
     FROM Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """.trimIndent()
   }
 }

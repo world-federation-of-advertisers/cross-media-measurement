@@ -24,13 +24,18 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+
+// TODO(@uakyol) : Read this from protocol config when it is implemented.
+private const val FAKE_PROTOCOL_CONFIG_ID = 0L
 
 /** Creates a measurement in the database. */
 class CreateMeasurement(private val measurement: Measurement) :
@@ -55,21 +60,60 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     // Insert this measurement into Measurements
     val measurementId = idGenerator.generateInternalId().value
-    val measurement = createNewMeasurement(measurementId, measurementConsumerId)
+
+    val measuermentConsumerGetCertificateRequest =
+      GetCertificateRequest.newBuilder()
+        .also {
+          it.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          it.externalCertificateId = measurement.externalMeasurementConsumerCertificateId
+        }
+        .build()
+
+    val measurementConsumerCertificateId =
+      CertificateReader(measuermentConsumerGetCertificateRequest)
+        .readExternalIdOrNull(
+          transactionContext,
+          ExternalId(measuermentConsumerGetCertificateRequest.externalCertificateId)
+        )
+        ?.certificateId
+        ?: throw KingdomInternalException(
+          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+        )
+
+    val measurement =
+      createNewMeasurement(measurementId, measurementConsumerId, measurementConsumerCertificateId)
 
     // Insert into Requisitions for each EDP
-    measurement.dataProvidersMap.forEach {
-      val externalDataProviderId = ExternalId(it.key)
+    for ((k, v) in measurement.dataProvidersMap) {
+      val externalDataProviderId = ExternalId(k)
       val dataProviderId =
         DataProviderReader()
           .readExternalIdOrNull(transactionContext, externalDataProviderId)
           ?.dataProviderId
           ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+
+      val dataProviderGetCertificateRequest =
+        GetCertificateRequest.newBuilder()
+          .also {
+            it.externalDataProviderId = externalDataProviderId.value
+            it.externalCertificateId = v.externalDataProviderCertificateId
+          }
+          .build()
+      val dataProviderCertificateId =
+        CertificateReader(dataProviderGetCertificateRequest)
+          .readExternalIdOrNull(
+            transactionContext,
+            ExternalId(dataProviderGetCertificateRequest.externalCertificateId)
+          )
+          ?.certificateId
+          ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+
       createRequisition(
         externalDataProviderId.value,
         measurementConsumerId,
         measurementId,
-        dataProviderId
+        dataProviderId,
+        dataProviderCertificateId
       )
     }
 
@@ -82,7 +126,8 @@ class CreateMeasurement(private val measurement: Measurement) :
 
   private suspend fun TransactionScope.createNewMeasurement(
     measurementId: Long,
-    measurementConsumerId: Long
+    measurementConsumerId: Long,
+    measurementConsumerCertificateId: Long
   ): Measurement {
     val externalMeasurementId = idGenerator.generateExternalId()
     val externalComputationId = idGenerator.generateExternalId()
@@ -93,6 +138,8 @@ class CreateMeasurement(private val measurement: Measurement) :
         set("ExternalMeasurementId" to externalMeasurementId.value)
         set("ExternalComputationId" to externalComputationId.value)
         set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+        set("CertificateId" to measurementConsumerCertificateId)
+        set("ProtocolConfigId" to FAKE_PROTOCOL_CONFIG_ID)
         set("State" to Measurement.State.PENDING_REQUISITION_PARAMS)
         set("MeasurementDetails" to measurement.details)
         setJson("MeasurementDetailsJson" to measurement.details)
@@ -129,7 +176,8 @@ class CreateMeasurement(private val measurement: Measurement) :
     externalDataProviderId: Long,
     measurementConsumerId: Long,
     measurementId: Long,
-    dataProviderId: Long
+    dataProviderId: Long,
+    dataProviderCertificateId: Long
   ) {
     val internalRequisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -141,6 +189,7 @@ class CreateMeasurement(private val measurement: Measurement) :
         set("DataProviderId" to dataProviderId)
         set("CreateTime" to Value.COMMIT_TIMESTAMP)
         set("ExternalRequisitionId" to externalRequisitionId.value)
+        set("DataProviderCertificateId" to dataProviderCertificateId)
         set("State" to Requisition.State.UNFULFILLED)
       }
       .bufferTo(transactionContext)
@@ -156,7 +205,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       """.trimIndent()
 
     val groupByClause = """
-      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
       """.trimIndent()
 
     return MeasurementReader(Measurement.View.DEFAULT)

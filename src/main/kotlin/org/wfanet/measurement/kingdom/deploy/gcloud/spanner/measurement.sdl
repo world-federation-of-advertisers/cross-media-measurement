@@ -217,7 +217,7 @@ CREATE TABLE Measurements (
   -- org.wfanet.measurement.internal.kingdom.Measurement.Details serialized
   -- proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
-  MeasurementsDetailsJson STRING(MAX) NOT NULL,
+  MeasurementDetailsJson STRING(MAX) NOT NULL,
 
   FOREIGN KEY (MeasurementConsumerId, CertificateId)
     REFERENCES MeasurementConsumerCertificates(MeasurementConsumerId, CertificateId),

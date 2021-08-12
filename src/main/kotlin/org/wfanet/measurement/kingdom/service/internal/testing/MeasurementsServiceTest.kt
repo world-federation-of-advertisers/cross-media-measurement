@@ -54,6 +54,8 @@ private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
 private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a DP subject key identifier.")
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
@@ -88,46 +90,44 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     dataProvidersService = services.dataProvidersService
   }
 
-  private suspend fun insertMeasurementConsumer(): Long {
+  private suspend fun insertMeasurementConsumer(): MeasurementConsumer {
     return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
-            }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
+      MeasurementConsumer.newBuilder()
+        .apply {
+          certificateBuilder.apply {
+            notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
           }
-          .build()
-      )
-      .externalMeasurementConsumerId
+          detailsBuilder.apply {
+            apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+          }
+        }
+        .build()
+    )
   }
 
-  private suspend fun insertDataProvider(): Long {
+  private suspend fun insertDataProvider(): DataProvider {
     return dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
-            }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
+      DataProvider.newBuilder()
+        .apply {
+          certificateBuilder.apply {
+            notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
           }
-          .build()
-      )
-      .externalDataProviderId
+          detailsBuilder.apply {
+            apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+          }
+        }
+        .build()
+    )
   }
 
   @Test
@@ -145,13 +145,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for missing data provider`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+   val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
     val externalDataProviderId = 0L
     val measurement =
       Measurement.newBuilder()
         .also {
           it.detailsBuilder.apiVersion = "v2alpha"
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
           it.putAllDataProviders(
             mapOf(
               externalDataProviderId to
@@ -174,7 +178,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement fails for missing measurement consumer`() = runBlocking {
     val externalMeasurementConsumerId = 0L
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId = insertDataProvider().externalDataProviderId
     val measurement =
       Measurement.newBuilder()
         .also {
@@ -201,18 +205,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement succeeds`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
-    val externalDataProviderId = insertDataProvider()
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
     val measurement =
       Measurement.newBuilder()
         .also {
           it.detailsBuilder.apiVersion = "v2alpha"
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
           it.putAllDataProviders(
             mapOf(
               externalDataProviderId to
                 Measurement.DataProviderValue.newBuilder()
-                  .apply { externalDataProviderCertificateId = 0L }
+                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
                   .build()
             )
           )
@@ -239,13 +249,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
       runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
-    val externalDataProviderId = insertDataProvider()
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+
+    val externalDataProviderId = insertDataProvider().externalDataProviderId
     val measurement =
       Measurement.newBuilder()
         .also {
           it.detailsBuilder.apiVersion = "v2alpha"
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
           it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
         }
         .build()
@@ -257,19 +272,25 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `getMeasurementByComputationId COMPUTATION View succeeds`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
-    val externalDataProviderId = insertDataProvider()
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
 
     val request =
       Measurement.newBuilder()
         .also {
           it.detailsBuilder.apiVersion = "v2alpha"
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
           it.putAllDataProviders(
             mapOf(
               externalDataProviderId to
                 Measurement.DataProviderValue.newBuilder()
-                  .apply { externalDataProviderCertificateId = 0L }
+                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
                   .build()
             )
           )
