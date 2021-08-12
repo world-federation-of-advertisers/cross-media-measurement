@@ -326,6 +326,23 @@ class RequisitionServiceTest {
   }
 
   @Test
+  fun `listRequisitions throws INVALID_ARGUMENT when state in filter is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.listRequisitions(
+            buildListRequisitionsRequest {
+              parent = DATA_PROVIDER_NAME
+              filterBuilder.addStates(State.STATE_UNSPECIFIED)
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("State is invalid")
+  }
+
+  @Test
   fun `refuseRequisition throws INVALID_ARGUMENT when name is missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
