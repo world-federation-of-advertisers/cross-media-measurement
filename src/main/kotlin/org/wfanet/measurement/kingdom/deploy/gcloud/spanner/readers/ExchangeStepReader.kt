@@ -19,6 +19,7 @@ import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
+import org.wfanet.measurement.internal.kingdom.Provider
 
 /** Reads [ExchangeStep] protos from Spanner. */
 class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
@@ -64,11 +65,22 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
         date = struct.getDate("Date").toProtoDate()
         stepIndex = struct.getLong("StepIndex").toInt()
         state = struct.getProtoEnum("State", ExchangeStep.State::forNumber)
-        if (struct.getNullableLong("ExternalModelProviderId") != null) {
-          externalModelProviderId = struct.getLong("ExternalModelProviderId")
-        } else {
-          externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        }
+        provider =
+          if (struct.getNullableLong("ExternalModelProviderId") != null) {
+            Provider.newBuilder()
+              .apply {
+                externalId = struct.getLong("ExternalModelProviderId")
+                type = Provider.Type.MODEL_PROVIDER
+              }
+              .build()
+          } else {
+            Provider.newBuilder()
+              .apply {
+                externalId = struct.getLong("ExternalDataProviderId")
+                type = Provider.Type.DATA_PROVIDER
+              }
+              .build()
+          }
       }
       .build()
   }
