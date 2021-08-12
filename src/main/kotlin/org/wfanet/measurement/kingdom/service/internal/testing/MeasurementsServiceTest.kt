@@ -145,7 +145,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for missing data provider`() = runBlocking {
-   val measurementConsumer = insertMeasurementConsumer()
+    val measurementConsumer = insertMeasurementConsumer()
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalMeasurementConsumerCertificateId =
       measurementConsumer.certificate.externalCertificateId

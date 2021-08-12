@@ -52,9 +52,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurement.newBuilder().apply {
         externalMeasurementId = struct.getLong("ExternalMeasurementId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalMeasurementConsumerCertificateId = struct.getLong(
-          "ExternalMeasurementConsumerCertificateId"
-        )
+        externalMeasurementConsumerCertificateId =
+          struct.getLong("ExternalMeasurementConsumerCertificateId")
         externalComputationId = struct.getLong("ExternalComputationId")
         providedMeasurementId = struct.getString("ProvidedMeasurementId")
         details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
