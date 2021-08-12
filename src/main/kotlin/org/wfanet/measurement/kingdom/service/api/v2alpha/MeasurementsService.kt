@@ -99,34 +99,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       } catch (e: InvalidProtocolBufferException) {
         failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse measurement spec" }
       }
-
-    grpcRequire(!parsedMeasurementSpec.measurementPublicKey.isEmpty) {
-      "Measurement public key is unspecified"
-    }
-
-    grpcRequire(
-      parsedMeasurementSpec.cipherSuite.kem !=
-        HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED &&
-        parsedMeasurementSpec.cipherSuite.dem !=
-          HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
-    ) { "Measurement cipher suite is unspecified" }
-
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (parsedMeasurementSpec.measurementTypeCase) {
-      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        val reachPrivacyParams = parsedMeasurementSpec.reachAndFrequency.reachPrivacyParams
-        grpcRequire(reachPrivacyParams.epsilon > 0 && reachPrivacyParams.delta > 0) {
-          "Reach privacy params are unspecified"
-        }
-
-        val frequencyPrivacyParams = parsedMeasurementSpec.reachAndFrequency.frequencyPrivacyParams
-        grpcRequire(frequencyPrivacyParams.epsilon > 0 && frequencyPrivacyParams.delta > 0) {
-          "Frequency privacy params are unspecified"
-        }
-      }
-      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-        failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
-    }
+    parsedMeasurementSpec.validate()
 
     grpcRequire(!measurement.serializedDataProviderList.isEmpty) {
       "Serialized Data Provider list is unspecified"
@@ -137,24 +110,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
-    measurement.dataProvidersList.forEach {
-      grpcRequireNotNull(DataProviderKey.fromName(it.key)) {
-        "Data Provider resource name is either unspecified or invalid"
-      }
-
-      grpcRequireNotNull(DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)) {
-        "Data Provider certificate resource name is either unspecified or invalid"
-      }
-
-      val publicKey = it.value.dataProviderPublicKey
-      grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
-        "Data Provider public key is unspecified"
-      }
-
-      grpcRequire(!it.value.encryptedRequisitionSpec.isEmpty) {
-        "Encrypted Requisition spec is unspecified"
-      }
-    }
+    measurement.dataProvidersList.forEach { it.validate() }
 
     val internalMeasurement =
       internalMeasurementsStub.createMeasurement(
@@ -396,3 +352,52 @@ internal inline fun buildStreamMeasurementsRequest(
 internal inline fun StreamMeasurementsRequest.Builder.filter(
   fill: (@Builder StreamMeasurementsRequest.Filter.Builder).() -> Unit
 ) = filterBuilder.apply(fill)
+
+/** Validates a [MeasurementSpec] for a request. */
+private fun MeasurementSpec.validate() {
+  grpcRequire(!this.measurementPublicKey.isEmpty) { "Measurement public key is unspecified" }
+
+  grpcRequire(
+    this.cipherSuite.kem !=
+      HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED &&
+      this.cipherSuite.dem !=
+        HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
+  ) { "Measurement cipher suite is unspecified" }
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  when (this.measurementTypeCase) {
+    MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+      val reachPrivacyParams = this.reachAndFrequency.reachPrivacyParams
+      grpcRequire(reachPrivacyParams.epsilon > 0 && reachPrivacyParams.delta > 0) {
+        "Reach privacy params are unspecified"
+      }
+
+      val frequencyPrivacyParams = this.reachAndFrequency.frequencyPrivacyParams
+      grpcRequire(frequencyPrivacyParams.epsilon > 0 && frequencyPrivacyParams.delta > 0) {
+        "Frequency privacy params are unspecified"
+      }
+    }
+    MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
+  }
+}
+
+/** Validates a [DataProviderEntry] for a request. */
+private fun DataProviderEntry.validate() {
+  grpcRequireNotNull(DataProviderKey.fromName(this.key)) {
+    "Data Provider resource name is either unspecified or invalid"
+  }
+
+  grpcRequireNotNull(DataProviderCertificateKey.fromName(this.value.dataProviderCertificate)) {
+    "Data Provider certificate resource name is either unspecified or invalid"
+  }
+
+  val publicKey = this.value.dataProviderPublicKey
+  grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
+    "Data Provider public key is unspecified"
+  }
+
+  grpcRequire(!this.value.encryptedRequisitionSpec.isEmpty) {
+    "Encrypted Requisition spec is unspecified"
+  }
+}
