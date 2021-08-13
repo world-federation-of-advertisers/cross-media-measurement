@@ -12,7 +12,6 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "//src/main/kotlin/org/wfanet/measurement/dataprovider/common",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_java_proto",
