@@ -47,7 +47,8 @@ TEST(EventDataPreprocessorTests, ActualValues) {
   unprocessed_event->set_id("some-id");
   unprocessed_event->set_data("some-data");
   test_request.set_crypto_key("some-cryptokey");
-  test_request.set_pepper("some-pepper");
+  test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
+  test_request.set_hkdf_pepper("some-hkdf_pepper");
 
   ASSERT_OK_AND_ASSIGN(PreprocessEventsResponse processed,
                        PreprocessEvents(test_request));
@@ -55,12 +56,24 @@ TEST(EventDataPreprocessorTests, ActualValues) {
   EXPECT_NE(processed.processed_events(0).encrypted_data(), "some-data");
 }
 
-TEST(EventDataPreprocessorTests, MissingPepper) {
+TEST(EventDataPreprocessorTests, MissingIdentifierHashPepper) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
   unprocessed_event->set_id("some-id");
   unprocessed_event->set_data("some-data");
+  test_request.set_hkdf_pepper("some-hkdf-pepper");
+  test_request.set_crypto_key("some-cryptokey");
+  ASSERT_THAT(PreprocessEvents(test_request).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, ""));
+}
+TEST(EventDataPreprocessorTests, MissingHkdfPepper) {
+  PreprocessEventsRequest test_request;
+  PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
+      test_request.add_unprocessed_events();
+  unprocessed_event->set_id("some-id");
+  unprocessed_event->set_data("some-data");
+  test_request.set_identifier_hash_pepper("some-pepper");
   test_request.set_crypto_key("some-cryptokey");
   ASSERT_THAT(PreprocessEvents(test_request).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
@@ -71,14 +84,16 @@ TEST(EventDataPreprocessorTests, MissingCryptokey) {
       test_request.add_unprocessed_events();
   unprocessed_event->set_id("some-id");
   unprocessed_event->set_data("some-data");
-  test_request.set_pepper("some-pepper");
+  test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
+  test_request.set_hkdf_pepper("some-hkdf-pepper");
   ASSERT_THAT(PreprocessEvents(test_request).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
 TEST(EventDataPreprocessorTests, MissingUnprocessedEvents) {
   PreprocessEventsRequest test_request;
   test_request.set_crypto_key("some-cryptokey");
-  test_request.set_pepper("some-pepper");
+  test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
+  test_request.set_hkdf_pepper("some-hkdf-pepper");
   ASSERT_OK_AND_ASSIGN(PreprocessEventsResponse processed,
                        PreprocessEvents(test_request));
   EXPECT_EQ(processed.processed_events_size(), 0);
@@ -88,7 +103,8 @@ TEST(EventDataPreprocessorTests, MissingId) {
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
   unprocessed_event->set_data("some-data");
-  test_request.set_pepper("some-pepper");
+  test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
+  test_request.set_hkdf_pepper("some-hkdf-pepper");
   test_request.set_crypto_key("some-cryptokey");
   EXPECT_THAT(PreprocessEvents(test_request), IsOk());
 }
@@ -97,7 +113,8 @@ TEST(EventDataPreprocessorTests, MissingData) {
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
   unprocessed_event->set_id("some-id");
-  test_request.set_pepper("some-pepper");
+  test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
+  test_request.set_hkdf_pepper("some-hkdf-pepper");
   test_request.set_crypto_key("some-cryptokey");
   EXPECT_THAT(PreprocessEvents(test_request), IsOk());
 }
@@ -116,7 +133,8 @@ TEST(EventDataPreprocessorTests, MultipleUnprocessedEvents) {
   unprocessed_event3->set_id("some-id");
   unprocessed_event3->set_data("some-data3");
   test_request.set_crypto_key("some-cryptokey");
-  test_request.set_pepper("some-pepper");
+  test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
+  test_request.set_hkdf_pepper("some-hkdf-pepper");
 
   ASSERT_OK_AND_ASSIGN(PreprocessEventsResponse processed,
                        PreprocessEvents(test_request));

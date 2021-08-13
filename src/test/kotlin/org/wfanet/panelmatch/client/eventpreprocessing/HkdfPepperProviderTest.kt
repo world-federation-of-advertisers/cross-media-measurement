@@ -21,12 +21,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
-class PepperProviderTest {
+class HkdfPepperProviderTest {
 
   @Test
   fun hardCoded() {
-    val pepper: ByteString = ByteString.copyFromUtf8("testpepper")
-    val result = HardCodedCryptoKeyProvider(pepper).apply(null as Void?)
-    assertThat(result).isEqualTo(pepper)
+    val hkdfPepper: ByteString = ByteString.copyFromUtf8("testhkdfpepper")
+    val result = HardCodedCryptoKeyProvider(hkdfPepper).apply(null as Void?)
+    assertThat(result).isEqualTo(hkdfPepper)
   }
 }

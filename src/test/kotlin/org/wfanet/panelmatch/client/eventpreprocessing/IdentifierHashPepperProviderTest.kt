@@ -19,27 +19,14 @@ import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
 
 @RunWith(JUnit4::class)
-class EncryptEventsTest {
+class IdentifierHashPepperProviderTest {
 
   @Test
-  fun test() {
-    val request =
-      PreprocessEventsRequest.newBuilder()
-        .apply {
-          cryptoKey = ByteString.copyFromUtf8("cryptokey")
-          identifierHashPepper = ByteString.copyFromUtf8("identifier-hash-pepper")
-          hkdfPepper = ByteString.copyFromUtf8("hkdf-pepper")
-          addUnprocessedEventsBuilder().apply {
-            id = ByteString.copyFromUtf8("identifier")
-            data = ByteString.copyFromUtf8("eventdata")
-          }
-        }
-        .build()
-    val encryptEvents = EncryptEvents()
-
-    assertThat(encryptEvents.apply(request)).isNotNull()
+  fun hardCoded() {
+    val pepper: ByteString = ByteString.copyFromUtf8("testpepper")
+    val result = HardCodedIdentifierHashPepperProvider(pepper).apply(null as Void?)
+    assertThat(result).isEqualTo(pepper)
   }
 }
