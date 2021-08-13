@@ -21,9 +21,8 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.*
-//import org.wfanet.anysketch.crypto.*
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.*
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.dataprovider.common.EncryptedSketchGenerator
