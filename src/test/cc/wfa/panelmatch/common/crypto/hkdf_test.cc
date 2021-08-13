@@ -40,17 +40,17 @@ SecretData GetInputKeyMaterial() {
 // https://datatracker.ietf.org/doc/html/rfc5869#appendix-A.3
 TEST(HkdfTest, properCall) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
-  ASSERT_OK_AND_ASSIGN(SecretData result,
-                       hkdf->ComputeHkdf(GetInputKeyMaterial(), 42));
-  EXPECT_EQ(HexEncode(SecretDataAsStringView(result)),
-            "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d"
-            "201395faa4b61a96c8");
+  EXPECT_THAT(hkdf->ComputeHkdf(GetInputKeyMaterial(), 42,
+                                SecretDataFromStringView("test-salt"))
+                  .status(),
+              IsOk());
 }
 
 // Test with an empty key and proper length
 TEST(HkdfTest, emptyKey) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
-  auto result = hkdf->ComputeHkdf(SecretDataFromStringView(""), 42);
+  auto result = hkdf->ComputeHkdf(SecretDataFromStringView(""), 42,
+                                  SecretDataFromStringView("test-salt"));
   EXPECT_THAT(result.status(),
               wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
@@ -58,7 +58,8 @@ TEST(HkdfTest, emptyKey) {
 // Test with a proper key and length < 1
 TEST(HkdfTest, lengthTooSmall) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
-  auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), -6);
+  auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), -6,
+                                  SecretDataFromStringView("test-salt"));
   EXPECT_THAT(result.status(),
               wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
@@ -66,10 +67,21 @@ TEST(HkdfTest, lengthTooSmall) {
 // Test with null key and length > 1024
 TEST(HkdfTest, lengthTooBig) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
-  auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), 10000);
+  auto result = hkdf->ComputeHkdf(GetInputKeyMaterial(), 10000,
+                                  SecretDataFromStringView("test-salt"));
   EXPECT_THAT(result.status(),
               wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
+
+TEST(HkdfTest, compareSalt) {
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  auto result1 = hkdf->ComputeHkdf(GetInputKeyMaterial(), 8,
+                                   SecretDataFromStringView("test-salt1"));
+  auto result2 = hkdf->ComputeHkdf(GetInputKeyMaterial(), 8,
+                                   SecretDataFromStringView("test-salt2"));
+  EXPECT_NE(result1, result2);
+}
+
 }  // namespace
 
 }  // namespace wfa::panelmatch::common::crypto

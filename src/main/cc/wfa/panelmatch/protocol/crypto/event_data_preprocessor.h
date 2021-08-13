@@ -39,12 +39,16 @@ struct ProcessedData {
 // the identifier, which is hashed using a Sha256 method.  The encrypted
 // identifier is also used in an HKDF method to create an AES key, which is used
 // for an AES encryption/decryption of event data.
+// identifier_hash_pepper and hkdf_pepper are also used by the model provider
+// so they can hash the data and generate AES keys the same way
 class EventDataPreprocessor {
  public:
-  EventDataPreprocessor(std::unique_ptr<common::crypto::Cryptor> cryptor,
-                        const ::crypto::tink::util::SecretData& pepper,
-                        const Fingerprinter* delegate,
-                        const common::crypto::AesWithHkdf* aes_hkdf);
+  EventDataPreprocessor(
+      std::unique_ptr<common::crypto::Cryptor> cryptor,
+      const ::crypto::tink::util::SecretData& identifier_hash_pepper,
+      const ::crypto::tink::util::SecretData& hkdf_pepper,
+      const Fingerprinter* delegate,
+      const common::crypto::AesWithHkdf* aes_hkdf);
   ~EventDataPreprocessor() = default;
 
   // Encrypts 'identifier' and 'event_data' data
@@ -53,6 +57,7 @@ class EventDataPreprocessor {
 
  private:
   std::unique_ptr<common::crypto::Cryptor> cryptor_;
+  ::crypto::tink::util::SecretData hkdf_pepper_;
   std::unique_ptr<Fingerprinter> fingerprinter_;
   const common::crypto::AesWithHkdf& aes_hkdf_;
 };

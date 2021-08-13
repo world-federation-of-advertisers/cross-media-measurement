@@ -30,7 +30,8 @@ class Hkdf {
   virtual ~Hkdf() = default;
   // Generates an encryption key from a SecretData input
   virtual absl::StatusOr<::crypto::tink::util::SecretData> ComputeHkdf(
-      const ::crypto::tink::util::SecretData& ikm, int length) const = 0;
+      const ::crypto::tink::util::SecretData& ikm, int length,
+      const ::crypto::tink::util::SecretData& salt) const = 0;
 };
 
 // Returns an Hkdf that uses SHA-256 as the hash function
