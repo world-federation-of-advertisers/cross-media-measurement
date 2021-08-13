@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.dataprovider.fake
 
-import org.wfanet.measurement.api.v2alpha.*
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.SignedData
 
 /** Interface for [Requisition] signature validation and decryption. */
 interface RequisitionDecoder {
