@@ -18,15 +18,14 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:encrypted_sketch_java_proto",
-
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc",
-
         "@any_sketch_java//src/main/java/org/wfanet/anysketch:anysketch",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
