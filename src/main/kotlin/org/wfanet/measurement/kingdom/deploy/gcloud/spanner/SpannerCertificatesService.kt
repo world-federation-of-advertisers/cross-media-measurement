@@ -39,19 +39,22 @@ class SpannerCertificatesService(
     grpcRequire(request.parentCase != Certificate.ParentCase.PARENT_NOT_SET) {
       "Certificate is missing parent field"
     }
-
+    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
+    // accordingly.
     try {
       return CreateCertificate(request).execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
+          failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
           failGrpc(Status.ALREADY_EXISTS) {
             "Certificate with the same subject key identifier (SKID) already exists."
           }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
       }
     }
   }
