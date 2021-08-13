@@ -22,13 +22,12 @@ import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.*
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.dataprovider.common.EncryptedSketchGenerator
 import org.wfanet.measurement.dataprovider.common.RequisitionFulfiller
 import org.wfanet.measurement.dataprovider.common.UnfulfilledRequisitionProvider
-import org.wfanet.measurement.dataprovider.fake.RequisitionDecoder
 import org.wfanet.measurement.storage.StorageClient
 
 fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
@@ -97,7 +96,6 @@ class RequisitionFulfillmentWorkflow(
     val signedData = SignedData.parseFrom(requisition.encryptedRequisitionSpec)
     return RequisitionSpec.parseFrom(signedData.data)
   }
-
 
   fun generateSketch(): Sketch {
 
