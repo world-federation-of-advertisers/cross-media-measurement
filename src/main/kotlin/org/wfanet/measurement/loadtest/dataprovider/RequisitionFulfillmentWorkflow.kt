@@ -75,7 +75,6 @@ fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
 
 class RequisitionFulfillmentWorkflow(
   private val unfulfilledRequisitionProvider: UnfulfilledRequisitionProvider,
-  private val requisitionDecoder: RequisitionDecoder,
   private val sketchGenerator: EncryptedSketchGenerator,
   private val requisitionFulfiller: RequisitionFulfiller,
   private val storageClient: StorageClient,
@@ -88,6 +87,17 @@ class RequisitionFulfillmentWorkflow(
       it.addValues(count)
     }
   }
+
+  private fun decodeMeasurementSpec(requisition: Requisition): MeasurementSpec {
+    val serializedMeasurementSpec = requisition.measurementSpec
+    return MeasurementSpec.parseFrom(serializedMeasurementSpec.data)
+  }
+
+  private fun decodeRequisitionSpec(requisition: Requisition): RequisitionSpec {
+    val signedData = SignedData.parseFrom(requisition.encryptedRequisitionSpec)
+    return RequisitionSpec.parseFrom(signedData.data)
+  }
+
 
   fun generateSketch(): Sketch {
 
@@ -126,8 +136,8 @@ class RequisitionFulfillmentWorkflow(
   suspend fun execute() {
     val requisition: Requisition = unfulfilledRequisitionProvider.get() ?: return
 
-    val measurementSpec = requisitionDecoder.decodeMeasurementSpec(requisition)
-    val requisitionSpec = requisitionDecoder.decodeRequisitionSpec(requisition)
+    val measurementSpec = decodeMeasurementSpec(requisition)
+    val requisitionSpec = decodeRequisitionSpec(requisition)
     val combinedPublicKey = requisition.getCombinedPublicKey()
 
     val sketch = generateSketch()

@@ -18,23 +18,17 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.dataprovider.common.DefaultEncryptedSketchGenerator
-import org.wfanet.measurement.dataprovider.common.GrpcRequisitionFulfiller
-import org.wfanet.measurement.dataprovider.common.GrpcUnfulfilledRequisitionProvider
-import org.wfanet.measurement.dataprovider.daemon.DataProviderServer
-import org.wfanet.measurement.dataprovider.daemon.RequisitionFulfillmentWorkflow
-import org.wfanet.measurement.dataprovider.fake.FakeRequisitionDecoder
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 
 /** Implementation of [FakeDataProviderServer] using Fake Data Provider Service. */
 @CommandLine.Command(
   name = "FakeDataProviderServer",
-  description = ["Server daemon for ${DataProviderServer.SERVICE_NAME} service."],
+  description = ["Server daemon for ${EdpSimulator.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class FileSystemEdpSimulatorRunner : DataProviderServer() {
+class FileSystemEdpSimulatorRunner : EdpSimulator() {
   override fun run() {
 
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
@@ -43,7 +37,6 @@ class FileSystemEdpSimulatorRunner : DataProviderServer() {
     val workflow =
       RequisitionFulfillmentWorkflow(
         GrpcUnfulfilledRequisitionProvider(flags.externalDataProviderId, flags.requisitionsStub),
-        FakeRequisitionDecoder(),
         DefaultEncryptedSketchGenerator(),
         GrpcRequisitionFulfiller(flags.requisitionFulfillmentStub),
         storageClient,
