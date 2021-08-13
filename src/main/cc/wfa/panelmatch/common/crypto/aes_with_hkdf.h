@@ -38,14 +38,14 @@ class AesWithHkdf {
   // Encrypts `input` with a SecretData `key` using an hkdf to generate an
   // aes key and an aes method to encrypt the input with the aes key
   absl::StatusOr<std::string> Encrypt(
-      absl::string_view input,
-      const ::crypto::tink::util::SecretData& key) const;
+      absl::string_view input, const ::crypto::tink::util::SecretData& key,
+      const ::crypto::tink::util::SecretData& salt) const;
 
   // Decrypts `input` with a SecretData `key` using an hkdf to generate an
   // aes key and an aes method to decrypt the input with the aes key
   absl::StatusOr<std::string> Decrypt(
-      absl::string_view input,
-      const ::crypto::tink::util::SecretData& key) const;
+      absl::string_view input, const ::crypto::tink::util::SecretData& key,
+      const ::crypto::tink::util::SecretData& salt) const;
 
  private:
   std::unique_ptr<Hkdf> hkdf_;

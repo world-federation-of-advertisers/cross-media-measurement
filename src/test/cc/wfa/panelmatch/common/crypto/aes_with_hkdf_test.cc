@@ -32,10 +32,12 @@ TEST(AesWithHkdfTest, testEncryptDecrypt) {
   SecretData key = SecretDataFromStringView("key");
   std::string_view plaintext = "Some data to encrypt.";
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  ASSERT_OK_AND_ASSIGN(std::string ciphertext,
-                       aes_hkdf.Encrypt(plaintext, key));
-  ASSERT_OK_AND_ASSIGN(std::string recovered_plaintext,
-                       aes_hkdf.Decrypt(ciphertext, key));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext,
+      aes_hkdf.Encrypt(plaintext, key, SecretDataFromStringView("test-salt")));
+  ASSERT_OK_AND_ASSIGN(
+      std::string recovered_plaintext,
+      aes_hkdf.Decrypt(ciphertext, key, SecretDataFromStringView("test-salt")));
   EXPECT_EQ(recovered_plaintext, plaintext);
 }
 
@@ -46,13 +48,16 @@ TEST(AesWithHkdfTest, compareEncrypt) {
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   SecretData key = SecretDataFromStringView("key");
   std::string_view plaintext = "Some data to encrypt.";
-  ASSERT_OK_AND_ASSIGN(SecretData result,
-                       hkdf->ComputeHkdf(key, aes->key_size_bytes()));
+  ASSERT_OK_AND_ASSIGN(
+      SecretData result,
+      hkdf->ComputeHkdf(key, aes->key_size_bytes(),
+                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_other,
                        aes->Encrypt(plaintext, result));
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  ASSERT_OK_AND_ASSIGN(std::string ciphertext_this,
-                       aes_hkdf.Encrypt(plaintext, key));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext_this,
+      aes_hkdf.Encrypt(plaintext, key, SecretDataFromStringView("test-salt")));
   EXPECT_EQ(ciphertext_this, ciphertext_other);
 }
 
@@ -63,17 +68,21 @@ TEST(AesWithHkdfTest, compareDecrypt) {
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   SecretData key = SecretDataFromStringView("key");
   std::string_view plaintext = "Some data to encrypt.";
-  ASSERT_OK_AND_ASSIGN(SecretData result,
-                       hkdf->ComputeHkdf(key, aes->key_size_bytes()));
+  ASSERT_OK_AND_ASSIGN(
+      SecretData result,
+      hkdf->ComputeHkdf(key, aes->key_size_bytes(),
+                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_other,
                        aes->Encrypt(plaintext, result));
   ASSERT_OK_AND_ASSIGN(std::string decrypted_other,
                        aes->Decrypt(ciphertext_other, result));
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  ASSERT_OK_AND_ASSIGN(std::string ciphertext_this,
-                       aes_hkdf.Encrypt(plaintext, key));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext_this,
+      aes_hkdf.Encrypt(plaintext, key, SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string decrypted_this,
-                       aes_hkdf.Decrypt(ciphertext_this, key));
+                       aes_hkdf.Decrypt(ciphertext_this, key,
+                                        SecretDataFromStringView("test-salt")));
   EXPECT_EQ(decrypted_this, decrypted_other);
 }
 
@@ -82,7 +91,8 @@ TEST(AesWithHkdfTest, emptyKeyEncrypt) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  auto result = aes_hkdf.Encrypt("input", SecretDataFromStringView(""));
+  auto result = aes_hkdf.Encrypt("input", SecretDataFromStringView(""),
+                                 SecretDataFromStringView("test-salt"));
   EXPECT_THAT(result.status(),
               wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
@@ -92,7 +102,8 @@ TEST(AesWithHkdfTest, emptyKeyDecrypt) {
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  auto result = aes_hkdf.Decrypt("input", SecretDataFromStringView(""));
+  auto result = aes_hkdf.Decrypt("input", SecretDataFromStringView(""),
+                                 SecretDataFromStringView("test-salt"));
   EXPECT_THAT(result.status(),
               wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
@@ -108,9 +119,11 @@ TEST(AesTest, differentKeySameStringEncrypt) {
   std::string_view plaintext = "Some data to encrypt.";
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_1,
-                       aes_hkdf.Encrypt(plaintext, key_1));
+                       aes_hkdf.Encrypt(plaintext, key_1,
+                                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_2,
-                       aes_hkdf.Encrypt(plaintext, key_2));
+                       aes_hkdf.Encrypt(plaintext, key_2,
+                                        SecretDataFromStringView("test-salt")));
   EXPECT_NE(ciphertext_1, ciphertext_2);
 }
 
@@ -124,8 +137,10 @@ TEST(AesTest, differentKeyDecrypt) {
   std::string_view plaintext = "Some data to encrypt.";
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext,
-                       aes_hkdf.Encrypt(plaintext, key_1));
-  auto decrypted = aes_hkdf.Decrypt(ciphertext, key_2);
+                       aes_hkdf.Encrypt(plaintext, key_1,
+                                        SecretDataFromStringView("test-salt")));
+  auto decrypted = aes_hkdf.Decrypt(ciphertext, key_2,
+                                    SecretDataFromStringView("test-salt"));
   EXPECT_THAT(decrypted.status(),
               wfa::StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
@@ -140,9 +155,11 @@ TEST(AesTest, sameKeyDifferentStringEncrypt) {
   std::string_view plaintext_2 = "Additional data to encrypt.";
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_1,
-                       aes_hkdf.Encrypt(plaintext_1, key));
+                       aes_hkdf.Encrypt(plaintext_1, key,
+                                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_2,
-                       aes_hkdf.Encrypt(plaintext_2, key));
+                       aes_hkdf.Encrypt(plaintext_2, key,
+                                        SecretDataFromStringView("test-salt")));
   EXPECT_NE(ciphertext_1, ciphertext_2);
 }
 
@@ -156,14 +173,35 @@ TEST(AesTest, sameKeyDifferentStringDecrypt) {
   std::string_view plaintext_2 = "Additional data to encrypt.";
   AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_1,
-                       aes_hkdf.Encrypt(plaintext_1, key));
+                       aes_hkdf.Encrypt(plaintext_1, key,
+                                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string ciphertext_2,
-                       aes_hkdf.Encrypt(plaintext_2, key));
+                       aes_hkdf.Encrypt(plaintext_2, key,
+                                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string decrypted_1,
-                       aes_hkdf.Decrypt(ciphertext_1, key));
+                       aes_hkdf.Decrypt(ciphertext_1, key,
+                                        SecretDataFromStringView("test-salt")));
   ASSERT_OK_AND_ASSIGN(std::string decrypted_2,
-                       aes_hkdf.Decrypt(ciphertext_2, key));
+                       aes_hkdf.Decrypt(ciphertext_2, key,
+                                        SecretDataFromStringView("test-salt")));
   EXPECT_NE(decrypted_1, decrypted_2);
+}
+
+// Tests that the same key and string with different salts return different
+// values for Encrypt
+TEST(AesTest, differentSalt) {
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  std::unique_ptr<Aes> aes = GetAesSivCmac512();
+  SecretData key = SecretDataFromStringView("key");
+  std::string_view plaintext = "Some data to encrypt.";
+  AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext_1,
+      aes_hkdf.Encrypt(plaintext, key, SecretDataFromStringView("test-salt1")));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext_2,
+      aes_hkdf.Encrypt(plaintext, key, SecretDataFromStringView("test-salt2")));
+  EXPECT_NE(ciphertext_1, ciphertext_2);
 }
 
 }  // namespace

@@ -42,12 +42,14 @@ using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
 using ::wfa::panelmatch::common::crypto::Cryptor;
 using ::wfa::panelmatch::common::crypto::GetPepperedFingerprinter;
 
-EventDataPreprocessor::EventDataPreprocessor(std::unique_ptr<Cryptor> cryptor,
-                                             const SecretData& pepper,
-                                             const Fingerprinter* delegate,
-                                             const AesWithHkdf* aes_hkdf)
+EventDataPreprocessor::EventDataPreprocessor(
+    std::unique_ptr<Cryptor> cryptor, const SecretData& identifier_hash_pepper,
+    const SecretData& hkdf_pepper, const Fingerprinter* delegate,
+    const AesWithHkdf* aes_hkdf)
     : cryptor_(std::move(cryptor)),
-      fingerprinter_(GetPepperedFingerprinter(CHECK_NOTNULL(delegate), pepper)),
+      hkdf_pepper_(hkdf_pepper),
+      fingerprinter_(GetPepperedFingerprinter(CHECK_NOTNULL(delegate),
+                                              identifier_hash_pepper)),
       aes_hkdf_(*CHECK_NOTNULL(aes_hkdf)) {}
 
 absl::StatusOr<ProcessedData> EventDataPreprocessor::Process(
@@ -62,7 +64,8 @@ absl::StatusOr<ProcessedData> EventDataPreprocessor::Process(
   ProcessedData processed_data;
   ASSIGN_OR_RETURN(
       processed_data.encrypted_event_data,
-      aes_hkdf_.Encrypt(event_data, SecretDataFromStringView(processed[0])));
+      aes_hkdf_.Encrypt(event_data, SecretDataFromStringView(processed[0]),
+                        hkdf_pepper_));
 
   processed_data.encrypted_identifier =
       fingerprinter_->Fingerprint(processed[0]);
