@@ -1,0 +1,51 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "edp_simulator",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:encrypted_sketch_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch:anysketch",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch:sketch_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+java_binary(
+    name = "FakeDataProviderServer",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
+    runtime_deps = [":edp_simulator"],
+)
+
+java_image(
+    name = "file_system_edp_simulator_image",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":edp_simulator"],
+)
