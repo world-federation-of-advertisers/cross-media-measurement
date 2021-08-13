@@ -96,14 +96,14 @@ LOCAL_IMAGES = [
         name = "fake_storage_server_image",
         image = "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
     ),
-    struct(
-        name = "fake_edp_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/dataprovider/server:server_image",
-    ),
-    struct(
-        name = "fake_edp_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/dataprovider/server:server_image",
-    ),
+#    struct(
+#        name = "fake_edp_server_image",
+#        image = "//src/main/kotlin/org/wfanet/measurement/dataprovider/server:server_image",
+#    ),
+#    struct(
+#        name = "fake_edp_server_image",
+#        image = "//src/main/kotlin/org/wfanet/measurement/dataprovider/server:server_image",
+#    ),
 ]
 
 ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES
