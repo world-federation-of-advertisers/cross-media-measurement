@@ -58,7 +58,7 @@ abstract class EdpSimulator : Runnable {
     @CommandLine.Option(
       names = ["--computations-service-target"],
       description =
-      ["gRPC target (authority string or URI) for Duchy internal Computations service."],
+        ["gRPC target (authority string or URI) for Duchy internal Computations service."],
       required = true
     )
     lateinit var computationsServiceTarget: String
@@ -67,7 +67,7 @@ abstract class EdpSimulator : Runnable {
     @CommandLine.Option(
       names = ["--system-requisitions-service-target"],
       description =
-      ["gRPC target (authority string or URI) for Requisitions service in the system API."],
+        ["gRPC target (authority string or URI) for Requisitions service in the system API."],
       required = true
     )
     lateinit var systemRequisitionsServiceTarget: String
@@ -88,9 +88,7 @@ abstract class EdpSimulator : Runnable {
     lateinit var sketchConfigFile: File
       private set
 
-    val sketchConfig by lazy {
-      parseTextProto(sketchConfigFile, SketchConfig.getDefaultInstance())
-    }
+    val sketchConfig by lazy { parseTextProto(sketchConfigFile, SketchConfig.getDefaultInstance()) }
 
     @CommandLine.Option(names = ["--requisition-fulfillment-service-target"], required = true)
     lateinit var requisitionFulfillmentServiceTarget: String
@@ -111,7 +109,6 @@ abstract class EdpSimulator : Runnable {
     var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
       private set
   }
-
 
   companion object {
     const val SERVICE_NAME = "DataProvider"
