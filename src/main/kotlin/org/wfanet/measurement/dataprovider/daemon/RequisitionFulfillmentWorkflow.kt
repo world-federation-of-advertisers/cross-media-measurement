@@ -56,17 +56,6 @@ class RequisitionFulfillmentWorkflow(
     }
   }
 
-  /*
-
-
-  WUT ?
-
-  iv.    create an anysketch object from the set of reach
-  v.     convert the anysketch to a sketchProto
-  vi.    write the sketchProto to blobstore with a path (some prefix + the requisiitonId)
-  vii.   encrypt the sketchProto and get encyptedSketch.
-
-   */
 
   fun generateSketch(): Sketch {
 
