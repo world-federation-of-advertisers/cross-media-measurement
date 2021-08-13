@@ -6,27 +6,7 @@ wfa_measurement_system_repositories()
 
 load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
 
-wfa_repo_archive(
-    name = "any_sketch_java",
-    commit = "a63d47ace86d025ec3330f341d1ba4b5573fe756",
-    repo = "any-sketch-java",
-    sha256 = "9dc3cea71dfeecad40ef67a6198846177d750d84401336d196d4d83059e8301e",
-)
-
-
-wfa_repo_archive(
-    name = "wfa_common_jvm",
-    repo = "common-jvm",
-    sha256 = "a1fa7136cf95ed7d00fe98ab33a862d20b35dc468cff041158fe7850315ec405",
-    version = "0.3.0",
-)
-
-# @com_google_truth_truth
-load("@wfa_common_jvm//build/com_google_truth:repo.bzl", "com_google_truth_artifact_dict")
-
-# @io_bazel_rules_kotlin
-
-load("@wfa_common_jvm//build/io_bazel_rules_kotlin:repo.bzl", "rules_kotlin_repo")
+common_cpp_repositories()
 
 load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
 
