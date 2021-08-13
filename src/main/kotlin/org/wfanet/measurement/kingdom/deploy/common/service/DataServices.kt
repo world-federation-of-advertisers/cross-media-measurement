@@ -20,6 +20,9 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
@@ -41,7 +44,10 @@ data class KingdomDataServices(
   val requisitionsService: RequisitionsCoroutineImplBase,
   val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
   val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase,
-  val recurringExchangesService: RecurringExchangesCoroutineImplBase
+  val recurringExchangesService: RecurringExchangesCoroutineImplBase,
+  val exchangesService: ExchangesCoroutineImplBase,
+  val exchangeStepsService: ExchangeStepsCoroutineImplBase,
+  val exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
 )
 
 fun KingdomDataServices.toList(): List<BindableService> {
