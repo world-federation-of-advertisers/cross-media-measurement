@@ -40,7 +40,6 @@ fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
     .build()
 }
 
-
 fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
   val key = ElGamalPublicKey.parseFrom(this.value.liquidLegionsV2.elGamalPublicKey.data)
   return AnySketchElGamalPublicKey.newBuilder()
@@ -51,7 +50,6 @@ fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
     .build()
 }
 
-
 fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
 
   // todo: this needs to verify the duchy keys before using them
@@ -61,20 +59,19 @@ fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
   val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
 
   return CombineElGamalPublicKeysResponse.parseFrom(
-    SketchEncrypterAdapter.CombineElGamalPublicKeys(
-      CombineElGamalPublicKeysRequest.newBuilder()
-        .also {
-          it.curveId = curveId
-          it.addAllElGamalKeys(listOfKeys)
-        }
-        .build()
-        .toByteArray()
+      SketchEncrypterAdapter.CombineElGamalPublicKeys(
+        CombineElGamalPublicKeysRequest.newBuilder()
+          .also {
+            it.curveId = curveId
+            it.addAllElGamalKeys(listOfKeys)
+          }
+          .build()
+          .toByteArray()
+      )
     )
-  )
     .elGamalKeys
     .toV2ElGamalPublicKey()
 }
-
 
 class RequisitionFulfillmentWorkflow(
   private val unfulfilledRequisitionProvider: UnfulfilledRequisitionProvider,
