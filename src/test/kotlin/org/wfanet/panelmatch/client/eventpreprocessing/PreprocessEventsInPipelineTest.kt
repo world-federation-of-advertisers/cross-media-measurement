@@ -35,7 +35,13 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
   @Test
   fun testEncryptByteStrings() {
     val encrypted =
-      preprocessEventsInPipeline(events, 8, "pepper".toByteString(), "cryptokey".toByteString())
+      preprocessEventsInPipeline(
+        events,
+        8,
+        "pepper".toByteString(),
+        "salt".toByteString(),
+        "cryptokey".toByteString()
+      )
     assertThat(encrypted).satisfies {
       val results: List<KV<Long, ByteString>> = it.toList() // `it` is an Iterable<KV<...>>
       assertThat(results).hasSize(2)
@@ -49,8 +55,9 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
       preprocessEventsInPipeline(
         events,
         8,
-        HardCodedPepperProvider("pepper".toByteString()),
-        HardCodedPepperProvider("cryptokey".toByteString())
+        HardCodedIdentifierHashPepperProvider("idhashpepper".toByteString()),
+        HardCodedHkdfPepperProvider("hkdfpepper".toByteString()),
+        HardCodedCryptoKeyProvider("cryptokey".toByteString())
       )
 
     assertThat(encrypted).satisfies {

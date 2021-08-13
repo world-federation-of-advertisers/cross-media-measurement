@@ -90,9 +90,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PepperProviderTest",
-    srcs = ["PepperProviderTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PepperProviderTest",
+    name = "IdentifierHashPepperProviderTest",
+    srcs = ["IdentifierHashPepperProviderTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.IdentifierHashPepperProviderTest",
     deps = [
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
@@ -104,6 +104,24 @@ kt_jvm_test(
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "HkdfPepperProviderTest",
+    srcs = ["HkdfPepperProviderTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.HkdfPepperProviderTest",
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

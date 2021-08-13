@@ -57,13 +57,17 @@ PreprocessEvents(
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   const AesWithHkdf aes_hkdf = AesWithHkdf(std::move(hkdf), std::move(aes));
-  if (request.pepper().empty()) {
-    return absl::InvalidArgumentError("INVALID ARGUMENT: Empty Pepper");
+  if (request.identifier_hash_pepper().empty()) {
+    return absl::InvalidArgumentError("Empty Identifier Hash Pepper");
   }
-  // TODO(juliamorrissey): load the salt from the request
+  if (request.hkdf_pepper().empty()) {
+    return absl::InvalidArgumentError("Empty HKDF Pepper");
+  }
   EventDataPreprocessor preprocessor(
-      std::move(cryptor), SecretDataFromStringView(request.pepper()),
-      SecretDataFromStringView(""), &fingerprinter, &aes_hkdf);
+      std::move(cryptor),
+      SecretDataFromStringView(request.identifier_hash_pepper()),
+      SecretDataFromStringView(request.hkdf_pepper()), &fingerprinter,
+      &aes_hkdf);
   PreprocessEventsResponse processed;
   for (const PreprocessEventsRequest::UnprocessedEvent& u :
        request.unprocessed_events()) {

@@ -27,7 +27,8 @@ message PreprocessEventsRequest {
     bytes data = 2;
   }
   bytes crypto_key = 2;
-  bytes pepper = 3;
+  bytes identifier_hash_pepper = 3;
+  bytes hkdf_pepper = 4;
 }
 
 // Response of the PreprocessEvents method

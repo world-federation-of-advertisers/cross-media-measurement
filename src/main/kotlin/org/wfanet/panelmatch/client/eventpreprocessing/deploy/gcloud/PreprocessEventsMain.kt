@@ -37,7 +37,11 @@ interface Options : DataflowPipelineOptions {
 
   @get:Description("Cryptokey") @get:Validation.Required var cryptokey: String
 
-  @get:Description("Pepper") @get:Validation.Required var pepper: String
+  @get:Description("Identifier Hash Pepper")
+  @get:Validation.Required
+  var identifierHashPepper: String
+
+  @get:Description("HKDF Pepper") @get:Validation.Required var hkdfPepper: String
 
   @get:Description("Table to read from, specified as <project_id>:<dataset_id>.<table_id>")
   @get:Validation.Required
@@ -60,13 +64,14 @@ interface Options : DataflowPipelineOptions {
  * on GCP is:
  *
  * ```
- * ../cross-media-measurement/tools/bazel-container build //src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud:process_events && bazel-bin/src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud/process_events '--batchSize=SIZE' '--cryptokey=KEY' '--pepper=PEPPER' '--bigQueryInputTable=INPUT_TABLE' '--bigQueryOutputTable=OUTPUT_TABLE' '--project=PROJECT' '--runner=dataflow' '--region=us-central1' '--tempLocation=TEMP_LOCATION' '--defaultWorkerLogLevel=DEBUG'
+ * ../cross-media-measurement/tools/bazel-container build //src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud:process_events && bazel-bin/src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud/process_events '--batchSize=SIZE' '--cryptokey=KEY' '--hkdfPepper=HKDFPEPPER' '--identifierHashPepper=IDHPEPPER' '--bigQueryInputTable=INPUT_TABLE' '--bigQueryOutputTable=OUTPUT_TABLE' '--project=PROJECT' '--runner=dataflow' '--region=us-central1' '--tempLocation=TEMP_LOCATION' '--defaultWorkerLogLevel=DEBUG'
  * ```
  *
- * Where SIZE is the desired batch size, KEY is the desired crypto key, PEPPER is the desired
- * pepper, INPUT_TABLE is the BigQuery table to read from, OUTPUT_TABLE is the BigQuery table to
- * write to, PROJECT is the project name, and TEMP_LOCATION is the desired location to store temp
- * files. Performance and outputs can be tracked on the GCP console.
+ * Where SIZE is the desired batch size, KEY is the desired crypto key, IDHPEPPER is the desired
+ * Identifier Hash pepper, HKDFPEPPER is the desired HKDF pepper, INPUT_TABLE is the BigQuery table
+ * to read from, OUTPUT_TABLE is the BigQuery table to write to, PROJECT is the project name, and
+ * TEMP_LOCATION is the desired location to store temp files. Performance and outputs can be tracked
+ * on the GCP console.
  */
 fun main(args: Array<String>) {
   val options = makeOptions(args)
@@ -76,7 +81,8 @@ fun main(args: Array<String>) {
     preprocessEventsInPipeline(
       unencryptedEvents,
       options.batchSize,
-      ByteString.copyFromUtf8(options.pepper),
+      ByteString.copyFromUtf8(options.identifierHashPepper),
+      ByteString.copyFromUtf8(options.hkdfPepper),
       ByteString.copyFromUtf8(options.cryptokey)
     )
 

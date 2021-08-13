@@ -28,12 +28,12 @@ import org.wfanet.panelmatch.common.JniException
 class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
   override val preprocessEvents: PreprocessEvents = JniPreprocessEvents()
   @Test
-  fun testJniWrapExceptionPepper() {
-
+  fun testJniWrapExceptionIdentifierHashPepper() {
     val request =
       PreprocessEventsRequest.newBuilder()
         .apply {
           cryptoKey = ByteString.copyFromUtf8("arbitrary-cryptokey")
+          hkdfPepper = ByteString.copyFromUtf8("arbitrary-hkdf-pepper")
           addUnprocessedEventsBuilder().apply {
             id = ByteString.copyFromUtf8("arbitrary-id")
             data = ByteString.copyFromUtf8("arbitrary-data")
@@ -41,7 +41,23 @@ class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
         }
         .build()
     val noPepper = assertFailsWith(JniException::class) { preprocessEvents.preprocess(request) }
-    assertThat(noPepper.message).contains("INVALID ARGUMENT: Empty Pepper")
+    assertThat(noPepper.message).contains("Empty Identifier Hash Pepper")
+  }
+  @Test
+  fun testJniWrapExceptionHkdfPepper() {
+    val request =
+      PreprocessEventsRequest.newBuilder()
+        .apply {
+          cryptoKey = ByteString.copyFromUtf8("arbitrary-cryptokey")
+          identifierHashPepper = ByteString.copyFromUtf8("arbitrary-identifier-hash-pepper")
+          addUnprocessedEventsBuilder().apply {
+            id = ByteString.copyFromUtf8("arbitrary-id")
+            data = ByteString.copyFromUtf8("arbitrary-data")
+          }
+        }
+        .build()
+    val noPepper = assertFailsWith(JniException::class) { preprocessEvents.preprocess(request) }
+    assertThat(noPepper.message).contains("Empty HKDF Pepper")
   }
   @Test
   fun testJniWrapExceptionCryptoKey() {
@@ -49,7 +65,8 @@ class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
       val request =
         PreprocessEventsRequest.newBuilder()
           .apply {
-            pepper = ByteString.copyFromUtf8("arbitrary-pepper")
+            identifierHashPepper = ByteString.copyFromUtf8("arbitrary-identifier-hash-pepper")
+            hkdfPepper = ByteString.copyFromUtf8("arbitrary-hkdf-pepper")
             addUnprocessedEventsBuilder().apply {
               id = ByteString.copyFromUtf8("arbitrary-id")
               data = ByteString.copyFromUtf8("arbitrary-data")

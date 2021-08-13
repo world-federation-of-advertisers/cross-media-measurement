@@ -29,7 +29,8 @@ import org.wfanet.panelmatch.client.PreprocessEventsResponse
 class EncryptionEventsDoFn(
   private val encryptEvents:
     SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse>,
-  private val getPepper: SerializableFunction<Void?, ByteString>,
+  private val getIdentifierHashPepper: SerializableFunction<Void?, ByteString>,
+  private val getHkdfPepper: SerializableFunction<Void?, ByteString>,
   private val getCryptoKey: SerializableFunction<Void?, ByteString>,
 ) : DoFn<MutableList<KV<ByteString, ByteString>>, KV<Long, ByteString>>() {
   @ProcessElement
@@ -39,7 +40,8 @@ class EncryptionEventsDoFn(
       PreprocessEventsRequest.newBuilder()
         .apply {
           cryptoKey = getCryptoKey.apply(null as Void?)
-          pepper = getPepper.apply(null as Void?)
+          identifierHashPepper = getIdentifierHashPepper.apply(null as Void?)
+          hkdfPepper = getHkdfPepper.apply(null as Void?)
           for (pair in list) {
             addUnprocessedEventsBuilder().apply {
               id = pair.key

@@ -29,13 +29,16 @@ abstract class AbstractPreprocessEventsTest {
     val arbitraryId: ByteString = ByteString.copyFromUtf8("arbitrary-id")
     val arbitraryData: ByteString = ByteString.copyFromUtf8("arbitrary-data")
     val arbitraryCryptoKey: ByteString = ByteString.copyFromUtf8("arbitrary-crypto-key")
-    val arbitraryPepper: ByteString = ByteString.copyFromUtf8("arbitrary-pepper")
+    val arbitraryHkdfPepper: ByteString = ByteString.copyFromUtf8("arbitrary-hkdf-pepper")
+    val arbitraryIdentifierHashPepper: ByteString =
+      ByteString.copyFromUtf8("arbitrary-identifier-hash-pepper")
 
     val request =
       PreprocessEventsRequest.newBuilder()
         .apply {
           cryptoKey = arbitraryCryptoKey
-          pepper = arbitraryPepper
+          identifierHashPepper = arbitraryIdentifierHashPepper
+          hkdfPepper = arbitraryHkdfPepper
           addUnprocessedEventsBuilder().apply {
             id = arbitraryId
             data = arbitraryData
