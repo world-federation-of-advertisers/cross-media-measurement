@@ -12,55 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.resourcesetup
+package org.wfanet.measurement.loadtest.frontend
 
 import java.io.File
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import picocli.CommandLine
 
-class ResourceSetupFlags {
+class FrontendSimulatorFlags {
 
-  /** The ResourceSetup pod's own tls certificates. */
+  /** The FrontendSimulator pod's own tls certificates. */
   @CommandLine.Mixin
   lateinit var tlsFlags: TlsFlags
     private set
 
-  @CommandLine.Option(
-    names = ["--edp-consent-signaling-cert-der-files"],
-    description =
-      ["The map from EDP display name to its consent signaling cert (DER format) file."],
-    required = true
-  )
-  lateinit var edpCsCertDerFiles: Map<String, File>
+  @CommandLine.Mixin
+  lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
     private set
 
   @CommandLine.Option(
-    names = ["--edp-consent-signaling-key-der-files"],
-    description =
-      ["The map from EDP display name to its consent signaling private key (DER format) file."],
+    names = ["--mc-resource-name"],
+    description = ["The resource name of the measurement consumer."],
     required = true
   )
-  lateinit var edpCsKeyDerFiles: Map<String, File>
-    private set
-
-  @CommandLine.Option(
-    names = ["--edp-encryption-public-key-der-files"],
-    description = ["The map from EDP display name to its encryption public key (DER format) file."],
-    required = true
-  )
-  lateinit var edpEncryptionPublicKeyDerFiles: Map<String, File>
-    private set
-
-  @CommandLine.Option(
-    names = ["--mc-consent-signaling-cert-der-files"],
-    description = ["The MC's consent signaling cert (DER format) file."],
-    required = true
-  )
-  lateinit var mcCsCertDerFile: File
+  lateinit var mcResourceName: String
     private set
 
   @CommandLine.Option(
@@ -68,19 +47,31 @@ class ResourceSetupFlags {
     description = ["The MC's consent signaling private key (DER format) file."],
     required = true
   )
-  lateinit var mcCsKeyDerFiles: File
+  lateinit var mcCsPrivateKeyDerFile: File
     private set
 
   @CommandLine.Option(
-    names = ["--mc-encryption-public-key-der-file"],
-    description = ["The MC's encryption public key (DER format) file."],
+    names = ["--mc-encryption-private-key-der-file"],
+    description = ["The MC's encryption private key (DER format) file."],
     required = true
   )
-  lateinit var mcEncryptionPublicKeyDerFile: File
+  lateinit var mcEncPrivateKeyDerFile: File
     private set
 
-  @CommandLine.Mixin
-  lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
+  @set:CommandLine.Option(
+    names = ["--output-differential-privacy-epsilon"],
+    description = ["The common epsilon used for all output's differential privacy noises."],
+    required = true
+  )
+  var outputDpEpsilon by Delegates.notNull<Double>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--output-differential-privacy-delta"],
+    description = ["The common delta used for all output's differential privacy noises."],
+    required = true
+  )
+  var outputDpDelta by Delegates.notNull<Double>()
     private set
 
   @CommandLine.Option(
