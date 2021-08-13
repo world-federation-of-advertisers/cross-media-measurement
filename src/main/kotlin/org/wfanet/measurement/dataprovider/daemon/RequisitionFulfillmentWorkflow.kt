@@ -56,7 +56,6 @@ class RequisitionFulfillmentWorkflow(
     }
   }
 
-
   fun generateSketch(): Sketch {
 
     // todo: where do I get this from?
