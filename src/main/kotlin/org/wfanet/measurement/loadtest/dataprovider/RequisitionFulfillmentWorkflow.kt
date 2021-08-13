@@ -20,14 +20,18 @@ import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchProtos
-import org.wfanet.anysketch.crypto.*
+import org.wfanet.anysketch.crypto.EncryptSketchRequest
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
+import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
+import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
+import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.dataprovider.common.EncryptedSketchGenerator
-import org.wfanet.measurement.dataprovider.common.RequisitionFulfiller
-import org.wfanet.measurement.dataprovider.common.UnfulfilledRequisitionProvider
 import org.wfanet.measurement.storage.StorageClient
 
 fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
@@ -58,16 +62,16 @@ fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
   val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
 
   return CombineElGamalPublicKeysResponse.parseFrom(
-      SketchEncrypterAdapter.CombineElGamalPublicKeys(
-        CombineElGamalPublicKeysRequest.newBuilder()
-          .also {
-            it.curveId = curveId
-            it.addAllElGamalKeys(listOfKeys)
-          }
-          .build()
-          .toByteArray()
-      )
+    SketchEncrypterAdapter.CombineElGamalPublicKeys(
+      CombineElGamalPublicKeysRequest.newBuilder()
+        .also {
+          it.curveId = curveId
+          it.addAllElGamalKeys(listOfKeys)
+        }
+        .build()
+        .toByteArray()
     )
+  )
     .elGamalKeys
     .toV2ElGamalPublicKey()
 }
