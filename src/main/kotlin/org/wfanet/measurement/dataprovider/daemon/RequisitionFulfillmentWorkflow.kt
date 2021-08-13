@@ -40,6 +40,42 @@ fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
     .build()
 }
 
+
+fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
+  val key = ElGamalPublicKey.parseFrom(this.value.liquidLegionsV2.elGamalPublicKey.data)
+  return AnySketchElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = key.generator
+      it.element = key.element
+    }
+    .build()
+}
+
+
+fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
+
+  // todo: this needs to verify the duchy keys before using them
+
+  val curveId = 415L // todo: fetch this from the ProtoConfig svc using `req.protocolConfig` ?
+
+  val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
+
+  return CombineElGamalPublicKeysResponse.parseFrom(
+    SketchEncrypterAdapter.CombineElGamalPublicKeys(
+      CombineElGamalPublicKeysRequest.newBuilder()
+        .also {
+          it.curveId = curveId
+          it.addAllElGamalKeys(listOfKeys)
+        }
+        .build()
+        .toByteArray()
+    )
+  )
+    .elGamalKeys
+    .toV2ElGamalPublicKey()
+}
+
+
 class RequisitionFulfillmentWorkflow(
   private val unfulfilledRequisitionProvider: UnfulfilledRequisitionProvider,
   private val requisitionDecoder: RequisitionDecoder,
@@ -73,13 +109,11 @@ class RequisitionFulfillmentWorkflow(
   }
 
   private fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): Flow<ByteString> {
-    val MAX_COUNTER_VALUE = 5
-
     val request: EncryptSketchRequest =
       EncryptSketchRequest.newBuilder()
         .apply {
           this.sketch = sketch
-          maximumValue = MAX_COUNTER_VALUE
+          maximumValue = 5
           curveId = combinedPublicKey.ellipticCurveId.toLong()
           elGamalKeysBuilder.generator = combinedPublicKey.generator
           elGamalKeysBuilder.element = combinedPublicKey.element
@@ -92,51 +126,17 @@ class RequisitionFulfillmentWorkflow(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
-  private fun getElGamalKey(duchyEntry: Requisition.DuchyEntry): AnySketchElGamalPublicKey {
-    val key = ElGamalPublicKey.parseFrom(duchyEntry.value.liquidLegionsV2.elGamalPublicKey.data)
-
-    return AnySketchElGamalPublicKey.newBuilder()
-      .also {
-        it.generator = key.generator
-        it.element = key.element
-      }
-      .build()
-  }
-
-  private fun getCombinedPublicKey(req: Requisition): ElGamalPublicKey {
-
-    val curveId = 415L // todo: fetch this from the ProtoConfig svc using `req.protocolConfig` ?
-
-    val listOfKeys = req.duchiesList.map { getElGamalKey(it) }
-
-    return CombineElGamalPublicKeysResponse.parseFrom(
-        SketchEncrypterAdapter.CombineElGamalPublicKeys(
-          CombineElGamalPublicKeysRequest.newBuilder()
-            .also {
-              it.curveId = curveId
-              it.addAllElGamalKeys(listOfKeys)
-            }
-            .build()
-            .toByteArray()
-        )
-      )
-      .elGamalKeys
-      .toV2ElGamalPublicKey()
-  }
-
   suspend fun execute() {
     val requisition: Requisition = unfulfilledRequisitionProvider.get() ?: return
 
     val measurementSpec = requisitionDecoder.decodeMeasurementSpec(requisition)
     val requisitionSpec = requisitionDecoder.decodeRequisitionSpec(requisition)
+    val combinedPublicKey = requisition.getCombinedPublicKey()
 
     val sketch = generateSketch()
 
-    // todo: save sketch to blob store with a better key
-    val blobKey = "blob/sketch/123"
+    val blobKey = "sketch/for-req-${requisition.name}"
     storageClient.createBlob(blobKey, sketch.toByteString().asBufferedFlow(1024))
-
-    val combinedPublicKey: ElGamalPublicKey = getCombinedPublicKey(requisition)
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
 
