@@ -16,26 +16,23 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-internal enum class IdVariable() {
-  RECURRING_EXCHANGE,
-  EVENT_GROUP,
-  EXCHANGE,
-  EXCHANGE_STEP,
-  EXCHANGE_STEP_ATTEMPT,
-  DATA_PROVIDER,
-  MODEL_PROVIDER,
-  REQUISITION,
-  PROTOCOL_CONFIG,
-  DUCHY,
-  MEASUREMENT,
-  MEASUREMENT_CONSUMER,
-  CERTIFICATE
-}
+private val parser = ResourceNameParser("dataProviders/{data_provider}/eventGroups/{event_group}")
 
-internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
-  return assembleName(idMap.mapKeys { it.key.name.toLowerCase() })
-}
+/** [ResourceKey] of an EventGroup. */
+data class EventGroupKey(val dataProviderId: String, val eventGroupId: String) : ResourceKey {
+  override fun toName(): String {
+    return parser.assembleName(
+      mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.EVENT_GROUP to eventGroupId)
+    )
+  }
 
-internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
-  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.toUpperCase()) }
+  companion object {
+    val defaultValue = EventGroupKey("", "")
+
+    fun fromName(resourceName: String): EventGroupKey? {
+      return parser.parseIdVars(resourceName)?.let {
+        EventGroupKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.EVENT_GROUP))
+      }
+    }
+  }
 }
