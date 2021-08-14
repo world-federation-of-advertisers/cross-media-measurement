@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/type/date.proto";
 import "wfa/measurement/internal/kingdom/exchange.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -23,11 +24,25 @@ option java_multiple_files = true;
 
 // Internal service for managing `Exchange` resources.
 service Exchanges {
+  // Gets an existing `Exchange`.
+  rpc GetExchange(GetExchangeRequest) returns (Exchange);
+
   // Creates an `Exchange`.
   //
   // If there is already an Exchange for the same date for the given
   // `RecurringExchange`, this will do nothing and return that instead.
   rpc CreateExchange(CreateExchangeRequest) returns (Exchange);
+}
+
+// Request for `/Exchanges.GetExchange`.
+message GetExchangeRequest {
+  // External identifier of the `RecurringExchange` that contains this.
+  fixed64 external_recurring_exchange_id = 1;
+
+  // Date of the `Exchange`. For any given `external_recurring_exchange_id`
+  // there is at most one `Exchange` for any given date -- this is part of the
+  // `Exchange`'s primary key.
+  google.type.Date date = 2;
 }
 
 // Request for `/Exchanges.CreateExchange`.
