@@ -189,17 +189,18 @@ class CertificatesServiceTest {
     val expected = CERTIFICATE
 
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::createCertificate)
-      .comparingExpectedFieldsOnly()
       .isEqualTo(INTERNAL_CERTIFICATE.change { clearExternalCertificateId() })
 
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test
   fun `createCertificate throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createCertificate(CreateCertificateRequest.getDefaultInstance()) }
+        runBlocking {
+          service.createCertificate(buildCreateCertificateRequest { certificate = CERTIFICATE })
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Parent unspecified or invalid")

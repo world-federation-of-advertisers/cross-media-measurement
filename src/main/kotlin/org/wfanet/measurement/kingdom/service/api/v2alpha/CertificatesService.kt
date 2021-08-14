@@ -64,39 +64,31 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       }
     }
 
-    val result = internalCertificatesStub.getCertificate(internalGetCertificateRequest)
-    return result.toCertificate()
+    return internalCertificatesStub.getCertificate(internalGetCertificateRequest).toCertificate()
   }
 
   override suspend fun createCertificate(request: CreateCertificateRequest): Certificate {
-    val parentKey =
-      grpcRequireNotNull(
-        when {
-          DataProviderKey.fromName(request.parent) != null ->
-            DataProviderKey.fromName(request.parent)
-          DuchyKey.fromName(request.parent) != null -> DuchyKey.fromName(request.parent)
-          MeasurementConsumerKey.fromName(request.parent) != null ->
-            MeasurementConsumerKey.fromName(request.parent)
-          else -> null
-        }
-      ) { "Parent unspecified or invalid" }
+    val dataProviderKey = DataProviderKey.fromName(request.parent)
+    val duchyKey = DuchyKey.fromName(request.parent)
+    val measurementConsumerKey = MeasurementConsumerKey.fromName(request.parent)
 
     val internalCertificate =
       parseCertificateDer(request.certificate.x509Der)
         .toBuilder()
         .apply {
-          when (parentKey) {
-            is DataProviderKey ->
-              externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-            is DuchyKey -> externalDuchyId = parentKey.duchyId
-            is MeasurementConsumerKey ->
-              externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+          when {
+            dataProviderKey != null ->
+              externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+            duchyKey != null -> externalDuchyId = duchyKey.duchyId
+            measurementConsumerKey != null ->
+              externalMeasurementConsumerId =
+                apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+            else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
           }
         }
         .build()
 
-    val result = internalCertificatesStub.createCertificate(internalCertificate)
-    return result.toCertificate()
+    return internalCertificatesStub.createCertificate(internalCertificate).toCertificate()
   }
 
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
@@ -125,8 +117,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       revocationState = request.revocationState.toInternal()
     }
 
-    val result = internalCertificatesStub.revokeCertificate(internalRevokeCertificateRequest)
-    return result.toCertificate()
+    return internalCertificatesStub
+      .revokeCertificate(internalRevokeCertificateRequest)
+      .toCertificate()
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
@@ -150,9 +143,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       }
     }
 
-    val result =
-      internalCertificatesStub.releaseCertificateHold(internalReleaseCertificateHoldRequest)
-    return result.toCertificate()
+    return internalCertificatesStub
+      .releaseCertificateHold(internalReleaseCertificateHoldRequest)
+      .toCertificate()
   }
 }
 
@@ -224,11 +217,17 @@ internal inline fun buildInternalReleaseCertificateHoldRequest(
 
 /** Checks the resource name against multiple certificate [ResourceKey] to find the right one. */
 private fun createResourceKey(name: String): Any? {
-  return when {
-    DataProviderCertificateKey.fromName(name) != null -> DataProviderCertificateKey.fromName(name)
-    DuchyCertificateKey.fromName(name) != null -> DuchyCertificateKey.fromName(name)
-    MeasurementConsumerCertificateKey.fromName(name) != null ->
-      MeasurementConsumerCertificateKey.fromName(name)
-    else -> null
+  val dataProviderCertificateKey = DataProviderCertificateKey.fromName(name)
+  if (dataProviderCertificateKey != null) {
+    return dataProviderCertificateKey
   }
+  val duchyCertificateKey = DuchyCertificateKey.fromName(name)
+  if (duchyCertificateKey != null) {
+    return duchyCertificateKey
+  }
+  val measurementConsumerCertificateKey = MeasurementConsumerCertificateKey.fromName(name)
+  if (measurementConsumerCertificateKey != null) {
+    return measurementConsumerCertificateKey
+  }
+  return null
 }
