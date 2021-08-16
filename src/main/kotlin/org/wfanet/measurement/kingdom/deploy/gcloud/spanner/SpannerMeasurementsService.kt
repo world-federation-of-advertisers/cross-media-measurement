@@ -55,7 +55,7 @@ class SpannerMeasurementsService(
     request: GetMeasurementByComputationIdRequest
   ): Measurement {
     return MeasurementReader(request.measurementView)
-      .readExternalIdWithGroupByOrNull(
+      .readExternalIdOrNull(
         client.singleUse(),
         ExternalId(request.externalComputationId)
       )

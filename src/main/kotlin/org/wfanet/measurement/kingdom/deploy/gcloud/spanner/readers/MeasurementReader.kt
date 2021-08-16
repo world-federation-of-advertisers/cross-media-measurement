@@ -107,20 +107,6 @@ class MeasurementReader(private val view: Measurement.View) :
     }
   }
 
-  suspend fun readExternalIdWithGroupByOrNull(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalId: ExternalId
-  ): Result? {
-    return withBuilder {
-        appendClause("WHERE $externalIdColumn = @external_id")
-        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9")
-        bind("external_id").to(externalId.value)
-
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
 
   companion object {
     private val defaultViewBaseSql =
@@ -134,7 +120,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       MeasurementConsumers.ExternalMeasurementConsumerId,
-    MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
     FROM Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)

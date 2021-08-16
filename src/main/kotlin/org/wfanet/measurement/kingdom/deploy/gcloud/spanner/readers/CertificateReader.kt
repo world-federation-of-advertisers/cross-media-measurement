@@ -22,6 +22,8 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
+// TODO(@uakyol) : Let CertificateReader be initialized with GetCertificateRequest.ParentCase
+// TODO(@uakyol) : CertificateReader should extend BaseSpannerReader, not use readExternalIdOrNull
 class CertificateReader(private val request: GetCertificateRequest) :
   SpannerReader<CertificateReader.Result>() {
 

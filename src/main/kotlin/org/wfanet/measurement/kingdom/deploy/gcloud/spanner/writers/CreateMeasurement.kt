@@ -61,31 +61,18 @@ class CreateMeasurement(private val measurement: Measurement) :
     // Insert this measurement into Measurements
     val measurementId = idGenerator.generateInternalId().value
 
-    val measuermentConsumerGetCertificateRequest =
-      GetCertificateRequest.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-          it.externalCertificateId = measurement.externalMeasurementConsumerCertificateId
-        }
-        .build()
-
     val measurementConsumerCertificateId =
-      CertificateReader(measuermentConsumerGetCertificateRequest)
-        .readExternalIdOrNull(
-          transactionContext,
-          ExternalId(measuermentConsumerGetCertificateRequest.externalCertificateId)
-        )
-        ?.certificateId
-        ?: throw KingdomInternalException(
-          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-        )
+      getMeasurementConsumerCertificateId(
+        measurement.externalMeasurementConsumerId,
+        measurement.externalMeasurementConsumerCertificateId
+      )
 
     val measurement =
       createNewMeasurement(measurementId, measurementConsumerId, measurementConsumerCertificateId)
 
     // Insert into Requisitions for each EDP
-    for ((k, v) in measurement.dataProvidersMap) {
-      val externalDataProviderId = ExternalId(k)
+    for ((externalDataProviderIdValue, dataProviderValue) in measurement.dataProvidersMap) {
+      val externalDataProviderId = ExternalId(externalDataProviderIdValue)
       val dataProviderId =
         DataProviderReader()
           .readExternalIdOrNull(transactionContext, externalDataProviderId)
@@ -96,7 +83,7 @@ class CreateMeasurement(private val measurement: Measurement) :
         GetCertificateRequest.newBuilder()
           .also {
             it.externalDataProviderId = externalDataProviderId.value
-            it.externalCertificateId = v.externalDataProviderCertificateId
+            it.externalCertificateId = dataProviderValue.externalDataProviderCertificateId
           }
           .build()
       val dataProviderCertificateId =
@@ -195,6 +182,29 @@ class CreateMeasurement(private val measurement: Measurement) :
       .bufferTo(transactionContext)
   }
 
+  private suspend fun TransactionScope.getMeasurementConsumerCertificateId(
+    externalMeasurementConsumerId: Long,
+    externalMeasurementConsumerCertificateId: Long
+  ): Long {
+    val measurementConsumerGetCertificateRequest =
+      GetCertificateRequest.newBuilder()
+        .also {
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalCertificateId = measurement.externalMeasurementConsumerCertificateId
+        }
+        .build()
+
+    return CertificateReader(measurementConsumerGetCertificateRequest)
+      .readExternalIdOrNull(
+        transactionContext,
+        ExternalId(measurementConsumerGetCertificateRequest.externalCertificateId)
+      )
+      ?.certificateId
+      ?: throw KingdomInternalException(
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+      )
+  }
+
   private suspend fun TransactionScope.findExistingMeasurement(
     measurementConsumerId: Long
   ): Measurement? {
@@ -204,14 +214,9 @@ class CreateMeasurement(private val measurement: Measurement) :
         AND Measurements.ProvidedMeasurementId = @provided_measurement_id
       """.trimIndent()
 
-    val groupByClause = """
-      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
-      """.trimIndent()
-
     return MeasurementReader(Measurement.View.DEFAULT)
       .withBuilder {
         appendClause(whereClause)
-        appendClause(groupByClause)
         bind("measurement_consumer_id").to(measurementConsumerId)
         bind("provided_measurement_id").to(measurement.providedMeasurementId)
       }
