@@ -21,22 +21,21 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 
-/** Implementation of [FakeDataProviderServer] using Fake Data Provider Service. */
 @CommandLine.Command(
-  name = "FakeDataProviderServer",
+  name = "FileSystemEdpSimulatorRunner",
   description = ["Server daemon for ${EdpSimulator.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 class FileSystemEdpSimulatorRunner : EdpSimulator() {
   override fun run() {
-
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
 
     val storageClient = FileSystemStorageClient(createTempDir())
     val workflow =
       RequisitionFulfillmentWorkflow(
         flags.externalDataProviderId,
+        flags.sketchConfig,
         flags.requisitionsStub,
         flags.requisitionFulfillmentStub,
         storageClient,
