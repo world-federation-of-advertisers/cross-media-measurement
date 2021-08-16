@@ -79,22 +79,11 @@ class CreateMeasurement(private val measurement: Measurement) :
           ?.dataProviderId
           ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
-      val dataProviderGetCertificateRequest =
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalDataProviderId = externalDataProviderId.value
-            it.externalCertificateId = dataProviderValue.externalDataProviderCertificateId
-          }
-          .build()
       val dataProviderCertificateId =
-        CertificateReader(dataProviderGetCertificateRequest)
-          .readExternalIdOrNull(
-            transactionContext,
-            ExternalId(dataProviderGetCertificateRequest.externalCertificateId)
-          )
-          ?.certificateId
-          ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-
+        getDataProviderCertificateId(
+          externalDataProviderId.value,
+          dataProviderValue.externalDataProviderCertificateId
+        )
       createRequisition(
         externalDataProviderId.value,
         measurementConsumerId,
@@ -203,6 +192,26 @@ class CreateMeasurement(private val measurement: Measurement) :
       ?: throw KingdomInternalException(
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
       )
+  }
+
+  private suspend fun TransactionScope.getDataProviderCertificateId(
+    externalDataProviderId: Long,
+    externalDataProviderCertificateId: Long
+  ): Long {
+    val dataProviderGetCertificateRequest =
+      GetCertificateRequest.newBuilder()
+        .also {
+          it.externalDataProviderId = externalDataProviderId
+          it.externalCertificateId = externalDataProviderCertificateId
+        }
+        .build()
+    return CertificateReader(dataProviderGetCertificateRequest)
+        .readExternalIdOrNull(
+          transactionContext,
+          ExternalId(dataProviderGetCertificateRequest.externalCertificateId)
+        )
+        ?.certificateId
+        ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
   }
 
   private suspend fun TransactionScope.findExistingMeasurement(
