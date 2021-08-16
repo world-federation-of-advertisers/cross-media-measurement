@@ -24,6 +24,24 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "EventGroupsServiceTest",
+    srcs = ["EventGroupsServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_groups_service",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsServiceTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "ExchangesServiceTest",
     srcs = ["ExchangesServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesServiceTest",
