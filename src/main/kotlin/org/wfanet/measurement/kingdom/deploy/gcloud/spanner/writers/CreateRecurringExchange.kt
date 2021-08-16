@@ -29,12 +29,12 @@ private val INITIAL_STATE: RecurringExchange.State = RecurringExchange.State.ACT
 class CreateRecurringExchange(private val recurringExchange: RecurringExchange) :
   SimpleSpannerWriter<RecurringExchange>() {
   override suspend fun TransactionScope.runTransaction(): RecurringExchange {
-    val externalDataProviderId =
+    val dataProviderId =
       DataProviderReader()
         .readExternalId(transactionContext, ExternalId(recurringExchange.externalDataProviderId))
         .dataProviderId
 
-    val externalModelProviderId =
+    val modelProviderId =
       ModelProviderReader()
         .readExternalId(transactionContext, ExternalId(recurringExchange.externalModelProviderId))
         .modelProviderId
@@ -43,8 +43,8 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
     insertMutation("RecurringExchanges") {
         set("RecurringExchangeId" to idGenerator.generateInternalId().value)
         set("ExternalRecurringExchangeId" to externalId.value)
-        set("ModelProviderId" to externalModelProviderId)
-        set("DataProviderId" to externalDataProviderId)
+        set("ModelProviderId" to modelProviderId)
+        set("DataProviderId" to dataProviderId)
         set("State" to INITIAL_STATE)
         set("NextExchangeDate" to recurringExchange.nextExchangeDate.toCloudDate())
         set("RecurringExchangeDetails" to recurringExchange.details)

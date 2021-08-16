@@ -58,14 +58,14 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "any_sketch_java",
-        commit = "a63d47ace86d025ec3330f341d1ba4b5573fe756",
+        version = "0.1.0",
         repo = "any-sketch-java",
-        sha256 = "9dc3cea71dfeecad40ef67a6198846177d750d84401336d196d4d83059e8301e",
+        sha256 = "d6e8f3c37ee93da0727bdce4b1c3b78be94dccc76068fc1138121b3f89d31860",
     )
 
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "8fb6b2770e93384dcb3476f80c53443c54af1e1fd6deff4c0ce7e78df5f5fe0f",
-        version = "0.1.0",
+        sha256 = "23c570c4d7315feca30609d0ec0b4ec9e3aae484568e5d903bdbc22b363801dd",
+        version = "0.2.0",
     )
