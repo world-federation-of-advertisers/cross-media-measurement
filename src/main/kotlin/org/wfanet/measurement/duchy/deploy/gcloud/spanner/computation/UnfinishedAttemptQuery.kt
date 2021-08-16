@@ -17,9 +17,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 
 /** Queries for the attempts of stages for a computation that do not have an end time. */
@@ -38,7 +36,7 @@ class UnfinishedAttemptQuery<StageT>(
       """
   }
   override val sql: Statement =
-    makeStatement(parameterizedQueryString) { bind("local_id" to localId) }
+    Statement.newBuilder(parameterizedQueryString).bind("local_id").to(localId).build()
   override fun asResult(struct: Struct): UnfinishedAttemptQueryResult<StageT> =
     UnfinishedAttemptQueryResult(
       computationId = localId,

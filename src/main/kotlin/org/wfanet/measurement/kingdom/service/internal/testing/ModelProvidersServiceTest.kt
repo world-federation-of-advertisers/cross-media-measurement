@@ -37,7 +37,7 @@ private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 
 @RunWith(JUnit4::class)
-abstract class ModelProvidersServiceTest<T : ModelProvidersCoroutineImplBase> {
+abstract class ModelProvidersServiceTest {
 
   protected val idGenerator =
     FixedIdGenerator(
@@ -45,10 +45,10 @@ abstract class ModelProvidersServiceTest<T : ModelProvidersCoroutineImplBase> {
       ExternalId(FIXED_GENERATED_EXTERNAL_ID)
     )
 
-  protected lateinit var modelProvidersService: T
-    private set
+  protected lateinit var modelProvidersService: ModelProvidersCoroutineImplBase
 
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  /** Creates a /ModelProviders service implementation using [idGenerator]. */
+  protected abstract fun newService(idGenerator: IdGenerator): ModelProvidersCoroutineImplBase
 
   @Before
   fun initService() {

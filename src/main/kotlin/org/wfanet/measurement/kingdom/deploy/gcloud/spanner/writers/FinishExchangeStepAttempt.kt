@@ -22,11 +22,10 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -194,11 +193,14 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       ORDER BY ExchangeSteps.StepIndex
       """.trimIndent()
     val statement: Statement =
-      makeStatement(sql) {
-        bind("recurring_exchange_id" to recurringExchangeId)
-        bind("date" to date.toCloudDate())
-        bind("state" to ExchangeStep.State.SUCCEEDED)
-      }
+      Statement.newBuilder(sql)
+        .bind("recurring_exchange_id")
+        .to(recurringExchangeId)
+        .bind("date")
+        .to(date.toCloudDate())
+        .bind("state")
+        .toProtoEnum(ExchangeStep.State.SUCCEEDED)
+        .build()
     val result = mutableSetOf<Int>()
     transactionContext.executeQuery(statement).collect {
       result.add(it.getLong("StepIndex").toInt())
