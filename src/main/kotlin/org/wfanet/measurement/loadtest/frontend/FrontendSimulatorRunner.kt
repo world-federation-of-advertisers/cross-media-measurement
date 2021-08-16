@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.loadtest.resourcesetup
+package org.wfanet.measurement.loadtest.frontend
 
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -26,11 +29,11 @@ import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "RunResourceSetupJob",
+  name = "RunFrontendSimulatorJob",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
+private fun run(@CommandLine.Mixin flags: FrontendSimulatorFlags) {
   val clientCerts =
     SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
@@ -44,46 +47,48 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       flags.kingdomPublicApiFlags.certHost
     )
   val dataProvidersStub = DataProvidersCoroutineStub(v2alphaPublicApiChannel)
+  val eventGroupsStub = EventGroupsCoroutineStub(v2alphaPublicApiChannel)
+  val measurementsStub = MeasurementsCoroutineStub(v2alphaPublicApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
 
   val inMemoryKeyStore = InMemoryKeyStore()
+  val mcName = flags.mcResourceName
+  val mcConsentSignalingKeyId = "$mcName-cs-private-key"
+  val mcEncryptionKeyId = "$mcName-enc-private-key"
 
-  // Makes sure the three maps contain the same set of EDPs.
-  require(
-    flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
-      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeyDerFiles.keys
-  )
-  val dataProviderContents =
-    flags.edpCsCertDerFiles.map {
-      EntityContent(
-        displayName = it.key,
-        consentSignalPrivateKeyDer = flags.edpCsKeyDerFiles[it.key]!!.readBytes().toByteString(),
-        consentSignalCertificateDer = it.value.readBytes().toByteString(),
-        encryptionPublicKeyDer =
-          flags.edpEncryptionPublicKeyDerFiles[it.key]!!.readBytes().toByteString()
-      )
-    }
-  val measurementConsumerContent =
-    EntityContent(
-      displayName = "mc_001",
-      consentSignalPrivateKeyDer = flags.mcCsKeyDerFiles.readBytes().toByteString(),
-      consentSignalCertificateDer = flags.mcCsCertDerFile.readBytes().toByteString(),
-      encryptionPublicKeyDer = flags.mcEncryptionPublicKeyDerFile.readBytes().toByteString(),
-    )
+  val measurementConsumerData =
+    MeasurementConsumerData(mcName, mcConsentSignalingKeyId, mcEncryptionKeyId)
+  val outputDpParams =
+    DifferentialPrivacyParams.newBuilder()
+      .apply {
+        epsilon = flags.outputDpEpsilon
+        delta = flags.outputDpDelta
+      }
+      .build()
 
   runBlocking {
     // Populates data to the inMemoryKeyStore.
-    dataProviderContents.forEach {
-      inMemoryKeyStore.storePrivateKeyDer(it.displayName, it.consentSignalPrivateKeyDer)
-    }
     inMemoryKeyStore.storePrivateKeyDer(
-      measurementConsumerContent.displayName,
-      measurementConsumerContent.consentSignalPrivateKeyDer
+      mcConsentSignalingKeyId,
+      flags.mcCsPrivateKeyDerFile.readBytes().toByteString()
+    )
+    inMemoryKeyStore.storePrivateKeyDer(
+      mcEncryptionKeyId,
+      flags.mcEncPrivateKeyDerFile.readBytes().toByteString()
     )
 
-    // Runs the resource setup job.
-    ResourceSetupImpl(inMemoryKeyStore, dataProvidersStub, measurementConsumersStub, flags.runId)
-      .process(dataProviderContents, measurementConsumerContent)
+    // Runs the frontend simulator.
+    FrontendSimulatorImpl(
+        measurementConsumerData,
+        outputDpParams,
+        inMemoryKeyStore,
+        dataProvidersStub,
+        eventGroupsStub,
+        measurementsStub,
+        measurementConsumersStub,
+        flags.runId
+      )
+      .process()
   }
 }
 

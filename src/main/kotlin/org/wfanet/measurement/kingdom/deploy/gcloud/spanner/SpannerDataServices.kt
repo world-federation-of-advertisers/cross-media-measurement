@@ -35,7 +35,10 @@ class SpannerDataServices(
       SpannerRequisitionsService(clock, idGenerator, client),
       SpannerComputationParticipantsService(clock, idGenerator, client),
       SpannerMeasurementLogEntriesService(clock, idGenerator, client),
-      SpannerRecurringExchangesService(clock, idGenerator, client)
+      SpannerRecurringExchangesService(clock, idGenerator, client),
+      SpannerExchangesService(clock, idGenerator, client),
+      SpannerExchangeStepsService(clock, idGenerator, client),
+      SpannerExchangeStepAttemptsService(clock, idGenerator, client)
     )
   }
 }
