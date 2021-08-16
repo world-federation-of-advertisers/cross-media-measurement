@@ -34,9 +34,9 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
@@ -85,9 +85,9 @@ fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
 
 class RequisitionFulfillmentWorkflow(
   private val externalDataProviderId: String,
-  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStub:
-    RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub,
+  private val sketchConfig: SketchConfig,
+  private val requisitionsStub: RequisitionsCoroutineStub,
+  private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val storageClient: StorageClient,
 ) {
 
@@ -109,12 +109,9 @@ class RequisitionFulfillmentWorkflow(
     return RequisitionSpec.parseFrom(signedData.data)
   }
 
-  fun generateSketch(): Sketch {
+  fun generateSketch(sketchConfig: SketchConfig): Sketch {
 
-    // todo: where do I get this from?
-    val sketchCfg = SketchConfig.getDefaultInstance()
-
-    val anySketch: AnySketch = SketchProtos.toAnySketch(sketchCfg)
+    val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
     // todo: make random
     anySketch.insert(123, mapOf("frequency" to 1L))
@@ -122,7 +119,7 @@ class RequisitionFulfillmentWorkflow(
     anySketch.insert(332, mapOf("frequency" to 1L))
     anySketch.insert(111, mapOf("frequency" to 1L))
 
-    return SketchProtos.fromAnySketch(anySketch, sketchCfg)
+    return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
   private fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): Flow<ByteString> {
@@ -180,7 +177,7 @@ class RequisitionFulfillmentWorkflow(
     //    val requisitionSpec = decodeRequisitionSpec(requisition)
     val combinedPublicKey = requisition.getCombinedPublicKey()
 
-    val sketch = generateSketch()
+    val sketch = generateSketch(sketchConfig)
 
     val blobKey = "sketch/for-req-${requisition.name}"
     storageClient.createBlob(blobKey, sketch.toByteString().asBufferedFlow(1024))

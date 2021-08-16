@@ -39,7 +39,7 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "FakeDataProviderServer",
+    name = "FileSystemEdpSimulatorRunner",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
     runtime_deps = [":edp_simulator"],
 )

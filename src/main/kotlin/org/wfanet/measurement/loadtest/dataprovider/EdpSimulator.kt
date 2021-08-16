@@ -111,6 +111,6 @@ abstract class EdpSimulator : Runnable {
   }
 
   companion object {
-    const val SERVICE_NAME = "DataProvider"
+    const val SERVICE_NAME = "EdpSimulator"
   }
 }
