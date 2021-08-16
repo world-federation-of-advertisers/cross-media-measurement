@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
+import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow
@@ -31,6 +32,7 @@ class BatchingDoFn<T>(
 ) : DoFn<T, MutableList<T>>() {
   private var buffer = mutableListOf<T>()
   var size: Int = 0
+  val batchSizeDistribution = Metrics.distribution(BatchingDoFn::class.java, "batch-sizes")
 
   @ProcessElement
   fun process(c: ProcessContext) {
@@ -40,6 +42,7 @@ class BatchingDoFn<T>(
       return
     }
     if (size + currElementSize > maxByteSize) {
+      batchSizeDistribution.update(size.toLong())
       c.output(buffer)
       buffer = mutableListOf()
       size = 0
@@ -53,6 +56,7 @@ class BatchingDoFn<T>(
   @Throws(Exception::class)
   fun FinishBundle(context: FinishBundleContext) {
     if (!buffer.isEmpty()) {
+      batchSizeDistribution.update(size.toLong())
       context.output(buffer, Instant.now(), GlobalWindow.INSTANCE)
       buffer = mutableListOf()
       size = 0

@@ -19,8 +19,10 @@ import com.google.api.services.bigquery.model.TableRow
 import com.google.api.services.bigquery.model.TableSchema
 import com.google.protobuf.ByteString
 import java.util.Base64
+import java.util.logging.Logger
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.Pipeline
+import org.apache.beam.sdk.PipelineResult
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.TypedRead.Method
 import org.apache.beam.sdk.options.Description
@@ -88,7 +90,9 @@ fun main(args: Array<String>) {
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)
 
-  pipeline.run().waitUntilFinish()
+  val pipelineResult = pipeline.run()
+  check(pipelineResult.waitUntilFinish() == PipelineResult.State.DONE)
+  logMetrics(pipelineResult)
 }
 
 private fun readFromBigQuery(
@@ -146,4 +150,22 @@ private fun writeToBigQuery(
 
 private fun makeOptions(args: Array<String>): Options {
   return PipelineOptionsFactory.fromArgs(*args).withValidation().`as`(Options::class.java)
+}
+
+private fun logMetrics(pipelineResult: PipelineResult) {
+  val metrics = pipelineResult.metrics().allMetrics()
+  val logger = Logger.getLogger("PreprocessEventsMain")
+  for (metric in metrics.distributions) {
+    with(metric.attempted) {
+      logger.info(
+        "Distribution '${metric.name}': count=$count, min=$min, mean=$mean, max=$max, sum=$sum"
+      )
+    }
+  }
+  for (metric in metrics.counters) {
+    logger.info("Counter '${metric.name}': ${metric.attempted}")
+  }
+  for (metric in metrics.gauges) {
+    logger.info("Gauge '${metric.name}': ${metric.attempted.value}")
+  }
 }
