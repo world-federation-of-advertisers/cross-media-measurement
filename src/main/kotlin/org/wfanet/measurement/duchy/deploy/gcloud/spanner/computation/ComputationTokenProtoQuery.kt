@@ -19,7 +19,9 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.gcloud.common.toEpochMilli
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
@@ -105,20 +107,17 @@ class ComputationTokenProtoQuery(
 
   override val sql: Statement =
     if (globalId != null) {
-      Statement.newBuilder(parameterizedQueryUsingGlobalComputationIdString)
-        .bind("global_id")
-        .to(globalId)
-        .build()
+      makeStatement(parameterizedQueryUsingGlobalComputationIdString) {
+        bind("global_id" to globalId)
+      }
     } else {
       require(externalRequisitionKey != null) {
         "global computation id or external requisition key is required."
       }
-      Statement.newBuilder(parameterizedQueryUsingExternalRequisitionKeyString)
-        .bind("external_data_provider_id")
-        .to(externalRequisitionKey.externalDataProviderId)
-        .bind("external_requisition_id")
-        .to(externalRequisitionKey.externalRequisitionId)
-        .build()
+      makeStatement(parameterizedQueryUsingExternalRequisitionKeyString) {
+        bind("external_data_provider_id" to externalRequisitionKey.externalDataProviderId)
+        bind("external_requisition_id" to externalRequisitionKey.externalRequisitionId)
+      }
     }
 
   override fun asResult(struct: Struct): ComputationToken {

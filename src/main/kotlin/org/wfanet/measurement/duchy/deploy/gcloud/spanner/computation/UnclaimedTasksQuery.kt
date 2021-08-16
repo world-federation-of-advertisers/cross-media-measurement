@@ -18,6 +18,8 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
+import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.makeStatement
 
 /** Queries for computations which may be claimed at a timestamp. */
 class UnclaimedTasksQuery<StageT>(
@@ -46,12 +48,10 @@ class UnclaimedTasksQuery<StageT>(
       """
   }
   override val sql: Statement =
-    Statement.newBuilder(parameterizedQueryString)
-      .bind("current_time")
-      .to(timestamp)
-      .bind("protocol")
-      .to(protocol)
-      .build()
+    makeStatement(parameterizedQueryString) {
+      bind("current_time" to timestamp)
+      bind("protocol" to protocol)
+    }
   override fun asResult(struct: Struct): UnclaimedTaskQueryResult<StageT> =
     UnclaimedTaskQueryResult(
       computationId = struct.getLong("ComputationId"),

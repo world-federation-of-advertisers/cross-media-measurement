@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -123,14 +125,11 @@ class ClaimReadyExchangeStep(
       """.trimIndent()
 
     val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("recurring_exchange_id")
-        .to(recurringExchangeId)
-        .bind("date")
-        .to(date.toCloudDate())
-        .bind("step_index")
-        .to(stepIndex)
-        .build()
+      makeStatement(sql) {
+        bind("recurring_exchange_id" to recurringExchangeId)
+        bind("date" to date.toCloudDate())
+        bind("step_index" to stepIndex)
+      }
     val row: Struct = transactionContext.executeQuery(statement).single()
 
     return row.getLong("MaxAttemptIndex") + 1L
