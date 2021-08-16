@@ -1,0 +1,16 @@
+package(default_visibility = ["//visibility:public"])
+
+cc_binary(
+    name = "encrypted_event_decrypter",
+    srcs = [
+        "encrypted_event_decrypter_main.cc",
+    ],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
