@@ -16,6 +16,9 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -27,9 +30,13 @@ import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
@@ -77,9 +84,10 @@ fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
 }
 
 class RequisitionFulfillmentWorkflow(
-  private val unfulfilledRequisitionProvider: UnfulfilledRequisitionProvider,
-  private val sketchGenerator: EncryptedSketchGenerator,
-  private val requisitionFulfiller: RequisitionFulfiller,
+  private val externalDataProviderId: String,
+  private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
+  private val requisitionFulfillmentStub:
+    RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub,
   private val storageClient: StorageClient,
 ) {
 
@@ -135,11 +143,41 @@ class RequisitionFulfillmentWorkflow(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
-  suspend fun execute() {
-    val requisition: Requisition = unfulfilledRequisitionProvider.get() ?: return
+  private suspend fun fulfillRequisition(name: String, data: Flow<ByteString>) {
+    requisitionFulfillmentStub.fulfillRequisition(
+      flow {
+        emit(makeFulfillRequisitionHeader(name))
+        emitAll(data.map { makeFulfillRequisitionBody(it) })
+      }
+    )
+  }
 
-    val measurementSpec = decodeMeasurementSpec(requisition)
-    val requisitionSpec = decodeRequisitionSpec(requisition)
+  private fun makeFulfillRequisitionHeader(name: String): FulfillRequisitionRequest {
+    return FulfillRequisitionRequest.newBuilder().apply { headerBuilder.name = name }.build()
+  }
+
+  private fun makeFulfillRequisitionBody(bytes: ByteString): FulfillRequisitionRequest {
+    return FulfillRequisitionRequest.newBuilder().apply { bodyChunkBuilder.data = bytes }.build()
+  }
+
+  private suspend fun getRequisition(): Requisition {
+    val req =
+      ListRequisitionsRequest.newBuilder()
+        .apply {
+          parent = externalDataProviderId
+          filterBuilder.addStates(Requisition.State.UNFULFILLED)
+        }
+        .build()
+
+    val response = requisitionsStub.listRequisitions(req)
+    return response.getRequisitions(0)
+  }
+
+  suspend fun execute() {
+    val requisition: Requisition = getRequisition() ?: return
+
+    //    val measurementSpec = decodeMeasurementSpec(requisition)
+    //    val requisitionSpec = decodeRequisitionSpec(requisition)
     val combinedPublicKey = requisition.getCombinedPublicKey()
 
     val sketch = generateSketch()
@@ -149,6 +187,6 @@ class RequisitionFulfillmentWorkflow(
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
 
-    requisitionFulfiller.fulfillRequisition(requisition.name, sketchChunks)
+    fulfillRequisition(requisition.name, sketchChunks)
   }
 }

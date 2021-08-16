@@ -36,9 +36,9 @@ class FileSystemEdpSimulatorRunner : EdpSimulator() {
     val storageClient = FileSystemStorageClient(createTempDir())
     val workflow =
       RequisitionFulfillmentWorkflow(
-        GrpcUnfulfilledRequisitionProvider(flags.externalDataProviderId, flags.requisitionsStub),
-        DefaultEncryptedSketchGenerator(),
-        GrpcRequisitionFulfiller(flags.requisitionFulfillmentStub),
+        flags.externalDataProviderId,
+        flags.requisitionsStub,
+        flags.requisitionFulfillmentStub,
         storageClient,
       )
 
