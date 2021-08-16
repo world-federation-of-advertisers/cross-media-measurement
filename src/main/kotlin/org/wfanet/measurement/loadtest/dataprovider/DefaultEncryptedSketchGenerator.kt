@@ -24,8 +24,7 @@ import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.common.asBufferedFlow
 
-/** [EncryptedSketchGenerator] that delegates to helpers. */
-class DefaultEncryptedSketchGenerator : EncryptedSketchGenerator {
+class DefaultEncryptedSketchGenerator {
 
   private val MAX_COUNTER_VALUE = 5
 
@@ -46,10 +45,7 @@ class DefaultEncryptedSketchGenerator : EncryptedSketchGenerator {
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
-  override suspend fun generate(
-    sketch: Sketch,
-    combinedPublicKey: ElGamalPublicKey
-  ): Flow<ByteString> {
+  fun generate(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): Flow<ByteString> {
     return encryptSketch(sketch, combinedPublicKey)
   }
 }
