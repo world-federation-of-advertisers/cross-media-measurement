@@ -24,8 +24,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "d08bbabe8f78592fe58109ddad17dab1a4a2d0e910d602bf3fa3b3f00ff5ddf3",
-        version = "0.6.0",
+        sha256 = "99498e90f5854ebc101ead7accc7818463b203cec8cda6b4f0eeee70d45ad67b",
+        version = "0.8.0",
     )
 
     wfa_repo_archive(
