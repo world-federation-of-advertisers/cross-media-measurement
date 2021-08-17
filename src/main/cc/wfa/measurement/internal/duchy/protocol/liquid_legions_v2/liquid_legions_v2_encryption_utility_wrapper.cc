@@ -14,10 +14,11 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility_wrapper.h"
 
+#include <string>
+
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
 #include "common_cpp/macros/macros.h"
-#include "util/status_macros.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_encryption_methods.pb.h"
 

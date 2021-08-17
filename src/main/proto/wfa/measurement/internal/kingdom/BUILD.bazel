@@ -151,6 +151,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":exchange_proto",
+        "@com_google_googleapis//google/type:date_proto",
     ],
 )
 
@@ -162,6 +163,7 @@ kt_jvm_grpc_and_java_proto_library(
 proto_and_java_proto_library(
     name = "exchange_step",
     deps = [
+        ":provider_proto",
         "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -173,6 +175,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":exchange_step_proto",
+        ":provider_proto",
     ],
 )
 
@@ -203,6 +206,7 @@ proto_library(
     deps = [
         ":exchange_step_attempt_details_proto",
         ":exchange_step_attempt_proto",
+        ":provider_proto",
         "@com_google_googleapis//google/type:date_proto",
     ],
 )
@@ -340,4 +344,8 @@ kt_jvm_grpc_and_java_proto_library(
 
 proto_and_java_proto_library(
     name = "exchange_workflow",
+)
+
+proto_and_java_proto_library(
+    name = "provider",
 )

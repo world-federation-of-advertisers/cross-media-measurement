@@ -15,10 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -52,6 +48,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurement.newBuilder().apply {
         externalMeasurementId = struct.getLong("ExternalMeasurementId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalMeasurementConsumerCertificateId =
+          struct.getLong("ExternalMeasurementConsumerCertificateId")
         externalComputationId = struct.getLong("ExternalComputationId")
         providedMeasurementId = struct.getString("ProvidedMeasurementId")
         details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
@@ -105,21 +103,6 @@ class MeasurementReader(private val view: Measurement.View) :
     }
   }
 
-  suspend fun readExternalIdWithGroupByOrNull(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalId: ExternalId
-  ): Result? {
-    return withBuilder {
-        appendClause("WHERE $externalIdColumn = @external_id")
-        appendClause("GROUP BY 1, 2, 3, 4, 5, 6, 7, 8")
-        bind("external_id").to(externalId.value)
-
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
   companion object {
     private val defaultViewBaseSql =
       """
@@ -131,9 +114,11 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ProvidedMeasurementId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
-      MeasurementConsumers.ExternalMeasurementConsumerId
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
     FROM Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """.trimIndent()
 
     private val computationViewBaseSql =
@@ -147,6 +132,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       MeasurementConsumers.ExternalMeasurementConsumerId,
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
       ARRAY(
          SELECT AS STRUCT
            r.ExternalRequisitionId
@@ -164,6 +150,7 @@ class MeasurementReader(private val view: Measurement.View) :
        ) AS ComputationParticipants
     FROM Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """.trimIndent()
   }
 }

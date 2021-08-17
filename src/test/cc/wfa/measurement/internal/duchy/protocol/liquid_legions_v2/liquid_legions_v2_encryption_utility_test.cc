@@ -14,19 +14,18 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 
-#include <openssl/obj_mac.h>
-
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "any_sketch/crypto/sketch_encrypter.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
-#include "crypto/commutative_elgamal.h"
-#include "crypto/ec_commutative_cipher.h"
+#include "estimation/estimators.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "src/main/cc/any_sketch/crypto/sketch_encrypter.h"
-#include "src/main/cc/estimation/estimators.h"
+#include "openssl/obj_mac.h"
+#include "private_join_and_compute/crypto/commutative_elgamal.h"
+#include "private_join_and_compute/crypto/ec_commutative_cipher.h"
 #include "wfa/any_sketch/sketch.pb.h"
 #include "wfa/measurement/common/crypto/constants.h"
 #include "wfa/measurement/common/crypto/ec_point_util.h"

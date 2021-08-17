@@ -89,7 +89,13 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         if (parentKey.dataProviderId != WILDCARD) {
           externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
         }
-        addAllStates(request.filter.statesList.map(State::toInternal))
+        addAllStates(
+          request.filter.statesList.map { state ->
+            state.toInternal().also { internalState ->
+              grpcRequire(internalState != InternalState.STATE_UNSPECIFIED) { "State is invalid" }
+            }
+          }
+        )
       }
     }
 
@@ -267,6 +273,7 @@ internal inline fun DuchyEntry.Value.Builder.buildLiquidLegionsV2(
 private fun DuchyValue.toDuchyEntryValue(): DuchyEntry.Value {
   return buildDuchyEntryValue {
     duchyCertificate = externalIdToApiId(externalDuchyCertificateId)
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (this@toDuchyEntryValue.protocolCase) {
       DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 ->
         buildLiquidLegionsV2 {

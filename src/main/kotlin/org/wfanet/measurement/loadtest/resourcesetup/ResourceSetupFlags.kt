@@ -80,7 +80,7 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Mixin
-  lateinit var KingdomPublicApiFlags: KingdomPublicApiFlags
+  lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
     private set
 
   @CommandLine.Option(

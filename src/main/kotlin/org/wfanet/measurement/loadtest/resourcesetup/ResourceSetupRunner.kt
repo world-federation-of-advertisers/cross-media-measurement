@@ -39,9 +39,9 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     )
   val v2alphaPublicApiChannel: ManagedChannel =
     buildMutualTlsChannel(
-      flags.KingdomPublicApiFlags.target,
+      flags.kingdomPublicApiFlags.target,
       clientCerts,
-      flags.KingdomPublicApiFlags.certHost
+      flags.kingdomPublicApiFlags.certHost
     )
   val dataProvidersStub = DataProvidersCoroutineStub(v2alphaPublicApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)

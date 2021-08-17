@@ -1,4 +1,4 @@
-load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_test")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "DataProvidersServiceTest",
@@ -95,6 +95,24 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "MeasurementsServiceTest",
+    srcs = ["MeasurementsServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsServiceTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
 
