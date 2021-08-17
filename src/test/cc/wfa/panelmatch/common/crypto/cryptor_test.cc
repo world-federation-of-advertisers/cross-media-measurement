@@ -33,7 +33,6 @@ using ::testing::ContainerEq;
 using ::testing::Not;
 using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
-using ::wfa::panelmatch::common::crypto::CreateCryptorWithNewKey;
 using ::wfa::panelmatch::common::crypto::Cryptor;
 
 TEST(PrivateJoinAndComputeTest, EncryptReEncryptDecrypt) {

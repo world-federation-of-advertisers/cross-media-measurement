@@ -16,14 +16,22 @@
 #include <memory>
 #include <string>
 
+#include "absl/flags/flag.h"
+#include "absl/flags/parse.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "common_cpp/macros/macros.h"
+#include "glog/logging.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
 #include "wfa/panelmatch/common/crypto/cryptor.h"
 #include "wfa/panelmatch/common/crypto/hkdf.h"
 
+using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataFromStringView;
 using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::Aes;
@@ -34,53 +42,74 @@ using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
 using ::wfa::panelmatch::common::crypto::GetSha256Hkdf;
 using ::wfa::panelmatch::common::crypto::Hkdf;
 
-// Spot check AesWithHkdf encrypted values from the command line
-// Parameters: double-base64-escaped encrypted value, unencrypted identifier,
-// cryptokey, hkdf_pepper
+ABSL_FLAG(std::string, ciphertext, "",
+          "ciphertext to decrypt, encoded twice with base64");
+ABSL_FLAG(std::string, crypto_key, "", "deterministic commutative crypto key");
+ABSL_FLAG(std::string, identifier, "", "event identifier");
+ABSL_FLAG(std::string, hkdf_pepper, "", "pepper for HKDF");
+
+namespace {
+void CheckFlagNotEmpty(absl::string_view flag_value,
+                       absl::string_view flag_name) {
+  CHECK(!flag_value.empty()) << "--" << flag_name << " must not be blank";
+}
+
+absl::StatusOr<SecretData> MakeEncryptedIdentifier(
+    absl::string_view crypto_key, absl::string_view identifier) {
+  ASSIGN_OR_RETURN(std::unique_ptr<Cryptor> cryptor,
+                   CreateCryptorFromKey(crypto_key));
+
+  ASSIGN_OR_RETURN(
+      std::vector<std::string> keys,
+      cryptor->BatchProcess({std::string(identifier)}, Action::kEncrypt));
+
+  if (keys.size() != 1)
+    return absl::InternalError(
+        absl::StrCat("Unexpected number of keys: ", keys.size()));
+
+  return SecretDataFromStringView(keys[0]);
+}
+}  // namespace
+
+// Spot check AesWithHkdf encrypted values from the command line.
+// Example usage:
+//
+// $ bazel run
+// //src/main/cc/wfa/panelmatch/client/eventpreprocessing/tools:encrypted_event_decrypter
+// \
+//     -- --crypto_key=KEY --identifier=test-id \
+//     --ciphertext=M01nQkN4Z01IRit4MnBPSkk2Y0xLc0RueWVMVk5kcFhCMW89 \
+//     --hkdf_pepper=PEPPER
 int main(int argc, char** argv) {
-  if (argc != 5) {
-    std::cout << "There must be 4 parameters" << std::endl;
-    return 1;
-  }
+  absl::ParseCommandLine(argc, argv);
+
+  std::string crypto_key = absl::GetFlag(FLAGS_crypto_key);
+  CheckFlagNotEmpty(crypto_key, "crypto_key");
+
+  std::string identifier = absl::GetFlag(FLAGS_identifier);
+  CheckFlagNotEmpty(identifier, "identifier");
+  absl::StatusOr<SecretData> encrypted_identifier =
+      MakeEncryptedIdentifier(crypto_key, identifier);
+  CHECK(encrypted_identifier.ok()) << encrypted_identifier.status();
+
+  SecretData hkdf_pepper =
+      SecretDataFromStringView(absl::GetFlag(FLAGS_hkdf_pepper));
+
+  std::string ciphertext_base64_twice = absl::GetFlag(FLAGS_ciphertext);
+  CheckFlagNotEmpty(ciphertext_base64_twice, "ciphertext");
 
   // TODO(efoxepstein): Look into why this is double-base64-escaped
-  std::string temp;
+  std::string ciphertext_base64;
+  CHECK(absl::Base64Unescape(ciphertext_base64_twice, &ciphertext_base64));
+
   std::string ciphertext;
-  absl::Base64Unescape(argv[1], &temp);
-  absl::Base64Unescape(temp, &ciphertext);
+  CHECK(absl::Base64Unescape(ciphertext_base64, &ciphertext));
 
-  absl::StatusOr<std::unique_ptr<Cryptor>> cryptor =
-      CreateCryptorFromKey(argv[3]);
-  if (!cryptor.ok()) {
-    std::cerr << "Creating a Cryptor failed: " << cryptor.status() << std::endl;
-    return 1;
-  }
-
-  std::vector<std::string> unencrypted_identifier = {std::string(argv[2])};
-  absl::StatusOr<std::vector<std::string>> key =
-      (*cryptor)->BatchProcess(unencrypted_identifier, Action::kEncrypt);
-  if (!key.ok()) {
-    std::cerr << "Creating a key failed: " << key.status() << std::endl;
-    return 1;
-  }
-
-  if (key->empty()) {
-    std::cerr << "Creating a key failed: Empty result" << std::endl;
-    return 1;
-  }
-
-  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
-  std::unique_ptr<Aes> aes = GetAesSivCmac512();
-  AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-
+  AesWithHkdf aes_with_hkdf(GetSha256Hkdf(), GetAesSivCmac512());
   absl::StatusOr<std::string> plaintext =
-      aes_hkdf.Decrypt(ciphertext, SecretDataFromStringView((*key)[0]),
-                       SecretDataFromStringView(argv[4]));
-  if (!plaintext.ok()) {
-    std::cerr << "Decryption failed: " << plaintext.status() << std::endl;
-    return 1;
-  }
+      aes_with_hkdf.Decrypt(ciphertext, *encrypted_identifier, hkdf_pepper);
+  CHECK(plaintext.ok());
+  std::cout << *plaintext << std::endl;
 
-  std::cout << "Decrypted value: " << *plaintext << std::endl;
   return 0;
 }
