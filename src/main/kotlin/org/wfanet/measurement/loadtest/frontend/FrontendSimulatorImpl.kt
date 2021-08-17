@@ -16,10 +16,16 @@ package org.wfanet.measurement.loadtest.frontend
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import org.wfanet.anysketch.AnySketch
+import org.wfanet.anysketch.Sketch
+import org.wfanet.anysketch.SketchProtos
+import org.wfanet.estimation.Estimators
+import org.wfanet.estimation.ValueHistogram
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -32,10 +38,12 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite.DataEncapsulationMechanism
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite.KeyEncapsulationMechanism
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Result
@@ -43,10 +51,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
@@ -54,7 +67,14 @@ import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
+import org.wfanet.measurement.loadtest.storage.SketchStore
 
+// TODO: get these from the protocolConfig.
+private const val MAXIMUM_FREQUENCY = 15L
+private const val DECAY_RATE = 12.0
+private const val INDEX_SIZE = 100000L
+
+private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 private val CIPHER_SUITE =
   HybridCipherSuite.newBuilder()
@@ -80,7 +100,9 @@ class FrontendSimulatorImpl(
   private val dataProvidersClient: DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val measurementsClient: MeasurementsCoroutineStub,
+  private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val storageClient: SketchStore,
   private val runId: String
 ) : FrontendSimulator {
 
@@ -89,14 +111,20 @@ class FrontendSimulatorImpl(
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdMeasurement = createMeasurement(measurementConsumer)
 
-    // Wait until the computation is DONE.
-    logger.info("Waiting 2 min...")
-    delay(Duration.ofMinutes(2).toMillis())
-
     // Get the CMMS computed result and compare it with the expected result.
-    val mpcResult = getResult(createdMeasurement.name)
-    val expectedResult = getExpectedResult()
+    var mpcResult = getResult(createdMeasurement.name)
+    while (mpcResult == null) {
+      logger.info("Computation not done yet, wait for another 30 seconds.")
+      delay(Duration.ofSeconds(30).toMillis())
+      mpcResult = getResult(createdMeasurement.name)
+    }
+    logger.info("Got computed result from Kingdom: $mpcResult")
+
+    val expectedResult = getExpectedResult(createdMeasurement.name)
+    logger.info("Expected result: $expectedResult")
+
     assertThat(mpcResult).isEqualTo(expectedResult)
+    logger.info("Computed result is equal to the expected result. Correctness Test passes.")
   }
 
   override suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
@@ -133,12 +161,67 @@ class FrontendSimulatorImpl(
     return measurementsClient.createMeasurement(request)
   }
 
-  override suspend fun getResult(measurementName: String): Result {
-    TODO("verify and decrypt result")
+  override suspend fun getResult(measurementName: String): Result? {
+    val measurement =
+      measurementsClient.getMeasurement(
+        GetMeasurementRequest.newBuilder().apply { name = measurementName }.build()
+      )
+    return if (measurement.state == Measurement.State.SUCCEEDED) {
+      val signedResult =
+        decryptResult(
+          measurement.encryptedResult,
+          PrivateKeyHandle(measurementConsumerData.encryptionPrivateKeyId, keyStore),
+          CIPHER_SUITE,
+          ::fakeGetHybridCryptorForCipherSuite
+        )
+      Result.parseFrom(signedResult.data)
+    } else {
+      null
+    }
   }
 
-  override suspend fun getExpectedResult(): Result {
-    TODO("compute expected result using unencrypted sketches..")
+  override suspend fun getExpectedResult(measurementName: String): Result {
+    val requisitions = listRequisitions(measurementName)
+    require(requisitions.isNotEmpty()) { "Requisition list is empty." }
+
+    val anySketches =
+      requisitions.map {
+        val storedSketch =
+          storageClient.get(it.name)?.read(DEFAULT_BUFFER_SIZE_BYTES)?.flatten()
+            ?: error("Sketch blob not found for ${it.name}.")
+        SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
+      }
+
+    val combinedAnySketch = anySketches[0]
+    if (anySketches.size > 1) {
+      combinedAnySketch.apply { mergeAll(anySketches.subList(1, anySketches.size)) }
+    }
+
+    val expectedReach = estimateCardinality(combinedAnySketch, DECAY_RATE, INDEX_SIZE)
+    val expectedFrequency = estimateFrequency(combinedAnySketch, MAXIMUM_FREQUENCY)
+    return Result.newBuilder()
+      .apply {
+        reachBuilder.value = expectedReach
+        frequencyBuilder.putAllRelativeFrequencyDistribution(expectedFrequency)
+      }
+      .build()
+  }
+
+  private fun estimateCardinality(anySketch: AnySketch, decayRate: Double, indexSize: Long): Long {
+    val activeRegisterCount = anySketch.toList().size.toLong()
+    return Estimators.EstimateCardinalityLiquidLegions(decayRate, indexSize, activeRegisterCount)
+  }
+
+  private fun estimateFrequency(anySketch: AnySketch, maximumFrequency: Long): Map<Long, Double> {
+    val valueIndex = anySketch.getValueIndex("SamplingIndicator").asInt
+    val actualHistogram =
+      ValueHistogram.calculateHistogram(anySketch, "Frequency") { it.values[valueIndex] != -1L }
+    val result = mutableMapOf<Long, Double>()
+    actualHistogram.forEach {
+      val key = minOf(it.key, maximumFrequency)
+      result[key] = result.getOrDefault(key, 0.0) + it.value
+    }
+    return result
   }
 
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
@@ -168,6 +251,17 @@ class FrontendSimulatorImpl(
         }
         .build()
     return eventGroupsClient.listEventGroups(request).eventGroupsList
+  }
+
+  private suspend fun listRequisitions(measurement: String): List<Requisition> {
+    val request =
+      ListRequisitionsRequest.newBuilder()
+        .apply {
+          parent = DATA_PROVIDER_WILDCARD
+          filterBuilder.measurement = measurement
+        }
+        .build()
+    return requisitionsClient.listRequisitions(request).requisitionsList
   }
 
   private fun extractDataProviderName(eventGroupName: String): String {
@@ -238,5 +332,12 @@ class FrontendSimulatorImpl(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    init {
+      loadLibrary(
+        name = "estimators",
+        directoryPath =
+          Paths.get("any_sketch_java", "src", "main", "java", "org", "wfanet", "estimation")
+      )
+    }
   }
 }
