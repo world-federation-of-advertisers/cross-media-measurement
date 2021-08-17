@@ -15,10 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -106,7 +102,6 @@ class MeasurementReader(private val view: Measurement.View) :
         throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
     }
   }
-
 
   companion object {
     private val defaultViewBaseSql =

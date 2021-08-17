@@ -206,12 +206,12 @@ class CreateMeasurement(private val measurement: Measurement) :
         }
         .build()
     return CertificateReader(dataProviderGetCertificateRequest)
-        .readExternalIdOrNull(
-          transactionContext,
-          ExternalId(dataProviderGetCertificateRequest.externalCertificateId)
-        )
-        ?.certificateId
-        ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+      .readExternalIdOrNull(
+        transactionContext,
+        ExternalId(dataProviderGetCertificateRequest.externalCertificateId)
+      )
+      ?.certificateId
+      ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
   }
 
   private suspend fun TransactionScope.findExistingMeasurement(
