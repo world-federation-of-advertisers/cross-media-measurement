@@ -20,7 +20,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 interface FrontendSimulator {
   suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement
 
-  suspend fun getResult(measurementName: String): Measurement.Result
+  suspend fun getResult(measurementName: String): Measurement.Result?
 
-  suspend fun getExpectedResult(): Measurement.Result
+  suspend fun getExpectedResult(measurementName: String): Measurement.Result
 }
