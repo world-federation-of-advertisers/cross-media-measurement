@@ -1,0 +1,71 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+proto_library(
+    name = "database_proto",
+    srcs = ["database.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "database_cc_proto",
+    deps = [":database_proto"],
+)
+
+java_proto_library(
+    name = "database_java_proto",
+    deps = [":database_proto"],
+)
+
+proto_library(
+    name = "query_proto",
+    srcs = ["query.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "query_cc_proto",
+    deps = [":query_proto"],
+)
+
+java_proto_library(
+    name = "query_java_proto",
+    deps = [":query_proto"],
+)
+
+proto_library(
+    name = "oblivious_query_proto",
+    srcs = ["oblivious_query.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [":query_proto"],
+)
+
+cc_proto_library(
+    name = "oblivious_query_cc_proto",
+    deps = [":oblivious_query_proto"],
+)
+
+java_proto_library(
+    name = "oblivious_query_java_proto",
+    deps = [":oblivious_query_proto"],
+)
+
+proto_library(
+    name = "query_evaluator_proto",
+    srcs = ["query_evaluator.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [":query_proto"],
+)
+
+cc_proto_library(
+    name = "query_evaluator_cc_proto",
+    deps = [":query_evaluator_proto"],
+)
+
+java_proto_library(
+    name = "query_evaluator_java_proto",
+    deps = [":query_evaluator_proto"],
+)

@@ -1,0 +1,34 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "oblivious_query_test",
+    srcs = ["oblivious_query_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:oblivious_query",
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:oblivious_query_wrapper",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:oblivious_query_cc_proto",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "query_evaluator_test",
+    srcs = ["query_evaluator_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:query_evaluator",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:query_evaluator_cc_proto",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)

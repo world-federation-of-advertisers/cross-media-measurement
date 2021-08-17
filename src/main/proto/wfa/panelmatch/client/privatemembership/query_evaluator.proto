@@ -1,0 +1,72 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.privatemembership;
+
+import "wfa/panelmatch/client/privatemembership/query.proto";
+
+option java_package = "org.wfanet.panelmatch.client.privatemembership";
+option java_multiple_files = true;
+option java_outer_classname = "QueryEvaluatorProto";
+
+// An argument in every Request proto. It contains various knobs for tuning the
+// system.
+message QueryEvaluatorParameters {}
+
+// Request to execute batch lookup queries.
+message ExecuteQueriesRequest {
+  QueryEvaluatorParameters parameters = 1;
+  repeated DatabaseShard shards = 2;
+  repeated QueryBundle query_bundles = 3;
+}
+
+// Results from executing batch lookup queries.
+message ExecuteQueriesResponse {
+  repeated Result result = 1;
+}
+
+// Request to combine multiple batch lookup results for a single query.
+message CombineResultsRequest {
+  QueryEvaluatorParameters parameters = 1;
+  repeated Result results = 2;
+}
+
+// Response for a CombineResultsRequest.
+message CombineResultsResponse {
+  Result result = 1;
+}
+
+// A full or partial set of buckets in a batch lookup database.
+message DatabaseShard {
+  ShardId shard_id = 1;
+  repeated Bucket buckets = 2;
+}
+
+// A bucket in a batch lookup database.
+message Bucket {
+  BucketId bucket_id = 1;
+
+  // TODO: document payload format.
+  bytes payload = 2;
+}
+
+// A full or partial result for an oblivious query.
+message Result {
+  QueryMetadata query_metadata = 1;
+
+  // TODO: document payload format.
+  bytes payload = 2;
+}

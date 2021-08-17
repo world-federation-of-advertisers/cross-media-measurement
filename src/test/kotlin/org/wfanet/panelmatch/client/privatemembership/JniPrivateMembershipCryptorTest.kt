@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.protocol.common
+package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
@@ -20,20 +20,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.JniException
-import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
-import org.wfanet.panelmatch.protocol.common.testing.AbstractCryptorTest
 
 @RunWith(JUnit4::class)
-class JniDeterministicCommutativeCryptorTest : AbstractCryptorTest() {
-  override val Cryptor: Cryptor = JniDeterministicCommutativeCryptor()
+class JniPrivateMembershipCryptorTest {
+  val privateMembershipCryptor: PrivateMembershipCryptor = JniPrivateMembershipCryptor()
 
   @Test
   fun `invalid proto throws JniException`() {
     val missingKeyException =
       assertFailsWith(JniException::class) {
-        val request = CryptorReEncryptRequest.getDefaultInstance()
-        Cryptor.reEncrypt(request)
+        val request = EncryptQueriesRequest.getDefaultInstance()
+        privateMembershipCryptor.encryptQueries(request)
       }
-    assertThat(missingKeyException.message).contains("Failed to create the protocol cipher")
+    assertThat(missingKeyException.message).contains("UNIMPLEMENTED: Not implemented")
   }
 }
