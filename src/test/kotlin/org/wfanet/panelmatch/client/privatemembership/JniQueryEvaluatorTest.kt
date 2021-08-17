@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.protocol.common
+package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
@@ -20,20 +20,22 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.JniException
-import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
-import org.wfanet.panelmatch.protocol.common.testing.AbstractCryptorTest
 
+// TODO: subclass AbstractQueryEvaluatorTest once implemented
 @RunWith(JUnit4::class)
-class JniDeterministicCommutativeCryptorTest : AbstractCryptorTest() {
-  override val Cryptor: Cryptor = JniDeterministicCommutativeCryptor()
+class JniQueryEvaluatorTest {
+  @Test
+  fun `executeQueries is unimplemented`() {
+    val queryEvaluator = JniQueryEvaluator()
+    val e =
+      assertFailsWith<JniException> { queryEvaluator.executeQueries(emptyList(), emptyList()) }
+    assertThat(e.message).ignoringCase().contains("unimplemented")
+  }
 
   @Test
-  fun `invalid proto throws JniException`() {
-    val missingKeyException =
-      assertFailsWith(JniException::class) {
-        val request = CryptorReEncryptRequest.getDefaultInstance()
-        Cryptor.reEncrypt(request)
-      }
-    assertThat(missingKeyException.message).contains("Failed to create the protocol cipher")
+  fun `combineResults is unimplemented`() {
+    val queryEvaluator = JniQueryEvaluator()
+    val e = assertFailsWith<JniException> { queryEvaluator.combineResults(emptySequence()) }
+    assertThat(e.message).ignoringCase().contains("unimplemented")
   }
 }

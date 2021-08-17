@@ -6,10 +6,10 @@ package(default_visibility = [
 ])
 
 java_wrap_cc(
-    name = "deterministic_commutative_encryption_utility",
-    src = "deterministic_commutative_encryption_utility.swig",
-    module = "DeterministicCommutativeEncryptionUtility",
-    package = "wfanet.panelmatch.protocol.crypto",
+    name = "deterministic_commutative_encryption",
+    src = "deterministic_commutative_encryption.swig",
+    module = "DeterministicCommutativeEncryptionWrapper",
+    package = "org.wfanet.panelmatch.protocol.crypto",
     deps = [
         "//src/main/cc/wfa/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility_wrapper",
     ],

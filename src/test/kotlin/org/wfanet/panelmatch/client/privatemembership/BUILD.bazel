@@ -1,0 +1,57 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "BucketingTest",
+    srcs = ["BucketingTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.BucketingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "EvaluateQueriesWorkflowTest",
+    srcs = ["EvaluateQueriesWorkflowTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflowTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:database_java_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:query_evaluator_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniPrivateMembershipCryptorTest",
+    srcs = ["JniPrivateMembershipCryptorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniQueryEvaluatorTest",
+    srcs = ["JniQueryEvaluatorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

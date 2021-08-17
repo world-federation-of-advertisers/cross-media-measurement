@@ -1,0 +1,12 @@
+load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "hashing",
+    srcs = ["Hashing.kt"],
+    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+)
