@@ -1,5 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -16,6 +17,12 @@ java_proto_library(
     deps = [":public_api_protocol_configs_proto"],
 )
 
+kt_jvm_proto_library(
+    name = "public_api_protocol_configs_kt_jvm_proto",
+    srcs = [":public_api_protocol_configs_proto"],
+    deps = [":public_api_protocol_configs_java_proto"],
+)
+
 proto_library(
     name = "duchy_rpc_config_proto",
     srcs = ["duchy_rpc_config.proto"],
@@ -24,4 +31,10 @@ proto_library(
 java_proto_library(
     name = "duchy_rpc_config_java_proto",
     deps = [":duchy_rpc_config_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "duchy_rpc_config_kt_jvm_proto",
+    srcs = [":duchy_rpc_config_proto"],
+    deps = [":duchy_rpc_config_java_proto"],
 )
