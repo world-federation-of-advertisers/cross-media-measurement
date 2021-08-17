@@ -16,6 +16,7 @@
 
 #include "common_cpp/fingerprinters/fingerprinters.h"
 #include "common_cpp/testing/status_macros.h"
+#include "common_cpp/testing/status_matchers.h"
 #include "include/gtest/gtest.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
@@ -159,12 +160,12 @@ TEST(EventDataPreprocessorTests, actualValues) {
   std::unique_ptr<Aes> aes = common::crypto::GetAesSivCmac512();
   const AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
   ASSERT_OK_AND_ASSIGN(std::unique_ptr<Cryptor> cryptor,
-                       common::crypto::CreateCryptorWithNewKey());
+                       common::crypto::CreateCryptorFromKey("some-key"));
   EventDataPreprocessor preprocessor(
       std::move(cryptor), SecretDataFromStringView("pepper"),
       SecretDataFromStringView("salt"), &sha, &aes_hkdf);
-  ASSERT_OK_AND_ASSIGN(ProcessedData processed,
-                       preprocessor.Process("some-identifier", "some-event"));
+  EXPECT_THAT(preprocessor.Process("some-identifier", "some-event").status(),
+              IsOk());
 }
 
 }  // namespace

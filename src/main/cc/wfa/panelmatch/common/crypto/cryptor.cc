@@ -118,18 +118,7 @@ CryptorImpl::BatchProcess(const google::protobuf::RepeatedPtrField<std::string>&
   }
   return std::move(results);
 }
-
 }  // namespace
-
-// We probably want to pass in a crypto key in the future.
-// This is just a placeholder.
-absl::StatusOr<std::unique_ptr<Cryptor>> CreateCryptorWithNewKey(void) {
-  ASSIGN_OR_RETURN(
-      auto local_ec_cipher,
-      ECCommutativeCipher::CreateWithNewKey(
-          NID_X9_62_prime256v1, ECCommutativeCipher::HashType::SHA256));
-  return absl::make_unique<CryptorImpl>(std::move(local_ec_cipher));
-}
 
 absl::StatusOr<std::unique_ptr<Cryptor>> CreateCryptorFromKey(
     absl::string_view key_bytes) {

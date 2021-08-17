@@ -51,8 +51,7 @@ class Cryptor {
   Cryptor() = default;
 };
 
-// Create a Cryptor.
-absl::StatusOr<std::unique_ptr<Cryptor>> CreateCryptorWithNewKey(void);
+// TODO(@efoxepstein): this should accept a SecretData.
 absl::StatusOr<std::unique_ptr<Cryptor>> CreateCryptorFromKey(
     absl::string_view key_bytes);
 

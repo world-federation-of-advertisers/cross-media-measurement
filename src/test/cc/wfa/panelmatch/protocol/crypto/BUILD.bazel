@@ -18,9 +18,7 @@ cc_test(
 
 cc_test(
     name = "event_data_preprocessor_test",
-    srcs = [
-        "event_data_preprocessor_test.cc",
-    ],
+    srcs = ["event_data_preprocessor_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
