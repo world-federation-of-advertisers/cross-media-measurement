@@ -14,13 +14,12 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.protobuf.ByteString
 import java.time.Instant
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Test
 import org.junit.Ignore
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
