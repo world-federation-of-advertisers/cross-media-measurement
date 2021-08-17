@@ -11,6 +11,6 @@ kt_jvm_library(
     name = "computation_stage",
     srcs = ["ComputationStage.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_kt_jvm_proto",
     ],
 )

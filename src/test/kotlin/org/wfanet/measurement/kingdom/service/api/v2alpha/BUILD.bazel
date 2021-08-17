@@ -67,7 +67,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchanges_service",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
@@ -87,7 +87,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -105,7 +105,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -123,7 +123,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.RecurringExchangesServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:recurring_exchanges_service",
-        "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchanges_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

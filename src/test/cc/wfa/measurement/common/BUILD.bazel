@@ -9,6 +9,6 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/measurement/common:string_block_sorter",
         "@com_google_absl//absl/strings",
-        "@googletest//:gtest_main",
+        "@com_google_googletest//:gtest_main",
     ],
 )

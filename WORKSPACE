@@ -12,16 +12,16 @@ load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
 
 common_cpp_deps()
 
-load("@wfa_common_jvm//build:common_jvm_repositories.bzl", "common_jvm_deps_repositories")
+load("@wfa_common_jvm//build:common_jvm_repositories.bzl", "common_jvm_repositories")
 
-common_jvm_deps_repositories()
+common_jvm_repositories()
 
 load("@wfa_common_jvm//build:common_jvm_deps.bzl", "common_jvm_deps")
 
 common_jvm_deps()
 
 # Maven
-load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_TARGETS", "common_jvm_maven_artifacts")
+load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_OVERRIDE_TARGETS", "common_jvm_maven_artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
@@ -33,7 +33,7 @@ maven_install(
     artifacts = common_jvm_maven_artifacts() + ADDITIONAL_MAVEN_ARTIFACTS,
     fetch_sources = True,
     generate_compat_repositories = True,
-    override_targets = COMMON_JVM_MAVEN_TARGETS,
+    override_targets = COMMON_JVM_MAVEN_OVERRIDE_TARGETS,
     repositories = [
         "https://repo.maven.apache.org/maven2/",
     ],
