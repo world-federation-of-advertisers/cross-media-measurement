@@ -24,6 +24,8 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildPlaintextChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
+import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import picocli.CommandLine
 
 abstract class EdpSimulator : Runnable {
@@ -34,14 +36,6 @@ abstract class EdpSimulator : Runnable {
   private fun run(@CommandLine.Mixin flags: Flags) {}
 
   protected class Flags {
-
-    @CommandLine.Option(names = ["--combined-public-keys-service-target"], required = true)
-    lateinit var combinedPublicKeysServiceTarget: String
-      private set
-
-    @CommandLine.Option(names = ["--sketch-configs-service-target"], required = true)
-    lateinit var sketchConfigsServiceTarget: String
-      private set
 
     @CommandLine.Option(names = ["--external-data-provider-id"], required = true)
     lateinit var externalDataProviderId: String
@@ -55,27 +49,24 @@ abstract class EdpSimulator : Runnable {
     lateinit var server: CommonServer.Flags
       private set
 
-    @CommandLine.Option(
-      names = ["--computations-service-target"],
-      description =
-        ["gRPC target (authority string or URI) for Duchy internal Computations service."],
-      required = true
-    )
-    lateinit var computationsServiceTarget: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--system-requisitions-service-target"],
-      description =
-        ["gRPC target (authority string or URI) for Requisitions service in the system API."],
-      required = true
-    )
-    lateinit var systemRequisitionsServiceTarget: String
+    @CommandLine.Mixin
+    lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
       private set
 
     val requisitionsStub by lazy {
       RequisitionsCoroutineStub(
-        buildPlaintextChannel(systemRequisitionsServiceTarget)
+        buildPlaintextChannel(kingdomPublicApiFlags.target)
+          .withVerboseLogging(debugVerboseGrpcClientLogging)
+      )
+    }
+
+    @CommandLine.Mixin
+    lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
+      private set
+
+    val requisitionFulfillmentStub by lazy {
+      RequisitionFulfillmentCoroutineStub(
+        buildPlaintextChannel(requisitionFulfillmentServiceFlags.target)
           .withVerboseLogging(debugVerboseGrpcClientLogging)
       )
     }
@@ -90,17 +81,6 @@ abstract class EdpSimulator : Runnable {
 
     val sketchConfig by lazy { parseTextProto(sketchConfigFile, SketchConfig.getDefaultInstance()) }
 
-    @CommandLine.Option(names = ["--requisition-fulfillment-service-target"], required = true)
-    lateinit var requisitionFulfillmentServiceTarget: String
-      private set
-
-    val requisitionFulfillmentStub by lazy {
-      RequisitionFulfillmentCoroutineStub(
-        buildPlaintextChannel(requisitionFulfillmentServiceTarget)
-          .withVerboseLogging(debugVerboseGrpcClientLogging)
-      )
-    }
-
     @set:CommandLine.Option(
       names = ["--debug-verbose-grpc-client-logging"],
       description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
@@ -111,6 +91,6 @@ abstract class EdpSimulator : Runnable {
   }
 
   companion object {
-    const val SERVICE_NAME = "EdpSimulator"
+    const val DAEMON_NAME = "EdpSimulator"
   }
 }

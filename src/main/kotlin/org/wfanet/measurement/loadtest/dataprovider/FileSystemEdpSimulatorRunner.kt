@@ -23,10 +23,11 @@ import picocli.CommandLine
 
 @CommandLine.Command(
   name = "FileSystemEdpSimulatorRunner",
-  description = ["Server daemon for ${EdpSimulator.SERVICE_NAME} service."],
+  description = ["${EdpSimulator.DAEMON_NAME} Daemon"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
+/** Implementation of [EdpSimulator] using the File System to store blobs. */
 class FileSystemEdpSimulatorRunner : EdpSimulator() {
   override fun run() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
