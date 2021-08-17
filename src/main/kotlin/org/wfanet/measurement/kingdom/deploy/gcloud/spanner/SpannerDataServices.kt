@@ -29,6 +29,7 @@ class SpannerDataServices(
     return KingdomDataServices(
       SpannerCertificatesService(clock, idGenerator, client),
       SpannerDataProvidersService(clock, idGenerator, client),
+      SpannerModelProvidersService(clock, idGenerator, client),
       SpannerEventGroupsService(clock, idGenerator, client),
       SpannerMeasurementConsumersService(clock, idGenerator, client),
       SpannerMeasurementsService(clock, idGenerator, client),

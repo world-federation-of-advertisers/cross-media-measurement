@@ -26,6 +26,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutin
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
@@ -38,6 +39,7 @@ interface DataServices {
 data class KingdomDataServices(
   val certificatesService: CertificatesCoroutineImplBase,
   val dataProvidersService: DataProvidersCoroutineImplBase,
+  val modelProvidersService: ModelProvidersCoroutineImplBase,
   val eventGroupsService: EventGroupsCoroutineImplBase,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsCoroutineImplBase,
