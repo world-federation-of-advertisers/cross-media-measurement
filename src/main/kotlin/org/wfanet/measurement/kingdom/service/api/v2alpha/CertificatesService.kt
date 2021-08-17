@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
+import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -216,7 +217,7 @@ internal inline fun buildInternalReleaseCertificateHoldRequest(
 ) = InternalReleaseCertificateHoldRequest.newBuilder().apply(fill).build()
 
 /** Checks the resource name against multiple certificate [ResourceKey] to find the right one. */
-private fun createResourceKey(name: String): Any? {
+private fun createResourceKey(name: String): ResourceKey? {
   val dataProviderCertificateKey = DataProviderCertificateKey.fromName(name)
   if (dataProviderCertificateKey != null) {
     return dataProviderCertificateKey
