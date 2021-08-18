@@ -22,8 +22,10 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildPlaintextChannel
+import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -57,6 +59,18 @@ abstract class EdpSimulator : Runnable {
 
   protected class Flags {
 
+    @CommandLine.Mixin
+    lateinit var tlsFlags: TlsFlags
+      private set
+
+    val clientCerts by lazy {
+      SigningCerts.fromPemFiles(
+        certificateFile = tlsFlags.certFile,
+        privateKeyFile = tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile
+      )
+    }
+
     @CommandLine.Option(names = ["--external-data-provider-id"], required = true)
     lateinit var externalDataProviderId: String
       private set
@@ -75,7 +89,11 @@ abstract class EdpSimulator : Runnable {
 
     val requisitionsStub by lazy {
       RequisitionsCoroutineStub(
-        buildPlaintextChannel(kingdomPublicApiFlags.target)
+        buildMutualTlsChannel(
+            kingdomPublicApiFlags.target,
+            clientCerts,
+            kingdomPublicApiFlags.certHost
+          )
           .withVerboseLogging(debugVerboseGrpcClientLogging)
       )
     }
@@ -86,7 +104,11 @@ abstract class EdpSimulator : Runnable {
 
     val requisitionFulfillmentStub by lazy {
       RequisitionFulfillmentCoroutineStub(
-        buildPlaintextChannel(requisitionFulfillmentServiceFlags.target)
+        buildMutualTlsChannel(
+            requisitionFulfillmentServiceFlags.target,
+            clientCerts,
+            requisitionFulfillmentServiceFlags.certHost,
+          )
           .withVerboseLogging(debugVerboseGrpcClientLogging)
       )
     }
