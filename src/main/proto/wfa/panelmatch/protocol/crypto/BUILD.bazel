@@ -1,6 +1,7 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = [
     "//visibility:public",
@@ -20,4 +21,10 @@ cc_proto_library(
 java_proto_library(
     name = "cryptor_java_proto",
     deps = [":cryptor_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "cryptor_kt_jvm_proto",
+    srcs = [":cryptor_proto"],
+    deps = [":cryptor_java_proto"],
 )

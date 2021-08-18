@@ -1,6 +1,7 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = [
     "//visibility:public",
@@ -20,4 +21,10 @@ cc_proto_library(
 java_proto_library(
     name = "preprocess_events_java_proto",
     deps = [":preprocess_events_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "preprocess_events_kt_jvm_proto",
+    srcs = [":preprocess_events_proto"],
+    deps = [":preprocess_events_java_proto"],
 )

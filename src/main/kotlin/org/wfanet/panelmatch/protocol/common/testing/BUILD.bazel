@@ -12,7 +12,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
-        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_java_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

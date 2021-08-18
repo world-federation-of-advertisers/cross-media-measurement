@@ -1,5 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 
 package(default_visibility = [
     "//visibility:public",
@@ -14,4 +15,10 @@ proto_library(
 java_proto_library(
     name = "exchangesteps_java_proto",
     deps = [":exchangesteps_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "exchangesteps_kt_jvm_proto",
+    srcs = [":exchangesteps_proto"],
+    deps = [":exchangesteps_java_proto"],
 )
