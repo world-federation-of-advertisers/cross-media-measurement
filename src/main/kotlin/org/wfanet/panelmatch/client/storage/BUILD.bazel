@@ -8,9 +8,9 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
-        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
