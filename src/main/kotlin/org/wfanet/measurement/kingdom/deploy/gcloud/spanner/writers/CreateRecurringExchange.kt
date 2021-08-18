@@ -16,8 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -40,17 +39,16 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
         .modelProviderId
 
     val externalId = idGenerator.generateExternalId()
-    insertMutation("RecurringExchanges") {
-        set("RecurringExchangeId" to idGenerator.generateInternalId().value)
-        set("ExternalRecurringExchangeId" to externalId.value)
-        set("ModelProviderId" to modelProviderId)
-        set("DataProviderId" to dataProviderId)
-        set("State" to INITIAL_STATE)
-        set("NextExchangeDate" to recurringExchange.nextExchangeDate.toCloudDate())
-        set("RecurringExchangeDetails" to recurringExchange.details)
-        setJson("RecurringExchangeDetailsJson" to recurringExchange.details)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("RecurringExchanges") {
+      set("RecurringExchangeId" to idGenerator.generateInternalId().value)
+      set("ExternalRecurringExchangeId" to externalId.value)
+      set("ModelProviderId" to modelProviderId)
+      set("DataProviderId" to dataProviderId)
+      set("State" to INITIAL_STATE)
+      set("NextExchangeDate" to recurringExchange.nextExchangeDate.toCloudDate())
+      set("RecurringExchangeDetails" to recurringExchange.details)
+      setJson("RecurringExchangeDetailsJson" to recurringExchange.details)
+    }
 
     return recurringExchange
       .toBuilder()

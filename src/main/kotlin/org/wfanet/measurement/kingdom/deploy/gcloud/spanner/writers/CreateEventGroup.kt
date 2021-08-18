@@ -19,8 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -63,15 +62,14 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
 
-    insertMutation("EventGroups") {
-        set("EventGroupId" to internalEventGroupId.value)
-        set("ExternalEventGroupId" to externalEventGroupId.value)
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("DataProviderId" to dataProviderId)
-        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
-        set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("EventGroups") {
+      set("EventGroupId" to internalEventGroupId.value)
+      set("ExternalEventGroupId" to externalEventGroupId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("DataProviderId" to dataProviderId)
+      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+    }
 
     return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()
   }
