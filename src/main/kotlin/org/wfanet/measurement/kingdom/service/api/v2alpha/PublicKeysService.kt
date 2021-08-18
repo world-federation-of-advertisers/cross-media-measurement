@@ -21,6 +21,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -32,15 +33,19 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
   PublicKeysCoroutineImplBase() {
 
   override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): PublicKey {
-    val publicKeyKey = createPublicKeyResourceKey(request.publicKey.name)
-    grpcRequireNotNull(publicKeyKey) { "Resource name is either unspecified or invalid" }
+    val publicKeyKey =
+      grpcRequireNotNull(createPublicKeyResourceKey(request.publicKey.name)) {
+        "Resource name is either unspecified or invalid"
+      }
 
     grpcRequire(
       !request.publicKey.publicKey.data.isEmpty && !request.publicKey.publicKey.signature.isEmpty
     ) { "EncryptionPublicKey is unspecified" }
 
-    val certificateKey = createCertificateResourceKey(request.publicKey.certificate)
-    grpcRequireNotNull(certificateKey) { "Certificate name is either unspecified or invalid" }
+    val certificateKey =
+      grpcRequireNotNull(createCertificateResourceKey(request.publicKey.certificate)) {
+        "Certificate name is either unspecified or invalid"
+      }
 
     grpcRequire(
       (publicKeyKey is MeasurementConsumerPublicKeyKey &&
@@ -48,7 +53,6 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
         (publicKeyKey is DataProviderPublicKeyKey && certificateKey is DataProviderCertificateKey)
     ) { "Resource name does not have same parent as Certificate name" }
 
-    // Internal response body is empty so no need to capture it
     internalPublicKeysStub.updatePublicKey(
       buildInternalUpdatePublicKeyRequest {
         when (certificateKey) {
@@ -76,7 +80,7 @@ internal inline fun buildInternalUpdatePublicKeyRequest(
 ) = InternalUpdatePublicKeyRequest.newBuilder().apply(fill).build()
 
 /** Checks the resource name against multiple public key [ResourceKey] to find the right one. */
-private fun createPublicKeyResourceKey(name: String): Any? {
+private fun createPublicKeyResourceKey(name: String): ResourceKey? {
   return when {
     DataProviderPublicKeyKey.fromName(name) != null -> DataProviderPublicKeyKey.fromName(name)
     MeasurementConsumerPublicKeyKey.fromName(name) != null ->
@@ -86,7 +90,7 @@ private fun createPublicKeyResourceKey(name: String): Any? {
 }
 
 /** Checks the resource name against multiple certificate [ResourceKey] to find the right one. */
-private fun createCertificateResourceKey(name: String): Any? {
+private fun createCertificateResourceKey(name: String): ResourceKey? {
   return when {
     DataProviderCertificateKey.fromName(name) != null -> DataProviderCertificateKey.fromName(name)
     MeasurementConsumerCertificateKey.fromName(name) != null ->
