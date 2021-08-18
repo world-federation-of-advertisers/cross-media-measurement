@@ -132,7 +132,11 @@ CREATE TABLE ExchangeStepAttempts (
   AttemptIndex         INT64 NOT NULL,
 
   -- ExchangeStepAttempt.State enum as int.
-    State                INT64 NOT NULL,
+  State                INT64 NOT NULL,
+
+  -- Time after which the ExchangeStepAttempt has expired and should be marked
+  -- as failed.
+  ExpirationTime       TIMESTAMP NOT NULL,
 
   -- Serialized ExchangeStepAttemptDetails protocol buffer
   ExchangeStepAttemptDetails      BYTES(MAX) NOT NULL,

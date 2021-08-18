@@ -22,11 +22,10 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
-import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
@@ -249,12 +248,11 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     date: Date,
     state: Exchange.State
   ) {
-    updateMutation("Exchanges") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to date.toCloudDate())
-        set("State" to state)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferUpdateMutation("Exchanges") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to date.toCloudDate())
+      set("State" to state)
+    }
   }
 
   private fun TransactionScope.updateExchangeStepAttempt(
@@ -291,16 +289,15 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
         }
         .build()
 
-    updateMutation("ExchangeStepAttempts") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to exchangeStepAttempt.date.toCloudDate())
-        set("StepIndex" to exchangeStepAttempt.stepIndex.toLong())
-        set("AttemptIndex" to exchangeStepAttempt.attemptNumber.toLong())
-        set("State" to state)
-        set("ExchangeStepAttemptDetails" to details)
-        setJson("ExchangeStepAttemptDetailsJson" to details)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferUpdateMutation("ExchangeStepAttempts") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to exchangeStepAttempt.date.toCloudDate())
+      set("StepIndex" to exchangeStepAttempt.stepIndex.toLong())
+      set("AttemptIndex" to exchangeStepAttempt.attemptNumber.toLong())
+      set("State" to state)
+      set("ExchangeStepAttemptDetails" to details)
+      setJson("ExchangeStepAttemptDetailsJson" to details)
+    }
 
     return exchangeStepAttempt.toBuilder().setState(state).setDetails(details).build()
   }
