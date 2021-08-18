@@ -31,6 +31,7 @@ import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -124,8 +125,7 @@ class RequisitionFulfillmentWorkflow(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(protoConfig.liquidLegionsV2.ellipticCurveId)
 
-    // todo: set properties correctly from protoConfig
-    val sketchConfig = SketchConfig()
+    val sketchConfig = protoConfig.liquidLegionsV2.sketchParams.toSketchConfig()
 
     val sketch = generateSketch(sketchConfig)
 
@@ -189,4 +189,32 @@ private fun decodeMeasurementSpec(requisition: Requisition): MeasurementSpec {
 private fun decodeRequisitionSpec(requisition: Requisition): RequisitionSpec {
   val signedData = SignedData.parseFrom(requisition.encryptedRequisitionSpec)
   return RequisitionSpec.parseFrom(signedData.data)
+}
+
+private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
+
+  // todo: hack but otherwise "this" is shadowed in the blocks below
+  val t = this
+
+  return SketchConfig.newBuilder()
+    .apply {
+      addIndexesBuilder().apply {
+        name = "Index"
+        distributionBuilder.exponentialBuilder.apply {
+          rate = t.decayRate
+          numValues = t.maxSize
+        }
+      }
+      addValuesBuilder().apply {
+        name = "SamplingIndicator"
+        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+        distributionBuilder.uniformBuilder.apply { numValues = t.samplingIndicatorSize }
+      }
+      addValuesBuilder().apply {
+        name = "Frequency"
+        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+        distributionBuilder.oracleBuilder.apply { key = "frequency" }
+      }
+    }
+    .build()
 }
