@@ -121,6 +121,9 @@ class RequisitionFulfillmentWorkflow(
     val requisition: Requisition = getRequisition() ?: return
 
     val protoConfig = protocolConfigMap.get(requisition.protocolConfig) ?: return
+    require(protoConfig.hasLiquidLegionsV2()) {
+      "Missing liquidLegionV2 in the public API protocol config."
+    }
 
     val combinedPublicKey =
       requisition.getCombinedPublicKey(protoConfig.liquidLegionsV2.ellipticCurveId)
