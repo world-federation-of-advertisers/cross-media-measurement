@@ -14,12 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import java.io.File
 import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
-import org.wfanet.anysketch.SketchConfig
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -29,6 +27,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.storage.StorageClient
@@ -48,7 +47,11 @@ abstract class EdpSimulator : Runnable {
     val workflow =
       RequisitionFulfillmentWorkflow(
         flags.externalDataProviderId,
-        flags.sketchConfig,
+        flags
+          .publicApiProtocolConfigs
+          .reader()
+          .use { parseTextProto(it, PublicApiProtocolConfigs.getDefaultInstance()) }
+          .configsMap,
         flags.requisitionsStub,
         flags.requisitionFulfillmentStub,
         storageClient,
@@ -70,6 +73,14 @@ abstract class EdpSimulator : Runnable {
         trustedCertCollectionFile = tlsFlags.certCollectionFile
       )
     }
+
+    @CommandLine.Option(
+      names = ["--public-api-protocol-configs"],
+      description = ["PublicApiProtocolConfigs proto message in text format."],
+      required = true
+    )
+    lateinit var publicApiProtocolConfigs: String
+      private set
 
     @CommandLine.Option(names = ["--external-data-provider-id"], required = true)
     lateinit var externalDataProviderId: String
@@ -112,16 +123,6 @@ abstract class EdpSimulator : Runnable {
           .withVerboseLogging(debugVerboseGrpcClientLogging)
       )
     }
-
-    @CommandLine.Option(
-      names = ["--sketch-config-file"],
-      description = ["File path for SketchConfig proto message in text format."],
-      defaultValue = "config/liquid_legions_sketch_config.textproto"
-    )
-    lateinit var sketchConfigFile: File
-      private set
-
-    val sketchConfig by lazy { parseTextProto(sketchConfigFile, SketchConfig.getDefaultInstance()) }
 
     @set:CommandLine.Option(
       names = ["--debug-verbose-grpc-client-logging"],

@@ -32,16 +32,20 @@ import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
   private val externalDataProviderId: String,
-  private val sketchConfig: SketchConfig,
+  private val protocolConfigMap: Map<String, ProtocolConfig>,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val storageClient: StorageClient,
@@ -115,7 +119,13 @@ class RequisitionFulfillmentWorkflow(
   suspend fun execute() {
     val requisition: Requisition = getRequisition() ?: return
 
-    val combinedPublicKey = requisition.getCombinedPublicKey()
+    val protoConfig = protocolConfigMap.get(requisition.protocolConfig) ?: return
+
+    val combinedPublicKey =
+      requisition.getCombinedPublicKey(protoConfig.liquidLegionsV2.ellipticCurveId)
+
+    // todo: set properties correctly from protoConfig
+    val sketchConfig = SketchConfig()
 
     val sketch = generateSketch(sketchConfig)
 
@@ -147,18 +157,18 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
     .build()
 }
 
-private fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
+private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
 
   // todo(@ohardt): this needs to verify the duchy keys before using them
 
-  val curveId = 415L // todo: fetch this from the ProtoConfig svc using `req.protocolConfig` ?
+  // val curveId = 415L // todo: fetch this from the ProtoConfig svc using `req.protocolConfig` ?
 
   val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
 
   val request =
     CombineElGamalPublicKeysRequest.newBuilder()
       .also {
-        it.curveId = curveId
+        it.curveId = curveId.toLong()
         it.addAllElGamalKeys(listOfKeys)
       }
       .build()
@@ -169,4 +179,14 @@ private fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
     )
 
   return response.elGamalKeys.toV2ElGamalPublicKey()
+}
+
+private fun decodeMeasurementSpec(requisition: Requisition): MeasurementSpec {
+  val serializedMeasurementSpec = requisition.measurementSpec
+  return MeasurementSpec.parseFrom(serializedMeasurementSpec.data)
+}
+
+private fun decodeRequisitionSpec(requisition: Requisition): RequisitionSpec {
+  val signedData = SignedData.parseFrom(requisition.encryptedRequisitionSpec)
+  return RequisitionSpec.parseFrom(signedData.data)
 }
