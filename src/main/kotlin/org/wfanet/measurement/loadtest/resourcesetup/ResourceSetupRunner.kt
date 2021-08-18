@@ -82,7 +82,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     )
 
     // Runs the resource setup job.
-    ResourceSetupImpl(inMemoryKeyStore, dataProvidersStub, measurementConsumersStub, flags.runId)
+    ResourceSetup(inMemoryKeyStore, dataProvidersStub, measurementConsumersStub, flags.runId)
       .process(dataProviderContents, measurementConsumerContent)
   }
 }
