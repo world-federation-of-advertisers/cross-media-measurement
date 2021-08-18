@@ -14,10 +14,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import java.time.Clock
-import kotlinx.coroutines.runBlocking
+import java.io.File
+import java.nio.file.Files
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import picocli.CommandLine
 
@@ -29,20 +28,20 @@ import picocli.CommandLine
 )
 /** Implementation of [EdpSimulator] using the File System to store blobs. */
 class FileSystemEdpSimulatorRunner : EdpSimulator() {
+  @CommandLine.Option(
+    names = ["--output-directory"],
+    description = ["File path of output directory where files will be written."],
+    required = true
+  )
+  private lateinit var outputDir: File
+
   override fun run() {
-    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
+    run(FileSystemStorageClient(makeFile(outputDir)))
+  }
 
-    val storageClient = FileSystemStorageClient(createTempDir())
-    val workflow =
-      RequisitionFulfillmentWorkflow(
-        flags.externalDataProviderId,
-        flags.sketchConfig,
-        flags.requisitionsStub,
-        flags.requisitionFulfillmentStub,
-        storageClient,
-      )
-
-    runBlocking { throttler.loopOnReady { workflow.execute() } }
+  private fun makeFile(directory: File): File {
+    val path = directory.toPath()
+    return Files.createDirectories(path).toFile()
   }
 }
 
