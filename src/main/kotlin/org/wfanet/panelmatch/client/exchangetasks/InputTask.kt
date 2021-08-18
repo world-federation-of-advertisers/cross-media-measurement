@@ -19,8 +19,8 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.storage.Storage
-import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
+import org.wfanet.panelmatch.client.storage.StorageNotFoundException
+import org.wfanet.panelmatch.client.storage.verifiedBatchRead
 
 /**
  * Input task waits for output labels to be present. Clients should not pass in the actual required
@@ -30,8 +30,8 @@ import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
 class InputTask(
   private val step: ExchangeWorkflow.Step,
   private val throttler: Throttler,
-  private val sharedStorage: Storage,
-  private val privateStorage: Storage
+  private val sharedStorage: StorageClient,
+  private val privateStorage: StorageClient
 ) : ExchangeTask {
 
   init {
@@ -46,9 +46,9 @@ class InputTask(
     val privateOutputLabels = step.privateOutputLabelsMap
     val sharedOutputLabels = step.sharedOutputLabelsMap
     if (privateOutputLabels.isNotEmpty()) {
-      privateStorage.batchRead(inputLabels = privateOutputLabels)
+      privateStorage.verifiedBatchRead(inputLabels = privateOutputLabels)
     } else {
-      sharedStorage.batchRead(inputLabels = sharedOutputLabels)
+      sharedStorage.verifiedBatchRead(inputLabels = sharedOutputLabels)
     }
   }
 
@@ -56,7 +56,7 @@ class InputTask(
     return try {
       readValue()
       true
-    } catch (e: NotFoundException) {
+    } catch (e: StorageNotFoundException) {
       false
     }
   }

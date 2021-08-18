@@ -33,15 +33,17 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
-import org.wfanet.panelmatch.client.storage.InMemoryStorage
+import org.wfanet.panelmatch.client.storage.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.toByteString
+import org.wfanet.panelmatch.client.storage.verifiedBatchRead
+import org.wfanet.panelmatch.client.storage.verifiedBatchWrite
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class ExchangeTaskExecutorImplTest {
   private val apiClient: ApiClient = mock()
-  private val privateStorage = InMemoryStorage(keyPrefix = "private")
-  private val sharedStorage = InMemoryStorage(keyPrefix = "shared")
+  private val privateStorage = InMemoryStorageClient(keyPrefix = "private")
+  private val sharedStorage = InMemoryStorageClient(keyPrefix = "shared")
 
   private val timeout = FakeTimeout()
 
@@ -69,11 +71,11 @@ class ExchangeTaskExecutorImplTest {
     val blob1 = ByteString.copyFromUtf8("blob1")
     val blob2 = ByteString.copyFromUtf8("blob2")
 
-    privateStorage.batchWrite(
+    privateStorage.verifiedBatchWrite(
       outputLabels = mapOf("a" to "b"),
       data = mapOf("a" to blob1.asBufferedFlow(1024))
     )
-    sharedStorage.batchWrite(
+    sharedStorage.verifiedBatchWrite(
       outputLabels = mapOf("c" to "d"),
       data = mapOf("c" to blob2.asBufferedFlow(1024))
     )
@@ -90,11 +92,15 @@ class ExchangeTaskExecutorImplTest {
     )
 
     assertThat(
-        privateStorage.batchRead(mapOf("Out:c" to "e")).mapValues { it.value.toByteString() }
+        privateStorage.verifiedBatchRead(mapOf("Out:c" to "e")).mapValues {
+          it.value.toByteString()
+        }
       )
       .containsExactly("Out:c", ByteString.copyFromUtf8("Out:blob2"))
 
-    assertThat(sharedStorage.batchRead(mapOf("Out:a" to "f")).mapValues { it.value.toByteString() })
+    assertThat(
+        sharedStorage.verifiedBatchRead(mapOf("Out:a" to "f")).mapValues { it.value.toByteString() }
+      )
       .containsExactly("Out:a", ByteString.copyFromUtf8("Out:blob1"))
   }
 
@@ -102,7 +108,7 @@ class ExchangeTaskExecutorImplTest {
   fun timeout() = runBlockingTest {
     timeout.expired = true
 
-    privateStorage.batchWrite(
+    privateStorage.verifiedBatchWrite(
       outputLabels = mapOf("a" to "b"),
       data = mapOf("a" to emptyFlow<ByteString>())
     )
@@ -118,6 +124,6 @@ class ExchangeTaskExecutorImplTest {
       )
     }
 
-    assertFails { sharedStorage.batchRead(mapOf("Out:a" to "c")) }
+    assertFails { sharedStorage.verifiedBatchRead(mapOf("Out:a" to "c")) }
   }
 }

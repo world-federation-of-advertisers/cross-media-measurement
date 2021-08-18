@@ -19,14 +19,14 @@ import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.panelmatch.client.storage.Storage
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.protocol.common.Cryptor
 
 /** Maps join key exchange steps to exchange tasks */
 class ExchangeTaskMapperForJoinKeyExchange(
   private val deterministicCommutativeCryptor: Cryptor,
-  private val sharedStorage: Storage,
-  private val privateStorage: Storage,
+  private val sharedStorage: StorageClient,
+  private val privateStorage: StorageClient,
   private val throttler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100))
 ) : ExchangeTaskMapper {

@@ -21,13 +21,13 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.buildMockCryptor
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
-import org.wfanet.panelmatch.client.storage.InMemoryStorage
+import org.wfanet.panelmatch.client.storage.InMemoryStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class ExchangeTaskMapperForJoinKeyExchangeTest {
-  private val privateStorage = InMemoryStorage(keyPrefix = "private")
-  private val sharedStorage = InMemoryStorage(keyPrefix = "shared")
+  private val privateStorage = InMemoryStorageClient(keyPrefix = "private")
+  private val sharedStorage = InMemoryStorageClient(keyPrefix = "shared")
   private val deterministicCommutativeCryptor = buildMockCryptor()
 
   private val exchangeTaskMapper =

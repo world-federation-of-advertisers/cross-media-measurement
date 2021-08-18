@@ -36,14 +36,12 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
-import org.wfanet.panelmatch.client.storage.Storage
-import org.wfanet.panelmatch.client.storage.Storage.NotFoundException
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class InputTaskTest {
-  private val privateStorage = mock<Storage>()
-  private val sharedStorage = mock<Storage>()
+  private val privateStorage = mock<StorageClient>()
+  private val sharedStorage = mock<StorageClient>()
   private val secretKeyBlob =
     mock<StorageClient.Blob> {
       on { read(any()) } doReturn MP_0_SECRET_KEY.asBufferedFlow(1024)
@@ -61,18 +59,18 @@ class InputTaskTest {
     val step = buildStep(INPUT_STEP, privateOutputLabels = labels)
     val task = InputTask(step, throttler, sharedStorage, privateStorage)
 
-    whenever(privateStorage.batchRead(any()))
-      .thenThrow(NotFoundException("File not found"))
-      .thenThrow(NotFoundException("File not found"))
-      .thenThrow(NotFoundException("File not found"))
-      .thenThrow(NotFoundException("File not found"))
-      .thenReturn(mapOf("input" to secretKeyBlob))
+    whenever(privateStorage.getBlob("mp-crypto-key"))
+      .thenReturn(null)
+      .thenReturn(null)
+      .thenReturn(null)
+      .thenReturn(null)
+      .thenReturn(secretKeyBlob)
 
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
-    verify(privateStorage, times(5)).batchRead(labels)
+    verify(privateStorage, times(5)).getBlob("mp-crypto-key")
 
     verifyNoMoreInteractions(sharedStorage, privateStorage)
   }
@@ -83,18 +81,18 @@ class InputTaskTest {
     val step = buildStep(INPUT_STEP, sharedOutputLabels = labels)
     val task = InputTask(step, throttler, sharedStorage, privateStorage)
 
-    whenever(sharedStorage.batchRead(any()))
-      .thenThrow(NotFoundException("File not found"))
-      .thenThrow(NotFoundException("File not found"))
-      .thenThrow(NotFoundException("File not found"))
-      .thenThrow(NotFoundException("File not found"))
-      .thenReturn(mapOf("input" to secretKeyBlob))
+    whenever(sharedStorage.getBlob("mp-crypto-key"))
+      .thenReturn(null)
+      .thenReturn(null)
+      .thenReturn(null)
+      .thenReturn(null)
+      .thenReturn(secretKeyBlob)
 
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
-    verify(sharedStorage, times(5)).batchRead(labels)
+    verify(sharedStorage, times(5)).getBlob("mp-crypto-key")
 
     verifyNoMoreInteractions(sharedStorage, privateStorage)
   }
