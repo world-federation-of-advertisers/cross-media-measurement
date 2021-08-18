@@ -82,7 +82,7 @@ abstract class FrontendSimulatorRunner : Runnable {
       )
 
       // Runs the frontend simulator.
-      FrontendSimulatorImpl(
+      FrontendSimulator(
           measurementConsumerData,
           outputDpParams,
           inMemoryKeyStore,

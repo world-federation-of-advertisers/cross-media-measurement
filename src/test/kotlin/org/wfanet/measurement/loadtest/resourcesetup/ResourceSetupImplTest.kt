@@ -15,11 +15,10 @@
 package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,11 +35,9 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
-import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
@@ -54,8 +51,8 @@ private val CONSENT_SIGNAL_CERTIFICATE_DER = FIXED_SERVER_CERT_DER_FILE.readByte
 private val ENCRYPTION_PUBLIC_KEY_DER =
   FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
 private val CONSENT_SIGNAL_X509: X509Certificate = readCertificate(CONSENT_SIGNAL_CERTIFICATE_DER)
-private val CONSENT_SIGNAL_PRIVATE_KEY: PrivateKey =
-  readPrivateKey(CONSENT_SIGNAL_PRIVATE_KEY_DER, KEY_ALGORITHM)
+
+private var KEY_STORE = InMemoryKeyStore()
 
 @RunWith(JUnit4::class)
 class ResourceSetupImplTest {
@@ -78,20 +75,11 @@ class ResourceSetupImplTest {
     MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var resourceSetup: ResourceSetup
-  private var keyStore = InMemoryKeyStore()
-
-  @Before
-  fun setup() = runBlocking {
-    // Uses the same private key for EDP and MC in the test.
-    keyStore.storePrivateKeyDer(EDP_DISPLAY_NAME, CONSENT_SIGNAL_PRIVATE_KEY_DER)
-    keyStore.storePrivateKeyDer(MC_DISPLAY_NAME, CONSENT_SIGNAL_PRIVATE_KEY_DER)
-
-    resourceSetup = ResourceSetupImpl(keyStore, dataProvidersStub, measurementConsumersStub, RUN_ID)
-  }
+  private var resourceSetup: ResourceSetup =
+    ResourceSetup(KEY_STORE, dataProvidersStub, measurementConsumersStub, RUN_ID)
 
   @Test
-  fun `create data provider`() = runBlocking {
+  fun `create data provider successfully`() = runBlocking {
     val dataProviderContent =
       EntityContent(
         displayName = EDP_DISPLAY_NAME,
@@ -137,7 +125,7 @@ class ResourceSetupImplTest {
   }
 
   @Test
-  fun `create measurement consumer`() = runBlocking {
+  fun `create measurement consumer successfully`() = runBlocking {
     val measurementConsumerContent =
       EntityContent(
         displayName = MC_DISPLAY_NAME,
@@ -179,5 +167,16 @@ class ResourceSetupImplTest {
       )
 
     assertTrue(CONSENT_SIGNAL_X509.verifySignature(apiRequest.measurementConsumer.publicKey))
+  }
+
+  companion object {
+    @JvmStatic
+    @BeforeClass
+    fun writePrivateKeysToKeyStore() =
+      runBlocking<Unit> {
+        // Uses the same private key for EDP and MC in the test.
+        KEY_STORE.storePrivateKeyDer(EDP_DISPLAY_NAME, CONSENT_SIGNAL_PRIVATE_KEY_DER)
+        KEY_STORE.storePrivateKeyDer(MC_DISPLAY_NAME, CONSENT_SIGNAL_PRIVATE_KEY_DER)
+      }
   }
 }

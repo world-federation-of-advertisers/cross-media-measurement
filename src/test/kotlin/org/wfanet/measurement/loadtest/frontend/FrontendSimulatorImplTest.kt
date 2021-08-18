@@ -134,7 +134,7 @@ class FrontendSimulatorImplTest {
   @Test
   fun `get expected result from sketches successfully`() = runBlocking {
     frontendSimulator =
-      FrontendSimulatorImpl(
+      FrontendSimulator(
         MEASUREMENT_CONSUMER_DATA,
         OUTPUT_DP_PARAMS,
         keystore,
