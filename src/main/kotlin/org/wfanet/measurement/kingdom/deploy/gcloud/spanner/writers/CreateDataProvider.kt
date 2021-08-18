@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -30,23 +30,21 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     val internalDataProviderId = idGenerator.generateInternalId()
     val externalDataProviderId = idGenerator.generateExternalId()
 
-    insertMutation("DataProviders") {
-        set("DataProviderId" to internalDataProviderId.value)
-        set("PublicKeyCertificateId" to internalCertificateId.value)
-        set("ExternalDataProviderId" to externalDataProviderId.value)
-        set("DataProviderDetails" to dataProvider.details)
-        setJson("DataProviderDetailsJson" to dataProvider.details)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("DataProviders") {
+      set("DataProviderId" to internalDataProviderId.value)
+      set("PublicKeyCertificateId" to internalCertificateId.value)
+      set("ExternalDataProviderId" to externalDataProviderId.value)
+      set("DataProviderDetails" to dataProvider.details)
+      setJson("DataProviderDetailsJson" to dataProvider.details)
+    }
 
     val externalDataProviderCertificateId = idGenerator.generateExternalId()
 
-    insertMutation("DataProviderCertificates") {
-        set("DataProviderId" to internalDataProviderId.value)
-        set("CertificateId" to internalCertificateId.value)
-        set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("DataProviderCertificates") {
+      set("DataProviderId" to internalDataProviderId.value)
+      set("CertificateId" to internalCertificateId.value)
+      set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
+    }
 
     return dataProvider
       .toBuilder()
