@@ -6,6 +6,7 @@ kt_jvm_library(
     name = "storage",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/common:guava",
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",

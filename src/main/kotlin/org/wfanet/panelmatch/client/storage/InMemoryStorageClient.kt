@@ -58,7 +58,6 @@ class InMemoryStorageClient(private val keyPrefix: String) : StorageClient {
 
   override fun getBlob(blobKey: String): StorageClient.Blob? {
     val mapKey: String = getKey(blobKey)
-    require(inMemoryStorageMap.containsKey(mapKey)) { "Cannot find key: $blobKey" }
 
     return inMemoryStorageMap[mapKey]
   }

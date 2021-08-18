@@ -19,8 +19,8 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "InMemoryStorageTest",
-    srcs = ["FileSystemStorageTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.storage.FileSystemStorageTest",
+    srcs = ["InMemoryStorageTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.storage.InMemoryStorageTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
