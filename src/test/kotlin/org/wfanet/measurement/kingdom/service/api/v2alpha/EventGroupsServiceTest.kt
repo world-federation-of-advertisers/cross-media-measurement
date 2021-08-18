@@ -30,7 +30,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.capture
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
@@ -61,6 +60,9 @@ private const val WILDCARD_NAME = "dataProviders/-"
 private const val EVENT_GROUP_NAME = "dataProviders/AAAAAAAAAHs/eventGroups/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+
+private val DATA_PROVIDER_EXTERNAL_ID =
+  apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
@@ -189,10 +191,7 @@ class EventGroupsServiceTest {
       .isEqualTo(
         buildStreamEventGroupsRequest {
           limit = DEFAULT_LIMIT
-          filterBuilder.apply {
-            externalDataProviderId =
-              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-          }
+          filterBuilder.apply { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
         }
       )
 
@@ -229,8 +228,7 @@ class EventGroupsServiceTest {
         buildStreamEventGroupsRequest {
           limit = 2
           filterBuilder.apply {
-            externalDataProviderId =
-              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
             createdAfter = CREATE_TIME
           }
         }
@@ -271,8 +269,7 @@ class EventGroupsServiceTest {
         buildStreamEventGroupsRequest {
           limit = DEFAULT_LIMIT
           filterBuilder.apply {
-            externalDataProviderId =
-              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
             val measurementConsumerId =
               apiIdToExternalId(
                 MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId

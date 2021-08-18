@@ -81,6 +81,8 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid"
       }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#119): MC caller can only specify
+    // their own id, but EDP caller can list EventGroups for multiple MCs
     grpcRequire(
       (request.filter.measurementConsumersCount > 0 && parentKey.dataProviderId == WILDCARD) ||
         parentKey.dataProviderId != WILDCARD
