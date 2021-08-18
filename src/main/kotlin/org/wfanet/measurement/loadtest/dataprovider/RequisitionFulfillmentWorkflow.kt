@@ -33,13 +33,10 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 
