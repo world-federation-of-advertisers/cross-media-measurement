@@ -184,16 +184,6 @@ private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
   return response.elGamalKeys.toV2ElGamalPublicKey()
 }
 
-private fun decodeMeasurementSpec(requisition: Requisition): MeasurementSpec {
-  val serializedMeasurementSpec = requisition.measurementSpec
-  return MeasurementSpec.parseFrom(serializedMeasurementSpec.data)
-}
-
-private fun decodeRequisitionSpec(requisition: Requisition): RequisitionSpec {
-  val signedData = SignedData.parseFrom(requisition.encryptedRequisitionSpec)
-  return RequisitionSpec.parseFrom(signedData.data)
-}
-
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
 
   // todo: hack but otherwise "this" is shadowed in the blocks below
