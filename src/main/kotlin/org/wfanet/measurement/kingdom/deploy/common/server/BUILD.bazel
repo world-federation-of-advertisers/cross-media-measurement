@@ -36,6 +36,7 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":utils",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
