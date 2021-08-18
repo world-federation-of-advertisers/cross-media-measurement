@@ -32,14 +32,15 @@ import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
-/** Converts a kingdom internal Requisition to system Api Requisition. */
+/** [EdpSimulator] runs the [RequisitionFulfillmentWorkflow] that does the actual work */
 abstract class EdpSimulator : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: Flags
     private set
 
-  protected fun run(storageClient: StorageClient) {
-    //  override fun run() {
+  abstract val storageClient: StorageClient
+
+  override fun run() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
 
     val workflow =
