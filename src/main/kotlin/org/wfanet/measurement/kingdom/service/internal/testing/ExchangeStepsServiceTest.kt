@@ -27,10 +27,11 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.provider
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
@@ -44,10 +45,9 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
       ExternalId(FIXED_GENERATED_EXTERNAL_ID)
     )
 
-  protected lateinit var exchangeStepsService: T
-    private set
-
   protected abstract fun newService(idGenerator: IdGenerator): T
+
+  private lateinit var exchangeStepsService: T
 
   @Before
   fun initService() {
@@ -58,9 +58,7 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
   fun `claimReadyExchangeStepRequest fails for missing Provider id`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        exchangeStepsService.claimReadyExchangeStep(
-          ClaimReadyExchangeStepRequest.newBuilder().build()
-        )
+        exchangeStepsService.claimReadyExchangeStep(claimReadyExchangeStepRequest {})
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -73,17 +71,16 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
   fun `claimReadyExchangeStepRequest fails without recurring exchange`() = runBlocking {
     val response =
       exchangeStepsService.claimReadyExchangeStep(
-        ClaimReadyExchangeStepRequest.newBuilder()
-          .apply {
-            providerBuilder.apply {
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
               externalId = 6L
               type = Provider.Type.MODEL_PROVIDER
             }
-          }
-          .build()
+        }
       )
 
-    assertThat(response).isEqualTo(ClaimReadyExchangeStepResponse.getDefaultInstance())
+    assertThat(response).isEqualTo(claimReadyExchangeStepResponse {})
   }
 
   @Test
@@ -93,6 +90,11 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
 
   @Test
   fun `claimReadyExchangeStepRequest succeeds with ready exchange step`() = runBlocking {
+    // TODO(yunyeng): Add test once underlying services complete.
+  }
+
+  @Test
+  fun `claimReadyExchangeStepRequest fails expired ExchangeStepAttempts`() = runBlocking {
     // TODO(yunyeng): Add test once underlying services complete.
   }
 }

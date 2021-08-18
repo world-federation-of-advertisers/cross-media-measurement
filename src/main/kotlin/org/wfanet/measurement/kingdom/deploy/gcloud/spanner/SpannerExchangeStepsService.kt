@@ -16,16 +16,25 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import java.time.Clock
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
 
 class SpannerExchangeStepsService(
   private val clock: Clock,
@@ -53,6 +62,30 @@ class SpannerExchangeStepsService(
       )
       .execute(client, idGenerator, clock)
 
+    ExchangeStepAttemptReader.forExpiredAttempts(
+        externalModelProviderId = externalModelProviderId,
+        externalDataProviderId = externalDataProviderId
+      )
+      .execute(client.singleUse())
+      .map { it.exchangeStepAttempt }
+      .map { attempt ->
+        finishExchangeStepAttemptRequest {
+          externalRecurringExchangeId = attempt.externalRecurringExchangeId
+          date = attempt.date
+          stepIndex = attempt.stepIndex
+          attemptNumber = attempt.attemptNumber
+          state = ExchangeStepAttempt.State.FAILED
+          provider = request.provider
+          debugLogEntries +=
+            debugLog {
+              message = "Automatically FAILED because of expiration"
+              time = clock.instant().toProtoTime()
+            }
+          // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
+        }
+      }
+      .collect { FinishExchangeStepAttempt(it).execute(client) }
+
     val result =
       ClaimReadyExchangeStep(
           externalModelProviderId = externalModelProviderId,
@@ -68,11 +101,9 @@ class SpannerExchangeStepsService(
   }
 
   private fun Result.toClaimReadyExchangeStepResponse(): ClaimReadyExchangeStepResponse {
-    return ClaimReadyExchangeStepResponse.newBuilder()
-      .apply {
-        this.exchangeStep = step
-        this.attemptNumber = attemptIndex
-      }
-      .build()
+    return claimReadyExchangeStepResponse {
+      this.exchangeStep = step
+      this.attemptNumber = attemptIndex
+    }
   }
 }

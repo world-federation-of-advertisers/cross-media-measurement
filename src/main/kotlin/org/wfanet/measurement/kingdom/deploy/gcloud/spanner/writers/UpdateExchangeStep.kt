@@ -17,9 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import com.google.type.Date
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 
@@ -29,14 +28,13 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepsToReady(
   date: Date
 ) {
   for (step in steps) {
-    updateMutation("ExchangeSteps") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to date.toCloudDate())
-        set("StepIndex" to step.stepIndex.toLong())
-        set("State" to ExchangeStep.State.READY)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferUpdateMutation("ExchangeSteps") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to date.toCloudDate())
+      set("StepIndex" to step.stepIndex.toLong())
+      set("State" to ExchangeStep.State.READY)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    }
   }
 }
 
@@ -52,14 +50,13 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
     "ExchangeStep with StepIndex: ${exchangeStep.stepIndex} is in a terminal state."
   }
   val updateTime = Value.COMMIT_TIMESTAMP
-  updateMutation("ExchangeSteps") {
-      set("RecurringExchangeId" to recurringExchangeId)
-      set("Date" to exchangeStep.date.toCloudDate())
-      set("StepIndex" to exchangeStep.stepIndex.toLong())
-      set("State" to state)
-      set("UpdateTime" to updateTime)
-    }
-    .bufferTo(transactionContext)
+  transactionContext.bufferUpdateMutation("ExchangeSteps") {
+    set("RecurringExchangeId" to recurringExchangeId)
+    set("Date" to exchangeStep.date.toCloudDate())
+    set("StepIndex" to exchangeStep.stepIndex.toLong())
+    set("State" to state)
+    set("UpdateTime" to updateTime)
+  }
 
   return exchangeStep.toBuilder().setState(state).setUpdateTime(updateTime.toProto()).build()
 }

@@ -19,8 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -62,10 +61,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     val measurementId = idGenerator.generateInternalId().value
 
     val measurementConsumerCertificateId =
-      getMeasurementConsumerCertificateId(
-        measurement.externalMeasurementConsumerId,
-        measurement.externalMeasurementConsumerCertificateId
-      )
+      getMeasurementConsumerCertificateId(measurement.externalMeasurementConsumerId)
 
     val measurement =
       createNewMeasurement(measurementId, measurementConsumerId, measurementConsumerCertificateId)
@@ -85,7 +81,6 @@ class CreateMeasurement(private val measurement: Measurement) :
           dataProviderValue.externalDataProviderCertificateId
         )
       createRequisition(
-        externalDataProviderId.value,
         measurementConsumerId,
         measurementId,
         dataProviderId,
@@ -108,21 +103,20 @@ class CreateMeasurement(private val measurement: Measurement) :
     val externalMeasurementId = idGenerator.generateExternalId()
     val externalComputationId = idGenerator.generateExternalId()
 
-    insertMutation("Measurements") {
-        set("MeasurementId" to measurementId)
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("ExternalMeasurementId" to externalMeasurementId.value)
-        set("ExternalComputationId" to externalComputationId.value)
-        set("ProvidedMeasurementId" to measurement.providedMeasurementId)
-        set("CertificateId" to measurementConsumerCertificateId)
-        set("ProtocolConfigId" to FAKE_PROTOCOL_CONFIG_ID)
-        set("State" to Measurement.State.PENDING_REQUISITION_PARAMS)
-        set("MeasurementDetails" to measurement.details)
-        setJson("MeasurementDetailsJson" to measurement.details)
-        set("CreateTime" to Value.COMMIT_TIMESTAMP)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("Measurements") {
+      set("MeasurementId" to measurementId)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("ExternalMeasurementId" to externalMeasurementId.value)
+      set("ExternalComputationId" to externalComputationId.value)
+      set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      set("CertificateId" to measurementConsumerCertificateId)
+      set("ProtocolConfigId" to FAKE_PROTOCOL_CONFIG_ID)
+      set("State" to Measurement.State.PENDING_REQUISITION_PARAMS)
+      set("MeasurementDetails" to measurement.details)
+      setJson("MeasurementDetailsJson" to measurement.details)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    }
 
     return measurement
       .toBuilder()
@@ -139,17 +133,15 @@ class CreateMeasurement(private val measurement: Measurement) :
     duchyId: Long
   ) {
     // TODO(@uakyol): populate all the relevant fields for a computationParticipants.
-    insertMutation("ComputationParticipants") {
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("MeasurementId" to measurementId)
-        set("DuchyId" to duchyId)
-        set("State" to ComputationParticipant.State.CREATED)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("ComputationParticipants") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("DuchyId" to duchyId)
+      set("State" to ComputationParticipant.State.CREATED)
+    }
   }
 
-  private suspend fun TransactionScope.createRequisition(
-    externalDataProviderId: Long,
+  private fun TransactionScope.createRequisition(
     measurementConsumerId: Long,
     measurementId: Long,
     dataProviderId: Long,
@@ -158,22 +150,20 @@ class CreateMeasurement(private val measurement: Measurement) :
     val internalRequisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
 
-    insertMutation("Requisitions") {
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("MeasurementId" to measurementId)
-        set("RequisitionId" to internalRequisitionId.value)
-        set("DataProviderId" to dataProviderId)
-        set("CreateTime" to Value.COMMIT_TIMESTAMP)
-        set("ExternalRequisitionId" to externalRequisitionId.value)
-        set("DataProviderCertificateId" to dataProviderCertificateId)
-        set("State" to Requisition.State.UNFULFILLED)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("Requisitions") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("RequisitionId" to internalRequisitionId.value)
+      set("DataProviderId" to dataProviderId)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("ExternalRequisitionId" to externalRequisitionId.value)
+      set("DataProviderCertificateId" to dataProviderCertificateId)
+      set("State" to Requisition.State.UNFULFILLED)
+    }
   }
 
   private suspend fun TransactionScope.getMeasurementConsumerCertificateId(
-    externalMeasurementConsumerId: Long,
-    externalMeasurementConsumerCertificateId: Long
+    externalMeasurementConsumerId: Long
   ): Long {
     val measurementConsumerGetCertificateRequest =
       GetCertificateRequest.newBuilder()

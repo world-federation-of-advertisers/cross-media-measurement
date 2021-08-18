@@ -16,8 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Exchange
@@ -32,14 +31,13 @@ class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Excha
         .readExternalId(transactionContext, ExternalId(exchange.externalRecurringExchangeId))
         .recurringExchangeId
 
-    insertMutation("Exchanges") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to exchange.date.toCloudDate())
-        set("State" to INITIAL_STATE)
-        set("ExchangeDetails" to exchange.details)
-        setJson("ExchangeDetailsJson" to exchange.details)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("Exchanges") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to exchange.date.toCloudDate())
+      set("State" to INITIAL_STATE)
+      set("ExchangeDetails" to exchange.details)
+      setJson("ExchangeDetailsJson" to exchange.details)
+    }
 
     return exchange.toBuilder().apply { state = INITIAL_STATE }.build()
   }
