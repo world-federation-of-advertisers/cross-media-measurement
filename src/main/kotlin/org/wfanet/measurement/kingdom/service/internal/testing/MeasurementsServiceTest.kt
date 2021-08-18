@@ -252,7 +252,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val externalMeasurementConsumerCertificateId =
       measurementConsumer.certificate.externalCertificateId
 
-    val externalDataProviderId = insertDataProvider().externalDataProviderId
+    insertDataProvider()
     val measurement =
       Measurement.newBuilder()
         .also {

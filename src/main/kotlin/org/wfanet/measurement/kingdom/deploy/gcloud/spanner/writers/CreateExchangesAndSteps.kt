@@ -22,11 +22,10 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -36,10 +35,8 @@ import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
-class CreateExchangesAndSteps(
-  private val externalModelProviderId: Long?,
-  private val externalDataProviderId: Long?
-) : SimpleSpannerWriter<Unit>() {
+class CreateExchangesAndSteps(externalModelProviderId: Long?, externalDataProviderId: Long?) :
+  SimpleSpannerWriter<Unit>() {
   private val externalModelProviderIds =
     if (externalModelProviderId == null) emptyList()
     else listOf(ExternalId(externalModelProviderId))
@@ -102,25 +99,23 @@ class CreateExchangesAndSteps(
   private fun TransactionScope.createExchange(recurringExchangeId: Long, date: Date) {
     // TODO: Set ExchangeDetails with proper Audit trail hash.
     val exchangeDetails = ExchangeDetails.getDefaultInstance()
-    insertMutation("Exchanges") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to date.toCloudDate())
-        set("State" to Exchange.State.ACTIVE)
-        set("ExchangeDetails" to exchangeDetails)
-        setJson("ExchangeDetailsJson" to exchangeDetails)
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferInsertMutation("Exchanges") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to date.toCloudDate())
+      set("State" to Exchange.State.ACTIVE)
+      set("ExchangeDetails" to exchangeDetails)
+      setJson("ExchangeDetailsJson" to exchangeDetails)
+    }
   }
 
   private fun TransactionScope.updateRecurringExchange(
     recurringExchangeId: Long,
     nextExchangeDate: Date
   ) {
-    updateMutation("RecurringExchanges") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("NextExchangeDate" to nextExchangeDate.toCloudDate())
-      }
-      .bufferTo(transactionContext)
+    transactionContext.bufferUpdateMutation("RecurringExchanges") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("NextExchangeDate" to nextExchangeDate.toCloudDate())
+    }
   }
 
   private fun TransactionScope.createExchangeSteps(
@@ -130,23 +125,22 @@ class CreateExchangesAndSteps(
     modelProviderId: Long,
     dataProviderId: Long
   ) {
-    workflow.stepsList.forEach { step ->
-      insertMutation("ExchangeSteps") {
-          set("RecurringExchangeId" to recurringExchangeId)
-          set("Date" to date.toCloudDate())
-          set("StepIndex" to step.stepIndex.toLong())
-          set("State" to ExchangeStep.State.BLOCKED)
-          set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-          set(
-            "ModelProviderId" to
-              if (step.party == ExchangeWorkflow.Party.MODEL_PROVIDER) modelProviderId else null
-          )
-          set(
-            "DataProviderId" to
-              if (step.party == ExchangeWorkflow.Party.DATA_PROVIDER) dataProviderId else null
-          )
-        }
-        .bufferTo(transactionContext)
+    for (step in workflow.stepsList) {
+      transactionContext.bufferInsertMutation("ExchangeSteps") {
+        set("RecurringExchangeId" to recurringExchangeId)
+        set("Date" to date.toCloudDate())
+        set("StepIndex" to step.stepIndex.toLong())
+        set("State" to ExchangeStep.State.BLOCKED)
+        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+        set(
+          "ModelProviderId" to
+            if (step.party == ExchangeWorkflow.Party.MODEL_PROVIDER) modelProviderId else null
+        )
+        set(
+          "DataProviderId" to
+            if (step.party == ExchangeWorkflow.Party.DATA_PROVIDER) dataProviderId else null
+        )
+      }
     }
   }
 
