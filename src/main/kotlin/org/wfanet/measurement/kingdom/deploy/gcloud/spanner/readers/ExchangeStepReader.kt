@@ -20,6 +20,8 @@ import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.exchangeStep
+import org.wfanet.measurement.internal.kingdom.provider
 
 /** Reads [ExchangeStep] protos from Spanner. */
 class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
@@ -59,30 +61,22 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
   }
 
   private fun buildExchangeStep(struct: Struct): ExchangeStep {
-    return ExchangeStep.newBuilder()
-      .apply {
-        externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
-        date = struct.getDate("Date").toProtoDate()
-        stepIndex = struct.getLong("StepIndex").toInt()
-        state = struct.getProtoEnum("State", ExchangeStep.State::forNumber)
-        provider =
+    return exchangeStep {
+      externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
+      date = struct.getDate("Date").toProtoDate()
+      stepIndex = struct.getLong("StepIndex").toInt()
+      state = struct.getProtoEnum("State", ExchangeStep.State::forNumber)
+      provider =
+        provider {
           if (struct.getNullableLong("ExternalModelProviderId") != null) {
-            Provider.newBuilder()
-              .apply {
-                externalId = struct.getLong("ExternalModelProviderId")
-                type = Provider.Type.MODEL_PROVIDER
-              }
-              .build()
+            externalId = struct.getLong("ExternalModelProviderId")
+            type = Provider.Type.MODEL_PROVIDER
           } else {
-            Provider.newBuilder()
-              .apply {
-                externalId = struct.getLong("ExternalDataProviderId")
-                type = Provider.Type.DATA_PROVIDER
-              }
-              .build()
+            externalId = struct.getLong("ExternalDataProviderId")
+            type = Provider.Type.DATA_PROVIDER
           }
-      }
-      .build()
+        }
+    }
   }
 
   companion object {

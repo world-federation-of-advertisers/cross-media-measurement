@@ -95,15 +95,18 @@ abstract class ExchangeStepAttemptsServiceTest {
   @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
     // TODO(yunyeng): Add test once underlying services complete.
+    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
   }
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
     // TODO(yunyeng): Add test once underlying services complete.
+    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
   }
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
     // TODO(yunyeng): Add test once underlying services complete.
+    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
   }
 }
