@@ -110,8 +110,7 @@ class RequisitionFulfillmentWorkflow(
 
     val response = requisitionsStub.listRequisitions(req)
 
-    if (response.requisitionsList.isEmpty()) return null
-    else return response.requisitionsList.first()
+    return response.requisitionsList.firstOrNull()
   }
 
   suspend fun execute() {
