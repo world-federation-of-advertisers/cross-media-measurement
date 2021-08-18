@@ -34,10 +34,7 @@ class FileSystemEdpSimulatorRunner : EdpSimulator() {
     required = true
   )
   private lateinit var outputDir: File
-
-  override fun run() {
-    run(FileSystemStorageClient(makeFile(outputDir)))
-  }
+  override val storageClient = FileSystemStorageClient(makeFile(outputDir))
 
   private fun makeFile(directory: File): File {
     val path = directory.toPath()

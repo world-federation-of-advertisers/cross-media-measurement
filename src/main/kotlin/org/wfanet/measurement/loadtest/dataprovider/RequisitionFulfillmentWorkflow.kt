@@ -32,15 +32,13 @@ import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 
+/** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
   private val externalDataProviderId: String,
   private val sketchConfig: SketchConfig,
@@ -113,11 +111,10 @@ class RequisitionFulfillmentWorkflow(
     return response.requisitionsList.firstOrNull()
   }
 
+  /** execute runs the individual steps of the workflow */
   suspend fun execute() {
     val requisition: Requisition = getRequisition() ?: return
 
-    //    val measurementSpec = decodeMeasurementSpec(requisition)
-    //    val requisitionSpec = decodeRequisitionSpec(requisition)
     val combinedPublicKey = requisition.getCombinedPublicKey()
 
     val sketch = generateSketch(sketchConfig)
@@ -172,14 +169,4 @@ private fun Requisition.getCombinedPublicKey(): ElGamalPublicKey {
     )
 
   return response.elGamalKeys.toV2ElGamalPublicKey()
-}
-
-private fun decodeMeasurementSpec(requisition: Requisition): MeasurementSpec {
-  val serializedMeasurementSpec = requisition.measurementSpec
-  return MeasurementSpec.parseFrom(serializedMeasurementSpec.data)
-}
-
-private fun decodeRequisitionSpec(requisition: Requisition): RequisitionSpec {
-  val signedData = SignedData.parseFrom(requisition.encryptedRequisitionSpec)
-  return RequisitionSpec.parseFrom(signedData.data)
 }
