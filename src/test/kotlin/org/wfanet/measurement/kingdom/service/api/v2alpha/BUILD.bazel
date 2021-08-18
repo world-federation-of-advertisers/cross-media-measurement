@@ -1,6 +1,26 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "CertificatesServiceTest",
+    srcs = ["CertificatesServiceTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesServiceTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "DataProvidersServiceTest",
     srcs = ["DataProvidersServiceTest.kt"],
     associates = [
@@ -145,7 +165,7 @@ kt_jvm_test(
     associates = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
     ],
-    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionServiceTest",
+    test_class = "org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsServiceTest",
     deps = [
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
