@@ -38,7 +38,7 @@ class JniPrivateMembershipCryptor : PrivateMembershipCryptor {
     }
   }
 
-  override fun decryptQueries(request: DecryptQueriesRequest): DecryptQueriesResponse {
+  override fun decryptQueryResults(request: DecryptQueriesRequest): DecryptQueriesResponse {
     return wrapJniException {
       DecryptQueriesResponse.parseFrom(
         ObliviousQueryWrapper.decryptQueriesWrapper(request.toByteArray())

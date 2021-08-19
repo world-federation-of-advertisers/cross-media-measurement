@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
+import com.google.protobuf.ByteString
 import java.io.Serializable
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
@@ -29,6 +30,9 @@ import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 
 /** Used for testing CreateQueriesWorkflow (eg reversing some of the operations) */
 interface PrivateMembershipCryptorHelper : Serializable {
+
+  /** Takes a list of pairs of (QueryId, Plaintext) and returns an encrypted list of ByteString */
+  fun makeEncryptedResults(plaintexts: List<Pair<Int, String>>): List<ByteString>
 
   /**
    * Takes an [EncryptQueriesResponse] and reverses the process to yield the underlying decrypted
@@ -58,4 +62,10 @@ data class PanelistQuery(
     panelist: Long,
     bucket: Int
   ) : this(shardIdOf(shard), panelistKeyOf(panelist), bucketIdOf(bucket))
+}
+
+data class DecodedResult(val queryId: Int, val data: ByteString) : Serializable {
+  override fun toString(): String {
+    return "DecodedResult(query=$queryId, data=${data.toStringUtf8()}"
+  }
 }

@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
+import com.google.protobuf.ByteString
 import com.google.protobuf.ListValue
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
@@ -23,6 +24,8 @@ import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryMetadata
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
+import org.wfanet.panelmatch.client.privatemembership.queryMetadataOf
+import org.wfanet.panelmatch.client.privatemembership.resultOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
@@ -38,11 +41,23 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
   }
 
   private fun decodeQueryBundle(queryBundle: QueryBundle): List<ShardedQuery> {
-    val queryBundleList = queryBundle.getQueryMetadataList()
+    val queryBundleList = queryBundle.queryMetadataList
     val bucketValuesList =
-      ListValue.parseFrom(queryBundle.payload).getValuesList().map { it.stringValue.toInt() }
+      ListValue.parseFrom(queryBundle.payload).valuesList.map { it.stringValue.toInt() }
     return queryBundleList.zip(bucketValuesList) { a: QueryMetadata, b: Int ->
       ShardedQuery(requireNotNull(queryBundle.shardId).id, a.queryId.id, b)
+    }
+  }
+
+  override fun makeEncryptedResults(plaintexts: List<Pair<Int, String>>): List<ByteString> {
+    return plaintexts.map {
+      // requireNotNull(
+      resultOf(
+          queryMetadataOf(queryIdOf(it.first), ByteString.EMPTY),
+          ByteString.copyFromUtf8(it.second)
+        )
+        .toByteString()
+      // )
     }
   }
 
@@ -52,7 +67,7 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
     return data.parDo("Map to ShardedQuery") {
       yieldAll(
         it
-          .getCiphertextsList()
+          .ciphertextsList
           .asSequence()
           .map { QueryBundle.parseFrom(it) }
           .flatMap { decodeQueryBundle(it) }

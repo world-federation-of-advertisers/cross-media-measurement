@@ -22,8 +22,6 @@ import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 
-// TODO: factor out QueryEvaluatorTestHelper. Much of its functionality is already moved to the
-// ObliviousQueryBuilder
 interface QueryEvaluatorTestHelper : Serializable {
   data class DecodedResult(val queryId: Int, val data: ByteString) : Serializable {
     override fun toString(): String {

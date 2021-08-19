@@ -33,9 +33,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PlaintextObliviousQueryBuilderTest",
+    name = "PlaintextPrivateMembershipCryptorTest",
     srcs = ["PlaintextPrivateMembershipCryptorTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextObliviousQueryBuilderTest",
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptorTest",
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
@@ -52,6 +52,23 @@ kt_jvm_test(
     name = "PlaintextCreateQueriesWorkflowTest",
     srcs = ["PlaintextCreateQueriesWorkflowTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextCreateQueriesWorkflowTest",
+    deps = [
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "PlaintextDecryptQueryResultsWorkflowTest",
+    srcs = ["PlaintextDecryptQueryResultsWorkflowTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextDecryptQueryResultsWorkflowTest",
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
