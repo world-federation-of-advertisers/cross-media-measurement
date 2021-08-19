@@ -80,4 +80,3 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
     runtime_deps = [":file_system_edp_simulator"],
 )
-
