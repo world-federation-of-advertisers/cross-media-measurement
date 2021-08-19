@@ -43,7 +43,6 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
@@ -231,17 +230,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val createdMeasurement = measurementsService.createMeasurement(measurement)
     assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
     assertThat(createdMeasurement.externalComputationId).isNotEqualTo(0L)
+    assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
+    assertThat(createdMeasurement.updateTime).isEqualTo(createdMeasurement.createTime)
+    assertThat(createdMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     assertThat(createdMeasurement)
-      .isEqualTo(
-        measurement
-          .toBuilder()
-          .apply {
-            externalMeasurementId = createdMeasurement.externalMeasurementId
-            externalComputationId = createdMeasurement.externalComputationId
-            createTime = createdMeasurement.createTime
-          }
-          .build()
+      .ignoringFields(
+        Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
+        Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
+        Measurement.CREATE_TIME_FIELD_NUMBER,
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.STATE_FIELD_NUMBER
       )
+      .isEqualTo(measurement)
   }
 
   @Test
@@ -251,8 +251,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalMeasurementConsumerCertificateId =
       measurementConsumer.certificate.externalCertificateId
-
-    val externalDataProviderId = insertDataProvider().externalDataProviderId
+    insertDataProvider()
     val measurement =
       Measurement.newBuilder()
         .also {
@@ -342,6 +341,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         }
         .build()
-    assertThat(measurement).comparingExpectedFieldsOnly().isEqualTo(expectedMeasurement)
+    assertThat(measurement)
+      .ignoringFields(Measurement.CREATE_TIME_FIELD_NUMBER, Measurement.UPDATE_TIME_FIELD_NUMBER)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedMeasurement)
   }
 }
