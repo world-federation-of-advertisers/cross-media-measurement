@@ -9,19 +9,11 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "edp_simulator",
-    srcs = glob(["*.kt"]),
+    srcs = ["EdpSimulator.kt", "RequisitionFulfillmentWorkflow.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
-        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:encrypted_sketch_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_java_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_java_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/config:public_api_protocol_configs_kt_jvm_proto",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch",
@@ -29,13 +21,56 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/proto/wfa/any_sketch:sketch_java_proto",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
+    name = "forwarded_storage_edp_simulator",
+    srcs = ["ForwardStorageEdpSimulatorRunner.kt"],
+    deps = [
+        ":edp_simulator",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+    ],
+)
+
+java_binary(
+    name = "ForwardStorageEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunner",
+    runtime_deps = [":forwarded_storage_edp_simulator"],
+)
+
+kt_jvm_library(
+    name = "gcs_edp_simulator",
+    srcs = ["GcsEdpSimulatorRunner.kt"],
+    deps = [
+        ":edp_simulator",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+    ],
+)
+
+java_binary(
+    name = "GcsEdpSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunner",
+    runtime_deps = [":gcs_edp_simulator"],
+)
+
+kt_jvm_library(
+    name = "file_system_edp_simulator",
+    srcs = ["FileSystemEdpSimulatorRunner.kt"],
+    deps = [
+        ":edp_simulator",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
@@ -43,12 +78,6 @@ kt_jvm_library(
 java_binary(
     name = "FileSystemEdpSimulatorRunner",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
-    runtime_deps = [":edp_simulator"],
+    runtime_deps = [":file_system_edp_simulator"],
 )
 
-java_image(
-    name = "file_system_edp_simulator_image",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":edp_simulator"],
-)

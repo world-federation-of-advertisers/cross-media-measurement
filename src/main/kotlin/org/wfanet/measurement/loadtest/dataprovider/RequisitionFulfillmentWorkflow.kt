@@ -184,6 +184,17 @@ private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
   return response.elGamalKeys.toV2ElGamalPublicKey()
 }
 
+/*
+private fun LiquidLegionsSketchParams.toSketchConfig2(): SketchConfig {
+
+  return SketchConfig {
+    indexes += ...
+    values += ...
+    values += ...
+  }
+}
+*/
+
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
 
   // todo: hack but otherwise "this" is shadowed in the blocks below
