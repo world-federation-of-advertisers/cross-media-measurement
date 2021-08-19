@@ -147,8 +147,7 @@ class CreateQueriesWorkflow(
       .map<KV<ShardId, Iterable<UnencryptedQuery>>, KV<ShardId, EncryptQueriesResponse>>(
         name = "Map to EncryptQueriesResponse"
       ) {
-        val encryptQueriesRequest =
-          EncryptQueriesRequest.newBuilder().addAllUnencryptedQuery(it.value).build()
+        val encryptQueriesRequest = encryptQueriesRequest { unencryptedQuery += it.value }
         kvOf(it.key, privateMembershipCryptor.encryptQueries(encryptQueriesRequest))
       }
       .values("Extract Results")

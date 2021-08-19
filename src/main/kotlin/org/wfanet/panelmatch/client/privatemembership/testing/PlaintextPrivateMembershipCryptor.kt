@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.ListValue
+import com.google.protobuf.value
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueriesRequest
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueriesResponse
@@ -26,7 +27,11 @@ import org.wfanet.panelmatch.client.privatemembership.GenerateKeysResponse
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
+import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.ShardId
+import org.wfanet.panelmatch.client.privatemembership.decryptQueriesResponse
+import org.wfanet.panelmatch.client.privatemembership.encryptQueriesResponse
+import org.wfanet.panelmatch.client.privatemembership.generateKeysResponse
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.queryMetadataOf
 
@@ -65,8 +70,15 @@ object PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
       .toList()
   }
 
+  private fun decodeResultData(result: Result): ByteString {
+    return result.payload
+  }
+
   override fun generateKeys(request: GenerateKeysRequest): GenerateKeysResponse {
-    return GenerateKeysResponse.getDefaultInstance()
+    return generateKeysResponse {
+      publicKey = ByteString.EMPTY
+      privateKey = ByteString.EMPTY
+    }
   }
 
   /**
@@ -74,26 +86,25 @@ object PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
    * for each shard
    */
   override fun encryptQueries(request: EncryptQueriesRequest): EncryptQueriesResponse {
-    val unencryptedQueries = request.getUnencryptedQueryList()
-    return EncryptQueriesResponse.newBuilder()
-      .addAllCiphertexts(
+    val unencryptedQueries = request.unencryptedQueryList
+    return encryptQueriesResponse {
+      ciphertexts +=
         unencryptedQueries.groupBy { it.shardId }.map {
           makeQueryBundle(shard = it.key, queries = it.value.map { Pair(it.queryId, it.bucketId) })
             .toByteString()
         }
-      )
-      .build()
+    }
   }
 
   /** Simple plaintext decrypter that splits up data marked by <...> */
-  override fun decryptQueries(request: DecryptQueriesRequest): DecryptQueriesResponse {
-    val encryptedQueryResults = request.getEncryptedQueryResultsList()
-    return DecryptQueriesResponse.newBuilder()
-      .addAllDecryptedQueryResults(
+  override fun decryptQueryResults(request: DecryptQueriesRequest): DecryptQueriesResponse {
+    val encryptedQueryResults = request.encryptedQueryResultsList
+    return decryptQueriesResponse {
+      decryptedQueryResults +=
         encryptedQueryResults
-          .flatMap { data -> splitConcatenatedPayloads(data.toStringUtf8()) }
+          .map { result -> decodeResultData(Result.parseFrom(result)).toStringUtf8() }
+          .flatMap { data -> splitConcatenatedPayloads(data) }
           .map { it -> ByteString.copyFromUtf8(it) }
-      )
-      .build()
+    }
   }
 }

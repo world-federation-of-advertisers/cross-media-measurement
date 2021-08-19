@@ -17,34 +17,31 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import org.junit.Test
-import org.wfanet.panelmatch.client.privatemembership.DecryptQueriesRequest
-import org.wfanet.panelmatch.client.privatemembership.EncryptQueriesRequest
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
+import org.wfanet.panelmatch.client.privatemembership.decryptQueriesRequest
+import org.wfanet.panelmatch.client.privatemembership.encryptQueriesRequest
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.unencryptedQueryOf
 
-class PlaintextObliviousQueryBuilderTest {
-  private val privateMembershipCryptor: PrivateMembershipCryptor = PlaintextPrivateMembershipCryptor
-
+class PlaintextPrivateMembershipCryptorTest {
+  private val privateMembershipCryptor = PlaintextPrivateMembershipCryptor
+  private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
   @Test
   fun `encryptQueries with multiple shards`() {
-    val encryptQueriesRequest =
-      EncryptQueriesRequest.newBuilder()
-        .addAllUnencryptedQuery(
-          listOf(
-            unencryptedQueryOf(100, 1, 1),
-            unencryptedQueryOf(100, 2, 2),
-            unencryptedQueryOf(101, 3, 1),
-            unencryptedQueryOf(101, 4, 5)
-          )
+    val encryptQueriesRequest = encryptQueriesRequest {
+      unencryptedQuery +=
+        listOf(
+          unencryptedQueryOf(100, 1, 1),
+          unencryptedQueryOf(100, 2, 2),
+          unencryptedQueryOf(101, 3, 1),
+          unencryptedQueryOf(101, 4, 5)
         )
-        .build()
+    }
     val encryptedQueries = privateMembershipCryptor.encryptQueries(encryptQueriesRequest)
-    assertThat(encryptedQueries.getCiphertextsList().map { it -> QueryBundle.parseFrom(it) })
+    assertThat(encryptedQueries.ciphertextsList.map { it -> QueryBundle.parseFrom(it) })
       .containsExactly(
         queryBundleOf(shard = 100, listOf(1 to 1, 2 to 2)),
         queryBundleOf(shard = 101, listOf(3 to 1, 4 to 5))
@@ -53,26 +50,27 @@ class PlaintextObliviousQueryBuilderTest {
 
   @Test
   fun `decryptQueries`() {
-    val queriedData =
+    val plaintexts =
       listOf(
-        "<this is the payload for 1>",
-        "<this is the payload for 2>",
-        "<this is the payload for 3>",
-        "<this is the payload for 4>",
-        "<this is the payload for 5>",
-        "<this is the payload for 6>",
-        "<this is the payload for 7>",
-        "<this is the payload for 8>",
-        "<this is the payload for 9>",
-        "<this is the payload for 10>"
+        Pair(1, "<some data a>"),
+        Pair(2, "<some data b>"),
+        Pair(3, "<some data c>"),
+        Pair(4, "<some data d>"),
+        Pair(5, "<some data e>"),
       )
-    val decryptQueriesRequest =
-      DecryptQueriesRequest.newBuilder()
-        .addAllEncryptedQueryResults(listOf(ByteString.copyFromUtf8(queriedData.joinToString(""))))
-        .build()
-    val decryptedQueries = privateMembershipCryptor.decryptQueries(decryptQueriesRequest)
-    assertThat(decryptedQueries.getDecryptedQueryResultsList().map { it.toStringUtf8() })
-      .containsExactlyElementsIn(queriedData)
+    val queriedEncryptedResults = privateMembershipCryptorHelper.makeEncryptedResults(plaintexts)
+    val decryptQueriesRequest = decryptQueriesRequest {
+      encryptedQueryResults += queriedEncryptedResults
+    }
+    val decryptedQueries = privateMembershipCryptor.decryptQueryResults(decryptQueriesRequest)
+    assertThat(decryptedQueries.decryptedQueryResultsList)
+      .containsExactly(
+        ByteString.copyFromUtf8("<some data a>"),
+        ByteString.copyFromUtf8("<some data b>"),
+        ByteString.copyFromUtf8("<some data c>"),
+        ByteString.copyFromUtf8("<some data d>"),
+        ByteString.copyFromUtf8("<some data e>")
+      )
   }
 }
 
