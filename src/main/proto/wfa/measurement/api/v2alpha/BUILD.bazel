@@ -331,5 +331,6 @@ proto_library(
     deps = [
         ":exchange_step_attempt_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
