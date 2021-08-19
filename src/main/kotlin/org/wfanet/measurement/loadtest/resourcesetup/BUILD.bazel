@@ -12,7 +12,6 @@ kt_jvm_library(
     name = "resource_setup",
     srcs = [
         "ResourceSetup.kt",
-        "ResourceSetupImpl.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
