@@ -27,7 +27,7 @@
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
-#include "wfa/panelmatch/common/crypto/cryptor.h"
+#include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 #include "wfa/panelmatch/common/crypto/hkdf.h"
 #include "wfa/panelmatch/common/crypto/peppered_fingerprinter.h"
 
@@ -36,17 +36,17 @@ namespace wfa::panelmatch::protocol::crypto {
 using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataAsStringView;
 using ::crypto::tink::util::SecretDataFromStringView;
-using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::AesWithHkdf;
-using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
-using ::wfa::panelmatch::common::crypto::Cryptor;
+using ::wfa::panelmatch::common::crypto::DeterministicCommutativeCipher;
 using ::wfa::panelmatch::common::crypto::GetPepperedFingerprinter;
 
 EventDataPreprocessor::EventDataPreprocessor(
-    std::unique_ptr<Cryptor> cryptor, const SecretData& identifier_hash_pepper,
-    const SecretData& hkdf_pepper, const Fingerprinter* delegate,
-    const AesWithHkdf* aes_hkdf)
-    : cryptor_(std::move(cryptor)),
+    std::unique_ptr<DeterministicCommutativeCipher>
+        deterministic_commutative_cipher,
+    const SecretData& identifier_hash_pepper, const SecretData& hkdf_pepper,
+    const Fingerprinter* delegate, const AesWithHkdf* aes_hkdf)
+    : deterministic_commutative_cipher_(
+          std::move(deterministic_commutative_cipher)),
       hkdf_pepper_(hkdf_pepper),
       fingerprinter_(GetPepperedFingerprinter(CHECK_NOTNULL(delegate),
                                               identifier_hash_pepper)),
@@ -54,21 +54,17 @@ EventDataPreprocessor::EventDataPreprocessor(
 
 absl::StatusOr<ProcessedData> EventDataPreprocessor::Process(
     absl::string_view identifier, absl::string_view event_data) const {
-  std::vector<std::string> input = {std::string(identifier)};
-  ASSIGN_OR_RETURN(std::vector<std::string> processed,
-                   cryptor_->BatchProcess(input, Action::kEncrypt));
-
-  if (processed.size() != 1)
-    return absl::InternalError("Incorrect vector size");
+  ASSIGN_OR_RETURN(std::string encrypted_identifier,
+                   deterministic_commutative_cipher_->Encrypt(identifier));
 
   ProcessedData processed_data;
   ASSIGN_OR_RETURN(
       processed_data.encrypted_event_data,
-      aes_hkdf_.Encrypt(event_data, SecretDataFromStringView(processed[0]),
+      aes_hkdf_.Encrypt(event_data, SecretDataFromStringView(identifier),
                         hkdf_pepper_));
 
   processed_data.encrypted_identifier =
-      fingerprinter_->Fingerprint(processed[0]);
+      fingerprinter_->Fingerprint(encrypted_identifier);
 
   return processed_data;
 }

@@ -25,7 +25,7 @@
 #include "common_cpp/fingerprinters/fingerprinters.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
-#include "wfa/panelmatch/common/crypto/cryptor.h"
+#include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 
 namespace wfa::panelmatch::protocol::crypto {
 
@@ -44,11 +44,13 @@ struct ProcessedData {
 class EventDataPreprocessor {
  public:
   EventDataPreprocessor(
-      std::unique_ptr<common::crypto::Cryptor> cryptor,
+      std::unique_ptr<
+          wfa::panelmatch::common::crypto::DeterministicCommutativeCipher>
+          deterministic_commutative_cipher,
       const ::crypto::tink::util::SecretData& identifier_hash_pepper,
       const ::crypto::tink::util::SecretData& hkdf_pepper,
       const Fingerprinter* delegate,
-      const common::crypto::AesWithHkdf* aes_hkdf);
+      const wfa::panelmatch::common::crypto::AesWithHkdf* aes_hkdf);
   ~EventDataPreprocessor() = default;
 
   // Encrypts 'identifier' and 'event_data' data
@@ -56,7 +58,9 @@ class EventDataPreprocessor {
                                         absl::string_view event_data) const;
 
  private:
-  std::unique_ptr<common::crypto::Cryptor> cryptor_;
+  std::unique_ptr<
+      wfa::panelmatch::common::crypto::DeterministicCommutativeCipher>
+      deterministic_commutative_cipher_;
   ::crypto::tink::util::SecretData hkdf_pepper_;
   std::unique_ptr<Fingerprinter> fingerprinter_;
   const common::crypto::AesWithHkdf& aes_hkdf_;

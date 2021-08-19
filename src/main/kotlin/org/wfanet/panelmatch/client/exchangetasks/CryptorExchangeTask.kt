@@ -20,7 +20,7 @@ import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.storage.toByteString
-import org.wfanet.panelmatch.protocol.common.Cryptor
+import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
@@ -53,27 +53,33 @@ internal constructor(
     private val logger by loggerFor()
 
     /** Returns an [ExchangeTask] that removes encryption from data. */
-    fun forDecryption(Cryptor: Cryptor): ExchangeTask {
+    fun forDecryption(
+      DeterministicCommutativeCipher: DeterministicCommutativeCipher
+    ): ExchangeTask {
       return CryptorExchangeTask(
-        operation = Cryptor::decrypt,
+        operation = DeterministicCommutativeCipher::decrypt,
         inputDataLabel = "encrypted-data",
         outputDataLabel = "decrypted-data"
       )
     }
 
     /** Returns an [ExchangeTask] that adds encryption to plaintext. */
-    fun forEncryption(Cryptor: Cryptor): ExchangeTask {
+    fun forEncryption(
+      DeterministicCommutativeCipher: DeterministicCommutativeCipher
+    ): ExchangeTask {
       return CryptorExchangeTask(
-        operation = Cryptor::encrypt,
+        operation = DeterministicCommutativeCipher::encrypt,
         inputDataLabel = "unencrypted-data",
         outputDataLabel = "encrypted-data"
       )
     }
 
     /** Returns an [ExchangeTask] that adds another layer of encryption to data. */
-    fun forReEncryption(Cryptor: Cryptor): ExchangeTask {
+    fun forReEncryption(
+      DeterministicCommutativeCipher: DeterministicCommutativeCipher
+    ): ExchangeTask {
       return CryptorExchangeTask(
-        operation = Cryptor::reEncrypt,
+        operation = DeterministicCommutativeCipher::reEncrypt,
         inputDataLabel = "encrypted-data",
         outputDataLabel = "reencrypted-data"
       )

@@ -23,7 +23,7 @@ import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
 import org.wfanet.panelmatch.protocol.CryptorReEncryptResponse
 
 /** Core deterministic, commutative cryptographic operations. */
-interface Cryptor {
+interface DeterministicCommutativeCipher {
 
   /** Encrypts plaintexts. */
   fun encrypt(request: CryptorEncryptRequest): CryptorEncryptResponse

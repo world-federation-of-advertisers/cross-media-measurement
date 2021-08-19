@@ -20,11 +20,11 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.protocol.common.Cryptor
+import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 
 /** Maps join key exchange steps to exchange tasks */
 class ExchangeTaskMapperForJoinKeyExchange(
-  private val deterministicCommutativeCryptor: Cryptor,
+  private val deterministicCommutativeCryptor: DeterministicCommutativeCipher,
   private val sharedStorage: StorageClient,
   private val privateStorage: StorageClient,
   private val throttler: Throttler =

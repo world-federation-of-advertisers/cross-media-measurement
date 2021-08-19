@@ -6,7 +6,7 @@ cc_binary(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
-        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",

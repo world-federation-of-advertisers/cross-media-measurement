@@ -26,23 +26,27 @@
 #include "absl/types/span.h"
 #include "common_cpp/macros/macros.h"
 #include "common_cpp/time/started_thread_cpu_timer.h"
-#include "wfa/panelmatch/common/crypto/cryptor.h"
+#include "tink/util/secret_data.h"
+#include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 #include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfa::panelmatch::protocol::crypto {
-using ::wfa::panelmatch::common::crypto::Action;
-using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
+using ::crypto::tink::util::SecretData;
+using ::crypto::tink::util::SecretDataFromStringView;
+using ::wfa::panelmatch::common::crypto::NewDeterministicCommutativeCipher;
 
 absl::StatusOr<CryptorEncryptResponse> DeterministicCommutativeEncrypt(
     const CryptorEncryptRequest& request) {
   StartedThreadCpuTimer timer;
   CryptorEncryptResponse response;
-  ASSIGN_OR_RETURN_ERROR(auto cryptor,
-                         CreateCryptorFromKey(request.encryption_key()),
-                         "Failed to create the protocol cipher");
-  ASSIGN_OR_RETURN(
-      *response.mutable_encrypted_texts(),
-      cryptor->BatchProcess(request.plaintexts(), Action::kEncrypt));
+  SecretData key = SecretDataFromStringView(request.encryption_key());
+  ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
+
+  for (absl::string_view plaintext : request.plaintexts()) {
+    ASSIGN_OR_RETURN(*response.add_encrypted_texts(),
+                     cipher->Encrypt(plaintext));
+  }
+
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
@@ -51,12 +55,14 @@ absl::StatusOr<CryptorDecryptResponse> DeterministicCommutativeDecrypt(
     const CryptorDecryptRequest& request) {
   StartedThreadCpuTimer timer;
   CryptorDecryptResponse response;
-  ASSIGN_OR_RETURN_ERROR(auto cryptor,
-                         CreateCryptorFromKey(request.encryption_key()),
-                         "Failed to create the protocol cipher");
-  ASSIGN_OR_RETURN(
-      *response.mutable_decrypted_texts(),
-      cryptor->BatchProcess(request.encrypted_texts(), Action::kDecrypt));
+  SecretData key = SecretDataFromStringView(request.encryption_key());
+  ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
+
+  for (absl::string_view ciphertext : request.encrypted_texts()) {
+    ASSIGN_OR_RETURN(*response.add_decrypted_texts(),
+                     cipher->Decrypt(ciphertext));
+  }
+
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
@@ -65,12 +71,14 @@ absl::StatusOr<CryptorReEncryptResponse> DeterministicCommutativeReEncrypt(
     const CryptorReEncryptRequest& request) {
   StartedThreadCpuTimer timer;
   CryptorReEncryptResponse response;
-  ASSIGN_OR_RETURN_ERROR(auto cryptor,
-                         CreateCryptorFromKey(request.encryption_key()),
-                         "Failed to create the protocol cipher");
-  ASSIGN_OR_RETURN(
-      *response.mutable_reencrypted_texts(),
-      cryptor->BatchProcess(request.encrypted_texts(), Action::kReEncrypt));
+  SecretData key = SecretDataFromStringView(request.encryption_key());
+  ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
+
+  for (absl::string_view ciphertext : request.encrypted_texts()) {
+    ASSIGN_OR_RETURN(*response.add_reencrypted_texts(),
+                     cipher->ReEncrypt(ciphertext));
+  }
+
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }

@@ -40,7 +40,7 @@ using ::wfa::panelmatch::protocol::crypto::EventDataPreprocessor;
 using ::wfa::panelmatch::protocol::crypto::ProcessedData;
 
 // Test using actual implementations to ensure nothing crashes
-TEST(EventDataPreprocessorTests, ActualValues) {
+TEST(PreprocessEventsTest, ActualValues) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
@@ -56,7 +56,7 @@ TEST(EventDataPreprocessorTests, ActualValues) {
   EXPECT_NE(processed.processed_events(0).encrypted_data(), "some-data");
 }
 
-TEST(EventDataPreprocessorTests, MissingIdentifierHashPepper) {
+TEST(PreprocessEventsTest, MissingIdentifierHashPepper) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
@@ -67,7 +67,8 @@ TEST(EventDataPreprocessorTests, MissingIdentifierHashPepper) {
   ASSERT_THAT(PreprocessEvents(test_request).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
-TEST(EventDataPreprocessorTests, MissingHkdfPepper) {
+
+TEST(PreprocessEventsTest, MissingHkdfPepper) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
@@ -78,7 +79,8 @@ TEST(EventDataPreprocessorTests, MissingHkdfPepper) {
   ASSERT_THAT(PreprocessEvents(test_request).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
-TEST(EventDataPreprocessorTests, MissingCryptokey) {
+
+TEST(PreprocessEventsTest, MissingCryptokey) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
@@ -89,7 +91,8 @@ TEST(EventDataPreprocessorTests, MissingCryptokey) {
   ASSERT_THAT(PreprocessEvents(test_request).status(),
               StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
-TEST(EventDataPreprocessorTests, MissingUnprocessedEvents) {
+
+TEST(PreprocessEventsTest, MissingUnprocessedEvents) {
   PreprocessEventsRequest test_request;
   test_request.set_crypto_key("some-cryptokey");
   test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
@@ -98,7 +101,8 @@ TEST(EventDataPreprocessorTests, MissingUnprocessedEvents) {
                        PreprocessEvents(test_request));
   EXPECT_EQ(processed.processed_events_size(), 0);
 }
-TEST(EventDataPreprocessorTests, MissingId) {
+
+TEST(PreprocessEventsTest, MissingId) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
@@ -106,9 +110,11 @@ TEST(EventDataPreprocessorTests, MissingId) {
   test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
   test_request.set_hkdf_pepper("some-hkdf-pepper");
   test_request.set_crypto_key("some-cryptokey");
-  EXPECT_THAT(PreprocessEvents(test_request), IsOk());
+  EXPECT_THAT(PreprocessEvents(test_request).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument, ""));
 }
-TEST(EventDataPreprocessorTests, MissingData) {
+
+TEST(PreprocessEventsTest, MissingData) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();
@@ -116,9 +122,10 @@ TEST(EventDataPreprocessorTests, MissingData) {
   test_request.set_identifier_hash_pepper("some-identifier-hash-pepper");
   test_request.set_hkdf_pepper("some-hkdf-pepper");
   test_request.set_crypto_key("some-cryptokey");
-  EXPECT_THAT(PreprocessEvents(test_request), IsOk());
+  EXPECT_THAT(PreprocessEvents(test_request).status(), IsOk());
 }
-TEST(EventDataPreprocessorTests, MultipleUnprocessedEvents) {
+
+TEST(PreprocessEventsTest, MultipleUnprocessedEvents) {
   PreprocessEventsRequest test_request;
   PreprocessEventsRequest::UnprocessedEvent* unprocessed_event =
       test_request.add_unprocessed_events();

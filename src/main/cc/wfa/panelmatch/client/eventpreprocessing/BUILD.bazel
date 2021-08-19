@@ -10,7 +10,7 @@ cc_library(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
-        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",

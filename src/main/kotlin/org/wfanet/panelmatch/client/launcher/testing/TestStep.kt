@@ -19,7 +19,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.panelmatch.protocol.common.Cryptor
+import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 
 val MP_0_SECRET_KEY: ByteString = ByteString.copyFromUtf8("random-mp-string-0")
 
@@ -57,8 +57,8 @@ val LOOKUP_KEYS =
     ByteString.copyFromUtf8("some lookup4")
   )
 
-fun buildMockCryptor(): Cryptor {
-  val mockCryptor: Cryptor = mock()
+fun buildMockCryptor(): DeterministicCommutativeCipher {
+  val mockCryptor: DeterministicCommutativeCipher = mock()
   whenever(mockCryptor.encrypt(any(), any())).thenReturn(SINGLE_BLINDED_KEYS)
   whenever(mockCryptor.reEncrypt(any(), any())).thenReturn(DOUBLE_BLINDED_KEYS)
   whenever(mockCryptor.decrypt(any(), any())).thenReturn(LOOKUP_KEYS)
