@@ -28,8 +28,10 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import java.security.MessageDigest
 import java.time.Clock
 import java.time.Duration
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
@@ -43,23 +45,31 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.size
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.consent.client.measurementconsumer.createDataProviderListHash
+import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
+import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
+import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
+import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
@@ -75,6 +85,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
+import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
@@ -226,11 +237,67 @@ private val LLV2_PARAMETERS =
     }
     .build()
 
+// In the test, use the same set of cert and encryption key for all parties.
+private const val CONSENT_SIGNALING_CERT_NAME = "Just a name"
+private val CONSENT_SIGNALING_CERT_DER = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
+private val CONSENT_SIGNALING_PRIVATE_KEY_DER = FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
+private val ENCRYPTION_PUBLIC_KEY_DER =
+  FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
+
+private val HYBRID_CRYPTOR = ReversingHybridCryptor()
+private val SOME_DATA_PROVIDER_LIST_SALT = ByteString.copyFromUtf8("some-salt-0")
+private val SOME_SERIALIZED_DATA_PROVIDER_LIST = ByteString.copyFromUtf8("some-data-provider-list")
+private val DATA_PROVIDER_PUBLIC_KEY =
+  V2AlphaEncryptionPublicKey.newBuilder()
+    .apply { publicKeyInfo = ByteString.copyFromUtf8("some-public-key") }
+    .build()
+private val SOME_REQUISITION_SPEC =
+  RequisitionSpec.newBuilder()
+    .apply {
+      dataProviderListHash =
+        createDataProviderListHash(SOME_SERIALIZED_DATA_PROVIDER_LIST, SOME_DATA_PROVIDER_LIST_SALT)
+    }
+    .build()
+    .toByteString()
+private val SOME_ENCRYPTED_REQUISITION_SPEC_HASH =
+  hashSha256(HYBRID_CRYPTOR.encrypt(DATA_PROVIDER_PUBLIC_KEY, SOME_REQUISITION_SPEC))
+private val SOME_SERIALIZED_MEASUREMENT_SPEC =
+  ByteString.copyFromUtf8("some-serialized-measurement-spec")
+/** This is pre-calculated using a fixed certificate from common-jvm. */
+private val DATA_PROVIDER_SIGNATURE: ByteString =
+  ByteString.copyFrom(
+    Base64.getDecoder()
+      .decode(
+        "MEUCIQDPd2A85kgBbOGyeeNGlzcRO+uLK6qT9TkHSUDcejHu1wIgGv2YA4xAME8nZrjSbjOu5CTi/" +
+          "ilgis7bMXA5iSgSdRE="
+      )
+  )
+/** A public Key used for consent signaling check. */
+private val CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY =
+  V2AlphaElGamalPublicKey.newBuilder()
+    .apply {
+      generator = ByteString.copyFromUtf8("generator-foo")
+      element = ByteString.copyFromUtf8("element-foo")
+    }
+    .build()
+/** A pre-computed signature of the CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY. */
+private val CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY_SINGATURE =
+  ByteString.copyFrom(
+    Base64.getDecoder()
+      .decode(
+        "MEUCIB2HWi/udHE9YlCH6n9lnGY12I9F1ra1SRWoJrIOXGiAAiEAm90wrJRqABFC5sjej+" +
+          "zjSBOMHcmFOEpfW9tXaCla6Qs="
+      )
+  )
+
 private val COMPUTATION_PARTICIPANT_1 =
   ComputationParticipant.newBuilder()
     .apply {
       duchyId = DUCHY_ONE_NAME
       publicKey = DUCHY_ONE_KEY_PAIR.publicKey
+      elGamalPublicKey = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY.toByteString()
+      elGamalPublicKeySignature = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY_SINGATURE
+      duchyCertificateDer = CONSENT_SIGNALING_CERT_DER
     }
     .build()
 private val COMPUTATION_PARTICIPANT_2 =
@@ -238,6 +305,9 @@ private val COMPUTATION_PARTICIPANT_2 =
     .apply {
       duchyId = DUCHY_TWO_NAME
       publicKey = DUCHY_TWO_PUBLIC_KEY
+      elGamalPublicKey = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY.toByteString()
+      elGamalPublicKeySignature = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY_SINGATURE
+      duchyCertificateDer = CONSENT_SIGNALING_CERT_DER
     }
     .build()
 private val COMPUTATION_PARTICIPANT_3 =
@@ -245,6 +315,9 @@ private val COMPUTATION_PARTICIPANT_3 =
     .apply {
       duchyId = DUCHY_THREE_NAME
       publicKey = DUCHY_THREE_PUBLIC_KEY
+      elGamalPublicKey = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY.toByteString()
+      elGamalPublicKeySignature = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY_SINGATURE
+      duchyCertificateDer = CONSENT_SIGNALING_CERT_DER
     }
     .build()
 
@@ -254,7 +327,12 @@ private val REQUISITION_1 =
       externalDataProviderId = "A"
       externalRequisitionId = "111"
       path = "foo/123"
-      detailsBuilder.externalFulfillingDuchyId = DUCHY_ONE_NAME
+      detailsBuilder.apply {
+        externalFulfillingDuchyId = DUCHY_ONE_NAME
+        requisitionSpecHash = SOME_ENCRYPTED_REQUISITION_SPEC_HASH
+        dataProviderCertificateDer = CONSENT_SIGNALING_CERT_DER
+        dataProviderParticipationSignature = DATA_PROVIDER_SIGNATURE
+      }
     }
     .build()
 private val REQUISITION_2 =
@@ -262,7 +340,12 @@ private val REQUISITION_2 =
     .apply {
       externalDataProviderId = "B"
       externalRequisitionId = "222"
-      detailsBuilder.externalFulfillingDuchyId = DUCHY_TWO_NAME
+      detailsBuilder.apply {
+        externalFulfillingDuchyId = DUCHY_TWO_NAME
+        requisitionSpecHash = SOME_ENCRYPTED_REQUISITION_SPEC_HASH
+        dataProviderCertificateDer = CONSENT_SIGNALING_CERT_DER
+        dataProviderParticipationSignature = DATA_PROVIDER_SIGNATURE
+      }
     }
     .build()
 private val REQUISITION_3 =
@@ -270,7 +353,12 @@ private val REQUISITION_3 =
     .apply {
       externalDataProviderId = "C"
       externalRequisitionId = "333"
-      detailsBuilder.externalFulfillingDuchyId = DUCHY_THREE_NAME
+      detailsBuilder.apply {
+        externalFulfillingDuchyId = DUCHY_THREE_NAME
+        requisitionSpecHash = SOME_ENCRYPTED_REQUISITION_SPEC_HASH
+        dataProviderCertificateDer = CONSENT_SIGNALING_CERT_DER
+        dataProviderParticipationSignature = DATA_PROVIDER_SIGNATURE
+      }
     }
     .build()
 private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
@@ -278,7 +366,16 @@ private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
 private val AGGREGATOR_COMPUTATION_DETAILS =
   ComputationDetails.newBuilder()
     .apply {
-      kingdomComputationBuilder.publicApiVersion = PUBLIC_API_VERSION
+      kingdomComputationBuilder.apply {
+        publicApiVersion = PUBLIC_API_VERSION
+        measurementPublicKeyBuilder.apply {
+          type = EncryptionPublicKey.Type.EC_P256
+          publicKeyInfo = ENCRYPTION_PUBLIC_KEY_DER
+        }
+        measurementSpec = SOME_SERIALIZED_MEASUREMENT_SPEC
+        dataProviderList = SOME_SERIALIZED_DATA_PROVIDER_LIST
+        dataProviderListSalt = SOME_DATA_PROVIDER_LIST_SALT
+      }
       liquidLegionsV2Builder.apply {
         role = RoleInComputation.AGGREGATOR
         parameters = LLV2_PARAMETERS
@@ -296,7 +393,16 @@ private val AGGREGATOR_COMPUTATION_DETAILS =
 private val NON_AGGREGATOR_COMPUTATION_DETAILS =
   ComputationDetails.newBuilder()
     .apply {
-      kingdomComputationBuilder.publicApiVersion = PUBLIC_API_VERSION
+      kingdomComputationBuilder.apply {
+        publicApiVersion = PUBLIC_API_VERSION
+        measurementPublicKeyBuilder.apply {
+          type = EncryptionPublicKey.Type.EC_P256
+          publicKeyInfo = ENCRYPTION_PUBLIC_KEY_DER
+        }
+        measurementSpec = SOME_SERIALIZED_MEASUREMENT_SPEC
+        dataProviderList = SOME_SERIALIZED_DATA_PROVIDER_LIST
+        dataProviderListSalt = SOME_DATA_PROVIDER_LIST_SALT
+      }
       liquidLegionsV2Builder.apply {
         role = RoleInComputation.NON_AGGREGATOR
         parameters = LLV2_PARAMETERS
@@ -313,7 +419,13 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 @RunWith(JUnit4::class)
 class LiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+    mock(useConstructor = UseConstructor.parameterless()) {
+      onBlocking { advanceComputation(any()) }.thenAnswer {
+        val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
+        computationControlRequests = runBlocking { request.toList() }
+        AdvanceComputationResponse.getDefaultInstance()
+      }
+    }
   private val mockSystemComputations: SystemComputationsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
@@ -323,13 +435,36 @@ class LiquidLegionsV2MillTest {
   private val mockComputationStats: ComputationStatsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val mockCryptoWorker: LiquidLegionsV2Encryption =
-    mock(useConstructor = UseConstructor.parameterless())
+    mock(useConstructor = UseConstructor.parameterless()) {
+      on { combineElGamalPublicKeys(any()) }.thenAnswer {
+        val cryptoRequest: CombineElGamalPublicKeysRequest = it.getArgument(0)
+        CombineElGamalPublicKeysResponse.newBuilder()
+          .apply {
+            elGamalKeysBuilder.apply {
+              generator =
+                ByteString.copyFromUtf8(
+                  cryptoRequest.elGamalKeysList
+                    .sortedBy { key -> key.generator.toStringUtf8() }
+                    .joinToString(separator = "_") { key -> key.generator.toStringUtf8() }
+                )
+              element =
+                ByteString.copyFromUtf8(
+                  cryptoRequest.elGamalKeysList
+                    .sortedBy { key -> key.element.toStringUtf8() }
+                    .joinToString(separator = "_") { key -> key.element.toStringUtf8() }
+                )
+            }
+          }
+          .build()
+      }
+    }
   private val fakeComputationDb = FakeComputationsDatabase()
 
   private lateinit var computationDataClients: ComputationDataClients
   private lateinit var computationStore: ComputationStore
 
   private val tempDirectory = TemporaryFolder()
+  private val keyStore = InMemoryKeyStore()
 
   private val blobCount = AtomicInteger()
   private val generatedBlobKeys = mutableListOf<String>()
@@ -414,12 +549,19 @@ class LiquidLegionsV2MillTest {
   }
 
   @Before
-  fun setup() {
+  fun initializeMill() = runBlocking {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
+    val csCertificate =
+      Certificate(CONSENT_SIGNALING_CERT_NAME, readCertificate(CONSENT_SIGNALING_CERT_DER))
+
+    keyStore.storePrivateKeyDer(CONSENT_SIGNALING_PRIVATE_KEY_ID, CONSENT_SIGNALING_PRIVATE_KEY_DER)
+
     aggregatorMill =
       LiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
+        keyStore = keyStore,
+        consentSignalCert = csCertificate,
         dataClients = computationDataClients,
         systemComputationParticipantsClient = systemcomputationParticipantsStub,
         systemComputationsClient = systemComputationStub,
@@ -430,11 +572,12 @@ class LiquidLegionsV2MillTest {
         throttler = throttler,
         requestChunkSizeBytes = 20
       )
-
     nonAggregatorMill =
       LiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
+        keyStore = keyStore,
+        consentSignalCert = csCertificate,
         dataClients = computationDataClients,
         systemComputationParticipantsClient = systemcomputationParticipantsStub,
         systemComputationsClient = systemComputationStub,
@@ -445,35 +588,6 @@ class LiquidLegionsV2MillTest {
         throttler = throttler,
         requestChunkSizeBytes = 20
       )
-
-    whenever(runBlocking { mockLiquidLegionsComputationControl.advanceComputation(any()) })
-      .thenAnswer {
-        val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
-        computationControlRequests = runBlocking { request.toList() }
-        AdvanceComputationResponse.getDefaultInstance()
-      }
-
-    whenever(mockCryptoWorker.combineElGamalPublicKeys(any())).thenAnswer {
-      val cryptoRequest: CombineElGamalPublicKeysRequest = it.getArgument(0)
-      CombineElGamalPublicKeysResponse.newBuilder()
-        .apply {
-          elGamalKeysBuilder.apply {
-            generator =
-              ByteString.copyFromUtf8(
-                cryptoRequest.elGamalKeysList
-                  .sortedBy { key -> key.generator.toStringUtf8() }
-                  .joinToString(separator = "_") { key -> key.generator.toStringUtf8() }
-              )
-            element =
-              ByteString.copyFromUtf8(
-                cryptoRequest.elGamalKeysList
-                  .sortedBy { key -> key.element.toStringUtf8() }
-                  .joinToString(separator = "_") { key -> key.element.toStringUtf8() }
-              )
-          }
-        }
-        .build()
-    }
   }
 
   @Test
@@ -557,23 +671,15 @@ class LiquidLegionsV2MillTest {
         mockComputationParticipants,
         SystemComputationParticipantsCoroutineImplBase::setParticipantRequisitionParams
       )
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
         SetParticipantRequisitionParamsRequest.newBuilder()
           .apply {
             name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
             requisitionParamsBuilder.apply {
-              duchyCertificate = "TODO"
-              duchyCertificateDer = ByteString.copyFromUtf8("TODO")
+              duchyCertificate = CONSENT_SIGNALING_CERT_NAME
               liquidLegionsV2Builder.apply {
-                elGamalPublicKey =
-                  V2AlphaElGamalPublicKey.newBuilder()
-                    .apply {
-                      generator = ByteString.copyFromUtf8("generator-foo")
-                      element = ByteString.copyFromUtf8("element-foo")
-                    }
-                    .build()
-                    .toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("TODO")
+                elGamalPublicKey = CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY.toByteString()
               }
             }
           }
@@ -589,26 +695,15 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `confirm requisition, failed due to missing local requisition`() =
+  fun `confirmation phase, failed due to missing local requisition`() =
     runBlocking<Unit> {
       // Stage 0. preparing the storage and set up mock
-      val requisition1 =
-        RequisitionMetadata.newBuilder()
-          .apply {
-            externalDataProviderId = "A"
-            externalRequisitionId = "111"
-            path = "foo/123"
-            detailsBuilder.externalFulfillingDuchyId = DUCHY_ONE_NAME
-          }
-          .build()
+      val requisition1 = REQUISITION_1
+      // The path in REQUISITION_2 is missing
       val requisition2 =
-        RequisitionMetadata.newBuilder()
-          .apply {
-            externalDataProviderId = "B"
-            externalRequisitionId = "222"
-            clearPath() // Path is missing for this requisition
-            detailsBuilder.externalFulfillingDuchyId = DUCHY_ONE_NAME
-          }
+        REQUISITION_2
+          .toBuilder()
+          .apply { detailsBuilder.externalFulfillingDuchyId = DUCHY_ONE_NAME }
           .build()
       val computationDetailsWithoutPublicKey =
         AGGREGATOR_COMPUTATION_DETAILS
@@ -676,7 +771,7 @@ class LiquidLegionsV2MillTest {
     }
 
   @Test
-  fun `confirm requisition, passed at non-aggregator`() =
+  fun `confirmation phase, passed at non-aggregator`() =
     runBlocking<Unit> {
       // Stage 0. preparing the storage and set up mock
       val computationDetailsWithoutPublicKey =
@@ -736,7 +831,7 @@ class LiquidLegionsV2MillTest {
     }
 
   @Test
-  fun `confirm requisition, passed at aggregator`() =
+  fun `confirmation phase, passed at aggregator`() =
     runBlocking<Unit> {
       // Stage 0. preparing the storage and set up mock
       val computationDetailsWithoutPublicKey =
@@ -798,6 +893,90 @@ class LiquidLegionsV2MillTest {
         .isEqualTo(
           ConfirmComputationParticipantRequest.newBuilder()
             .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
+            .build()
+        )
+    }
+
+  @Test
+  fun `confirmation phase, failed due to invalid EDP and duchy signatures`() =
+    runBlocking<Unit> {
+      // Stage 0. preparing the storage and set up mock
+      val computationDetailsWithoutInvalidDuchySignature =
+        AGGREGATOR_COMPUTATION_DETAILS
+          .toBuilder()
+          .apply {
+            liquidLegionsV2Builder.apply {
+              participantBuilderList[0].apply {
+                elGamalPublicKeySignature = ByteString.copyFromUtf8("An invalid signature")
+              }
+            }
+          }
+          .build()
+      val requisitionWithInvalidSignature =
+        REQUISITION_1
+          .toBuilder()
+          .apply {
+            detailsBuilder.apply {
+              dataProviderParticipationSignature =
+                ByteString.copyFromUtf8("Another invalid signature")
+            }
+          }
+          .build()
+      fakeComputationDb.addComputation(
+        globalId = GLOBAL_ID,
+        stage = CONFIRMATION_PHASE.toProtocolStage(),
+        computationDetails = computationDetailsWithoutInvalidDuchySignature,
+        requisitions = listOf(requisitionWithInvalidSignature)
+      )
+
+      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+        .thenReturn(ComputationLogEntry.getDefaultInstance())
+
+      // Stage 1. Process the above computation
+      aggregatorMill.pollAndProcessNextComputation()
+
+      // Stage 2. Check the status of the computation
+      assertThat(fakeComputationDb[LOCAL_ID]!!)
+        .isEqualTo(
+          ComputationToken.newBuilder()
+            .apply {
+              globalComputationId = GLOBAL_ID
+              localComputationId = LOCAL_ID
+              attempt = 1
+              computationStage = COMPLETE.toProtocolStage()
+              version = 2 // CreateComputation + transitionStage
+              computationDetails =
+                computationDetailsWithoutInvalidDuchySignature
+                  .toBuilder()
+                  .apply { endingState = CompletedReason.FAILED }
+                  .build()
+              addAllRequisitions(listOf(requisitionWithInvalidSignature))
+            }
+            .build()
+        )
+
+      verifyProtoArgument(
+          mockComputationParticipants,
+          SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          FailComputationParticipantRequest.newBuilder()
+            .apply {
+              name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+              failureBuilder.apply {
+                participantChildReferenceId = MILL_ID
+                errorMessage =
+                  "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                    "Data provider participation signature of A is invalid.\n" +
+                    "ElGamalPublicKey signature of DUCHY_TWO is invalid."
+                stageAttemptBuilder.apply {
+                  stage = CONFIRMATION_PHASE.number
+                  stageName = CONFIRMATION_PHASE.name
+                  attemptNumber = 1
+                }
+              }
+            }
             .build()
         )
     }
@@ -1543,8 +1722,11 @@ class LiquidLegionsV2MillTest {
         .build()
     }
 
-    whenever(mockSystemComputations.setComputationResult(any()))
-      .thenReturn(Computation.getDefaultInstance())
+    var systemComputationResult = SetComputationResultRequest.getDefaultInstance()
+    whenever(mockSystemComputations.setComputationResult(any())).thenAnswer {
+      systemComputationResult = it.getArgument(0)
+      Computation.getDefaultInstance()
+    }
 
     // Stage 1. Process the above computation
     aggregatorMill.pollAndProcessNextComputation()
@@ -1571,28 +1753,9 @@ class LiquidLegionsV2MillTest {
       )
     assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
 
-    verifyProtoArgument(
-        mockSystemComputations,
-        SystemComputationsCoroutineImplBase::setComputationResult
-      )
-      .isEqualTo(
-        SetComputationResultRequest.newBuilder()
-          .apply {
-            name = "computations/$GLOBAL_ID"
-            encryptedResult =
-              Measurement.Result.newBuilder()
-                .apply {
-                  reachBuilder.value = 123L
-                  frequencyBuilder.apply {
-                    putRelativeFrequencyDistribution(1, 0.3)
-                    putRelativeFrequencyDistribution(2, 0.7)
-                  }
-                }
-                .build()
-                .toByteString()
-          }
-          .build()
-      )
+    assertThat(systemComputationResult.name).isEqualTo("computations/$GLOBAL_ID")
+    // The signature is non-deterministic, so we only verity the encryption is not empty.
+    assertThat(systemComputationResult.encryptedResult).isNotEmpty()
 
     assertThat(cryptoRequest)
       .isEqualTo(
@@ -1618,3 +1781,8 @@ private suspend fun ComputationStore.writeString(
   token: ComputationToken,
   content: String
 ): ComputationStore.Blob = write(token, ByteString.copyFromUtf8(content))
+
+private fun hashSha256(data: ByteString): ByteString {
+  val sha256MessageDigest = MessageDigest.getInstance("SHA-256")
+  return ByteString.copyFrom(sha256MessageDigest.digest(data.toByteArray()))
+}

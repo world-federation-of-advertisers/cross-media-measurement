@@ -3,6 +3,8 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
+package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+
 kt_jvm_library(
     name = "liquid_legions_v2_mill_daemon",
     srcs = [
