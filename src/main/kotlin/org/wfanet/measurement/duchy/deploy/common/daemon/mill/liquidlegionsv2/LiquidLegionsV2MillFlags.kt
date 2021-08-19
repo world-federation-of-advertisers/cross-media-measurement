@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
+import java.io.File
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -74,5 +75,29 @@ class LiquidLegionsV2MillFlags {
     defaultValue = "32768" // 32 KiB. See https://github.com/grpc/grpc.github.io/issues/371.
   )
   var requestChunkSizeBytes by Delegates.notNull<Int>()
+    private set
+
+  @CommandLine.Option(
+    names = ["--consent-signaling-certificate-resource-name"],
+    description = ["The resource name of the duchy's consent signaling certificate."],
+    required = true
+  )
+  lateinit var csCertificateName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--consent-signaling-private-key-der-file"],
+    description = ["The duchy's consent signaling private key (DER format) file."],
+    required = true
+  )
+  lateinit var csPrivateKeyDerFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--consent-signaling-certificate-der-file"],
+    description = ["The duchy's consent signaling certificate (DER format) file."],
+    required = true
+  )
+  lateinit var csCertificateDerFile: File
     private set
 }

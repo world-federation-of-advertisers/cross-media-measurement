@@ -23,7 +23,7 @@ option java_multiple_files = true;
 message RequisitionDetails {
   // X.509 certificate in DER format which can be verified using the
   // `DataProvider`'s root certificate. Required. Immutable.
-  bytes data_provider_certificate = 1;
+  bytes data_provider_certificate_der = 1;
   // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
   // Immutable.
   bytes requisition_spec_hash = 2;
