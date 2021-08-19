@@ -26,17 +26,19 @@ namespace {
 
 TEST(ObliviousQuery, GenerateKeysTest) {
   GenerateKeysRequest test_request;
-  auto test_response = GenerateKeys(test_request);
+  absl::StatusOr<GenerateKeysResponse> test_response =
+      GenerateKeys(test_request);
   EXPECT_THAT(test_response.status(),
               StatusIs(absl::StatusCode::kUnimplemented, ""));
 
   std::string valid_serialized_request;
   test_request.SerializeToString(&valid_serialized_request);
-  auto wrapper_test_response1 = GenerateKeysWrapper(valid_serialized_request);
+  absl::StatusOr<std::string> wrapper_test_response1 =
+      GenerateKeysWrapper(valid_serialized_request);
   EXPECT_THAT(wrapper_test_response1.status(),
               StatusIs(absl::StatusCode::kUnimplemented, ""));
 
-  auto wrapper_test_response2 =
+  absl::StatusOr<std::string> wrapper_test_response2 =
       GenerateKeysWrapper("some-invalid-serialized-request");
   EXPECT_THAT(wrapper_test_response2.status(),
               StatusIs(absl::StatusCode::kInternal, ""));
@@ -53,17 +55,19 @@ TEST(ObliviousQuery, EncryptQueriesTest) {
   query_id->set_id(2);
   BucketId* bucket_id = unencrypted_query->mutable_bucket_id();
   bucket_id->set_id(3);
-  auto test_response = EncryptQueries(test_request);
+  absl::StatusOr<EncryptQueriesResponse> test_response =
+      EncryptQueries(test_request);
   EXPECT_THAT(test_response.status(),
               StatusIs(absl::StatusCode::kUnimplemented, ""));
 
   std::string valid_serialized_request;
   test_request.SerializeToString(&valid_serialized_request);
-  auto wrapper_test_response1 = EncryptQueriesWrapper(valid_serialized_request);
+  absl::StatusOr<std::string> wrapper_test_response1 =
+      EncryptQueriesWrapper(valid_serialized_request);
   EXPECT_THAT(wrapper_test_response1.status(),
               StatusIs(absl::StatusCode::kUnimplemented, ""));
 
-  auto wrapper_test_response2 =
+  absl::StatusOr<std::string> wrapper_test_response2 =
       EncryptQueriesWrapper("some-invalid-serialized-request");
   EXPECT_THAT(wrapper_test_response2.status(),
               StatusIs(absl::StatusCode::kInternal, ""));
@@ -74,17 +78,19 @@ TEST(ObliviousQuery, DecryptQueriesTest) {
   test_request.set_public_key("some-public-key");
   test_request.set_private_key("some-private-key");
   test_request.add_encrypted_query_results("some-encrypted-query-result");
-  auto test_response = DecryptQueries(test_request);
+  absl::StatusOr<DecryptQueriesResponse> test_response =
+      DecryptQueries(test_request);
   EXPECT_THAT(test_response.status(),
               StatusIs(absl::StatusCode::kUnimplemented, ""));
 
   std::string valid_serialized_request;
   test_request.SerializeToString(&valid_serialized_request);
-  auto wrapper_test_response1 = DecryptQueriesWrapper(valid_serialized_request);
+  absl::StatusOr<std::string> wrapper_test_response1 =
+      DecryptQueriesWrapper(valid_serialized_request);
   EXPECT_THAT(wrapper_test_response1.status(),
               StatusIs(absl::StatusCode::kUnimplemented, ""));
 
-  auto wrapper_test_response2 =
+  absl::StatusOr<std::string> wrapper_test_response2 =
       DecryptQueriesWrapper("some-invalid-serialized-request");
   EXPECT_THAT(wrapper_test_response2.status(),
               StatusIs(absl::StatusCode::kInternal, ""));

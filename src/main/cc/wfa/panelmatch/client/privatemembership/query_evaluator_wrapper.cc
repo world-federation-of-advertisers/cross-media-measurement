@@ -18,7 +18,6 @@
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
 #include "wfa/panelmatch/client/privatemembership/query_evaluator.h"
-#include "wfa/panelmatch/client/privatemembership/query_evaluator.pb.h"
 
 namespace wfa::panelmatch::client::privatemembership {
 absl::StatusOr<std::string> ExecuteQueriesWrapper(

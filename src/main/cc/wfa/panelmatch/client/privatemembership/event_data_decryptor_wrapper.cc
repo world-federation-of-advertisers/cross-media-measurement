@@ -11,18 +11,18 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events_wrapper.h"
+
+#include "wfa/panelmatch/client/privatemembership/event_data_decryptor_wrapper.h"
 
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.h"
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+#include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
 
-namespace wfa::panelmatch::client {
-absl::StatusOr<std::string> PreprocessEventsWrapper(
+namespace wfa::panelmatch::client::privatemembership {
+absl::StatusOr<std::string> DecryptEventDataWrapper(
     const std::string& serialized_request) {
-  return JniWrap(serialized_request, PreprocessEvents);
+  return JniWrap(serialized_request, DecryptEventData);
 }
-}  // namespace wfa::panelmatch::client
+}  // namespace wfa::panelmatch::client::privatemembership

@@ -32,3 +32,39 @@ cc_test(
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
+
+cc_test(
+    name = "prepare_query_test",
+    srcs = ["prepare_query_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:query_preparer",
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:query_preparer_wrapper",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:prepare_query_cc_proto",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "decrypt_event_data_test",
+    srcs = ["decrypt_event_data_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:event_data_decryptor",
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:event_data_decryptor_wrapper",
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_cc_proto",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_protobuf//:protobuf",
+        "@googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
