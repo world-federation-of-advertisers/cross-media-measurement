@@ -22,6 +22,7 @@ import org.junit.Test
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageNotFoundException
+import org.wfanet.panelmatch.client.storage.verifiedBatchWrite
 import org.wfanet.panelmatch.client.storage.verifiedRead
 import org.wfanet.panelmatch.client.storage.verifiedWrite
 import org.wfanet.panelmatch.common.testing.runBlockingTest
@@ -34,22 +35,24 @@ abstract class AbstractStorageTest {
   abstract val sharedStorage: StorageClient
 
   @Test
-  fun `write and read FileSystemStorage`() = runBlockingTest {
+  fun `write and read Storage`() = runBlockingTest {
     privateStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
     assertThat(privateStorage.verifiedRead(KEY).read(1024).reduce { a, b -> a.concat(b) })
       .isEqualTo(VALUE)
   }
 
   @Test
-  fun `get error for invalid key from FileSystemStorage`() = runBlockingTest {
+  fun `get error for invalid key from Storage`() = runBlockingTest {
     assertFailsWith<StorageNotFoundException> { privateStorage.verifiedRead(KEY) }
   }
 
   @Test
-  fun `get error for rewriting to same key 2x in FileSystemStorage`() = runBlockingTest {
-    privateStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
+  fun `get error for rewriting to same key 2x in Storage`() = runBlockingTest {
     assertFailsWith<IllegalArgumentException> {
-      privateStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
+      privateStorage.verifiedBatchWrite(
+        mapOf("a" to KEY, "b" to KEY),
+        mapOf(KEY to VALUE.asBufferedFlow(1024))
+      )
     }
   }
 
