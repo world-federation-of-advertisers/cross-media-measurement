@@ -35,9 +35,9 @@ cc_library(
 )
 
 cc_library(
-    name = "cryptor",
-    srcs = ["cryptor.cc"],
-    hdrs = ["cryptor.h"],
+    name = "deterministic_commutative_cipher",
+    srcs = ["deterministic_commutative_cipher.cc"],
+    hdrs = ["deterministic_commutative_cipher.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "@com_google_absl//absl/base:core_headers",
@@ -45,10 +45,9 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/synchronization",
-        "@com_google_absl//absl/types:span",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//private_join_and_compute/util:status_includes",
+        "@tink_base//cc/util:secret_data",
     ],
 )
 

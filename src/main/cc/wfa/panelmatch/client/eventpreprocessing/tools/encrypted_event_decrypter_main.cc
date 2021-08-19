@@ -28,19 +28,18 @@
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
-#include "wfa/panelmatch/common/crypto/cryptor.h"
+#include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 #include "wfa/panelmatch/common/crypto/hkdf.h"
 
 using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataFromStringView;
-using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::Aes;
 using ::wfa::panelmatch::common::crypto::AesWithHkdf;
-using ::wfa::panelmatch::common::crypto::CreateCryptorFromKey;
-using ::wfa::panelmatch::common::crypto::Cryptor;
+using ::wfa::panelmatch::common::crypto::DeterministicCommutativeCipher;
 using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
 using ::wfa::panelmatch::common::crypto::GetSha256Hkdf;
 using ::wfa::panelmatch::common::crypto::Hkdf;
+using ::wfa::panelmatch::common::crypto::NewDeterministicCommutativeCipher;
 
 ABSL_FLAG(std::string, ciphertext, "",
           "ciphertext to decrypt, encoded twice with base64");
@@ -56,18 +55,13 @@ void CheckFlagNotEmpty(absl::string_view flag_value,
 
 absl::StatusOr<SecretData> MakeEncryptedIdentifier(
     absl::string_view crypto_key, absl::string_view identifier) {
-  ASSIGN_OR_RETURN(std::unique_ptr<Cryptor> cryptor,
-                   CreateCryptorFromKey(crypto_key));
-
   ASSIGN_OR_RETURN(
-      std::vector<std::string> keys,
-      cryptor->BatchProcess({std::string(identifier)}, Action::kEncrypt));
+      std::unique_ptr<DeterministicCommutativeCipher> cipher,
+      NewDeterministicCommutativeCipher(SecretDataFromStringView(crypto_key)));
 
-  if (keys.size() != 1)
-    return absl::InternalError(
-        absl::StrCat("Unexpected number of keys: ", keys.size()));
+  ASSIGN_OR_RETURN(std::string key, cipher->Encrypt(identifier));
 
-  return SecretDataFromStringView(keys[0]);
+  return SecretDataFromStringView(key);
 }
 }  // namespace
 

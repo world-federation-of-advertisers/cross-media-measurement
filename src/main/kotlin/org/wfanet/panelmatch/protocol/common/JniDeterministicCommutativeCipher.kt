@@ -26,11 +26,10 @@ import org.wfanet.panelmatch.protocol.CryptorReEncryptResponse
 import org.wfanet.panelmatch.protocol.crypto.DeterministicCommutativeEncryptionWrapper
 
 /**
- * A [DeterministicCommutativeEncryption] implementation using the JNI
+ * A [DeterministicCommutativeCipher] implementation using the JNI
  * [DeterministicCommutativeEncryptionWrapper].
  */
-class JniDeterministicCommutativeCryptor : Cryptor {
-
+class JniDeterministicCommutativeCipher : DeterministicCommutativeCipher {
   override fun encrypt(request: CryptorEncryptRequest): CryptorEncryptResponse {
     return wrapJniException {
       CryptorEncryptResponse.parseFrom(

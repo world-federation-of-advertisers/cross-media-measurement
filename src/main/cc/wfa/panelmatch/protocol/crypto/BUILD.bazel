@@ -10,7 +10,7 @@ cc_library(
     hdrs = ["deterministic_commutative_encryption_utility.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/memory",
@@ -18,6 +18,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
         "@wfa_common_cpp//src/main/cc/common_cpp/time:started_thread_cpu_timer",
     ],
@@ -44,7 +45,7 @@ cc_library(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
-        "//src/main/cc/wfa/panelmatch/common/crypto:cryptor",
+        "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "//src/main/cc/wfa/panelmatch/common/crypto:peppered_fingerprinter",
         "@com_github_glog_glog//:glog",

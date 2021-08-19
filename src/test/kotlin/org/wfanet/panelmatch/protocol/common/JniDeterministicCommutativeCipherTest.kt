@@ -15,25 +15,28 @@
 package org.wfanet.panelmatch.protocol.common
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.JniException
 import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
-import org.wfanet.panelmatch.protocol.common.testing.AbstractCryptorTest
+import org.wfanet.panelmatch.protocol.common.testing.AbstractDeterministicCommutativeCipherTest
 
 @RunWith(JUnit4::class)
-class JniDeterministicCommutativeCryptorTest : AbstractCryptorTest() {
-  override val Cryptor: Cryptor = JniDeterministicCommutativeCryptor()
+class JniDeterministicCommutativeCipherTest : AbstractDeterministicCommutativeCipherTest() {
+  override val cipher: DeterministicCommutativeCipher = JniDeterministicCommutativeCipher()
+  override val invalidKey: ByteString? =
+    ByteString.copyFromUtf8("this key is too large to be valid")
 
   @Test
   fun `invalid proto throws JniException`() {
     val missingKeyException =
       assertFailsWith(JniException::class) {
         val request = CryptorReEncryptRequest.getDefaultInstance()
-        Cryptor.reEncrypt(request)
+        cipher.reEncrypt(request)
       }
-    assertThat(missingKeyException.message).contains("Failed to create the protocol cipher")
+    assertThat(missingKeyException.message).contains("key is out of bounds")
   }
 }

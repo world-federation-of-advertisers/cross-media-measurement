@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "JniDeterministicCommutativeCryptorTest",
-    srcs = ["JniDeterministicCommutativeCryptorTest.kt"],
-    test_class = "org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCryptorTest",
+    name = "JniDeterministicCommutativeCipherTest",
+    srcs = ["JniDeterministicCommutativeCipherTest.kt"],
+    test_class = "org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCipherTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
         "//src/main/kotlin/org/wfanet/panelmatch/protocol/common/testing",

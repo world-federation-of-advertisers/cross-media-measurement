@@ -17,11 +17,11 @@
 #include "common_cpp/fingerprinters/fingerprinters.h"
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
-#include "include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
-#include "wfa/panelmatch/common/crypto/cryptor.h"
+#include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 #include "wfa/panelmatch/common/crypto/hkdf.h"
 
 namespace wfa::panelmatch::protocol::crypto {
@@ -30,11 +30,11 @@ namespace {
 using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataAsStringView;
 using ::crypto::tink::util::SecretDataFromStringView;
-using ::wfa::panelmatch::common::crypto::Action;
 using ::wfa::panelmatch::common::crypto::Aes;
 using ::wfa::panelmatch::common::crypto::AesWithHkdf;
-using ::wfa::panelmatch::common::crypto::Cryptor;
+using ::wfa::panelmatch::common::crypto::DeterministicCommutativeCipher;
 using ::wfa::panelmatch::common::crypto::Hkdf;
+using ::wfa::panelmatch::common::crypto::NewDeterministicCommutativeCipher;
 
 // Fake Hkdf class for testing purposes only
 class FakeHkdf : public Hkdf {
@@ -45,8 +45,8 @@ class FakeHkdf : public Hkdf {
       const SecretData& ikm, int length,
       const SecretData& salt) const override {
     return SecretDataFromStringView(absl::StrCat(
-        "HKDF with length '", length, "' of '", SecretDataAsStringView(ikm),
-        "' and salt '", SecretDataAsStringView(salt), "' "));
+        "HKDF(ikm='", SecretDataAsStringView(ikm), "', length=", length,
+        ", salt='", SecretDataAsStringView(salt), "')"));
   }
 };
 
@@ -57,14 +57,13 @@ class FakeAes : public Aes {
 
   absl::StatusOr<std::string> Encrypt(absl::string_view input,
                                       const SecretData& key) const override {
-    return absl::StrCat("Encrypted '", input, "' with key '",
-                        SecretDataAsStringView(key), "'");
+    return absl::StrCat("AesEncrypt(input='", input, "', key='",
+                        SecretDataAsStringView(key), "')");
   }
 
   absl::StatusOr<std::string> Decrypt(absl::string_view input,
                                       const SecretData& key) const override {
-    return absl::StrCat("Decrypted '", input, "' with key '",
-                        SecretDataAsStringView(key), "'");
+    return absl::InternalError("Not implemented");
   }
 
   int32_t key_size_bytes() const override { return 64; }
@@ -81,89 +80,95 @@ class FakeFingerprinter : public Fingerprinter {
   }
 };
 
-// Fake Cryptor class for testing purposes only
-class FakeCryptor : public Cryptor {
+// Fake DeterministicCommutativeCipher class for testing purposes only
+class FakeCipher : public DeterministicCommutativeCipher {
  public:
-  FakeCryptor() = default;
-  ~FakeCryptor() = default;
-  FakeCryptor(FakeCryptor&& other) = delete;
-  FakeCryptor& operator=(FakeCryptor&& other) = delete;
-  FakeCryptor(const FakeCryptor&) = delete;
-  FakeCryptor& operator=(const FakeCryptor&) = delete;
+  FakeCipher() = default;
+  ~FakeCipher() = default;
 
-  absl::StatusOr<std::vector<std::string>> BatchProcess(
-      const std::vector<std::string>& plaintexts_or_ciphertexts,
-      Action action) override {
-    return plaintexts_or_ciphertexts;
+  FakeCipher(const FakeCipher&) = delete;
+  FakeCipher& operator=(const FakeCipher&) = delete;
+
+  absl::StatusOr<std::string> Encrypt(
+      absl::string_view plaintext) const override {
+    return absl::StrCat("DeterministicCommutativeCipher::Encrypt(", plaintext,
+                        ")");
   }
 
-  absl::StatusOr<google::protobuf::RepeatedPtrField<std::string>> BatchProcess(
-      const google::protobuf::RepeatedPtrField<std::string>&
-          plaintexts_or_ciphertexts,
-      Action action) override {
-    return plaintexts_or_ciphertexts;
+  absl::StatusOr<std::string> Decrypt(
+      absl::string_view ciphertext) const override {
+    return absl::UnimplementedError("Decrypt is not implemented");
+  }
+
+  absl::StatusOr<std::string> ReEncrypt(
+      absl::string_view ciphertext) const override {
+    return absl::UnimplementedError("ReEncrypt is not implemented");
   }
 };
 
-std::unique_ptr<FakeCryptor> CreateFakeCryptor() {
-  return absl::make_unique<FakeCryptor>();
+SecretData TestIdentifierHashPepper() {
+  return SecretDataFromStringView("identifier-hash-pepper");
 }
 
-// Test using fake classes to ensure proper return values
-TEST(EventDataPreprocessorTests, properImplementation) {
-  const FakeFingerprinter fingerprinter;
-  std::unique_ptr<Hkdf> hkdf = absl::make_unique<FakeHkdf>();
-  std::unique_ptr<Aes> aes = absl::make_unique<FakeAes>();
-  const AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  std::unique_ptr<FakeCryptor> cryptor = CreateFakeCryptor();
-  SecretData salt = SecretDataFromStringView("salt");
-  EventDataPreprocessor preprocessor(std::move(cryptor),
-                                     SecretDataFromStringView("pepper"), salt,
-                                     &fingerprinter, &aes_hkdf);
+SecretData TestHkdfPepper() { return SecretDataFromStringView("hkdf-pepper"); }
+
+std::unique_ptr<DeterministicCommutativeCipher> TestCipher() {
+  return absl::make_unique<FakeCipher>();
+}
+
+Fingerprinter* TestFingerprinter() {
+  static FakeFingerprinter* fingerprinter = new FakeFingerprinter;
+  return fingerprinter;
+}
+
+AesWithHkdf* TestAesWithHkdf() {
+  static AesWithHkdf* aes_with_hkdf = new AesWithHkdf(
+      absl::make_unique<FakeHkdf>(), absl::make_unique<FakeAes>());
+  return aes_with_hkdf;
+}
+
+TEST(EventDataPreprocessorTest, Success) {
+  EventDataPreprocessor preprocessor(TestCipher(), TestIdentifierHashPepper(),
+                                     TestHkdfPepper(), TestFingerprinter(),
+                                     TestAesWithHkdf());
+
   ASSERT_OK_AND_ASSIGN(ProcessedData processed,
                        preprocessor.Process("some-identifier", "some-event"));
-  EXPECT_EQ(processed.encrypted_identifier, 21);
+
+  // Expected length = "some-identifier".size()         [15]
+  //                 + TestIdentifierHashPepper.size()  [22]
+  //                 + length added by FakeCipher       [41]
+  EXPECT_EQ(processed.encrypted_identifier, 78);
   EXPECT_EQ(processed.encrypted_event_data,
-            "Encrypted 'some-event' with key 'HKDF with length '64' of "
-            "'some-identifier' and salt 'salt' '");
+            "AesEncrypt(input='some-event', key='HKDF(ikm='some-identifier', "
+            "length=64, salt='hkdf-pepper')')");
 }
 
-// Tests EventDataPreprocessor with null Fingerprinter
-TEST(EventDataPreprocessorTests, nullFingerpritner) {
-  std::unique_ptr<Hkdf> hkdf = absl::make_unique<FakeHkdf>();
-  std::unique_ptr<Aes> aes = absl::make_unique<FakeAes>();
-  const AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  std::unique_ptr<FakeCryptor> cryptor = CreateFakeCryptor();
-  ASSERT_DEATH(EventDataPreprocessor preprocessor(
-                   std::move(cryptor), SecretDataFromStringView("pepper"),
-                   SecretDataFromStringView("salt"), nullptr, &aes_hkdf),
-               "");
+TEST(EventDataPreprocessorDeathTest, NullFingerprinter) {
+  ASSERT_DEATH(
+      EventDataPreprocessor(TestCipher(), TestIdentifierHashPepper(),
+                            TestHkdfPepper(), nullptr, TestAesWithHkdf()),
+      "");
 }
 
-// Tests EventDataPreprocessor with null AesWithHkdf
-TEST(EventDataPreprocessorTests, nullAesWithHkdf) {
-  const FakeFingerprinter fingerprinter;
-  std::unique_ptr<Hkdf> hkdf = absl::make_unique<FakeHkdf>();
-  std::unique_ptr<Aes> aes = absl::make_unique<FakeAes>();
-  const AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  std::unique_ptr<FakeCryptor> cryptor = CreateFakeCryptor();
-  ASSERT_DEATH(EventDataPreprocessor preprocessor(
-                   std::move(cryptor), SecretDataFromStringView("pepper"),
-                   SecretDataFromStringView("salt"), &fingerprinter, nullptr),
-               "");
+TEST(EventDataPreprocessorDeathTest, NullAesWithHkdf) {
+  ASSERT_DEATH(
+      EventDataPreprocessor(TestCipher(), TestIdentifierHashPepper(),
+                            TestHkdfPepper(), TestFingerprinter(), nullptr),
+      "");
 }
 
 // Test using actual implementations to ensure nothing crashes
-TEST(EventDataPreprocessorTests, actualValues) {
-  const Fingerprinter& sha = GetSha256Fingerprinter();
-  std::unique_ptr<Hkdf> hkdf = common::crypto::GetSha256Hkdf();
-  std::unique_ptr<Aes> aes = common::crypto::GetAesSivCmac512();
-  const AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
-  ASSERT_OK_AND_ASSIGN(std::unique_ptr<Cryptor> cryptor,
-                       common::crypto::CreateCryptorFromKey("some-key"));
+TEST(EventDataPreprocessorTest, Integration) {
+  const Fingerprinter& fingerprinter = GetSha256Fingerprinter();
+  AesWithHkdf aes_hkdf(wfa::panelmatch::common::crypto::GetSha256Hkdf(),
+                       wfa::panelmatch::common::crypto::GetAesSivCmac512());
+  ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<DeterministicCommutativeCipher> cipher,
+      NewDeterministicCommutativeCipher(SecretDataFromStringView("some-key")));
   EventDataPreprocessor preprocessor(
-      std::move(cryptor), SecretDataFromStringView("pepper"),
-      SecretDataFromStringView("salt"), &sha, &aes_hkdf);
+      std::move(cipher), TestIdentifierHashPepper(), TestHkdfPepper(),
+      &fingerprinter, &aes_hkdf);
   EXPECT_THAT(preprocessor.Process("some-identifier", "some-event").status(),
               IsOk());
 }
