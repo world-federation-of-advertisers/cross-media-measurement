@@ -11,18 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events_wrapper.h"
 
-#include <string>
+syntax = "proto3";
 
-#include "absl/status/statusor.h"
-#include "common_cpp/jni/jni_wrap.h"
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.h"
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+package wfa.panelmatch.client.privatemembership;
 
-namespace wfa::panelmatch::client {
-absl::StatusOr<std::string> PreprocessEventsWrapper(
-    const std::string& serialized_request) {
-  return JniWrap(serialized_request, PreprocessEvents);
+option java_package = "org.wfanet.panelmatch.client.privatemembership";
+option java_multiple_files = true;
+
+// Removes the final layer of encryption for event data using the joinkey and
+// pepper.
+// TODO Combine this with removing RLWE encryption in a single call
+message DecryptEventDataRequest {
+  repeated bytes encrypted_event_data = 1;
+  bytes single_blinded_joinkey = 2;
+  bytes hkdf_pepper = 3;
 }
-}  // namespace wfa::panelmatch::client
+
+// Response of DecryptEventData
+message DecryptEventDataResponse {
+  repeated bytes decrypted_event_data = 1;
+}

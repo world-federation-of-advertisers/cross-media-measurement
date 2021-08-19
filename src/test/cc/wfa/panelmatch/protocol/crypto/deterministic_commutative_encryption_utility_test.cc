@@ -61,14 +61,14 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
   encrypt_request1.mutable_plaintexts()->CopyFrom(plaintext_batch);
   auto encrypted_response1 = DeterministicCommutativeEncrypt(encrypt_request1);
   ASSERT_THAT(encrypted_response1, IsOk());
-  auto encrypted_texts1 = (*encrypted_response1).encrypted_texts();
+  auto encrypted_texts1 = encrypted_response1->encrypted_texts();
 
   CryptorEncryptRequest encrypt_request2;
   encrypt_request2.set_encryption_key(random_key_2);
   encrypt_request2.mutable_plaintexts()->CopyFrom(plaintext_batch);
   auto encrypted_response2 = DeterministicCommutativeEncrypt(encrypt_request2);
   ASSERT_THAT(encrypted_response2, IsOk());
-  auto encrypted_texts2 = (*encrypted_response2).encrypted_texts();
+  auto encrypted_texts2 = encrypted_response2->encrypted_texts();
   EXPECT_THAT(encrypted_texts2, Pointwise(Ne(), encrypted_texts1));
 
   CryptorReEncryptRequest reencrypt_request1;
@@ -78,7 +78,7 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
       DeterministicCommutativeReEncrypt(reencrypt_request1);
   ASSERT_THAT(double_encrypted_response1, IsOk());
   auto double_encrypted_texts1 =
-      (*double_encrypted_response1).reencrypted_texts();
+      double_encrypted_response1->reencrypted_texts();
   EXPECT_THAT(encrypted_texts2, Pointwise(Ne(), double_encrypted_texts1));
 
   CryptorReEncryptRequest reencrypt_request2;
@@ -88,7 +88,7 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
       DeterministicCommutativeReEncrypt(reencrypt_request2);
   ASSERT_THAT(double_encrypted_response2, IsOk());
   auto double_encrypted_texts2 =
-      (*double_encrypted_response2).reencrypted_texts();
+      double_encrypted_response2->reencrypted_texts();
   EXPECT_THAT(encrypted_texts1, Pointwise(Ne(), double_encrypted_texts2));
 
   CryptorDecryptRequest decrypt_request1;
@@ -96,7 +96,7 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
   decrypt_request1.mutable_encrypted_texts()->CopyFrom(double_encrypted_texts1);
   auto decrypted_response1 = DeterministicCommutativeDecrypt(decrypt_request1);
   ASSERT_THAT(decrypted_response1, IsOk());
-  auto decrypted_texts1 = (*decrypted_response1).decrypted_texts();
+  auto decrypted_texts1 = decrypted_response1->decrypted_texts();
   EXPECT_THAT(decrypted_texts1, Pointwise(Eq(), encrypted_texts2));
 
   CryptorDecryptRequest decrypt_request2;
@@ -104,7 +104,7 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
   decrypt_request2.mutable_encrypted_texts()->CopyFrom(double_encrypted_texts2);
   auto decrypted_response2 = DeterministicCommutativeDecrypt(decrypt_request2);
   ASSERT_THAT(decrypted_response2, IsOk());
-  auto decrypted_texts2 = (*decrypted_response2).decrypted_texts();
+  auto decrypted_texts2 = decrypted_response2->decrypted_texts();
   EXPECT_THAT(decrypted_texts2, Pointwise(Eq(), encrypted_texts2));
 
   CryptorDecryptRequest decrypt_request3;
@@ -112,7 +112,7 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
   decrypt_request3.mutable_encrypted_texts()->CopyFrom(double_encrypted_texts1);
   auto decrypted_response3 = DeterministicCommutativeDecrypt(decrypt_request3);
   ASSERT_THAT(decrypted_response3, IsOk());
-  auto decrypted_texts3 = (*decrypted_response3).decrypted_texts();
+  auto decrypted_texts3 = decrypted_response3->decrypted_texts();
   EXPECT_THAT(decrypted_texts3, Pointwise(Eq(), encrypted_texts1));
 
   CryptorDecryptRequest decrypt_request4;
@@ -120,7 +120,7 @@ TEST(PanelMatchTest, DeterministicCommutativeEncryptionUtility) {
   decrypt_request4.mutable_encrypted_texts()->CopyFrom(double_encrypted_texts2);
   auto decrypted_response4 = DeterministicCommutativeDecrypt(decrypt_request4);
   ASSERT_THAT(decrypted_response4, IsOk());
-  auto decrypted_texts4 = (*decrypted_response4).decrypted_texts();
+  auto decrypted_texts4 = decrypted_response4->decrypted_texts();
   EXPECT_THAT(decrypted_texts4, Pointwise(Eq(), encrypted_texts1));
 }
 

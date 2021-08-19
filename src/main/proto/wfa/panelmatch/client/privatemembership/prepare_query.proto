@@ -11,18 +11,21 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events_wrapper.h"
 
-#include <string>
+syntax = "proto3";
 
-#include "absl/status/statusor.h"
-#include "common_cpp/jni/jni_wrap.h"
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.h"
-#include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+package wfa.panelmatch.client.privatemembership;
 
-namespace wfa::panelmatch::client {
-absl::StatusOr<std::string> PreprocessEventsWrapper(
-    const std::string& serialized_request) {
-  return JniWrap(serialized_request, PreprocessEvents);
+option java_package = "org.wfanet.panelmatch.client.privatemembership";
+option java_multiple_files = true;
+
+// Hashes a single blinded joinkey
+message PrepareQueryRequest {
+  repeated bytes single_blinded_keys = 1;
+  bytes identifier_hash_pepper = 2;
 }
-}  // namespace wfa::panelmatch::client
+
+// Response of the PrepareQueryRequest method with keys hashed to a 64bit space
+message PrepareQueryResponse {
+  repeated fixed64 hashed_single_blinded_keys = 1;
+}
