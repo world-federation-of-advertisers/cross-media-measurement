@@ -24,11 +24,6 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchConfigKt.indexSpec
 import org.wfanet.anysketch.SketchConfigKt.valueSpec
-import org.wfanet.anysketch.sketchConfig
-import org.wfanet.anysketch.distribution
-import org.wfanet.anysketch.exponentialDistribution
-import org.wfanet.anysketch.uniformDistribution
-import org.wfanet.anysketch.oracleDistribution
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
@@ -36,6 +31,11 @@ import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
+import org.wfanet.anysketch.distribution
+import org.wfanet.anysketch.exponentialDistribution
+import org.wfanet.anysketch.oracleDistribution
+import org.wfanet.anysketch.sketchConfig
+import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -191,37 +191,34 @@ private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
   return response.elGamalKeys.toV2ElGamalPublicKey()
 }
 
-
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
   val that = this
   return sketchConfig {
-    indexes += indexSpec {
-      name = "Index"
-      distribution = distribution {
-        exponential = exponentialDistribution {
-          rate = that.decayRate
-          numValues = that.maxSize
-        }
+    indexes +=
+      indexSpec {
+        name = "Index"
+        distribution =
+          distribution {
+            exponential =
+              exponentialDistribution {
+                rate = that.decayRate
+                numValues = that.maxSize
+              }
+          }
       }
-    }
-    values += valueSpec {
-      name = "SamplingIndicator"
-      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-      distribution = distribution {
-        uniform = uniformDistribution {
-          numValues = that.samplingIndicatorSize
-        }
+    values +=
+      valueSpec {
+        name = "SamplingIndicator"
+        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+        distribution =
+          distribution { uniform = uniformDistribution { numValues = that.samplingIndicatorSize } }
       }
-    }
 
-    values += valueSpec {
-      name = "Frequency"
-      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-      distribution = distribution {
-        oracle = oracleDistribution {
-          key = "frequency"
-        }
+    values +=
+      valueSpec {
+        name = "Frequency"
+        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+        distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
       }
-    }
   }
 }
