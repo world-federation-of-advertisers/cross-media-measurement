@@ -1,5 +1,7 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
@@ -46,7 +48,7 @@ kt_jvm_library(
 java_binary(
     name = "ForwardStorageEdpSimulatorRunnerKt",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunner",
-    runtime_deps = [":forwarded_storage_edp_simulator"],
+    runtime_deps = [":forwarded_storage_edp_simulator_runner"],
 )
 
 java_image(
@@ -71,7 +73,7 @@ kt_jvm_library(
 java_binary(
     name = "GcsEdpSimulatorRunnerKt",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunner",
-    runtime_deps = [":gcs_edp_simulator"],
+    runtime_deps = [":gcs_edp_simulator_runner"],
 )
 
 java_image(
