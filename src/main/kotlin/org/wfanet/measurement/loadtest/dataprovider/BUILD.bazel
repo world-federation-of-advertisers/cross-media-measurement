@@ -66,20 +66,3 @@ java_binary(
     main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunner",
     runtime_deps = [":gcs_edp_simulator"],
 )
-
-kt_jvm_library(
-    name = "file_system_edp_simulator",
-    srcs = ["FileSystemEdpSimulatorRunner.kt"],
-    deps = [
-        ":edp_simulator",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
-    ],
-)
-
-java_binary(
-    name = "FileSystemEdpSimulatorRunner",
-    main_class = "org.wfanet.measurement.loadtest.dataprovider.FileSystemEdpSimulatorRunner",
-    runtime_deps = [":file_system_edp_simulator"],
-)
