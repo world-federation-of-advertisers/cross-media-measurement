@@ -22,6 +22,13 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
+import org.wfanet.anysketch.SketchConfigKt.indexSpec
+import org.wfanet.anysketch.SketchConfigKt.valueSpec
+import org.wfanet.anysketch.sketchConfig
+import org.wfanet.anysketch.distribution
+import org.wfanet.anysketch.exponentialDistribution
+import org.wfanet.anysketch.uniformDistribution
+import org.wfanet.anysketch.oracleDistribution
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
@@ -184,41 +191,37 @@ private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
   return response.elGamalKeys.toV2ElGamalPublicKey()
 }
 
-/*
-private fun LiquidLegionsSketchParams.toSketchConfig2(): SketchConfig {
-
-  return SketchConfig {
-    indexes += ...
-    values += ...
-    values += ...
-  }
-}
-*/
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
-
-  // todo: hack but otherwise "this" is shadowed in the blocks below
-  val t = this
-
-  return SketchConfig.newBuilder()
-    .apply {
-      addIndexesBuilder().apply {
-        name = "Index"
-        distributionBuilder.exponentialBuilder.apply {
-          rate = t.decayRate
-          numValues = t.maxSize
+  val that = this
+  return sketchConfig {
+    indexes += indexSpec {
+      name = "Index"
+      distribution = distribution {
+        exponential = exponentialDistribution {
+          rate = that.decayRate
+          numValues = that.maxSize
         }
       }
-      addValuesBuilder().apply {
-        name = "SamplingIndicator"
-        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-        distributionBuilder.uniformBuilder.apply { numValues = t.samplingIndicatorSize }
-      }
-      addValuesBuilder().apply {
-        name = "Frequency"
-        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-        distributionBuilder.oracleBuilder.apply { key = "frequency" }
+    }
+    values += valueSpec {
+      name = "SamplingIndicator"
+      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+      distribution = distribution {
+        uniform = uniformDistribution {
+          numValues = that.samplingIndicatorSize
+        }
       }
     }
-    .build()
+
+    values += valueSpec {
+      name = "Frequency"
+      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+      distribution = distribution {
+        oracle = oracleDistribution {
+          key = "frequency"
+        }
+      }
+    }
+  }
 }
