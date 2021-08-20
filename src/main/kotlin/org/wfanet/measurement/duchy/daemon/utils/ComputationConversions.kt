@@ -15,6 +15,10 @@
 package org.wfanet.measurement.duchy.daemon.utils
 
 import com.google.protobuf.ByteString
+import org.wfanet.anysketch.crypto.ElGamalKeyPair as AnySketchElGamalKeyPair
+import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
+import org.wfanet.anysketch.crypto.elGamalKeyPair as anySketchElGamalKeyPair
+import org.wfanet.anysketch.crypto.elGamalPublicKey as anySketchElGamalPublicKey
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams as V2AlphaDifferentialPrivacyParams
@@ -22,15 +26,27 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPubl
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as V2AlphaHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
+import org.wfanet.measurement.api.v2alpha.elGamalPublicKey as v2AlphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey as v2alphaEncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.hybridCipherSuite as v2AlphaHybridCipherSuite
 import org.wfanet.measurement.internal.duchy.ComputationDetails.KingdomComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.DifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
 import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.HybridCipherSuite
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.differentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.elGamalPublicKey
+import org.wfanet.measurement.internal.duchy.encryptionPublicKey
+import org.wfanet.measurement.internal.duchy.hybridCipherSuite
+import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.system.v1alpha.Computation as SystemComputation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -61,25 +77,24 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
 
 /** Creates a KingdomComputationDetails from the kingdom system API Computation. */
 fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
-  return KingdomComputationDetails.newBuilder()
-    .also {
-      it.publicApiVersion = publicApiVersion
-      it.measurementSpec = measurementSpec
-      it.dataProviderList = dataProviderList
-      it.dataProviderListSalt = dataProviderListSalt
-      when (Version.fromString(publicApiVersion)) {
-        Version.V2_ALPHA -> {
-          val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
-          it.measurementPublicKey =
-            measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(
-              Version.fromString(publicApiVersion)
-            )
-          it.cipherSuite = measurementSpec.cipherSuite.toDuchyHybridCipherSuite()
-        }
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+  return kingdomComputationDetails {
+    publicApiVersion = this@toKingdomComputationDetails.publicApiVersion
+    measurementSpec = this@toKingdomComputationDetails.measurementSpec
+    dataProviderList = this@toKingdomComputationDetails.dataProviderList
+    dataProviderListSalt = this@toKingdomComputationDetails.dataProviderListSalt
+    when (Version.fromString(this@toKingdomComputationDetails.publicApiVersion)) {
+      Version.V2_ALPHA -> {
+        val measurementSpec =
+          MeasurementSpec.parseFrom(this@toKingdomComputationDetails.measurementSpec)
+        measurementPublicKey =
+          measurementSpec.measurementPublicKey.toDuchyEncryptionPublicKey(
+            Version.fromString(this@toKingdomComputationDetails.publicApiVersion)
+          )
+        cipherSuite = measurementSpec.cipherSuite.toDuchyHybridCipherSuite()
       }
+      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
     }
-    .build()
+  }
 }
 
 /** Resource key. */
@@ -115,100 +130,89 @@ fun ByteString.toDuchyElGamalPublicKey(publicApiVersion: Version): ElGamalPublic
 
 /** Converts a v2alpha Public API EncryptionPublicKey to duchy internal EncryptionPublicKey. */
 fun V2AlphaEncryptionPublicKey.toDuchyEncryptionPublicKey(): EncryptionPublicKey {
-  return EncryptionPublicKey.newBuilder()
-    .also {
-      it.type =
-        when (this.type) {
-          V2AlphaEncryptionPublicKey.Type.TYPE_UNSPECIFIED ->
-            EncryptionPublicKey.Type.TYPE_UNSPECIFIED
-          V2AlphaEncryptionPublicKey.Type.EC_P256 -> EncryptionPublicKey.Type.EC_P256
-          V2AlphaEncryptionPublicKey.Type.UNRECOGNIZED, null -> error("unrecognized type.")
-        }
-      it.publicKeyInfo = publicKeyInfo
-    }
-    .build()
+  return encryptionPublicKey {
+    type =
+      when (this@toDuchyEncryptionPublicKey.type) {
+        V2AlphaEncryptionPublicKey.Type.TYPE_UNSPECIFIED ->
+          EncryptionPublicKey.Type.TYPE_UNSPECIFIED
+        V2AlphaEncryptionPublicKey.Type.EC_P256 -> EncryptionPublicKey.Type.EC_P256
+        V2AlphaEncryptionPublicKey.Type.UNRECOGNIZED, null -> error("unrecognized type.")
+      }
+    publicKeyInfo = this@toDuchyEncryptionPublicKey.publicKeyInfo
+  }
 }
 
 /** Converts a v2alpha Public API HybridCipherSuite to duchy internal HybridCipherSuite. */
 fun V2AlphaHybridCipherSuite.toDuchyHybridCipherSuite(): HybridCipherSuite {
-  return HybridCipherSuite.newBuilder()
-    .also {
-      it.kem =
-        when (this.kem) {
-          V2AlphaHybridCipherSuite.KeyEncapsulationMechanism
-            .KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
-            HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED
-          V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256 ->
-            HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-          V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.UNRECOGNIZED, null ->
-            error("unrecognized KeyEncapsulationMechanism.")
-        }
-      it.dem =
-        when (this.dem) {
-          V2AlphaHybridCipherSuite.DataEncapsulationMechanism
-            .DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
-            HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
-          V2AlphaHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM ->
-            HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
-          V2AlphaHybridCipherSuite.DataEncapsulationMechanism.UNRECOGNIZED, null ->
-            error("unrecognized DataEncapsulationMechanism.")
-        }
-    }
-    .build()
+  return hybridCipherSuite {
+    kem =
+      when (this@toDuchyHybridCipherSuite.kem) {
+        V2AlphaHybridCipherSuite.KeyEncapsulationMechanism
+          .KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
+          HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED
+        V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256 ->
+          HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+        V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.UNRECOGNIZED, null ->
+          error("unrecognized KeyEncapsulationMechanism.")
+      }
+    dem =
+      when (this@toDuchyHybridCipherSuite.dem) {
+        V2AlphaHybridCipherSuite.DataEncapsulationMechanism
+          .DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
+          HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
+        V2AlphaHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM ->
+          HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+        V2AlphaHybridCipherSuite.DataEncapsulationMechanism.UNRECOGNIZED, null ->
+          error("unrecognized DataEncapsulationMechanism.")
+      }
+  }
 }
 
 /** Converts a duchy internal EncryptionPublicKey to v2alpha Public API EncryptionPublicKey. */
 fun EncryptionPublicKey.toV2AlphaEncryptionPublicKey(): V2AlphaEncryptionPublicKey {
-  return V2AlphaEncryptionPublicKey.newBuilder()
-    .also {
-      it.type =
-        when (this.type) {
-          EncryptionPublicKey.Type.TYPE_UNSPECIFIED ->
-            V2AlphaEncryptionPublicKey.Type.TYPE_UNSPECIFIED
-          EncryptionPublicKey.Type.EC_P256 -> V2AlphaEncryptionPublicKey.Type.EC_P256
-          EncryptionPublicKey.Type.UNRECOGNIZED, null -> error("unrecognized type.")
-        }
-      it.publicKeyInfo = publicKeyInfo
-    }
-    .build()
+  return v2alphaEncryptionPublicKey {
+    type =
+      when (this@toV2AlphaEncryptionPublicKey.type) {
+        EncryptionPublicKey.Type.TYPE_UNSPECIFIED ->
+          V2AlphaEncryptionPublicKey.Type.TYPE_UNSPECIFIED
+        EncryptionPublicKey.Type.EC_P256 -> V2AlphaEncryptionPublicKey.Type.EC_P256
+        EncryptionPublicKey.Type.UNRECOGNIZED, null -> error("unrecognized type.")
+      }
+    publicKeyInfo = this@toV2AlphaEncryptionPublicKey.publicKeyInfo
+  }
 }
 
 /** Converts a duchy internal HybridCipherSuite to v2alpha Public API HybridCipherSuite. */
 fun HybridCipherSuite.toV2AlphaHybridCipherSuite(): V2AlphaHybridCipherSuite {
-  return V2AlphaHybridCipherSuite.newBuilder()
-    .also {
-      it.kem =
-        when (this.kem) {
-          HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
-            V2AlphaHybridCipherSuite.KeyEncapsulationMechanism
-              .KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED
-          HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256 ->
-            V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-          HybridCipherSuite.KeyEncapsulationMechanism.UNRECOGNIZED, null ->
-            error("unrecognized KeyEncapsulationMechanism.")
-        }
-      it.dem =
-        when (this.dem) {
-          HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
-            V2AlphaHybridCipherSuite.DataEncapsulationMechanism
-              .DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
-          HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM ->
-            V2AlphaHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
-          HybridCipherSuite.DataEncapsulationMechanism.UNRECOGNIZED, null ->
-            error("unrecognized DataEncapsulationMechanism.")
-        }
-    }
-    .build()
+  return v2AlphaHybridCipherSuite {
+    kem =
+      when (this@toV2AlphaHybridCipherSuite.kem) {
+        HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
+          V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED
+        HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256 ->
+          V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+        HybridCipherSuite.KeyEncapsulationMechanism.UNRECOGNIZED, null ->
+          error("unrecognized KeyEncapsulationMechanism.")
+      }
+    dem =
+      when (this@toV2AlphaHybridCipherSuite.dem) {
+        HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
+          V2AlphaHybridCipherSuite.DataEncapsulationMechanism
+            .DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
+        HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM ->
+          V2AlphaHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+        HybridCipherSuite.DataEncapsulationMechanism.UNRECOGNIZED, null ->
+          error("unrecognized DataEncapsulationMechanism.")
+      }
+  }
 }
 
 /** Converts a system API DifferentialPrivacyParams to duchy internal DifferentialPrivacyParams. */
 fun SystemDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): DifferentialPrivacyParams {
-  return DifferentialPrivacyParams.newBuilder()
-    .also {
-      it.epsilon = epsilon
-      it.delta = delta
-    }
-    .build()
+  return differentialPrivacyParams {
+    epsilon = this@toDuchyDifferentialPrivacyParams.epsilon
+    delta = this@toDuchyDifferentialPrivacyParams.delta
+  }
 }
 
 /** Resource key. */
@@ -223,17 +227,21 @@ val ComputationParticipant.key: ComputationParticipantKey
 
 /** Converts a system API DifferentialPrivacyParams to duchy internal DifferentialPrivacyParams. */
 fun SystemRequisition.toDuchyRequisitionDetails(): RequisitionDetails {
-  return RequisitionDetails.newBuilder()
-    .also {
-      it.dataProviderCertificateDer = dataProviderCertificateDer
-      it.requisitionSpecHash = requisitionSpecHash
-      it.dataProviderParticipationSignature = dataProviderParticipationSignature
-      if (fulfillingComputationParticipant.isNotEmpty()) {
-        it.externalFulfillingDuchyId =
-          checkNotNull(ComputationParticipantKey.fromName(fulfillingComputationParticipant)).duchyId
-      }
+  return requisitionDetails {
+    dataProviderCertificateDer = this@toDuchyRequisitionDetails.dataProviderCertificateDer
+    requisitionSpecHash = this@toDuchyRequisitionDetails.requisitionSpecHash
+    dataProviderParticipationSignature =
+      this@toDuchyRequisitionDetails.dataProviderParticipationSignature
+    if (this@toDuchyRequisitionDetails.fulfillingComputationParticipant.isNotEmpty()) {
+      externalFulfillingDuchyId =
+        checkNotNull(
+            ComputationParticipantKey.fromName(
+              this@toDuchyRequisitionDetails.fulfillingComputationParticipant
+            )
+          )
+          .duchyId
     }
-    .build()
+  }
 }
 
 /** Resource key. */
@@ -251,32 +259,26 @@ val SystemRequisition.key: RequisitionKey
  * DifferentialPrivacyParams.
  */
 fun V2AlphaDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): DifferentialPrivacyParams {
-  return DifferentialPrivacyParams.newBuilder()
-    .also {
-      it.epsilon = epsilon
-      it.delta = delta
-    }
-    .build()
+  return differentialPrivacyParams {
+    epsilon = this@toDuchyDifferentialPrivacyParams.epsilon
+    delta = this@toDuchyDifferentialPrivacyParams.delta
+  }
 }
 
 /** Converts a duchy internal ElGamalPublicKey to the v2alpha public API ElGamalPublicKey. */
 fun ElGamalPublicKey.toV2AlphaElGamalPublicKey(): V2AlphaElGamalPublicKey {
-  return V2AlphaElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = generator
-      it.element = element
-    }
-    .build()
+  return v2AlphaElGamalPublicKey {
+    generator = this@toV2AlphaElGamalPublicKey.generator
+    element = this@toV2AlphaElGamalPublicKey.element
+  }
 }
 
 /** Converts a v2alpha Public API ElGamalPublicKey to duchy internal ElGamalPublicKey. */
 fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
-  return ElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = generator
-      it.element = element
-    }
-    .build()
+  return elGamalPublicKey {
+    generator = this@toDuchyElGamalPublicKey.generator
+    element = this@toDuchyElGamalPublicKey.element
+  }
 }
 
 /** The result and frequency estimation of a computation. */
@@ -284,39 +286,32 @@ data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>)
 
 /** Converts a ReachAndFrequency object to the v2Alpha measurement result. */
 fun ReachAndFrequency.toV2AlphaMeasurementResult(): Measurement.Result {
-  return Measurement.Result.newBuilder()
-    .also {
-      it.reachBuilder.value = reach
-      it.frequencyBuilder.putAllRelativeFrequencyDistribution(frequency)
-    }
-    .build()
+  return MeasurementKt.result {
+    reach = reach { value = this@toV2AlphaMeasurementResult.reach }
+    frequency =
+      frequency { relativeFrequencyDistribution.putAll(this@toV2AlphaMeasurementResult.frequency) }
+  }
 }
 
-fun org.wfanet.anysketch.crypto.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
-  return ElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = generator
-      it.element = element
-    }
-    .build()
+fun AnySketchElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
+  return elGamalPublicKey {
+    generator = this@toCmmsElGamalPublicKey.generator
+    element = this@toCmmsElGamalPublicKey.element
+  }
 }
 
-fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): org.wfanet.anysketch.crypto.ElGamalPublicKey {
-  return org.wfanet.anysketch.crypto.ElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = generator
-      it.element = element
-    }
-    .build()
+fun ElGamalPublicKey.toAnySketchElGamalPublicKey(): AnySketchElGamalPublicKey {
+  return anySketchElGamalPublicKey {
+    generator = this@toAnySketchElGamalPublicKey.generator
+    element = this@toAnySketchElGamalPublicKey.element
+  }
 }
 
-fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): org.wfanet.anysketch.crypto.ElGamalKeyPair {
-  return org.wfanet.anysketch.crypto.ElGamalKeyPair.newBuilder()
-    .also {
-      it.publicKey = publicKey.toAnySketchElGamalPublicKey()
-      it.secretKey = secretKey
-    }
-    .build()
+fun ElGamalKeyPair.toAnySketchElGamalKeyPair(): AnySketchElGamalKeyPair {
+  return anySketchElGamalKeyPair {
+    publicKey = this@toAnySketchElGamalKeyPair.publicKey.toAnySketchElGamalPublicKey()
+    secretKey = this@toAnySketchElGamalKeyPair.secretKey
+  }
 }
 
 /** Extracts the DataProviderId from the DataProvider public Api resource name. */
