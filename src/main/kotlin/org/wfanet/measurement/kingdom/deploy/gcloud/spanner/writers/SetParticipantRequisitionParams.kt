@@ -62,7 +62,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     if (computaitonParticipant.state != ComputationParticipant.State.CREATED) {
       throw KingdomInternalException(
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy Id ${request.externalDuchyId} has the wrong state. " +

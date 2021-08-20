@@ -44,7 +44,8 @@ class SpannerEventGroupsService(
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND -> throw e
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE -> throw e
       }
     }
   }

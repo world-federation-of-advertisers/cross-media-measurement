@@ -39,6 +39,9 @@ class KingdomInternalException : Exception {
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
 
     /** Certificate resource queried could not be found. */
-    CERTIFICATE_NOT_FOUND
+    CERTIFICATE_NOT_FOUND,
+
+    /** Computation Participant should have been in another state. */
+    COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE
   }
 }
