@@ -32,7 +32,7 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "forwarded_storage_edp_simulator",
+    name = "forwarded_storage_edp_simulator_runner",
     srcs = ["ForwardStorageEdpSimulatorRunner.kt"],
     deps = [
         ":edp_simulator",
@@ -44,13 +44,21 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "ForwardStorageEdpSimulatorRunner",
+    name = "ForwardStorageEdpSimulatorRunnerKt",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunner",
     runtime_deps = [":forwarded_storage_edp_simulator"],
 )
 
+java_image(
+    name = "forwarded_storage_edp_simulator_runner_image",
+    main_class = "org.wfanet.measurement.loadtest.frontend.ForwardStorageEdpSimulatorRunner",
+    target_compatible_with = DISTROLESS_JAVA,
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":forwarded_storage_edp_simulator_runner"],
+)
+
 kt_jvm_library(
-    name = "gcs_edp_simulator",
+    name = "gcs_edp_simulator_runner",
     srcs = ["GcsEdpSimulatorRunner.kt"],
     deps = [
         ":edp_simulator",
@@ -61,7 +69,15 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "GcsEdpSimulatorRunner",
+    name = "GcsEdpSimulatorRunnerKt",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunner",
     runtime_deps = [":gcs_edp_simulator"],
+)
+
+java_image(
+    name = "gcs_edp_simulator_runner_image",
+    main_class = "org.wfanet.measurement.loadtest.frontend.GcsEdpSimulatorRunner",
+    target_compatible_with = DISTROLESS_JAVA,
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":gcs_edp_simulator_runner"],
 )
