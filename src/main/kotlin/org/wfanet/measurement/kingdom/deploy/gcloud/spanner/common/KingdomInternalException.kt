@@ -14,7 +14,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
-class KingdomInternalException(val code: Code) : Exception() {
+class KingdomInternalException : Exception {
+  val code: Code
+
+  constructor(code: Code) : super() {
+    this.code = code
+  }
+
+  constructor(code: Code, buildMessage: () -> String) : super(buildMessage()) {
+    this.code = code
+  }
+
   enum class Code {
     /** MeasurementConsumer resource queried could not be found. */
     MEASUREMENT_CONSUMER_NOT_FOUND,
@@ -27,5 +37,8 @@ class KingdomInternalException(val code: Code) : Exception() {
 
     /** Certificate with the same subject key identifier (SKID) already exists. */
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+
+    /** Certificate resource queried could not be found. */
+    CERTIFICATE_NOT_FOUND
   }
 }

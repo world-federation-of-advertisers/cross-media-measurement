@@ -19,7 +19,9 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class MeasurementReader(private val view: Measurement.View) :
@@ -43,63 +45,54 @@ class MeasurementReader(private val view: Measurement.View) :
     Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
 
   private fun buildMeasurement(struct: Struct): Measurement {
-    // TODO(@uakyol): populate all the relevant fields for a measurement.
-    val measurementBuilder =
-      Measurement.newBuilder().apply {
-        externalMeasurementId = struct.getLong("ExternalMeasurementId")
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        externalMeasurementConsumerCertificateId =
-          struct.getLong("ExternalMeasurementConsumerCertificateId")
-        externalComputationId = struct.getLong("ExternalComputationId")
-        providedMeasurementId = struct.getString("ProvidedMeasurementId")
-        details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-        createTime = struct.getTimestamp("CreateTime").toProto()
-      }
+    return measurement {
+      externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+      externalMeasurementId = struct.getLong("ExternalMeasurementId")
+      externalComputationId = struct.getLong("ExternalComputationId")
+      providedMeasurementId = struct.getString("ProvidedMeasurementId")
+      externalMeasurementConsumerCertificateId =
+        struct.getLong("ExternalMeasurementConsumerCertificateId")
+      createTime = struct.getTimestamp("CreateTime").toProto()
+      updateTime = struct.getTimestamp("UpdateTime").toProto()
+      state = struct.getProtoEnum("State", Measurement.State::forNumber)
+      details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
 
-    return when (view) {
-      // TODO(@uakyol): populate all the relevant fields for a measurement.
-      Measurement.View.DEFAULT -> measurementBuilder.build()
-      Measurement.View.COMPUTATION -> {
-        // TODO(@uakyol): populate all the relevant fields for a requisition.
-        val requisitions =
-          struct
-            .getStructList("Requisitions")
-            .map {
-              Requisition.newBuilder()
-                .apply {
-                  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-                  externalMeasurementId = struct.getLong("ExternalMeasurementId")
-                  externalRequisitionId = it.getLong("ExternalRequisitionId")
-                }
-                .build()
-            }
-            .toList()
-        // TODO(@uakyol) : populate all the relevant fields for a computationParticipant.
-        val computationParticipants =
-          struct
-            .getStructList("ComputationParticipants")
-            .map {
-              ComputationParticipant.newBuilder()
-                .apply {
-                  externalDuchyId = DuchyIds.getExternalId(it.getLong("DuchyId"))
-                  externalMeasurementId = struct.getLong("ExternalMeasurementId")
-                  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-                  externalComputationId = struct.getLong("ExternalComputationId")
-                  state = it.getProtoEnum("State", ComputationParticipant.State::forNumber)
-                }
-                .build()
-            }
-            .toList()
+      // TODO(@wangyaopw): Map external protocol config ID from ProtocolConfigs after it is
+      // implemented.
 
-        measurementBuilder
-          .also {
-            it.addAllRequisitions(requisitions)
-            it.addAllComputationParticipants(computationParticipants)
+      when (view) {
+        Measurement.View.DEFAULT -> {}
+        Measurement.View.COMPUTATION -> {
+          // TODO(@SanjayVas): populate all the relevant fields for a requisition.
+          for (requisitionStruct in struct.getStructList("Requisitions")) {
+            requisitions +=
+              requisition {
+                externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+                externalMeasurementId = struct.getLong("ExternalMeasurementId")
+                externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
+              }
           }
-          .build()
+          // TODO(@uakyol) : populate all the relevant fields for a computationParticipant.
+          for (participantStruct in struct.getStructList("ComputationParticipants")) {
+            val duchyId = participantStruct.getLong("DuchyId")
+            val externalDuchyId =
+              checkNotNull(DuchyIds.getExternalId(duchyId)) {
+                "Duchy with internal ID $duchyId not found"
+              }
+            computationParticipants +=
+              computationParticipant {
+                this.externalDuchyId = externalDuchyId
+                externalMeasurementId = struct.getLong("ExternalMeasurementId")
+                externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+                externalComputationId = struct.getLong("ExternalComputationId")
+                state =
+                  participantStruct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+              }
+          }
+        }
+        Measurement.View.UNRECOGNIZED ->
+          throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
-      Measurement.View.UNRECOGNIZED ->
-        throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
     }
   }
 
@@ -114,6 +107,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ProvidedMeasurementId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
+      Measurements.UpdateTime,
+      Measurements.State,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
     FROM Measurements
@@ -131,6 +126,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ProvidedMeasurementId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
+      Measurements.UpdateTime,
+      Measurements.State,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
       ARRAY(
