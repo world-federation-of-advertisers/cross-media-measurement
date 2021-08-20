@@ -67,12 +67,11 @@ message ComputationParticipant {
     }
   }
   Details details = 9;
-  string details_json = 10;
 
-  DuchyMeasurementLogEntry failure_log_entry = 11;
+  DuchyMeasurementLogEntry failure_log_entry = 10;
 
   // Version of the public API for serialized message definitions as well as
   // resource names, which is denormalized from the parent Measurement.
   // Output-only.
-  string api_version = 12;
+  string api_version = 11;
 }

@@ -22,6 +22,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.Com
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 
 class SpannerComputationParticipantsService(
   private val clock: Clock,
@@ -31,7 +32,7 @@ class SpannerComputationParticipantsService(
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
-    TODO("not implemented yet")
+    return SetParticipantRequisitionParams(request).execute(client, idGenerator, clock)
   }
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest

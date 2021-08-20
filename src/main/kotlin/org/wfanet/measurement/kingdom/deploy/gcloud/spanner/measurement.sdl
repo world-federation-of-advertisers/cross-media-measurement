@@ -314,7 +314,7 @@ CREATE TABLE ComputationParticipants (
     REFERENCES DuchyCertificates(DuchyId, CertificateId),
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DuchyId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
-  
+
 -- Contains status updates from the Duchies and within the Kingdom for a
 -- particular computation for a Measurement. For any given Measurement, each
 -- Duchy might send many updates (one or more per stage of the MPC protocol).
