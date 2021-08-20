@@ -192,7 +192,6 @@ private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
 }
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
-  val that = this
   return sketchConfig {
     indexes +=
       indexSpec {
@@ -201,8 +200,8 @@ private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
           distribution {
             exponential =
               exponentialDistribution {
-                rate = that.decayRate
-                numValues = that.maxSize
+                rate = decayRate
+                numValues = maxSize
               }
           }
       }
@@ -211,7 +210,7 @@ private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
         name = "SamplingIndicator"
         aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
         distribution =
-          distribution { uniform = uniformDistribution { numValues = that.samplingIndicatorSize } }
+          distribution { uniform = uniformDistribution { numValues = samplingIndicatorSize } }
       }
 
     values +=
