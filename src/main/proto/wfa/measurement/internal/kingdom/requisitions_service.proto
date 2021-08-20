@@ -84,8 +84,3 @@ message RefuseRequisitionRequest {
 
   Requisition.Refusal refusal = 3;
 }
-
-message PageToken {
-  google.protobuf.Timestamp created_after = 1;
-  StreamRequisitionsRequest.Filter filter = 2;
-}

@@ -115,16 +115,15 @@ message Measurement {
     bytes encrypted_result = 9;
   }
   Details details = 11;
-  string details_json = 12;
 
   // Child Requisitions of this Measurement, using Requisition.View.NORMALIZED.
   // Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated Requisition requisitions = 13;
+  repeated Requisition requisitions = 12;
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated ComputationParticipant computation_participants = 14;
+  repeated ComputationParticipant computation_participants = 13;
 }

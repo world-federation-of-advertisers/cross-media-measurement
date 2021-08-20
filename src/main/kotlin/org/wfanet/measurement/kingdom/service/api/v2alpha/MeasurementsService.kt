@@ -44,7 +44,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest as InternalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
@@ -341,7 +340,6 @@ private fun Measurement.toInternal(
       dataProviderList = this@toInternal.serializedDataProviderList
       dataProviderListSalt = this@toInternal.dataProviderListSalt
     }
-    detailsJson = details.toJson()
   }
 }
 
