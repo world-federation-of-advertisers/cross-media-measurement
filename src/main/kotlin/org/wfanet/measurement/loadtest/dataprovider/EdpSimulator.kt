@@ -44,16 +44,43 @@ abstract class EdpSimulator : Runnable {
   override fun run() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
 
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.tlsFlags.certFile,
+        privateKeyFile = flags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      )
+
+    val requisitionsStub =
+      RequisitionsCoroutineStub(
+        buildMutualTlsChannel(
+            flags.kingdomPublicApiFlags.target,
+            clientCerts,
+            flags.kingdomPublicApiFlags.certHost
+          )
+          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+      )
+
+    val requisitionFulfillmentStub =
+      RequisitionFulfillmentCoroutineStub(
+        buildMutualTlsChannel(
+            flags.requisitionFulfillmentServiceFlags.target,
+            clientCerts,
+            flags.requisitionFulfillmentServiceFlags.certHost,
+          )
+          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+      )
+
     val workflow =
       RequisitionFulfillmentWorkflow(
-        flags.externalDataProviderId,
+        flags.dataProviderResourceName,
         flags
           .publicApiProtocolConfigs
           .reader()
           .use { parseTextProto(it, PublicApiProtocolConfigs.getDefaultInstance()) }
           .configsMap,
-        flags.requisitionsStub,
-        flags.requisitionFulfillmentStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
         storageClient,
       )
 
@@ -66,14 +93,6 @@ abstract class EdpSimulator : Runnable {
     lateinit var tlsFlags: TlsFlags
       private set
 
-    val clientCerts by lazy {
-      SigningCerts.fromPemFiles(
-        certificateFile = tlsFlags.certFile,
-        privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
-      )
-    }
-
     @CommandLine.Option(
       names = ["--public-api-protocol-configs"],
       description = ["PublicApiProtocolConfigs proto message in text format."],
@@ -82,11 +101,19 @@ abstract class EdpSimulator : Runnable {
     lateinit var publicApiProtocolConfigs: String
       private set
 
-    @CommandLine.Option(names = ["--external-data-provider-id"], required = true)
-    lateinit var externalDataProviderId: String
+    @CommandLine.Option(
+      names = ["--data-provider-resource-name"],
+      description = ["The public API resource name of this data provider."],
+      required = true
+    )
+    lateinit var dataProviderResourceName: String
       private set
 
-    @CommandLine.Option(names = ["--throttler-minimum-interval"], defaultValue = "1s")
+    @CommandLine.Option(
+      names = ["--throttler-minimum-interval"],
+      description = ["Minimum throttle interval"],
+      defaultValue = "1s"
+    )
     lateinit var throttlerMinimumInterval: Duration
       private set
 
@@ -98,31 +125,9 @@ abstract class EdpSimulator : Runnable {
     lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
       private set
 
-    val requisitionsStub by lazy {
-      RequisitionsCoroutineStub(
-        buildMutualTlsChannel(
-            kingdomPublicApiFlags.target,
-            clientCerts,
-            kingdomPublicApiFlags.certHost
-          )
-          .withVerboseLogging(debugVerboseGrpcClientLogging)
-      )
-    }
-
     @CommandLine.Mixin
     lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
       private set
-
-    val requisitionFulfillmentStub by lazy {
-      RequisitionFulfillmentCoroutineStub(
-        buildMutualTlsChannel(
-            requisitionFulfillmentServiceFlags.target,
-            clientCerts,
-            requisitionFulfillmentServiceFlags.certHost,
-          )
-          .withVerboseLogging(debugVerboseGrpcClientLogging)
-      )
-    }
 
     @set:CommandLine.Option(
       names = ["--debug-verbose-grpc-client-logging"],
