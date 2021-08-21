@@ -246,7 +246,7 @@ CREATE TABLE Requisitions (
   RequisitionId               INT64 NOT NULL,
   DataProviderId              INT64 NOT NULL,
 
-  CreateTime                  TIMESTAMP NOT NULL
+  UpdateTime                  TIMESTAMP NOT NULL
                               OPTIONS (allow_commit_timestamp = true),
 
   ExternalRequisitionId       INT64 NOT NULL,

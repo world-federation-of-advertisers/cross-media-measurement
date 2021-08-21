@@ -39,7 +39,7 @@ message Requisition {
   fixed64 external_data_provider_id = 5;
   fixed64 external_data_provider_certificate_id = 6;
 
-  google.protobuf.Timestamp create_time = 7;
+  google.protobuf.Timestamp update_time = 7;
 
   enum State {
     STATE_UNSPECIFIED = 0;
