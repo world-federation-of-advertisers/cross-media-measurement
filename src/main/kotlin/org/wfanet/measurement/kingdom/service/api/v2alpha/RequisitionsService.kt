@@ -77,7 +77,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
       limit = pageSize
       filterBuilder.apply {
         if (request.pageToken.isNotBlank()) {
-          createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
+          updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
         }
         if (request.filter.measurement.isNotBlank()) {
           val measurementKey: MeasurementKey =
@@ -108,7 +108,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
     return ListRequisitionsResponse.newBuilder()
       .addAllRequisitions(results.map(InternalRequisition::toRequisition))
-      .setNextPageToken(results.last().createTime.toByteArray().base64UrlEncode())
+      .setNextPageToken(results.last().updateTime.toByteArray().base64UrlEncode())
       .build()
   }
 
