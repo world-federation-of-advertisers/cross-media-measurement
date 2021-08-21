@@ -28,7 +28,7 @@ service Requisitions {
   rpc GetRequisitionByDataProviderId(GetRequisitionByDataProviderIdRequest)
       returns (Requisition);
 
-  // Streams Requisitions ordered by create time, ascending.
+  // Streams Requisitions ordered by update time, ascending.
   rpc StreamRequisitions(StreamRequisitionsRequest)
       returns (stream Requisition);
 
@@ -57,7 +57,7 @@ message StreamRequisitionsRequest {
     int64 external_measurement_consumer_id = 1;
     int64 external_data_provider_id = 2;
     repeated Requisition.State states = 3;
-    google.protobuf.Timestamp created_after = 4;
+    google.protobuf.Timestamp updated_after = 4;
   }
   Filter filter = 1;
 
