@@ -28,7 +28,11 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -39,8 +43,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 
 private const val RANDOM_SEED = 1
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
@@ -56,6 +58,9 @@ private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 
 private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
+private val EL_GAMAL_PUBLIC_KEY = ByteString.copyFromUtf8("This is an ElGamal Public Key.")
+private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =
+  ByteString.copyFromUtf8("This is an ElGamal Public Key signature.")
 
 @RunWith(JUnit4::class)
 abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCoroutineImplBase> {
@@ -204,6 +209,11 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
       externalDuchyCertificateId = certificate.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
     }
     val expectedComputationParticipant = computationParticipant {
       this.state = ComputationParticipant.State.REQUISITION_PARAMS_SET
@@ -212,14 +222,13 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       this.externalComputationId = measurement.externalComputationId
       this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
       this.externalDuchyCertificateId = certificate.externalCertificateId
+      this.details = details { liquidLegionsV2 = request.liquidLegionsV2 }
     }
 
     val computationParticipant =
       computationParticipantsService.setParticipantRequisitionParams(request)
     assertThat(computationParticipant)
-      .ignoringFields(
-        ComputationParticipant.UPDATE_TIME_FIELD_NUMBER
-      )
+      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
       .isEqualTo(expectedComputationParticipant)
   }
 

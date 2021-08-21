@@ -23,7 +23,9 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -65,11 +67,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     }
 
     val participantDetails =
-      computationParticipant
-        .details
-        .toBuilder()
-        .apply { liquidLegionsV2 = request.liquidLegionsV2 }
-        .build()
+      computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
 
     updateMutation("ComputationParticipants") {
         set("MeasurementId" to measurementId)
@@ -87,7 +85,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       state = ComputationParticipant.State.REQUISITION_PARAMS_SET
       externalDuchyCertificateId = request.externalDuchyCertificateId
       details = participantDetails
-
     }
 
     // if (allComputationParticipantsInState(
