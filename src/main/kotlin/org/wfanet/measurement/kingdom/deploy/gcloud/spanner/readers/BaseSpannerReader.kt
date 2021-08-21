@@ -24,10 +24,10 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 /** Base abstraction for reading from Spanner. */
 abstract class BaseSpannerReader<T> {
   /** Provides a Statement builder for modification -- this is used to execute the query. */
-  abstract val builder: Statement.Builder
+  protected abstract val builder: Statement.Builder
 
   /** Transforms the results of the query. */
-  abstract suspend fun translate(struct: Struct): T
+  protected abstract suspend fun translate(struct: Struct): T
 
   /** Executes the query. */
   fun execute(readContext: AsyncDatabaseClient.ReadContext): Flow<T> {
@@ -36,13 +36,6 @@ abstract class BaseSpannerReader<T> {
   }
 
   companion object {
-    fun forStructs(statement: Statement): BaseSpannerReader<Struct> {
-      return object : BaseSpannerReader<Struct>() {
-        override val builder: Statement.Builder = statement.toBuilder()
-        override suspend fun translate(struct: Struct): Struct = struct
-      }
-    }
-
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
