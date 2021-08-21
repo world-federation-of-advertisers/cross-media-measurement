@@ -18,11 +18,18 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class ComputationParticipantReader() : SpannerReader<ComputationParticipantReader.Result>() {
 
-  data class Result(val computaitonParticipant: ComputationParticipant)
+  data class Result(
+    val computationParticipant: ComputationParticipant,
+    val measurementId: Long,
+    val measurementConsumerId: Long
+  )
 
   override val baseSql: String =
     """
@@ -33,25 +40,28 @@ class ComputationParticipantReader() : SpannerReader<ComputationParticipantReade
       ComputationParticipants.CertificateId,
       ComputationParticipants.State,
       ComputationParticipants.ParticipantDetails,
-      ComputationParticipants.ParticipantDetailsJson
+      ComputationParticipants.ParticipantDetailsJson,
+      ComputationParticipants.UpdateTime,
+      Measurements.ExternalMeasurementId,
+      Measurements.ExternalComputationId,
+      MeasurementConsumers.ExternalMeasurementConsumerId
     FROM ComputationParticipants
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN MEASUREMENTS USING(MeasurementConsumerId, MeasurementId)
     """.trimIndent()
 
   override val externalIdColumn: String
     get() = error("This isn't supported.")
 
-  suspend fun readInternalIdsOrNull(
+  suspend fun readWithIdsOrNull(
     readContext: AsyncDatabaseClient.ReadContext,
-    measurementId: Long,
-    measurementConsumerId: Long,
+    externalComputationId: Long,
     duchyId: Long
   ): Result? {
     return withBuilder {
-        appendClause("WHERE measurementId = @measurementId")
-        appendClause("AND measurementConsumerId = @measurementConsumerId")
-        appendClause("AND duchyId = @duchyId")
-        bind("measurementId").to(measurementId)
-        bind("measurementConsumerId").to(measurementConsumerId)
+        appendClause("WHERE Measurements.externalComputationId = @externalComputationId")
+        appendClause("AND ComputationParticipants.duchyId = @duchyId")
+        bind("externalComputationId").to(externalComputationId)
         bind("duchyId").to(duchyId)
 
         appendClause("LIMIT 1")
@@ -61,5 +71,19 @@ class ComputationParticipantReader() : SpannerReader<ComputationParticipantReade
   }
 
   override suspend fun translate(struct: Struct): Result =
-    Result(ComputationParticipant.newBuilder().build())
+    Result(
+      buildComputationParticipant(struct),
+      struct.getLong("MeasurementId"),
+      struct.getLong("MeasurementConsumerId")
+    )
+
+  private fun buildComputationParticipant(struct: Struct) : ComputationParticipant =
+      computationParticipant {
+        externalMeasurementId = struct.getLong("ExternalMeasurementId")
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        externalComputationId = struct.getLong("ExternalComputationId")
+        externalDuchyId = checkNotNull(DuchyIds.getExternalId(struct.getLong("DuchyId")))
+        state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+        updateTime = struct.getTimestamp("UpdateTime").toProto()
+      }
 }

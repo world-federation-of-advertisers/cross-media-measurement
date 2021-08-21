@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -22,6 +24,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.Com
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 
 class SpannerComputationParticipantsService(
@@ -32,7 +35,19 @@ class SpannerComputationParticipantsService(
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
-    return SetParticipantRequisitionParams(request).execute(client, idGenerator, clock)
+    try {
+      return SetParticipantRequisitionParams(request).execute(client, idGenerator, clock)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Computation participant not in CREATED state" }
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+      }
+    }
   }
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
