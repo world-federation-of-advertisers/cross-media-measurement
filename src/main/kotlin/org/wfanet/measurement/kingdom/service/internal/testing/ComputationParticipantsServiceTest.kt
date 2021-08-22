@@ -17,10 +17,14 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -195,53 +199,186 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     )
   }
 
-  //   @Test
-  //   fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {
-  //     val measurementConsumer = insertMeasurementConsumer()
-  //     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-  //     val externalMeasurementConsumerCertificateId =
-  //       measurementConsumer.certificate.externalCertificateId
-  //     val dataProvider = insertDataProvider()
+  @Test
+  fun `confirmComputationParticipant fails for wrong externalDuchyId`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
 
-  //     val externalDataProviderId = dataProvider.externalDataProviderId
-  //     val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
 
-  //     val measurement =
-  //       insertMeasurement(
-  //         externalMeasurementConsumerId,
-  //         externalMeasurementConsumerCertificateId,
-  //         externalDataProviderId,
-  //         externalDataProviderCertificateId
-  //       )
-  //     val certificate = insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0))
+    val measurement =
+      insertMeasurement(
+        externalMeasurementConsumerId,
+        externalMeasurementConsumerCertificateId,
+        externalDataProviderId,
+        externalDataProviderCertificateId
+      )
+    val certificate =
+      insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
 
-  //     val request = setParticipantRequisitionParamsRequest {
-  //       externalComputationId = measurement.externalComputationId
-  //       externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-  //       externalDuchyCertificateId = certificate.externalCertificateId
-  //       liquidLegionsV2 =
-  //         liquidLegionsV2Details {
-  //           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-  //           elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-  //         }
-  //     }
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = "wrong_external_duchy_id"
+      externalDuchyCertificateId = certificate.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
 
-  //     val expectedComputationParticipant = computationParticipant {
-  //       this.state = ComputationParticipant.State.REQUISITION_PARAMS_SET
-  //       this.externalMeasurementConsumerId = externalMeasurementConsumerId
-  //       this.externalMeasurementId = measurement.externalMeasurementId
-  //       this.externalComputationId = measurement.externalComputationId
-  //       this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-  //       this.externalDuchyCertificateId = certificate.externalCertificateId
-  //       this.details = details { liquidLegionsV2 = request.liquidLegionsV2 }
-  //     }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.setParticipantRequisitionParams(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Duchy not found")
+  }
 
-  //     val computationParticipant =
-  //       computationParticipantsService.setParticipantRequisitionParams(request)
-  //     assertThat(computationParticipant)
-  //       .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-  //       .isEqualTo(expectedComputationParticipant)
-  //   }
+  @Test
+  fun `confirmComputationParticipant fails for wrong externalComputationId`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    insertMeasurement(
+      externalMeasurementConsumerId,
+      externalMeasurementConsumerCertificateId,
+      externalDataProviderId,
+      externalDataProviderCertificateId
+    )
+    val certificate =
+      insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = 12345L // Wrong ExternalComputationId
+      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyCertificateId = certificate.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.setParticipantRequisitionParams(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Computation participant not found")
+  }
+
+  @Test
+  fun `confirmComputationParticipant fails for wrong certificate for computationParticipant`() =
+      runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    val measurement =
+      insertMeasurement(
+        externalMeasurementConsumerId,
+        externalMeasurementConsumerCertificateId,
+        externalDataProviderId,
+        externalDataProviderCertificateId
+      )
+    insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyCertificateId = 12345L // Wrong External Duchy Certificate Id
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.setParticipantRequisitionParams(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Certificate for Computation participant not found")
+  }
+
+  @Test
+  fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    val measurement =
+      insertMeasurement(
+        externalMeasurementConsumerId,
+        externalMeasurementConsumerCertificateId,
+        externalDataProviderId,
+        externalDataProviderCertificateId
+      )
+    val certificate =
+      insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyCertificateId = certificate.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
+
+    val expectedComputationParticipant = computationParticipant {
+      this.state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementId = measurement.externalMeasurementId
+      this.externalComputationId = measurement.externalComputationId
+      this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      this.externalDuchyCertificateId = certificate.externalCertificateId
+      this.details = details { liquidLegionsV2 = request.liquidLegionsV2 }
+    }
+
+    val computationParticipant =
+      computationParticipantsService.setParticipantRequisitionParams(request)
+    assertThat(computationParticipant)
+      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(expectedComputationParticipant)
+
+    val nonUpdatedMeasurement =
+      measurementsService.getMeasurementByComputationId(
+        GetMeasurementByComputationIdRequest.newBuilder()
+          .apply {
+            externalComputationId = measurement.externalComputationId
+            measurementView = Measurement.View.COMPUTATION
+          }
+          .build()
+      )
+    assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+  }
 
   @Test
   fun `setParticipantRequisitionParams succeeds for last duchy`() = runBlocking {
@@ -262,30 +399,29 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         externalDataProviderCertificateId
       )
 
-    val firstCertificate =
-      insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
+    // Insert Certificate and set Participant Params for first computationParticipant.
+    computationParticipantsService.setParticipantRequisitionParams(
+      setParticipantRequisitionParamsRequest {
+        externalComputationId = measurement.externalComputationId
+        externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+        externalDuchyCertificateId =
+          insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
+            .externalCertificateId
+        liquidLegionsV2 =
+          liquidLegionsV2Details {
+            elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+            elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+          }
+      }
+    )
 
-    val firstRequest = setParticipantRequisitionParamsRequest {
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      externalDuchyCertificateId = firstCertificate.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
-    }
-
-    val firstComputationParticipant =
-      computationParticipantsService.setParticipantRequisitionParams(firstRequest)
-
-    val secondCertificate =
+    val lastCertificate =
       insertDuchyCertificate(EXTERNAL_DUCHY_IDS.get(1), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(1))
 
-    val secondRequest = setParticipantRequisitionParamsRequest {
+    val lastRequest = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-      externalDuchyCertificateId = secondCertificate.externalCertificateId
+      externalDuchyCertificateId = lastCertificate.externalCertificateId
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -293,24 +429,24 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
     }
 
-    val secondExpectedComputationParticipant = computationParticipant {
+    val lastExpectedComputationParticipant = computationParticipant {
       this.state = ComputationParticipant.State.REQUISITION_PARAMS_SET
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       this.externalMeasurementId = measurement.externalMeasurementId
       this.externalComputationId = measurement.externalComputationId
       this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-      this.externalDuchyCertificateId = secondCertificate.externalCertificateId
-      this.details = details { liquidLegionsV2 = secondRequest.liquidLegionsV2 }
+      this.externalDuchyCertificateId = lastCertificate.externalCertificateId
+      this.details = details { liquidLegionsV2 = lastRequest.liquidLegionsV2 }
     }
 
-    val secondComputationParticipant =
-      computationParticipantsService.setParticipantRequisitionParams(secondRequest)
+    val lastComputationParticipant =
+      computationParticipantsService.setParticipantRequisitionParams(lastRequest)
 
-    assertThat(secondComputationParticipant)
+    assertThat(lastComputationParticipant)
       .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(secondExpectedComputationParticipant)
+      .isEqualTo(lastExpectedComputationParticipant)
 
-    val readMeasurement =
+    val updatedMeasurement =
       measurementsService.getMeasurementByComputationId(
         GetMeasurementByComputationIdRequest.newBuilder()
           .apply {
@@ -319,12 +455,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           }
           .build()
       )
-    assertThat(readMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_FULFILLMENT)
+    assertThat(updatedMeasurement.state)
+      .isEqualTo(Measurement.State.PENDING_REQUISITION_FULFILLMENT)
   }
 
-  //   @Ignore @Test fun `confirmComputationParticipant succeeds for non-last duchy`() = runBlocking
-  // {}
-  //   @Ignore @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
+  @Ignore @Test fun `confirmComputationParticipant succeeds for non-last duchy`() = runBlocking {}
+  @Ignore @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
 
-  //   @Ignore @Test fun `failComputationParticipant succeeds`() = runBlocking {}
+  @Ignore @Test fun `failComputationParticipant succeeds`() = runBlocking {}
 }

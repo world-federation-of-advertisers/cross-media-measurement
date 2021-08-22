@@ -40,11 +40,17 @@ class SpannerComputationParticipantsService(
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Computation participant not in CREATED state" }
+          failGrpc(Status.FAILED_PRECONDITION) { "Computation participant not in CREATED state." }
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.FAILED_PRECONDITION) {
+            "Certificate for Computation participant not found."
+          }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.DUCHY_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
       }
     }

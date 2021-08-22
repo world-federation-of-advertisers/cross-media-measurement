@@ -105,7 +105,7 @@ suspend fun readComputationParticipantState(
     )
     ?.let { struct -> struct.getProtoEnum(column, ComputationParticipant.State::forNumber) }
     ?: throw KingdomInternalException(
-      KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+      KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND
     ) { "ComputationParticipant not found ${duchyId}" }
 }
 

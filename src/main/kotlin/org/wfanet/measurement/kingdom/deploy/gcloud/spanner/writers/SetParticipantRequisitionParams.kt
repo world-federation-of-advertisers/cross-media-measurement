@@ -24,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
@@ -47,7 +48,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       ComputationParticipantReader()
         .readWithIdsOrNull(transactionContext, request.externalComputationId, duchyId)
         ?: throw KingdomInternalException(
-          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+          KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
             "and external duchy Id ${request.externalDuchyId} not found"
@@ -90,12 +91,11 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         ComputationParticipant.State.REQUISITION_PARAMS_SET
       )
     ) {
-      println("YEAAAAAAAHHH!!!!")
-      // updateMeasurementState(
-      //   InternalId(computationParticipantResult.measurementId),
-      //   InternalId(computationParticipantResult.measurementConsumerId),
-      //   Measurement.State.PENDING_REQUISITION_FULFILLMENT
-      // )
+      updateMeasurementState(
+        InternalId(measurementConsumerId),
+        InternalId(measurementId),
+        Measurement.State.PENDING_REQUISITION_FULFILLMENT
+      )
     }
     return computationParticipant.copy {
       state = ComputationParticipant.State.REQUISITION_PARAMS_SET
