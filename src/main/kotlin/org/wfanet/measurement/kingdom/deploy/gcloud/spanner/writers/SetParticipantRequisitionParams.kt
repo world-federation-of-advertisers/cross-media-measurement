@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.allOtherComputationParticipantsInState
 
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SimpleSpannerWriter<ComputationParticipant>() {
@@ -70,8 +71,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
 
     updateMutation("ComputationParticipants") {
-        set("MeasurementId" to measurementId)
         set("MeasurementConsumerId" to measurementConsumerId)
+        set("MeasurementId" to measurementId)
         set("DuchyId" to duchyId)
         set("CertificateId" to duchyCertificateId.value)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
@@ -81,24 +82,26 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       }
       .bufferTo(transactionContext)
 
+    if (allOtherComputationParticipantsInState(
+        transactionContext,
+        InternalId(duchyId),
+        InternalId(measurementConsumerId),
+        InternalId(measurementId),
+        ComputationParticipant.State.REQUISITION_PARAMS_SET
+      )
+    ) {
+      println("YEAAAAAAAHHH!!!!")
+      // updateMeasurementState(
+      //   InternalId(computationParticipantResult.measurementId),
+      //   InternalId(computationParticipantResult.measurementConsumerId),
+      //   Measurement.State.PENDING_REQUISITION_FULFILLMENT
+      // )
+    }
     return computationParticipant.copy {
       state = ComputationParticipant.State.REQUISITION_PARAMS_SET
       externalDuchyCertificateId = request.externalDuchyCertificateId
       details = participantDetails
     }
-
-    // if (allComputationParticipantsInState(
-    //     measurementIds.measurementId,
-    //     measurementIds.measurementConsumerId,
-    //     ComputationParticipant.State.REQUISITION_PARAMS_SET
-    //   )
-    // ) {
-    //   updateMeasurementState(
-    //     measurementIds.measurementId,
-    //     measurementIds.measurementConsumerId,
-    //     Measurement.State.PENDING_REQUISITION_FULFILLMENT
-    //   )
-    // }
   }
 
   private suspend fun TransactionScope.readDuchyCertificateId(

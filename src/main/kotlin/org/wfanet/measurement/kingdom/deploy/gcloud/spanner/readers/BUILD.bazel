@@ -14,6 +14,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
         "//src/main/proto/wfa/measurement/internal/kingdom:certificates_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:computation_participant_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:data_provider_kt_jvm_proto",
