@@ -33,6 +33,16 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.allOtherComputationParticipantsInState
 
+private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
+
+/**
+ * Sets participant details for a computationPartcipant in the database.
+ *
+ * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
+ * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
+ * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE]
+ * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SimpleSpannerWriter<ComputationParticipant>() {
 
@@ -77,7 +87,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         set("DuchyId" to duchyId)
         set("CertificateId" to duchyCertificateId.value)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-        set("State" to ComputationParticipant.State.REQUISITION_PARAMS_SET)
+        set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
         set("ParticipantDetails" to participantDetails)
         setJson("ParticipantDetailsJson" to participantDetails)
       }
@@ -88,7 +98,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         InternalId(duchyId),
         InternalId(measurementConsumerId),
         InternalId(measurementId),
-        ComputationParticipant.State.REQUISITION_PARAMS_SET
+        NEXT_COMPUTATION_PARTICIPANT_STATE
       )
     ) {
       updateMeasurementState(
@@ -98,7 +108,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
     return computationParticipant.copy {
-      state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+      state = NEXT_COMPUTATION_PARTICIPANT_STATE
       externalDuchyCertificateId = request.externalDuchyCertificateId
       details = participantDetails
     }
