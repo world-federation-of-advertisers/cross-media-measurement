@@ -447,10 +447,6 @@ kt_jvm_proto_library(
     deps = [":requisitions_service_java_proto"],
 )
 
-proto_and_java_proto_library(
-    name = "exchange_workflow",
-)
+proto_and_java_proto_library(name = "exchange_workflow")
 
-proto_and_java_proto_library(
-    name = "provider",
-)
+proto_and_java_proto_library(name = "provider")
