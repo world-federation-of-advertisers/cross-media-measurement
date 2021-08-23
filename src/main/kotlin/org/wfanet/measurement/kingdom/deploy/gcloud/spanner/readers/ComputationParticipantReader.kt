@@ -118,14 +118,14 @@ suspend fun allOtherComputationParticipantsInState(
 ): Boolean {
 
   DuchyIds.entries.forEach { entry ->
-    val readState =
-      readComputationParticipantState(
-        readContext,
-        measurementConsumerId,
-        measurementId,
-        InternalId(entry.internalDuchyId)
-      )
-    if (entry.internalDuchyId != thisDuchyId.value && readState != state) {
+    if (entry.internalDuchyId != thisDuchyId.value &&
+        readComputationParticipantState(
+          readContext,
+          measurementConsumerId,
+          measurementId,
+          InternalId(entry.internalDuchyId)
+        ) != state
+    ) {
       return false
     }
   }
