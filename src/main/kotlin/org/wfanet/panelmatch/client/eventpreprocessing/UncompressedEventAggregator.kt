@@ -14,19 +14,24 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
+import java.io.ByteArrayOutputStream
+import org.apache.beam.sdk.coders.IterableCoder
+import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
+import org.wfanet.measurement.common.toByteString
 
-@RunWith(JUnit4::class)
-class CryptoKeyProviderTest {
+/**
+ * This is a simple [EventAggregator] for testing/debugging purposes.
+ *
+ * This does not attempt to perform any compression, so it is likely not suitable for production
+ * environments.
+ */
+class UncompressedEventAggregator : EventAggregator {
+  private val coder = IterableCoder.of(ByteStringCoder.of())
 
-  @Test
-  fun hardCoded() {
-    val cryptokey: ByteString = ByteString.copyFromUtf8("testcryptokey")
-    val result = HardCodedCryptoKeyProvider(cryptokey).apply(null as Void?)
-    assertThat(result).isEqualTo(cryptokey)
+  override fun combine(events: Iterable<ByteString>): ByteString {
+    val output = ByteArrayOutputStream()
+    coder.encode(events, output)
+    return output.toByteArray().toByteString()
   }
 }

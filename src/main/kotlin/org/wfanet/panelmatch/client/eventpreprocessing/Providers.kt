@@ -14,19 +14,25 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
+import java.io.Serializable
 
-@RunWith(JUnit4::class)
-class HkdfPepperProviderTest {
+/** Type-safe provider for the identifier hash pepper. */
+fun interface IdentifierHashPepperProvider : Serializable {
+  fun get(): ByteString
+}
 
-  @Test
-  fun hardCoded() {
-    val hkdfPepper: ByteString = ByteString.copyFromUtf8("testhkdfpepper")
-    val result = HardCodedCryptoKeyProvider(hkdfPepper).apply(null as Void?)
-    assertThat(result).isEqualTo(hkdfPepper)
-  }
+/** Type-safe provider for the HKDF pepper. */
+fun interface HkdfPepperProvider : Serializable {
+  fun get(): ByteString
+}
+
+/** Type-safe provider for the deterministic, commutative cipher key. */
+fun interface DeterministicCommutativeCipherKeyProvider : Serializable {
+  fun get(): ByteString
+}
+
+/** Type-safe interface for combining event data. */
+fun interface EventAggregator : Serializable {
+  fun combine(events: Iterable<ByteString>): ByteString
 }

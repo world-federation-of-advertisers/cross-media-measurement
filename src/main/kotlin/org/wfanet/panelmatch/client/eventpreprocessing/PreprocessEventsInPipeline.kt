@@ -15,46 +15,35 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
-import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.panelmatch.common.beam.groupByKey
+import org.wfanet.panelmatch.common.beam.mapValues
 import org.wfanet.panelmatch.common.beam.parDo
 
 /**
- * Runs preprocessing DoFns on input [PCollection] using specified ByteStrings as the crypto key,
- * HKDF pepper, and Identifier Hash Pepper and outputs encrypted [PCollection]
+ * Prepares event data for usage in Private Membership query evaluation.
+ *
+ * The basic steps are:
+ *
+ * 1. Aggregate values per key using [eventAggregator].
+ * 2. Batch these into collections of at most [maxByteSize] bytes.
+ * 3. Encrypt the keys and values.
  */
 fun preprocessEventsInPipeline(
   events: PCollection<KV<ByteString, ByteString>>,
   maxByteSize: Int,
-  identifierHashPepper: ByteString,
-  hkdfPepper: ByteString,
-  cryptokey: ByteString
-): PCollection<KV<Long, ByteString>> {
-  return preprocessEventsInPipeline(
-    events,
-    maxByteSize,
-    HardCodedIdentifierHashPepperProvider(identifierHashPepper),
-    HardCodedHkdfPepperProvider(hkdfPepper),
-    HardCodedCryptoKeyProvider(cryptokey)
-  )
-}
-
-/**
- * Runs preprocessing DoFns on input [PCollection] using specified SerializableFunctions to supply
- * cryptokey, HKDF pepper, and Identifier Hash pepper and outputs encrypted [PCollection]
- */
-fun preprocessEventsInPipeline(
-  events: PCollection<KV<ByteString, ByteString>>,
-  maxByteSize: Int,
-  identifierHashPepperProvider: SerializableFunction<Void?, ByteString>,
-  hkdfPepperProvider: SerializableFunction<Void?, ByteString>,
-  cryptoKeyProvider: SerializableFunction<Void?, ByteString>,
+  identifierHashPepperProvider: IdentifierHashPepperProvider,
+  hkdfPepperProvider: HkdfPepperProvider,
+  cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
+  eventAggregator: EventAggregator,
 ): PCollection<KV<Long, ByteString>> {
   return events
+    .groupByKey()
+    .mapValues { eventAggregator.combine(it) }
     .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
     .parDo(
-      EncryptionEventsDoFn(
+      EncryptEventsDoFn(
         EncryptEvents(),
         identifierHashPepperProvider,
         hkdfPepperProvider,

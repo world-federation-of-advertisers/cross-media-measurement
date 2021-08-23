@@ -18,25 +18,23 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import kotlin.test.assertFails
 import org.junit.Test
+import org.wfanet.panelmatch.common.toByteString
 import org.wfanet.panelmatch.protocol.CryptorDecryptRequest
 import org.wfanet.panelmatch.protocol.CryptorEncryptRequest
 import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
 import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 
 private val PLAINTEXTS: List<ByteString> =
-  listOf<ByteString>(
-    ByteString.copyFromUtf8("some plaintext0"),
-    ByteString.copyFromUtf8("some plaintext1"),
-    ByteString.copyFromUtf8("some plaintext2"),
-    ByteString.copyFromUtf8("some plaintext3"),
-    ByteString.copyFromUtf8("some plaintext4")
+  listOf(
+    "some plaintext0".toByteString(),
+    "some plaintext1".toByteString(),
+    "some plaintext2".toByteString(),
+    "some plaintext3".toByteString(),
+    "some plaintext4".toByteString()
   )
 
 private val CIPHERTEXTS: List<ByteString> =
-  listOf<ByteString>(
-    ByteString.copyFromUtf8("some ciphertext0"),
-    ByteString.copyFromUtf8("some ciphertext1")
-  )
+  listOf("some ciphertext0".toByteString(), "some ciphertext1".toByteString())
 
 /** Abstract base class for testing implementations of [cipher]. */
 abstract class AbstractDeterministicCommutativeCipherTest {
@@ -45,8 +43,8 @@ abstract class AbstractDeterministicCommutativeCipherTest {
 
   @Test
   fun testCryptor() {
-    val randomKey1: ByteString = ByteString.copyFromUtf8("random-key-00")
-    val randomKey2: ByteString = ByteString.copyFromUtf8("random-key-222")
+    val randomKey1: ByteString = "random-key-00".toByteString()
+    val randomKey2: ByteString = "random-key-222".toByteString()
 
     val encryptedTexts1 = cipher.encrypt(randomKey1, PLAINTEXTS)
     val encryptedTexts2 = cipher.encrypt(randomKey2, PLAINTEXTS)

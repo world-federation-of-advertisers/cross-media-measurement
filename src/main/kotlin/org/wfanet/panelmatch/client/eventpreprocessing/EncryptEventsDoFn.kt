@@ -22,47 +22,48 @@ import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.values.KV
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
+import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
+import org.wfanet.panelmatch.client.preprocessEventsRequest
+import org.wfanet.panelmatch.common.beam.kvOf
 
 /**
- * Takes in a MutableList<KV<ByteString,ByteString>>, packs them into PreprocessedEventRequest
- * protos, encrypts the identifier and event data using several encryption schemes, and unpacks them
- * from PreprocessedEventResponse protos and emits them as KV<Long,ByteString> pairs
+ * Encrypts each of a batch of pairs of ByteStrings.
+ *
+ * The outputs are suitable for use as database entries in the Private Membership protocol.
  */
-class EncryptionEventsDoFn(
+class EncryptEventsDoFn(
   private val encryptEvents:
     SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse>,
-  private val getIdentifierHashPepper: SerializableFunction<Void?, ByteString>,
-  private val getHkdfPepper: SerializableFunction<Void?, ByteString>,
-  private val getCryptoKey: SerializableFunction<Void?, ByteString>,
+  private val identifierHashPepperProvider: IdentifierHashPepperProvider,
+  private val hkdfPepperProvider: HkdfPepperProvider,
+  private val deterministicCommutativeCipherKeyProvider: DeterministicCommutativeCipherKeyProvider,
 ) : DoFn<MutableList<KV<ByteString, ByteString>>, KV<Long, ByteString>>() {
   private val jniCallTimeDistribution =
     Metrics.distribution(BatchingDoFn::class.java, "jni-call-time-micros")
 
   @ProcessElement
   fun process(c: ProcessContext) {
-    val list: MutableList<KV<ByteString, ByteString>> = c.element()
-    val request =
-      PreprocessEventsRequest.newBuilder()
-        .apply {
-          cryptoKey = getCryptoKey.apply(null as Void?)
-          identifierHashPepper = getIdentifierHashPepper.apply(null as Void?)
-          hkdfPepper = getHkdfPepper.apply(null as Void?)
-          for (pair in list) {
-            addUnprocessedEventsBuilder().apply {
-              id = pair.key
-              data = pair.value
-            }
+    val events: MutableList<KV<ByteString, ByteString>> = c.element()
+    val request = preprocessEventsRequest {
+      cryptoKey = deterministicCommutativeCipherKeyProvider.get()
+      identifierHashPepper = identifierHashPepperProvider.get()
+      hkdfPepper = hkdfPepperProvider.get()
+      for (event in events) {
+        unprocessedEvents +=
+          unprocessedEvent {
+            id = event.key
+            data = event.value
           }
-        }
-        .build()
+      }
+    }
     val stopWatch: Stopwatch = Stopwatch.createStarted()
     val response: PreprocessEventsResponse = encryptEvents.apply(request)
     stopWatch.stop()
     jniCallTimeDistribution.update(stopWatch.elapsed(TimeUnit.MICROSECONDS))
 
-    for (events in response.processedEventsList) {
-      c.output(KV.of(events.encryptedId, events.encryptedData))
+    for (processedEvent in response.processedEventsList) {
+      c.output(kvOf(processedEvent.encryptedId, processedEvent.encryptedData))
     }
   }
 }

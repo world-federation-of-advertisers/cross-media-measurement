@@ -14,32 +14,31 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
+import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
+import org.wfanet.panelmatch.client.preprocessEventsRequest
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class EncryptEventsTest {
 
   @Test
   fun test() {
-    val request =
-      PreprocessEventsRequest.newBuilder()
-        .apply {
-          cryptoKey = ByteString.copyFromUtf8("cryptokey")
-          identifierHashPepper = ByteString.copyFromUtf8("identifier-hash-pepper")
-          hkdfPepper = ByteString.copyFromUtf8("hkdf-pepper")
-          addUnprocessedEventsBuilder().apply {
-            id = ByteString.copyFromUtf8("identifier")
-            data = ByteString.copyFromUtf8("eventdata")
-          }
+    val request = preprocessEventsRequest {
+      cryptoKey = "crypto-key".toByteString()
+      identifierHashPepper = "identifier-hash-pepper".toByteString()
+      hkdfPepper = "hkdf-pepper".toByteString()
+      unprocessedEvents +=
+        unprocessedEvent {
+          id = "identifier".toByteString()
+          data = "event-data".toByteString()
         }
-        .build()
+    }
     val encryptEvents = EncryptEvents()
 
-    assertThat(encryptEvents.apply(request)).isNotNull()
+    // TODO(@efoxepstein): once we have a JNIed way to decrypt, this should check roundtrips.
+    encryptEvents.apply(request) // Does not throw
   }
 }

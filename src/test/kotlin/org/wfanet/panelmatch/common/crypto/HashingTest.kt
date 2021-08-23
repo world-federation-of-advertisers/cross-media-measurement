@@ -15,13 +15,13 @@
 package org.wfanet.panelmatch.common.crypto
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.common.toByteString
 
-private val DATA = ByteString.copyFromUtf8("some-data-to-hash")
-private val ALT_DATA = ByteString.copyFromUtf8("some-other-data-to-hash")
+private val DATA = "some-data-to-hash".toByteString()
+private val ALT_DATA = "some-other-data-to-hash".toByteString()
 
 @RunWith(JUnit4::class)
 class HashingTest {

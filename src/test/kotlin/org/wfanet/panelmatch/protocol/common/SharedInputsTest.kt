@@ -15,20 +15,20 @@
 package org.wfanet.panelmatch.protocol.common
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import org.junit.Test
+import org.wfanet.panelmatch.common.toByteString
 
 class SharedInputsTest {
 
   @Test
   fun `check Shared Inputs serializer and parser`() {
     val someListOfByteString =
-      listOf<ByteString>(
-        ByteString.copyFromUtf8("some plaintext0"),
-        ByteString.copyFromUtf8("some plaintext1"),
-        ByteString.copyFromUtf8("some plaintext2"),
-        ByteString.copyFromUtf8("some plaintext3"),
-        ByteString.copyFromUtf8("some plaintext4")
+      listOf(
+        "some plaintext0".toByteString(),
+        "some plaintext1".toByteString(),
+        "some plaintext2".toByteString(),
+        "some plaintext3".toByteString(),
+        "some plaintext4".toByteString()
       )
     assertThat(makeSerializedSharedInputs(someListOfByteString)).isNotEqualTo(someListOfByteString)
     assertThat(parseSerializedSharedInputs(makeSerializedSharedInputs(someListOfByteString)))

@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.storage.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.reduce
 import org.junit.Test
@@ -26,9 +25,10 @@ import org.wfanet.panelmatch.client.storage.verifiedBatchWrite
 import org.wfanet.panelmatch.client.storage.verifiedRead
 import org.wfanet.panelmatch.client.storage.verifiedWrite
 import org.wfanet.panelmatch.common.testing.runBlockingTest
+import org.wfanet.panelmatch.common.toByteString
 
 private const val KEY = "some arbitrary key"
-private val VALUE = ByteString.copyFromUtf8("some arbitrary value")
+private val VALUE = "some arbitrary value".toByteString()
 
 abstract class AbstractStorageTest {
   abstract val privateStorage: StorageClient

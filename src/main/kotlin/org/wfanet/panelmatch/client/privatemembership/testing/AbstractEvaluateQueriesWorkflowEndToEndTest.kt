@@ -32,6 +32,7 @@ import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.toByteString
 
 /** Base test class for testing the full pipeline, including a specific [QueryEvaluator]. */
 abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
@@ -64,7 +65,7 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
     assertThat(keys).containsNoDuplicates() // Sanity check: 10 different keys
 
     val rawDatabase: Map<Long, ByteString> =
-      keys.associateWith { ByteString.copyFromUtf8("<this is the payload for $it>") }
+      keys.associateWith { "<this is the payload for $it>".toByteString() }
 
     val database: Map<DatabaseKey, Plaintext> =
       rawDatabase.mapKeys { databaseKeyOf(it.key) }.mapValues { plaintextOf(it.value) }

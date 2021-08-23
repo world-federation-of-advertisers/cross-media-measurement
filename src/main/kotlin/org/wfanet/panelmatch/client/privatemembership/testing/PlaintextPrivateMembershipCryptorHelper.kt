@@ -30,6 +30,7 @@ import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
+import org.wfanet.panelmatch.common.toByteString
 
 object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
 
@@ -51,13 +52,8 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
 
   override fun makeEncryptedResults(plaintexts: List<Pair<Int, String>>): List<ByteString> {
     return plaintexts.map {
-      // requireNotNull(
-      resultOf(
-          queryMetadataOf(queryIdOf(it.first), ByteString.EMPTY),
-          ByteString.copyFromUtf8(it.second)
-        )
+      resultOf(queryMetadataOf(queryIdOf(it.first), ByteString.EMPTY), it.second.toByteString())
         .toByteString()
-      // )
     }
   }
 

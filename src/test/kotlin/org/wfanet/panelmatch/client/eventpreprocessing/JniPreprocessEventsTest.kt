@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,6 +22,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.eventpreprocessing.testing.AbstractPreprocessEventsTest
 import org.wfanet.panelmatch.common.JniException
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
@@ -32,11 +32,11 @@ class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
     val request =
       PreprocessEventsRequest.newBuilder()
         .apply {
-          cryptoKey = ByteString.copyFromUtf8("arbitrary-cryptokey")
-          hkdfPepper = ByteString.copyFromUtf8("arbitrary-hkdf-pepper")
+          cryptoKey = "arbitrary-cryptokey".toByteString()
+          hkdfPepper = "arbitrary-hkdf-pepper".toByteString()
           addUnprocessedEventsBuilder().apply {
-            id = ByteString.copyFromUtf8("arbitrary-id")
-            data = ByteString.copyFromUtf8("arbitrary-data")
+            id = "arbitrary-id".toByteString()
+            data = "arbitrary-data".toByteString()
           }
         }
         .build()
@@ -48,15 +48,15 @@ class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
     val request =
       PreprocessEventsRequest.newBuilder()
         .apply {
-          cryptoKey = ByteString.copyFromUtf8("arbitrary-cryptokey")
-          identifierHashPepper = ByteString.copyFromUtf8("arbitrary-identifier-hash-pepper")
+          cryptoKey = "arbitrary-cryptokey".toByteString()
+          identifierHashPepper = "arbitrary-identifier-hash-pepper".toByteString()
           addUnprocessedEventsBuilder().apply {
-            id = ByteString.copyFromUtf8("arbitrary-id")
-            data = ByteString.copyFromUtf8("arbitrary-data")
+            id = "arbitrary-id".toByteString()
+            data = "arbitrary-data".toByteString()
           }
         }
         .build()
-    val noPepper = assertFailsWith(JniException::class) { preprocessEvents.preprocess(request) }
+    val noPepper = assertFailsWith<JniException> { preprocessEvents.preprocess(request) }
     assertThat(noPepper.message).contains("Empty HKDF Pepper")
   }
   @Test
@@ -65,11 +65,11 @@ class JniPreprocessEventsTest : AbstractPreprocessEventsTest() {
       val request =
         PreprocessEventsRequest.newBuilder()
           .apply {
-            identifierHashPepper = ByteString.copyFromUtf8("arbitrary-identifier-hash-pepper")
-            hkdfPepper = ByteString.copyFromUtf8("arbitrary-hkdf-pepper")
+            identifierHashPepper = "arbitrary-identifier-hash-pepper".toByteString()
+            hkdfPepper = "arbitrary-hkdf-pepper".toByteString()
             addUnprocessedEventsBuilder().apply {
-              id = ByteString.copyFromUtf8("arbitrary-id")
-              data = ByteString.copyFromUtf8("arbitrary-data")
+              id = "arbitrary-id".toByteString()
+              data = "arbitrary-data".toByteString()
             }
           }
           .build()

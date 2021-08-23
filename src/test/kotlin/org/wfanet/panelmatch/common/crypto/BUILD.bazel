@@ -5,6 +5,7 @@ kt_jvm_test(
     srcs = ["HashingTest.kt"],
     test_class = "org.wfanet.panelmatch.common.crypto.HashingTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto:hashing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

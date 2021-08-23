@@ -19,42 +19,43 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.panelmatch.common.toByteString
 import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 
-val MP_0_SECRET_KEY: ByteString = ByteString.copyFromUtf8("random-mp-string-0")
+val MP_0_SECRET_KEY: ByteString = "random-mp-string-0".toByteString()
 
 val JOIN_KEYS =
-  listOf<ByteString>(
-    ByteString.copyFromUtf8("some joinkey0"),
-    ByteString.copyFromUtf8("some joinkey1"),
-    ByteString.copyFromUtf8("some joinkey2"),
-    ByteString.copyFromUtf8("some joinkey3"),
-    ByteString.copyFromUtf8("some joinkey4")
+  listOf(
+    "some joinkey0".toByteString(),
+    "some joinkey1".toByteString(),
+    "some joinkey2".toByteString(),
+    "some joinkey3".toByteString(),
+    "some joinkey4".toByteString()
   )
 
 val SINGLE_BLINDED_KEYS =
-  listOf<ByteString>(
-    ByteString.copyFromUtf8("some single-blinded key0"),
-    ByteString.copyFromUtf8("some single-blinded key1"),
-    ByteString.copyFromUtf8("some single-blinded key2"),
-    ByteString.copyFromUtf8("some single-blinded key3"),
-    ByteString.copyFromUtf8("some single-blinded key4")
+  listOf(
+    "some single-blinded key0".toByteString(),
+    "some single-blinded key1".toByteString(),
+    "some single-blinded key2".toByteString(),
+    "some single-blinded key3".toByteString(),
+    "some single-blinded key4".toByteString()
   )
 val DOUBLE_BLINDED_KEYS =
-  listOf<ByteString>(
-    ByteString.copyFromUtf8("some double-blinded key0"),
-    ByteString.copyFromUtf8("some double-blinded key1"),
-    ByteString.copyFromUtf8("some double-blinded key2"),
-    ByteString.copyFromUtf8("some double-blinded key3"),
-    ByteString.copyFromUtf8("some double-blinded key4")
+  listOf(
+    "some double-blinded key0".toByteString(),
+    "some double-blinded key1".toByteString(),
+    "some double-blinded key2".toByteString(),
+    "some double-blinded key3".toByteString(),
+    "some double-blinded key4".toByteString()
   )
 val LOOKUP_KEYS =
-  listOf<ByteString>(
-    ByteString.copyFromUtf8("some lookup0"),
-    ByteString.copyFromUtf8("some lookup1"),
-    ByteString.copyFromUtf8("some lookup2"),
-    ByteString.copyFromUtf8("some lookup3"),
-    ByteString.copyFromUtf8("some lookup4")
+  listOf(
+    "some lookup0".toByteString(),
+    "some lookup1".toByteString(),
+    "some lookup2".toByteString(),
+    "some lookup3".toByteString(),
+    "some lookup4".toByteString()
   )
 
 fun buildMockCryptor(): DeterministicCommutativeCipher {

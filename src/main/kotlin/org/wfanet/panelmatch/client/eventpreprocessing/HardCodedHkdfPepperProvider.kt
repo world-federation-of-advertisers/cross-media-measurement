@@ -15,10 +15,9 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
-import org.apache.beam.sdk.transforms.SerializableFunction
 
 /**
- * Takes in a HKDF pepper as ByteString and outputs the same ByteString
+ * Takes in a HKDF pepper as ByteString and outputs the same ByteString.
  *
  * Security concerns this introduces:
  *
@@ -31,9 +30,6 @@ import org.apache.beam.sdk.transforms.SerializableFunction
  * The HKDF pepper will be serialized and sent between Apache Beam workers. This means that
  * vulnerable temporary files or network connections could leak key material.
  */
-class HardCodedHkdfPepperProvider(private val hkdfPepper: ByteString) :
-  SerializableFunction<Void?, ByteString> {
-  override fun apply(void: Void?): ByteString {
-    return hkdfPepper
-  }
+class HardCodedHkdfPepperProvider(private val hkdfPepper: ByteString) : HkdfPepperProvider {
+  override fun get(): ByteString = hkdfPepper
 }

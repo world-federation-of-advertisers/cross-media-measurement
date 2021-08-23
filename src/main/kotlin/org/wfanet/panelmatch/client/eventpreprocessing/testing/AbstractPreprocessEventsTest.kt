@@ -17,8 +17,10 @@ package org.wfanet.panelmatch.client.eventpreprocessing.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import org.junit.Test
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
+import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEvents
+import org.wfanet.panelmatch.client.preprocessEventsRequest
+import org.wfanet.panelmatch.common.toByteString
 
 /** Abstract base class for testing implementations of [PreprocessEvents]. */
 abstract class AbstractPreprocessEventsTest {
@@ -26,25 +28,23 @@ abstract class AbstractPreprocessEventsTest {
 
   @Test
   fun testPreprocessEvents() {
-    val arbitraryId: ByteString = ByteString.copyFromUtf8("arbitrary-id")
-    val arbitraryData: ByteString = ByteString.copyFromUtf8("arbitrary-data")
-    val arbitraryCryptoKey: ByteString = ByteString.copyFromUtf8("arbitrary-crypto-key")
-    val arbitraryHkdfPepper: ByteString = ByteString.copyFromUtf8("arbitrary-hkdf-pepper")
+    val arbitraryId: ByteString = "arbitrary-id".toByteString()
+    val arbitraryData: ByteString = "arbitrary-data".toByteString()
+    val arbitraryCryptoKey: ByteString = "arbitrary-crypto-key".toByteString()
+    val arbitraryHkdfPepper: ByteString = "arbitrary-hkdf-pepper".toByteString()
     val arbitraryIdentifierHashPepper: ByteString =
-      ByteString.copyFromUtf8("arbitrary-identifier-hash-pepper")
+      "arbitrary-identifier-hash-pepper".toByteString()
 
-    val request =
-      PreprocessEventsRequest.newBuilder()
-        .apply {
-          cryptoKey = arbitraryCryptoKey
-          identifierHashPepper = arbitraryIdentifierHashPepper
-          hkdfPepper = arbitraryHkdfPepper
-          addUnprocessedEventsBuilder().apply {
-            id = arbitraryId
-            data = arbitraryData
-          }
+    val request = preprocessEventsRequest {
+      cryptoKey = arbitraryCryptoKey
+      identifierHashPepper = arbitraryIdentifierHashPepper
+      hkdfPepper = arbitraryHkdfPepper
+      unprocessedEvents +=
+        unprocessedEvent {
+          id = arbitraryId
+          data = arbitraryData
         }
-        .build()
+    }
     assertThat(preprocessEvents.preprocess(request)).isNotNull()
   }
 }

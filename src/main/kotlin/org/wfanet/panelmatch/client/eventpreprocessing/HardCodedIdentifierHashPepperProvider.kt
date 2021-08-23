@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
-import org.apache.beam.sdk.transforms.SerializableFunction
 
 /**
  * Takes in an identifier hash pepper as ByteString and outputs the same ByteString
@@ -32,8 +31,7 @@ import org.apache.beam.sdk.transforms.SerializableFunction
  * temporary files or network connections could leak key material.
  */
 class HardCodedIdentifierHashPepperProvider(private val identifierHashPepper: ByteString) :
-  SerializableFunction<Void?, ByteString> {
-  override fun apply(void: Void?): ByteString {
-    return identifierHashPepper
-  }
+  IdentifierHashPepperProvider {
+
+  override fun get(): ByteString = identifierHashPepper
 }

@@ -12,21 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.common
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 
-@RunWith(JUnit4::class)
-class IdentifierHashPepperProviderTest {
-
-  @Test
-  fun hardCoded() {
-    val pepper: ByteString = ByteString.copyFromUtf8("testpepper")
-    val result = HardCodedIdentifierHashPepperProvider(pepper).apply(null as Void?)
-    assertThat(result).isEqualTo(pepper)
-  }
+/** Assuming the receiver is UTF8, converts it into a [ByteString]. */
+fun String.toByteString(): ByteString {
+  return ByteString.copyFromUtf8(this)
 }
