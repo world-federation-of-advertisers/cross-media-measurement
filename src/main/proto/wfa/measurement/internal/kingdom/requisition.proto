@@ -23,13 +23,6 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message Requisition {
-  enum View {
-    // Default view, which includes all fields.
-    FULL = 0;
-
-    // Normalized view, which excludes fields from other entities.
-    NORMALIZED = 1;
-  }
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
   fixed64 external_requisition_id = 3;
@@ -138,7 +131,5 @@ message Requisition {
     string external_protocol_config_id = 5;
   }
   // Denormalized fields from the parent Measurement. Output-only.
-  //
-  // Only set for FULL view.
   ParentMeasurement parent_measurement = 12;
 }

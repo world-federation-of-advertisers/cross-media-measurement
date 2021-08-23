@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.kingdom.db.StreamRecurringExchangesFilter
@@ -32,7 +31,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExc
  * @param limit how many [RecurringExchange]s to return -- if zero, there is no limit
  */
 class StreamRecurringExchanges(filter: StreamRecurringExchangesFilter, limit: Long = 0) :
-  SpannerQuery<RecurringExchangeReader.Result, RecurringExchangeReader.Result>() {
+  SimpleSpannerQuery<RecurringExchangeReader.Result>() {
+
   override val reader: BaseSpannerReader<RecurringExchangeReader.Result> by lazy {
     RecurringExchangeReader(forcedIndex).withBuilder {
       if (!filter.empty) {
@@ -58,7 +58,4 @@ class StreamRecurringExchanges(filter: StreamRecurringExchangesFilter, limit: Lo
       RecurringExchangeReader.Index.NONE
     }
   }
-
-  override fun Flow<RecurringExchangeReader.Result>.transform():
-    Flow<RecurringExchangeReader.Result> = this
 }

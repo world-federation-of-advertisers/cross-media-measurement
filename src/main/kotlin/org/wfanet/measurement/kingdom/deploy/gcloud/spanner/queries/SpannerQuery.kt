@@ -37,3 +37,8 @@ abstract class SpannerQuery<S : Any, T> {
     return execute(readContext).single()
   }
 }
+
+/** [SpannerQuery] with no transformation of the [reader] result. */
+abstract class SimpleSpannerQuery<T : Any> : SpannerQuery<T, T>() {
+  final override fun Flow<T>.transform() = this
+}
