@@ -123,7 +123,6 @@ message Requisition {
     Refusal refusal = 5;
   }
   Details details = 11;
-  string details_json = 12;
 
   message ParentMeasurement {
     // Version of the public API for serialized message definitions as well as
@@ -141,5 +140,5 @@ message Requisition {
   // Denormalized fields from the parent Measurement. Output-only.
   //
   // Only set for FULL view.
-  ParentMeasurement parent_measurement = 13;
+  ParentMeasurement parent_measurement = 12;
 }
