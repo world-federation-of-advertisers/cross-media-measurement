@@ -33,7 +33,7 @@ class SpannerDataServices(
       SpannerEventGroupsService(clock, idGenerator, client),
       SpannerMeasurementConsumersService(clock, idGenerator, client),
       SpannerMeasurementsService(clock, idGenerator, client),
-      SpannerRequisitionsService(clock, idGenerator, client),
+      SpannerRequisitionsService(client),
       SpannerComputationParticipantsService(clock, idGenerator, client),
       SpannerMeasurementLogEntriesService(clock, idGenerator, client),
       SpannerRecurringExchangesService(clock, idGenerator, client),

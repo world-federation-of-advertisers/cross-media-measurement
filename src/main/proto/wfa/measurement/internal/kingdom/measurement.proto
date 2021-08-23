@@ -117,8 +117,7 @@ message Measurement {
   Details details = 11;
   string details_json = 12;
 
-  // Child Requisitions of this Measurement, using Requisition.View.NORMALIZED.
-  // Output-only.
+  // Child Requisitions of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
   repeated Requisition requisitions = 13;
