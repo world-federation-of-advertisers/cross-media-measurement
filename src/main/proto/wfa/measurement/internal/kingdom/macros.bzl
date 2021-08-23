@@ -26,10 +26,12 @@ def proto_and_java_proto_library(name, deps = []):
         srcs = ["%s.proto" % name],
         strip_import_prefix = IMPORT_PREFIX,
         deps = deps,
+        visibility = ["//visibility:private"],
     )
     java_proto_library(
         name = "%s_java_proto" % name,
         deps = [":%s_proto" % name],
+        visibility = ["//visibility:private"],
     )
     kt_jvm_proto_library(
         name = "%s_kt_jvm_proto" % name,
