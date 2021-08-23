@@ -66,7 +66,6 @@ class ComputationParticipantReader() : SpannerReader<ComputationParticipantReade
         appendClause("AND ComputationParticipants.duchyId = @duchyId")
         bind("externalComputationId").to(externalComputationId)
         bind("duchyId").to(duchyId)
-
         appendClause("LIMIT 1")
       }
       .execute(readContext)
