@@ -27,6 +27,7 @@ import org.wfanet.panelmatch.client.privatemembership.ObliviousQueryParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS =
   listOf(
@@ -70,11 +71,11 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
     val decryptedResults = runWorkflow(privateMembershipCryptor, parameters)
     assertThat(decryptedResults)
       .containsInAnyOrder(
-        ByteString.copyFromUtf8("<some data a>"),
-        ByteString.copyFromUtf8("<some data b>"),
-        ByteString.copyFromUtf8("<some data c>"),
-        ByteString.copyFromUtf8("<some data d>"),
-        ByteString.copyFromUtf8("<some data e>")
+        "<some data a>".toByteString(),
+        "<some data b>".toByteString(),
+        "<some data c>".toByteString(),
+        "<some data d>".toByteString(),
+        "<some data e>".toByteString()
       )
   }
 

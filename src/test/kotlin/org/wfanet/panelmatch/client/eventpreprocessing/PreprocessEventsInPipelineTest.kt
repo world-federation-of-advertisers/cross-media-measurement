@@ -27,48 +27,37 @@ import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.toByteString
 
 /** Unit tests for [preprocessEventsInPipeline]. */
 @RunWith(JUnit4::class)
 class PreprocessEventsInPipelineTest : BeamTestBase() {
-  private val events = eventsOf("A" to "B", "C" to "D")
   @Test
-  fun testEncryptByteStrings() {
+  fun hardCodedProviders() {
+    val events = eventsOf("A" to "B", "C" to "D")
+
     val encrypted =
       preprocessEventsInPipeline(
         events,
         8,
-        "pepper".toByteString(),
-        "salt".toByteString(),
-        "cryptokey".toByteString()
-      )
-    assertThat(encrypted).satisfies {
-      val results: List<KV<Long, ByteString>> = it.toList() // `it` is an Iterable<KV<...>>
-      assertThat(results).hasSize(2)
-      assertThat(results.map { it.value }).containsNoneOf("B".toByteString(), "D".toByteString())
-      null
-    }
-  }
-  @Test
-  fun testEncryptSerializableFunctions() {
-    val encrypted =
-      preprocessEventsInPipeline(
-        events,
-        8,
-        HardCodedIdentifierHashPepperProvider("idhashpepper".toByteString()),
-        HardCodedHkdfPepperProvider("hkdfpepper".toByteString()),
-        HardCodedCryptoKeyProvider("cryptokey".toByteString())
+        HardCodedIdentifierHashPepperProvider("identifier-hash-pepper".toByteString()),
+        HardCodedHkdfPepperProvider("hkdf-pepper".toByteString()),
+        HardCodedDeterministicCommutativeCipherKeyProvider("crypto-key".toByteString()),
+        UncompressedEventAggregator()
       )
 
-    assertThat(encrypted).satisfies {
-      val results: List<KV<Long, ByteString>> = it.toList() // `it` is an Iterable<KV<...>>
+    assertThat(encrypted).satisfies { encryptedEvents ->
+      val results: List<KV<Long, ByteString>> = encryptedEvents.toList()
       assertThat(results).hasSize(2)
       assertThat(results.map { it.value }).containsNoneOf("B".toByteString(), "D".toByteString())
       null
     }
   }
 
-  fun eventsOf(vararg pairs: Pair<String, String>): PCollection<KV<ByteString, ByteString>> {
+  private fun eventsOf(
+    vararg pairs: Pair<String, String>
+  ): PCollection<KV<ByteString, ByteString>> {
+    @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
     val coder: Coder<KV<ByteString, ByteString>> =
       KvCoder.of(ByteStringCoder.of(), ByteStringCoder.of())
     return pcollectionOf(
@@ -79,6 +68,4 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
   }
 }
 
-private fun String.toByteString(): ByteString {
-  return ByteString.copyFromUtf8(this)
-}
+object FakeCombine

@@ -30,9 +30,14 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.Validation
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.UncompressedEventAggregator
 import org.wfanet.panelmatch.client.eventpreprocessing.preprocessEventsInPipeline
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.toByteString
 
 interface Options : DataflowPipelineOptions {
   @get:Description("Batch Size") @get:Validation.Required var batchSize: Int
@@ -83,9 +88,10 @@ fun main(args: Array<String>) {
     preprocessEventsInPipeline(
       unencryptedEvents,
       options.batchSize,
-      ByteString.copyFromUtf8(options.identifierHashPepper),
-      ByteString.copyFromUtf8(options.hkdfPepper),
-      ByteString.copyFromUtf8(options.cryptokey)
+      HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteString()),
+      HardCodedHkdfPepperProvider(options.hkdfPepper.toByteString()),
+      HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteString()),
+      UncompressedEventAggregator()
     )
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)
@@ -110,10 +116,7 @@ private fun readFromBigQuery(
     )
   // Convert TableRow to KV<Long,ByteString>
   return rowsFromBigQuery.map(name = "Map to ByteStrings") {
-    kvOf(
-      ByteString.copyFromUtf8(it["UserId"] as String),
-      ByteString.copyFromUtf8(it["UserEvent"] as String)
-    )
+    kvOf((it["UserId"] as String).toByteString(), (it["UserEvent"] as String).toByteString())
   }
 }
 

@@ -21,14 +21,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.JniException
+import org.wfanet.panelmatch.common.toByteString
 import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
 import org.wfanet.panelmatch.protocol.common.testing.AbstractDeterministicCommutativeCipherTest
 
 @RunWith(JUnit4::class)
 class JniDeterministicCommutativeCipherTest : AbstractDeterministicCommutativeCipherTest() {
   override val cipher: DeterministicCommutativeCipher = JniDeterministicCommutativeCipher()
-  override val invalidKey: ByteString? =
-    ByteString.copyFromUtf8("this key is too large to be valid")
+  override val invalidKey: ByteString = "this key is too large to be valid".toByteString()
 
   @Test
   fun `invalid proto throws JniException`() {

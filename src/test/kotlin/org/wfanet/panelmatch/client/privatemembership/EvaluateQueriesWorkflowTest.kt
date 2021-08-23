@@ -31,6 +31,7 @@ import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEval
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class EvaluateQueriesWorkflowTest : BeamTestBase() {
@@ -227,8 +228,4 @@ private fun queryBundleOf(shard: Int, queries: List<Pair<Int, Int>>): QueryBundl
     shardIdOf(shard),
     queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
   )
-}
-
-private fun String.toByteString(): ByteString {
-  return ByteString.copyFromUtf8(this)
 }

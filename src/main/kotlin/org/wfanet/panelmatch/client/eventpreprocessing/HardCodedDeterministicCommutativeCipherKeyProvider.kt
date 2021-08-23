@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
-import org.apache.beam.sdk.transforms.SerializableFunction
 
 /**
  * Takes in a cryptokey as ByteString and outputs the same ByteString
@@ -31,9 +30,7 @@ import org.apache.beam.sdk.transforms.SerializableFunction
  * The crypto key will be serialized and sent between Apache Beam workers. This means that
  * vulnerable temporary files or network connections could leak key material.
  */
-class HardCodedCryptoKeyProvider(private val cryptoKey: ByteString) :
-  SerializableFunction<Void?, ByteString> {
-  override fun apply(void: Void?): ByteString {
-    return cryptoKey
-  }
+class HardCodedDeterministicCommutativeCipherKeyProvider(private val cryptoKey: ByteString) :
+  DeterministicCommutativeCipherKeyProvider {
+  override fun get(): ByteString = cryptoKey
 }

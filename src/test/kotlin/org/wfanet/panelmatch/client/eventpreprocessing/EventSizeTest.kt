@@ -20,36 +20,48 @@ import org.apache.beam.sdk.values.KV
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class EventSizeTest {
+
   @Test
   fun emptyByteStrings() {
-    val test: KV<ByteString, ByteString> = KV.of(ByteString.EMPTY, ByteString.EMPTY)
+    val test: KV<ByteString, ByteString> = kvOf(ByteString.EMPTY, ByteString.EMPTY)
     val result: Int = EventSize.apply(test)
     assertThat(result).isEqualTo(0)
   }
+
+  @Test
   fun keyEmpty() {
-    val test: KV<ByteString, ByteString> = byteStringKvOf(ByteString.EMPTY.toString(), "1")
+    val test: KV<ByteString, ByteString> = byteStringKvOf("", "1")
     val result: Int = EventSize.apply(test)
     assertThat(result).isEqualTo(1)
   }
+
+  @Test
   fun valueEmpty() {
-    val test: KV<ByteString, ByteString> = byteStringKvOf("123", ByteString.EMPTY.toString())
+    val test: KV<ByteString, ByteString> = byteStringKvOf("123", "")
     val result: Int = EventSize.apply(test)
     assertThat(result).isEqualTo(3)
   }
+
+  @Test
   fun string() {
     val test: KV<ByteString, ByteString> = byteStringKvOf("12345", "67891")
     val result: Int = EventSize.apply(test)
     assertThat(result).isEqualTo(10)
   }
+
+  @Test
   fun stringSpaces() {
-    val test: KV<ByteString, ByteString> = byteStringKvOf("123 5", " 67891")
+    val test: KV<ByteString, ByteString> = byteStringKvOf("123 5", " 7891")
     val result: Int = EventSize.apply(test)
     assertThat(result).isEqualTo(10)
   }
-  fun byteStringKvOf(key: String, value: String): KV<ByteString, ByteString> {
-    return KV.of(ByteString.copyFromUtf8(key), ByteString.copyFromUtf8(value))
-  }
+}
+
+private fun byteStringKvOf(key: String, value: String): KV<ByteString, ByteString> {
+  return kvOf(key.toByteString(), value.toByteString())
 }

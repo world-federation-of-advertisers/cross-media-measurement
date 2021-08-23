@@ -38,6 +38,7 @@ import org.wfanet.panelmatch.client.storage.toByteString
 import org.wfanet.panelmatch.client.storage.verifiedBatchRead
 import org.wfanet.panelmatch.client.storage.verifiedBatchWrite
 import org.wfanet.panelmatch.common.testing.runBlockingTest
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class ExchangeTaskExecutorImplTest {
@@ -58,7 +59,7 @@ class ExchangeTaskExecutorImplTest {
               .read(1024)
               .fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) })
               .toStringUtf8()
-          ByteString.copyFromUtf8("Out:$valString").asBufferedFlow(1024)
+          "Out:$valString".toByteString().asBufferedFlow(1024)
         }
       }
     }
@@ -68,8 +69,8 @@ class ExchangeTaskExecutorImplTest {
 
   @Test
   fun `reads inputs and writes outputs`() = runBlockingTest {
-    val blob1 = ByteString.copyFromUtf8("blob1")
-    val blob2 = ByteString.copyFromUtf8("blob2")
+    val blob1 = "blob1".toByteString()
+    val blob2 = "blob2".toByteString()
 
     privateStorage.verifiedBatchWrite(
       outputLabels = mapOf("a" to "b"),
@@ -96,12 +97,12 @@ class ExchangeTaskExecutorImplTest {
           it.value.toByteString()
         }
       )
-      .containsExactly("Out:c", ByteString.copyFromUtf8("Out:blob2"))
+      .containsExactly("Out:c", "Out:blob2".toByteString())
 
     assertThat(
         sharedStorage.verifiedBatchRead(mapOf("Out:a" to "f")).mapValues { it.value.toByteString() }
       )
-      .containsExactly("Out:a", ByteString.copyFromUtf8("Out:blob1"))
+      .containsExactly("Out:a", "Out:blob1".toByteString())
   }
 
   @Test

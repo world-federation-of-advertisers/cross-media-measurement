@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
@@ -36,6 +35,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.beam.values
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
@@ -102,7 +102,7 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
     return pcollectionOf(
       "Create Database",
       *entries
-        .map { kvOf(panelistKeyOf(it.first), joinKeyOf(ByteString.copyFromUtf8(it.second))) }
+        .map { kvOf(panelistKeyOf(it.first), joinKeyOf(it.second.toByteString())) }
         .toTypedArray()
     )
   }

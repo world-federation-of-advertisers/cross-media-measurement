@@ -29,6 +29,7 @@ import org.wfanet.panelmatch.client.privatemembership.databaseShardOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.testing.QueryEvaluatorTestHelper.DecodedResult
+import org.wfanet.panelmatch.common.toByteString
 
 /** Tests for [QueryEvaluator]s. */
 abstract class AbstractQueryEvaluatorTest {
@@ -155,8 +156,4 @@ private fun databaseShardOf(shard: Int, buckets: List<Int>): DatabaseShard {
 
 private fun makeFakeBucketData(bucket: Int, shard: Int): ByteString {
   return "bucket:$bucket-shard:$shard".toByteString()
-}
-
-private fun String.toByteString(): ByteString {
-  return ByteString.copyFromUtf8(this)
 }
