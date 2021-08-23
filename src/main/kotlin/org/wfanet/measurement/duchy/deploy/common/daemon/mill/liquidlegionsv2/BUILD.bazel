@@ -3,6 +3,8 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
+package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+
 kt_jvm_library(
     name = "liquid_legions_v2_mill_daemon",
     srcs = [
@@ -16,7 +18,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_control_service_kt_jvm_grpc",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

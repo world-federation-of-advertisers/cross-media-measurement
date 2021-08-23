@@ -1,5 +1,6 @@
 load("@rules_cc//cc:defs.bzl", "cc_proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
 package(default_visibility = ["//:__subpackages__"])
@@ -27,6 +28,12 @@ java_proto_library(
     deps = [":liquid_legions_v2_encryption_methods_proto"],
 )
 
+kt_jvm_proto_library(
+    name = "liquid_legions_v2_encryption_methods_kt_jvm_proto",
+    srcs = [":liquid_legions_v2_encryption_methods_proto"],
+    deps = [":liquid_legions_v2_encryption_methods_java_proto"],
+)
+
 proto_library(
     name = "liquid_legions_v2_noise_config_proto",
     srcs = ["liquid_legions_v2_noise_config.proto"],
@@ -41,6 +48,12 @@ java_proto_library(
     deps = [":liquid_legions_v2_noise_config_proto"],
 )
 
+kt_jvm_proto_library(
+    name = "liquid_legions_v2_noise_config_kt_jvm_proto",
+    srcs = [":liquid_legions_v2_noise_config_proto"],
+    deps = [":liquid_legions_v2_noise_config_java_proto"],
+)
+
 proto_library(
     name = "requisition",
     srcs = ["requisition.proto"],
@@ -52,6 +65,12 @@ java_proto_library(
     deps = [":requisition"],
 )
 
+kt_jvm_proto_library(
+    name = "requisition_kt_jvm_proto",
+    srcs = [":requisition"],
+    deps = [":requisition_java_proto"],
+)
+
 proto_library(
     name = "liquid_legions_sketch_parameter_proto",
     srcs = ["liquid_legions_sketch_parameter.proto"],
@@ -61,6 +80,12 @@ proto_library(
 java_proto_library(
     name = "liquid_legions_sketch_parameter_java_proto",
     deps = [":liquid_legions_sketch_parameter_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "liquid_legions_sketch_parameter_kt_jvm_proto",
+    srcs = [":liquid_legions_sketch_parameter_proto"],
+    deps = [":liquid_legions_sketch_parameter_java_proto"],
 )
 
 proto_library(
@@ -80,4 +105,10 @@ proto_library(
 java_proto_library(
     name = "liquid_legions_v2_java_proto",
     deps = [":liquid_legions_v2_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "liquid_legions_v2_kt_jvm_proto",
+    srcs = [":liquid_legions_v2_proto"],
+    deps = [":liquid_legions_v2_java_proto"],
 )

@@ -301,6 +301,9 @@ CREATE TABLE ComputationParticipants (
   DuchyId                     INT64 NOT NULL,
   CertificateId               INT64,
 
+  UpdateTime                  TIMESTAMP NOT NULL
+                                OPTIONS (allow_commit_timestamp = true),
+
   State                       INT64 NOT NULL,  -- ParticipantState proto enum
 
   -- ParticipantDetails serialized proto

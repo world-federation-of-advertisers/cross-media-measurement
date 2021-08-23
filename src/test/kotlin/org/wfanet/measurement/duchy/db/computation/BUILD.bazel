@@ -46,7 +46,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
@@ -58,7 +58,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV2ProtocolEnumStagesDetailsTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_java_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",

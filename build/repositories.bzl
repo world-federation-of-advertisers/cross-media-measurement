@@ -24,15 +24,15 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "d08bbabe8f78592fe58109ddad17dab1a4a2d0e910d602bf3fa3b3f00ff5ddf3",
-        version = "0.6.0",
+        sha256 = "99498e90f5854ebc101ead7accc7818463b203cec8cda6b4f0eeee70d45ad67b",
+        version = "0.8.0",
     )
 
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "3110be93990a449ac8f60b534319d7d3a08aa118908fecd7b571a5e08260e560",
-        version = "0.2.1",
+        sha256 = "2c30e218a595483a9d0f2ca7117bc40cbc522cf513b2b8ee9db4570ffd35027f",
+        version = "0.3.0",
     )
 
     wfa_repo_archive(
@@ -58,14 +58,14 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "any_sketch_java",
-        version = "0.1.0",
+        version = "0.2.0",
         repo = "any-sketch-java",
-        sha256 = "d6e8f3c37ee93da0727bdce4b1c3b78be94dccc76068fc1138121b3f89d31860",
+        sha256 = "55f20dfe98c71b4fdd5068f44ea5df5d88bac51c1d24061438a8aa5ed4b853b7",
     )
 
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "23c570c4d7315feca30609d0ec0b4ec9e3aae484568e5d903bdbc22b363801dd",
-        version = "0.2.0",
+        sha256 = "bf20c2e86f2f92c157b46d202baa308705a12bb44059689e5221b0fbcf332304",
+        version = "0.3.0",
     )

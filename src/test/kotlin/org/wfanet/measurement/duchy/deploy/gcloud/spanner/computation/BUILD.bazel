@@ -1,5 +1,6 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
@@ -11,6 +12,12 @@ proto_library(
 java_proto_library(
     name = "fake_protocol_stage_details_java_proto",
     deps = [":fake_protocol_stage_details_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "fake_protocol_stage_details_kt_jvm_proto",
+    srcs = [":fake_protocol_stage_details_proto"],
+    deps = [":fake_protocol_stage_details_java_proto"],
 )
 
 kt_jvm_test(
@@ -42,7 +49,7 @@ spanner_emulator_test(
     srcs = ["GcpSpannerComputationsDatabaseTransactorTest.kt"],
     test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactorTest",
     deps = [
-        ":fake_protocol_stage_details_java_proto",
+        ":fake_protocol_stage_details_kt_jvm_proto",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",

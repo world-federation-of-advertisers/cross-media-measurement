@@ -157,6 +157,50 @@ fun V2AlphaHybridCipherSuite.toDuchyHybridCipherSuite(): HybridCipherSuite {
     .build()
 }
 
+/** Converts a duchy internal EncryptionPublicKey to v2alpha Public API EncryptionPublicKey. */
+fun EncryptionPublicKey.toV2AlphaEncryptionPublicKey(): V2AlphaEncryptionPublicKey {
+  return V2AlphaEncryptionPublicKey.newBuilder()
+    .also {
+      it.type =
+        when (this.type) {
+          EncryptionPublicKey.Type.TYPE_UNSPECIFIED ->
+            V2AlphaEncryptionPublicKey.Type.TYPE_UNSPECIFIED
+          EncryptionPublicKey.Type.EC_P256 -> V2AlphaEncryptionPublicKey.Type.EC_P256
+          EncryptionPublicKey.Type.UNRECOGNIZED, null -> error("unrecognized type.")
+        }
+      it.publicKeyInfo = publicKeyInfo
+    }
+    .build()
+}
+
+/** Converts a duchy internal HybridCipherSuite to v2alpha Public API HybridCipherSuite. */
+fun HybridCipherSuite.toV2AlphaHybridCipherSuite(): V2AlphaHybridCipherSuite {
+  return V2AlphaHybridCipherSuite.newBuilder()
+    .also {
+      it.kem =
+        when (this.kem) {
+          HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
+            V2AlphaHybridCipherSuite.KeyEncapsulationMechanism
+              .KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED
+          HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256 ->
+            V2AlphaHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+          HybridCipherSuite.KeyEncapsulationMechanism.UNRECOGNIZED, null ->
+            error("unrecognized KeyEncapsulationMechanism.")
+        }
+      it.dem =
+        when (this.dem) {
+          HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED ->
+            V2AlphaHybridCipherSuite.DataEncapsulationMechanism
+              .DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
+          HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM ->
+            V2AlphaHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+          HybridCipherSuite.DataEncapsulationMechanism.UNRECOGNIZED, null ->
+            error("unrecognized DataEncapsulationMechanism.")
+        }
+    }
+    .build()
+}
+
 /** Converts a system API DifferentialPrivacyParams to duchy internal DifferentialPrivacyParams. */
 fun SystemDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): DifferentialPrivacyParams {
   return DifferentialPrivacyParams.newBuilder()
@@ -181,7 +225,7 @@ val ComputationParticipant.key: ComputationParticipantKey
 fun SystemRequisition.toDuchyRequisitionDetails(): RequisitionDetails {
   return RequisitionDetails.newBuilder()
     .also {
-      it.dataProviderCertificate = dataProviderCertificate
+      it.dataProviderCertificateDer = dataProviderCertificateDer
       it.requisitionSpecHash = requisitionSpecHash
       it.dataProviderParticipationSignature = dataProviderParticipationSignature
       if (fulfillingComputationParticipant.isNotEmpty()) {
@@ -215,19 +259,14 @@ fun V2AlphaDifferentialPrivacyParams.toDuchyDifferentialPrivacyParams(): Differe
     .build()
 }
 
-/** Converts a duchy internal ElGamalPublicKey to the corresponding public API ElGamalPublicKey. */
-fun ElGamalPublicKey.toPublicApiElGamalPublicKeyBytes(publicApiVersion: Version): ByteString {
-  return when (publicApiVersion) {
-    Version.V2_ALPHA ->
-      V2AlphaElGamalPublicKey.newBuilder()
-        .also {
-          it.generator = generator
-          it.element = element
-        }
-        .build()
-        .toByteString()
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-  }
+/** Converts a duchy internal ElGamalPublicKey to the v2alpha public API ElGamalPublicKey. */
+fun ElGamalPublicKey.toV2AlphaElGamalPublicKey(): V2AlphaElGamalPublicKey {
+  return V2AlphaElGamalPublicKey.newBuilder()
+    .also {
+      it.generator = generator
+      it.element = element
+    }
+    .build()
 }
 
 /** Converts a v2alpha Public API ElGamalPublicKey to duchy internal ElGamalPublicKey. */
@@ -243,19 +282,14 @@ fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
 /** The result and frequency estimation of a computation. */
 data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>)
 
-/** Converts a ReachAndFrequency object to the corresponding public API measurement result. */
-fun ReachAndFrequency.toPublicApiMeasurementResult(publicApiVersion: Version): ByteString {
-  return when (publicApiVersion) {
-    Version.V2_ALPHA ->
-      Measurement.Result.newBuilder()
-        .also {
-          it.reachBuilder.value = reach
-          it.frequencyBuilder.putAllRelativeFrequencyDistribution(frequency)
-        }
-        .build()
-        .toByteString()
-    Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-  }
+/** Converts a ReachAndFrequency object to the v2Alpha measurement result. */
+fun ReachAndFrequency.toV2AlphaMeasurementResult(): Measurement.Result {
+  return Measurement.Result.newBuilder()
+    .also {
+      it.reachBuilder.value = reach
+      it.frequencyBuilder.putAllRelativeFrequencyDistribution(frequency)
+    }
+    .build()
 }
 
 fun org.wfanet.anysketch.crypto.ElGamalPublicKey.toCmmsElGamalPublicKey(): ElGamalPublicKey {
