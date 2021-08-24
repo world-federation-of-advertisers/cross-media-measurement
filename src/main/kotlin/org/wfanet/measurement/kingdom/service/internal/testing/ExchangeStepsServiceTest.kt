@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -27,31 +30,147 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.provider
+
+private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
+private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
+private val RECURRING_EXCHANGE_ID_GENERATOR =
+  FixedIdGenerator(
+    InternalId(INTERNAL_RECURRING_EXCHANGE_ID),
+    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID)
+  )
+
+private const val INTERNAL_DATA_PROVIDER_ID = 333L
+private const val EXTERNAL_DATA_PROVIDER_ID = 444L
+private val DATA_PROVIDER_ID_GENERATOR =
+  FixedIdGenerator(InternalId(INTERNAL_DATA_PROVIDER_ID), ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+
+private const val INTERNAL_MODEL_PROVIDER_ID = 555L
+private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
+private val MODEL_ID_GENERATOR =
+  FixedIdGenerator(InternalId(INTERNAL_MODEL_PROVIDER_ID), ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private val idGenerator =
+  FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
+
+private val EXCHANGE_WORKFLOW: ExchangeWorkflow =
+  ExchangeWorkflow.newBuilder()
+    .apply {
+      addSteps(
+        ExchangeWorkflow.Step.newBuilder().apply {
+          party = ExchangeWorkflow.Party.MODEL_PROVIDER
+          stepIndex = 1
+        }
+      )
+    }
+    .build()
+
+private val DATE: Date =
+  Date.newBuilder()
+    .apply {
+      year = 2021
+      month = 8
+      day = 5
+    }
+    .build()
+
+private val RECURRING_EXCHANGE: RecurringExchange =
+  RecurringExchange.newBuilder()
+    .apply {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+      state = RecurringExchange.State.ACTIVE
+      detailsBuilder.apply {
+        cronSchedule = "@daily"
+        exchangeWorkflow = EXCHANGE_WORKFLOW
+      }
+      nextExchangeDate = DATE
+    }
+    .build()
+
+private val EXCHANGE_STEP =
+  ExchangeStep.newBuilder()
+    .apply {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      state = ExchangeStep.State.IN_PROGRESS
+      stepIndex = 1
+      providerBuilder.apply {
+        externalId = EXTERNAL_MODEL_PROVIDER_ID
+        type = Provider.Type.MODEL_PROVIDER
+      }
+      updateTime = Value.COMMIT_TIMESTAMP.toProto()
+    }
+    .build()
+
+private val DATA_PROVIDER: DataProvider =
+  DataProvider.newBuilder()
+    .apply {
+      certificateBuilder.apply {
+        notValidBeforeBuilder.seconds = 12345
+        notValidAfterBuilder.seconds = 23456
+        detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+      }
+      detailsBuilder.apply {
+        apiVersion = "2"
+        publicKey = ByteString.copyFromUtf8("This is a  public key.")
+        publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+      }
+    }
+    .build()
 
 @RunWith(JUnit4::class)
-abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
+abstract class ExchangeStepsServiceTest {
 
-  protected val idGenerator =
-    FixedIdGenerator(
-      InternalId(FIXED_GENERATED_INTERNAL_ID),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID)
-    )
+  /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
+  protected abstract fun newRecurringExchangesService(
+    idGenerator: IdGenerator
+  ): RecurringExchangesCoroutineImplBase
 
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  /** Creates a test subject. */
+  protected abstract fun newDataProvidersService(
+    idGenerator: IdGenerator
+  ): DataProvidersCoroutineImplBase
 
-  private lateinit var exchangeStepsService: T
+  /** Creates a test subject. */
+  protected abstract fun newModelProvidersService(
+    idGenerator: IdGenerator
+  ): ModelProvidersCoroutineImplBase
+
+  /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
+  protected abstract fun newExchangeStepsService(
+    idGenerator: IdGenerator
+  ): ExchangeStepsCoroutineImplBase
+
+  private lateinit var recurringExchangesService: RecurringExchangesCoroutineImplBase
+  private lateinit var exchangeStepsService: ExchangeStepsCoroutineImplBase
 
   @Before
-  fun initService() {
-    exchangeStepsService = newService(idGenerator)
+  fun initServices() {
+    exchangeStepsService = newExchangeStepsService(idGenerator)
+    recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
+    val dataProvidersService = newDataProvidersService(DATA_PROVIDER_ID_GENERATOR)
+    val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
+    runBlocking {
+      dataProvidersService.createDataProvider(DATA_PROVIDER)
+      modelProvidersService.createModelProvider(ModelProvider.getDefaultInstance())
+    }
   }
 
   @Test
@@ -74,7 +193,7 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
         claimReadyExchangeStepRequest {
           provider =
             provider {
-              externalId = 6L
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
               type = Provider.Type.MODEL_PROVIDER
             }
         }
@@ -85,12 +204,27 @@ abstract class ExchangeStepsServiceTest<T : ExchangeStepsCoroutineImplBase> {
 
   @Test
   fun `claimReadyExchangeStepRequest succeeds`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-  }
+    recurringExchangesService.createRecurringExchange(
+      createRecurringExchangeRequest { recurringExchange = RECURRING_EXCHANGE }
+    )
 
-  @Test
-  fun `claimReadyExchangeStepRequest succeeds with ready exchange step`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
+    val response =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
+
+    val expected = claimReadyExchangeStepResponse {
+      exchangeStep = EXCHANGE_STEP
+      attemptNumber = 1
+    }
+
+    assertThat(response).isEqualTo(expected)
   }
 
   @Test

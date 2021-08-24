@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.GetRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 
@@ -88,12 +89,6 @@ private val DATA_PROVIDER: DataProvider =
 
 /** Base test class for [RecurringExchangesCoroutineImplBase] implementations. */
 abstract class RecurringExchangesServiceTest {
-  /**
-   * Creates a ModelProvider using [idGenerator] to generate internal and external ids.
-   *
-   * TODO: replace with /ModelProviders service once that exists.
-   */
-  protected abstract fun createModelProvider(idGenerator: IdGenerator): ModelProvider
 
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
@@ -105,6 +100,11 @@ abstract class RecurringExchangesServiceTest {
     idGenerator: IdGenerator
   ): DataProvidersCoroutineImplBase
 
+  /** Creates a test subject. */
+  protected abstract fun newModelProvidersService(
+    idGenerator: IdGenerator
+  ): ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+
   private lateinit var recurringExchanges: RecurringExchangesCoroutineImplBase
 
   @Before
@@ -115,7 +115,8 @@ abstract class RecurringExchangesServiceTest {
 
   @Before
   fun createModelProvider() {
-    createModelProvider(MODEL_ID_GENERATOR)
+    val service = newModelProvidersService(MODEL_ID_GENERATOR)
+    runBlocking { service.createModelProvider(ModelProvider.getDefaultInstance()) }
   }
 
   @Before
