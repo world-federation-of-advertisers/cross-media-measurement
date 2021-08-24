@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
-import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.kingdom.db.GetExchangeStepFilter
@@ -29,7 +28,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStep
  * @param filter a filter to control which [ExchangeStep] to return.
  */
 class GetExchangeStep(filter: GetExchangeStepFilter) :
-  SpannerQuery<ExchangeStepReader.Result, ExchangeStepReader.Result>() {
+  SimpleSpannerQuery<ExchangeStepReader.Result>() {
+
   override val reader: BaseSpannerReader<ExchangeStepReader.Result> by lazy {
     ExchangeStepReader(ExchangeStepReader.Index.NONE).withBuilder {
       require(!filter.empty) { "Filter not provided for GetExchangeStep." }
@@ -41,6 +41,4 @@ class GetExchangeStep(filter: GetExchangeStepFilter) :
       appendClause("LIMIT 1")
     }
   }
-
-  override fun Flow<ExchangeStepReader.Result>.transform(): Flow<ExchangeStepReader.Result> = this
 }
