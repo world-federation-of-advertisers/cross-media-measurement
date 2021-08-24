@@ -24,3 +24,46 @@ secretGenerator:
   - worker_1.pem
   - worker_2.key
   - worker_2.pem
+  - edp1_cs_cert.der
+  - edp1_cs_private.der
+  - edp1_enc_private.der
+  - edp1_enc_public.der
+  - edp1_tls.key
+  - edp1_tls.pem
+  - edp2_cs_cert.der
+  - edp2_cs_private.der
+  - edp2_enc_private.der
+  - edp2_enc_public.der
+  - edp2_tls.key
+  - edp2_tls.pem
+  - edp3_cs_cert.der
+  - edp3_cs_private.der
+  - edp3_enc_private.der
+  - edp3_enc_public.der
+  - edp3_tls.key
+  - edp3_tls.pem
+  - edp4_cs_cert.der
+  - edp4_cs_private.der
+  - edp4_enc_private.der
+  - edp4_enc_public.der
+  - edp4_tls.key
+  - edp4_tls.pem
+  - edp5_cs_cert.der
+  - edp5_cs_private.der
+  - edp5_enc_private.der
+  - edp5_enc_public.der
+  - edp5_tls.key
+  - edp5_tls.pem
+  - edp6_cs_cert.der
+  - edp6_cs_private.der
+  - edp6_enc_private.der
+  - edp6_enc_public.der
+  - edp6_tls.key
+  - edp6_tls.pem
+  - mc_cs_cert.der
+  - mc_cs_private.der
+  - mc_enc_private.der
+  - mc_enc_public.der
+  - mc_tls.key
+  - mc_tls.pem
+
