@@ -40,8 +40,8 @@ class DecryptQueryResultsWorkflow(
 
   /** Creates [EncryptQueriesResponse] on [data]. TODO remove AES encryption */
   fun batchDecryptQueryResults(
-    encryptedQueryResults: PCollection<ByteString>
-  ): PCollection<ByteString> {
+    encryptedQueryResults: PCollection<EncryptedQueryResult>
+  ): PCollection<DecryptedQueryResult> {
     return encryptedQueryResults.parDo(name = "Decrypt encrypted results") { encryptedQueryResult ->
       val decryptQueryResultsRequest = decryptQueriesRequest {
         parameters = obliviousQueryParameters.obliviousQueryParameters

@@ -47,7 +47,7 @@ message EncryptQueriesRequest {
   ObliviousQueryParameters parameters = 1;
   bytes public_key = 2;
   bytes private_key = 3;
-  repeated UnencryptedQuery unencrypted_query = 4;
+  repeated UnencryptedQuery unencrypted_queries = 4;
 }
 
 // Used in the response to encrypt a set of queries
@@ -60,6 +60,14 @@ message EncryptedQuery {
 message EncryptQueriesResponse {
   repeated bytes ciphertexts = 1;
   repeated EncryptedQuery encrypted_query = 2;
+  bytes metadata = 3;
+}
+
+// Generic message type holding an encrypted query result
+message EncryptedQueryResult {
+  ShardId shard_id = 1;
+  QueryId query_id = 2;
+  repeated bytes ciphertexts = 3;
 }
 
 // A request to remove RLWE-encryption from a set of results.
@@ -67,22 +75,19 @@ message DecryptQueriesRequest {
   ObliviousQueryParameters parameters = 1;
   bytes public_key = 2;
   bytes private_key = 3;
-  repeated bytes encrypted_query_results = 4;
+  repeated EncryptedQueryResult encrypted_query_results = 4;
+}
+
+// Generic message type holding an decrypted query result
+message DecryptedQueryResult {
+  ShardId shard_id = 1;
+  QueryId query_id = 2;
+  bytes plaintext = 3;
 }
 
 // This response contains queries with RLWE-encryption removed. The query
 // results are encrypted with another encryption scheme separately which is not
 // removed during this step.
 message DecryptQueriesResponse {
-  repeated bytes decrypted_query_results = 1;
-}
-
-// Some key maintained by a model provider to identify a panelist
-message PanelistKey {
-  fixed64 id = 1;
-}
-
-// The agreed upon join key used for double blind exchange and query lookup
-message JoinKey {
-  bytes key = 1;
+  repeated DecryptedQueryResult decrypted_query_results = 1;
 }

@@ -25,16 +25,47 @@ fun bucketIdOf(id: Int): BucketId = BucketId.newBuilder().setId(id).build()
 /** Constructs a [QueryId]. */
 fun queryIdOf(id: Int): QueryId = QueryId.newBuilder().setId(id).build()
 
+/** Constructs a [UnencryptedQuery]. */
 fun unencryptedQueryOf(shard: Int, query: Int, bucket: Int): UnencryptedQuery =
   unencryptedQueryOf(shardIdOf(shard), bucketIdOf(bucket), queryIdOf(query))
 
 /** Constructs a [UnencryptedQuery]. */
 fun unencryptedQueryOf(shardId: ShardId, bucketId: BucketId, queryId: QueryId): UnencryptedQuery =
-  UnencryptedQuery.newBuilder()
-    .setShardId(shardId)
-    .setBucketId(bucketId)
-    .setQueryId(queryId)
-    .build()
+    unencryptedQuery {
+  this.shardId = shardId
+  this.bucketId = bucketId
+  this.queryId = queryId
+}
+
+/** Constructs a [EncryptedQuery]. */
+fun encryptedQueryOf(shard: Int, query: Int): EncryptedQuery =
+  encryptedQueryOf(shardIdOf(shard), queryIdOf(query))
+
+/** Constructs a [EncryptedQuery]. */
+fun encryptedQueryOf(shardId: ShardId, queryId: QueryId): EncryptedQuery = encryptedQuery {
+  this.shardId = shardId
+  this.queryId = queryId
+}
+
+/** Constructs a [DecryptedQueryResult]. */
+fun plaintextOf(plaintext: ByteString, query: Int, shard: Int): DecryptedQueryResult {
+  return decryptedQueryResult {
+    this.plaintext = plaintext
+    queryId = queryIdOf(query)
+    shardId = shardIdOf(shard)
+  }
+}
+
+/** Constructs a [DecryptedQueryResult]. */
+fun plaintextOf(plaintext: String, query: Int, shard: Int): DecryptedQueryResult {
+  return plaintextOf(ByteString.copyFromUtf8(plaintext), query, shard)
+}
+
+// TODO some of the tests don't verify the plaintext lines up with the correct queryId. Delete the
+// following after that is implemented
+fun plaintextOf(plaintext: String): DecryptedQueryResult {
+  return decryptedQueryResult { this.plaintext = ByteString.copyFromUtf8(plaintext) }
+}
 
 /** Constructs a [DatabaseShard]. */
 fun databaseShardOf(shardId: ShardId, buckets: Iterable<Bucket>): DatabaseShard =

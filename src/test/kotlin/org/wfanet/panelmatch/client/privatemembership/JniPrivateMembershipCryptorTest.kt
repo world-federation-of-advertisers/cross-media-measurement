@@ -15,23 +15,64 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
+import com.google.privatemembership.batch.ParametersKt.cryptoParameters
+import com.google.privatemembership.batch.ParametersKt.shardParameters
+import com.google.privatemembership.batch.parameters as clientParameters
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.common.JniException
 
+@OptIn(kotlin.ExperimentalUnsignedTypes::class)
 @RunWith(JUnit4::class)
 class JniPrivateMembershipCryptorTest {
-  val privateMembershipCryptor: PrivateMembershipCryptor = JniPrivateMembershipCryptor()
+  val privateMembershipCryptor =
+    JniPrivateMembershipCryptor(
+      clientParameters =
+        clientParameters {
+          this.shardParameters =
+            shardParameters {
+              numberOfShards = 200
+              numberOfBucketsPerShard = 2000
+            }
+          this.cryptoParameters =
+            cryptoParameters {
+              logDegree = 12
+              logT = 1
+              variance = 8
+              levelsOfRecursion = 2
+              logCompressionFactor = 4
+              logDecompositionModulus = 10
+              requestModulus += 18446744073708380161UL.toLong()
+              requestModulus += 137438953471UL.toLong()
+              responseModulus += 2056193UL.toLong()
+            }
+        }
+    )
 
   @Test
-  fun `invalid proto throws JniException`() {
-    val missingKeyException =
-      assertFailsWith(JniException::class) {
-        val request = EncryptQueriesRequest.getDefaultInstance()
-        privateMembershipCryptor.encryptQueries(request)
-      }
-    assertThat(missingKeyException.message).contains("UNIMPLEMENTED: Not implemented")
+  fun `encryptQueries with multiple shards`() {
+    val encryptQueriesRequest = encryptQueriesRequest {
+      unencryptedQueries +=
+        listOf(
+          unencryptedQueryOf(100, 1, 1),
+          unencryptedQueryOf(100, 2, 2),
+          unencryptedQueryOf(101, 3, 1),
+          unencryptedQueryOf(101, 4, 5)
+        )
+    }
+    val encryptedQueries = privateMembershipCryptor.encryptQueries(encryptQueriesRequest)
+    assertThat(encryptedQueries.encryptedQueryList)
+      .containsExactly(
+        encryptedQueryOf(100, 1),
+        encryptedQueryOf(100, 2),
+        encryptedQueryOf(101, 3),
+        encryptedQueryOf(101, 4)
+      )
+    // TODO need to validate the ciphertexts in some way as well
+  }
+
+  @Test
+  fun `Decrypt Encrypted Result`() {
+    // TODO
   }
 }

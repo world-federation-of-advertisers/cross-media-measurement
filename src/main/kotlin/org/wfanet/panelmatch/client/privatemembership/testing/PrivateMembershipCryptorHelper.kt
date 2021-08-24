@@ -20,6 +20,7 @@ import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.EncryptQueriesResponse
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
@@ -32,7 +33,7 @@ import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 interface PrivateMembershipCryptorHelper : Serializable {
 
   /** Takes a list of pairs of (QueryId, Plaintext) and returns an encrypted list of ByteString */
-  fun makeEncryptedResults(plaintexts: List<Pair<Int, String>>): List<ByteString>
+  fun makeEncryptedResults(plaintexts: List<Pair<Int, String>>): List<EncryptedQueryResult>
 
   /**
    * Takes an [EncryptQueriesResponse] and reverses the process to yield the underlying decrypted
