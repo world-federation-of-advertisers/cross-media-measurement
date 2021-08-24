@@ -20,6 +20,8 @@ package k8s
 objectSets: [
 		fake_service,
 		fake_pod,
+		frontend_simulator,
+		resource_setup_job,
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
@@ -79,6 +81,33 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"--port=8080",
 	]
 }
+
+#Edps: [
+	{
+		display_name:  "edp1"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp2"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp3"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp4"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp5"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp6"
+		resource_name: "dataProviders/TBD"
+	},
+]
 
 #Duchies: [
 	{
@@ -159,7 +188,26 @@ kingdom: #Kingdom & {
 		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
 		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
 		"system-api-server":             "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
+		"v2alpha-public-api-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
 	}
 	_kingdom_image_pull_policy: "Never"
 	_verbose_grpc_logging:      "true"
+}
+
+frontend_simulator: "frontend_simulator": #FrontendSimulator & {
+	_edp_display_names: [ for d in #Edps {d.display_name}]
+	_mc_resource_name: "measurementConsumers/TBD"
+	_image:            "bazel/src/main/kotlin/org/wfanet/measurement/loadtest:forwarded_storage_frontend_simulator_runner_image"
+	_imagePullPolicy:  "Never"
+	_args: [
+		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
+	]
+	_dependencies: ["v2alpha-public-api-server"]
+}
+
+resource_setup_job: "resource_setup_job": #ResourceSetup & {
+	_edp_display_names: [ for d in #Edps {d.display_name}]
+	_image:           "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup_runner_image"
+	_imagePullPolicy: "Always"
+	_dependencies: ["v2alpha-public-api-server"]
 }
