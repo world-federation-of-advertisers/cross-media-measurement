@@ -74,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
@@ -398,7 +399,7 @@ class RequisitionsServiceTest {
     verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest {
+        internalRefuseRequisitionRequest {
           refusal =
             InternalRequisitionKt.refusal {
               justification = InternalRefusal.Justification.UNFULFILLABLE
