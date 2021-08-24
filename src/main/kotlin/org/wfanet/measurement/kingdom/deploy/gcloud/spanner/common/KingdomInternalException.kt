@@ -42,7 +42,7 @@ class KingdomInternalException : Exception {
     CERTIFICATE_NOT_FOUND,
 
     /** Computation Participant should have been in another state. */
-    COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE,
+    COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
 
     /** Computation Participant resource queried could not be found. */
     COMPUTATION_PARTICIPANT_NOT_FOUND

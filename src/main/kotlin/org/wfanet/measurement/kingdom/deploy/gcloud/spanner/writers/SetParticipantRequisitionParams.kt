@@ -18,10 +18,9 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.bufferTo
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -31,7 +30,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.allOtherComputationParticipantsInState
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
 
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
 
@@ -40,8 +39,9 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
- * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE]
+ * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL]
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SimpleSpannerWriter<ComputationParticipant>() {
@@ -56,12 +56,16 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readWithIdsOrNull(transactionContext, request.externalComputationId, duchyId)
+        .readWithIdsOrNull(
+          transactionContext,
+          ExternalId(request.externalComputationId),
+          InternalId(duchyId)
+        )
         ?: throw KingdomInternalException(
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
-            "and external duchy Id ${request.externalDuchyId} not found"
+            "and external duchy ID ${request.externalDuchyId} not found"
         }
 
     val computationParticipant = computationParticipantResult.computationParticipant
@@ -70,32 +74,34 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
       throw KingdomInternalException(
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_IN_UNEXPECTED_STATE
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
-          "and external duchy Id ${request.externalDuchyId} has the wrong state. " +
+          "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
           "It should have been in state CREATED but was in state ${computationParticipant.state}"
       }
     }
 
     val participantDetails =
       computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
+    val updateTime = Value.COMMIT_TIMESTAMP
+    transactionContext.bufferUpdateMutation("ComputationParticipants") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("DuchyId" to duchyId)
+      set("CertificateId" to duchyCertificateId.value)
+      set("UpdateTime" to updateTime)
+      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
+      set("ParticipantDetails" to participantDetails)
+      setJson("ParticipantDetailsJson" to participantDetails)
+    }
 
-    updateMutation("ComputationParticipants") {
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("MeasurementId" to measurementId)
-        set("DuchyId" to duchyId)
-        set("CertificateId" to duchyCertificateId.value)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-        set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
-        set("ParticipantDetails" to participantDetails)
-        setJson("ParticipantDetailsJson" to participantDetails)
-      }
-      .bufferTo(transactionContext)
+    val otherDuchyIds: List<InternalId> =
+      DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
 
-    if (allOtherComputationParticipantsInState(
+    if (computationParticipantsInState(
         transactionContext,
-        InternalId(duchyId),
+        otherDuchyIds,
         InternalId(measurementConsumerId),
         InternalId(measurementId),
         NEXT_COMPUTATION_PARTICIPANT_STATE
@@ -107,10 +113,12 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         Measurement.State.PENDING_REQUISITION_FULFILLMENT
       )
     }
+
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
       externalDuchyCertificateId = request.externalDuchyCertificateId
       details = participantDetails
+      this.updateTime = updateTime.toProto()
     }
   }
 

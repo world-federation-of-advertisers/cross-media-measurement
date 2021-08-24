@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -58,14 +59,14 @@ class ComputationParticipantReader() : SpannerReader<ComputationParticipantReade
 
   suspend fun readWithIdsOrNull(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalComputationId: Long,
-    duchyId: Long
+    externalComputationId: ExternalId,
+    duchyId: InternalId
   ): Result? {
     return withBuilder {
         appendClause("WHERE Measurements.externalComputationId = @externalComputationId")
         appendClause("AND ComputationParticipants.duchyId = @duchyId")
-        bind("externalComputationId").to(externalComputationId)
-        bind("duchyId").to(duchyId)
+        bind("externalComputationId").to(externalComputationId.value)
+        bind("duchyId").to(duchyId.value)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
@@ -81,12 +82,15 @@ class ComputationParticipantReader() : SpannerReader<ComputationParticipantReade
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant =
       computationParticipant {
-    externalMeasurementId = struct.getLong("ExternalMeasurementId")
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-    externalComputationId = struct.getLong("ExternalComputationId")
+    externalMeasurementId = struct.getLong("ExternalMeasurementId")
     externalDuchyId = checkNotNull(DuchyIds.getExternalId(struct.getLong("DuchyId")))
-    state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+    externalComputationId = struct.getLong("ExternalComputationId")
+
     updateTime = struct.getTimestamp("UpdateTime").toProto()
+    // details =
+    //   struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser()) ?:
+    state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
   }
 }
 
@@ -108,22 +112,26 @@ suspend fun readComputationParticipantState(
     ) { "ComputationParticipant not found $duchyId" }
 }
 
-suspend fun allOtherComputationParticipantsInState(
+suspend fun computationParticipantsInState(
   readContext: AsyncDatabaseClient.ReadContext,
-  thisDuchyId: InternalId,
+  duchyIds: List<InternalId>,
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   state: ComputationParticipant.State
 ): Boolean {
 
-  DuchyIds.entries.forEach { entry ->
-    if (entry.internalDuchyId != thisDuchyId.value &&
-        readComputationParticipantState(
-          readContext,
-          measurementConsumerId,
-          measurementId,
-          InternalId(entry.internalDuchyId)
-        ) != state
+  // return duchyIds
+  // .asSequence()
+  // .map { readComputationParticipantState(readContext, measurementConsumerId, measurementId, it) }
+  // .all { it == state }
+
+  duchyIds.forEach { internalDuchyId ->
+    if (readComputationParticipantState(
+        readContext,
+        measurementConsumerId,
+        measurementId,
+        internalDuchyId
+      ) != state
     ) {
       return false
     }
