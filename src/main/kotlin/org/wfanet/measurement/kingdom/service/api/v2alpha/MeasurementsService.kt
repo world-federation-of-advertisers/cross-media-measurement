@@ -33,10 +33,14 @@ import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -44,14 +48,18 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest as InternalCancelMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -65,14 +73,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         "Resource name is either unspecified or invalid"
       }
 
-    val internalGetMeasurementRequest =
-      InternalGetMeasurementRequest.newBuilder()
-        .apply {
-          externalMeasurementId = apiIdToExternalId(key.measurementId)
-          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-          measurementView = InternalMeasurementView.DEFAULT
-        }
-        .build()
+    val internalGetMeasurementRequest = getMeasurementRequest {
+      externalMeasurementId = apiIdToExternalId(key.measurementId)
+      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+      measurementView = InternalMeasurementView.DEFAULT
+    }
 
     val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
 
@@ -135,39 +140,38 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         else -> request.pageSize
       }
 
-    val streamMeasurementsRequest = buildStreamMeasurementsRequest {
+    val streamMeasurementsRequest = streamMeasurementsRequest {
       limit = pageSize
       measurementView = InternalMeasurementView.DEFAULT
-      filter {
-        externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-        if (request.pageToken.isNotBlank()) {
-          updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
-        }
-        for (state in request.filter.statesList) {
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-          when (state) {
-            State.AWAITING_REQUISITION_FULFILLMENT ->
-              addAllStates(
-                listOf(
-                  InternalState.PENDING_REQUISITION_PARAMS,
-                  InternalState.PENDING_REQUISITION_FULFILLMENT
-                )
-              )
-            State.COMPUTING ->
-              addAllStates(
-                listOf(
-                  InternalState.PENDING_PARTICIPANT_CONFIRMATION,
-                  InternalState.PENDING_COMPUTATION
-                )
-              )
-            State.SUCCEEDED -> addStates(InternalState.SUCCEEDED)
-            State.FAILED -> addStates(InternalState.FAILED)
-            State.CANCELLED -> addStates(InternalState.CANCELLED)
-            State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-              failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
+      filter =
+        filter {
+          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+          if (request.pageToken.isNotBlank()) {
+            updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
+          }
+          for (state in request.filter.statesList) {
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+            when (state) {
+              State.AWAITING_REQUISITION_FULFILLMENT ->
+                states +=
+                  listOf(
+                    InternalState.PENDING_REQUISITION_PARAMS,
+                    InternalState.PENDING_REQUISITION_FULFILLMENT
+                  )
+              State.COMPUTING ->
+                states +=
+                  listOf(
+                    InternalState.PENDING_PARTICIPANT_CONFIRMATION,
+                    InternalState.PENDING_COMPUTATION
+                  )
+              State.SUCCEEDED -> states += InternalState.SUCCEEDED
+              State.FAILED -> states += InternalState.FAILED
+              State.CANCELLED -> states += InternalState.CANCELLED
+              State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
+                failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
+            }
           }
         }
-      }
     }
 
     val results: List<InternalMeasurement> =
@@ -177,10 +181,10 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       return ListMeasurementsResponse.getDefaultInstance()
     }
 
-    return ListMeasurementsResponse.newBuilder()
-      .addAllMeasurement(results.map(InternalMeasurement::toMeasurement))
-      .setNextPageToken(results.last().updateTime.toByteArray().base64UrlEncode())
-      .build()
+    return listMeasurementsResponse {
+      measurement += results.map(InternalMeasurement::toMeasurement)
+      nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+    }
   }
 
   override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
@@ -189,13 +193,10 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         "Resource name is either unspecified or invalid"
       }
 
-    val internalCancelMeasurementRequest =
-      InternalCancelMeasurementRequest.newBuilder()
-        .apply {
-          externalMeasurementId = apiIdToExternalId(key.measurementId)
-          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-        }
-        .build()
+    val internalCancelMeasurementRequest = cancelMeasurementRequest {
+      externalMeasurementId = apiIdToExternalId(key.measurementId)
+      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+    }
 
     val internalMeasurement =
       internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
@@ -203,13 +204,6 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     return internalMeasurement.toMeasurement()
   }
 }
-
-internal inline fun buildMeasurement(fill: (@Builder Measurement.Builder).() -> Unit) =
-  Measurement.newBuilder().apply(fill).build()
-
-internal inline fun Measurement.Builder.measurementSpec(
-  fill: (@Builder SignedData.Builder).() -> Unit
-) = measurementSpecBuilder.apply(fill)
 
 /** Converts an internal [InternalState] to a public [State]. */
 private fun InternalState.toState(): State =
@@ -230,7 +224,7 @@ private fun InternalMeasurement.toMeasurement(): Measurement {
     "Incompatible API version ${details.apiVersion}"
   }
 
-  return buildMeasurement {
+  return measurement {
     name =
       MeasurementKey(
           externalIdToApiId(externalMeasurementConsumerId),
@@ -243,15 +237,15 @@ private fun InternalMeasurement.toMeasurement(): Measurement {
           externalIdToApiId(externalMeasurementConsumerCertificateId)
         )
         .toName()
-    measurementSpec {
-      data = details.measurementSpec
-      signature = details.measurementSpecSignature
-    }
+    measurementSpec =
+      signedData {
+        data = details.measurementSpec
+        signature = details.measurementSpecSignature
+      }
     serializedDataProviderList = details.dataProviderList
     dataProviderListSalt = details.dataProviderListSalt
-    addAllDataProviders(
+    dataProviders +=
       dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    )
     protocolConfig = ProtocolConfigKey(externalProtocolConfigId).toName()
     state = this@toMeasurement.state.toState()
     aggregatorCertificate = details.aggregatorCertificate
@@ -260,96 +254,73 @@ private fun InternalMeasurement.toMeasurement(): Measurement {
   }
 }
 
-internal inline fun DataProviderEntry.Value.Builder.dataProviderPublicKey(
-  fill: (@Builder SignedData.Builder).() -> Unit
-) = dataProviderPublicKeyBuilder.apply(fill)
-
 /** Converts an internal [DataProviderValue] to a public [DataProviderEntry.Value]. */
 private fun DataProviderValue.toDataProviderEntryValue(
   dataProviderId: String
 ): DataProviderEntry.Value {
-  return buildDataProviderEntryValue {
+  val dataProviderValue = this
+  return DataProviderEntryKt.value {
     dataProviderCertificate =
       DataProviderCertificateKey(
           dataProviderId,
           externalIdToApiId(externalDataProviderCertificateId)
         )
         .toName()
-    dataProviderPublicKey {
-      data = this@toDataProviderEntryValue.dataProviderPublicKey
-      signature = dataProviderPublicKeySignature
-    }
-    encryptedRequisitionSpec = this@toDataProviderEntryValue.encryptedRequisitionSpec
+    dataProviderPublicKey =
+      signedData {
+        data = dataProviderValue.dataProviderPublicKey
+        signature = dataProviderPublicKeySignature
+      }
+    encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
   }
 }
-
-internal inline fun buildDataProviderEntryValue(
-  fill: (@Builder DataProviderEntry.Value.Builder).() -> Unit
-) = DataProviderEntry.Value.newBuilder().apply(fill).build()
-
-internal inline fun buildDataProviderEntry(fill: (@Builder DataProviderEntry.Builder).() -> Unit) =
-  DataProviderEntry.newBuilder().apply(fill).build()
 
 /** Converts an internal data provider map entry to a public [DataProviderEntry]. */
 private fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry {
-  return buildDataProviderEntry {
-    key = DataProviderKey(externalIdToApiId(this@toDataProviderEntry.key)).toName()
-    value =
-      this@toDataProviderEntry.value.toDataProviderEntryValue(
-        externalIdToApiId(this@toDataProviderEntry.key)
-      )
+  val mapEntry = this
+  return dataProviderEntry {
+    key = DataProviderKey(externalIdToApiId(mapEntry.key)).toName()
+    value = mapEntry.value.toDataProviderEntryValue(externalIdToApiId(mapEntry.key))
   }
 }
-
-internal inline fun buildInternalMeasurement(
-  fill: (@Builder InternalMeasurement.Builder).() -> Unit
-) = InternalMeasurement.newBuilder().apply(fill).build()
 
 /** Converts a public [Measurement] to an internal [InternalMeasurement] for creation. */
 private fun Measurement.toInternal(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey
 ): InternalMeasurement {
-  return buildInternalMeasurement {
+  val publicMeasurement = this
+  return internalMeasurement {
     providedMeasurementId = measurementReferenceId
     externalMeasurementConsumerId =
       apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
     externalMeasurementConsumerCertificateId =
       apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
-    putAllDataProviders(
-      this@toInternal.dataProvidersList.associateBy(
+    dataProviders.putAll(
+      publicMeasurement.dataProvidersList.associateBy(
         { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
         {
           val key = DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)
           val publicKey = it.value.dataProviderPublicKey
 
-          DataProviderValue.newBuilder()
-            .apply {
-              externalDataProviderCertificateId = apiIdToExternalId(key!!.certificateId)
-              dataProviderPublicKey = publicKey.data
-              dataProviderPublicKeySignature = publicKey.signature
-              encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
-            }
-            .build()
+          dataProviderValue {
+            externalDataProviderCertificateId = apiIdToExternalId(key!!.certificateId)
+            dataProviderPublicKey = publicKey.data
+            dataProviderPublicKeySignature = publicKey.signature
+            encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
+          }
         }
       )
     )
-    detailsBuilder.apply {
-      apiVersion = Version.V2_ALPHA.string
-      measurementSpec = this@toInternal.measurementSpec.data
-      measurementSpecSignature = this@toInternal.measurementSpec.signature
-      dataProviderList = this@toInternal.serializedDataProviderList
-      dataProviderListSalt = this@toInternal.dataProviderListSalt
-    }
+    details =
+      details {
+        apiVersion = Version.V2_ALPHA.string
+        measurementSpec = publicMeasurement.measurementSpec.data
+        measurementSpecSignature = publicMeasurement.measurementSpec.signature
+        dataProviderList = publicMeasurement.serializedDataProviderList
+        dataProviderListSalt = publicMeasurement.dataProviderListSalt
+      }
   }
 }
-
-internal inline fun buildStreamMeasurementsRequest(
-  fill: (@Builder StreamMeasurementsRequest.Builder).() -> Unit
-) = StreamMeasurementsRequest.newBuilder().apply(fill).build()
-
-internal inline fun StreamMeasurementsRequest.Builder.filter(
-  fill: (@Builder StreamMeasurementsRequest.Filter.Builder).() -> Unit
-) = filterBuilder.apply(fill)
 
 /** Validates a [MeasurementSpec] for a request. */
 private fun MeasurementSpec.validate() {
