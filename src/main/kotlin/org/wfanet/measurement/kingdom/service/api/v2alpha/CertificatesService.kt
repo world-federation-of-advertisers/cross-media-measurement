@@ -38,7 +38,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState as InternalRevocationState
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
@@ -75,18 +75,18 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val duchyKey = DuchyKey.fromName(request.parent)
     val measurementConsumerKey = MeasurementConsumerKey.fromName(request.parent)
 
-    val internalCertificate =
-      parseCertificateDer(request.certificate.x509Der).copy {
-        when {
-          dataProviderKey != null ->
-            externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-          duchyKey != null -> externalDuchyId = duchyKey.duchyId
-          measurementConsumerKey != null ->
-            externalMeasurementConsumerId =
-              apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
-          else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
-        }
+    val internalCertificate = internalCertificate {
+      fillCertificateFromDer(request.certificate.x509Der)
+      when {
+        dataProviderKey != null ->
+          externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+        duchyKey != null -> externalDuchyId = duchyKey.duchyId
+        measurementConsumerKey != null ->
+          externalMeasurementConsumerId =
+            apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+        else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
       }
+    }
 
     return internalCertificatesStub.createCertificate(internalCertificate).toCertificate()
   }
