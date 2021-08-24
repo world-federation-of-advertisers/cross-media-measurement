@@ -15,19 +15,20 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflow
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflow.Parameters
+import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.GenerateKeysRequest
 import org.wfanet.panelmatch.client.privatemembership.ObliviousQueryParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
-import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS =
   listOf(
@@ -46,8 +47,8 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
   private fun runWorkflow(
     privateMembershipCryptor: PrivateMembershipCryptor,
     parameters: Parameters
-  ): PCollection<ByteString> {
-    val encryptedResults: PCollection<ByteString> =
+  ): PCollection<DecryptedQueryResult> {
+    val encryptedResults: PCollection<EncryptedQueryResult> =
       encryptedResultOf(privateMembershipCryptorHelper.makeEncryptedResults(PLAINTEXTS))
     return DecryptQueryResultsWorkflow(
         obliviousQueryParameters = parameters,
@@ -69,17 +70,20 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
         publicKey = generateKeysResponse.publicKey
       )
     val decryptedResults = runWorkflow(privateMembershipCryptor, parameters)
+    // TODO make sure the query ids line up with the correct data
     assertThat(decryptedResults)
       .containsInAnyOrder(
-        "<some data a>".toByteString(),
-        "<some data b>".toByteString(),
-        "<some data c>".toByteString(),
-        "<some data d>".toByteString(),
-        "<some data e>".toByteString()
+        plaintextOf("<some data a>"),
+        plaintextOf("<some data b>"),
+        plaintextOf("<some data c>"),
+        plaintextOf("<some data d>"),
+        plaintextOf("<some data e>")
       )
   }
 
-  private fun encryptedResultOf(entries: List<ByteString>): PCollection<ByteString> {
+  private fun encryptedResultOf(
+    entries: List<EncryptedQueryResult>
+  ): PCollection<EncryptedQueryResult> {
     return pcollectionOf("Create encryptedResults", *entries.map { it }.toTypedArray())
   }
 }

@@ -50,3 +50,13 @@ message QueryMetadata {
   // TODO: document metadata format.
   bytes metadata = 2;
 }
+
+// Some key maintained by a model provider to identify a panelist
+message PanelistKey {
+  fixed64 id = 1;
+}
+
+// The agreed upon join key used for double blind exchange and query lookup
+message JoinKey {
+  bytes key = 1;
+}

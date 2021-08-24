@@ -56,11 +56,6 @@ proto_library(
     deps = [":query_proto"],
 )
 
-cc_proto_library(
-    name = "oblivious_query_cc_proto",
-    deps = [":oblivious_query_proto"],
-)
-
 java_proto_library(
     name = "oblivious_query_java_proto",
     deps = [":oblivious_query_proto"],
@@ -70,6 +65,46 @@ kt_jvm_proto_library(
     name = "oblivious_query_kt_jvm_proto",
     srcs = [":oblivious_query_proto"],
     deps = [":oblivious_query_java_proto"],
+)
+
+cc_proto_library(
+    name = "private_membership_cc_proto",
+    deps = ["@private_membership//private_membership/rlwe/batch/cpp/client:client_proto"],
+)
+
+java_proto_library(
+    name = "private_membership_java_proto",
+    deps = [
+        "@private_membership//private_membership/rlwe/batch/cpp:shared_proto",
+        "@private_membership//private_membership/rlwe/batch/cpp/client:client_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "private_membership_shared_kt_jvm_proto",
+    srcs = [
+        "@private_membership//private_membership/rlwe/batch/cpp:shared_proto",
+    ],
+    deps = [":private_membership_java_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "private_membership_kt_jvm_proto",
+    srcs = ["@private_membership//private_membership/rlwe/batch/cpp/client:client_proto"],
+    deps = [":private_membership_java_proto"],
+)
+
+java_proto_library(
+    name = "rlwe_java_proto",
+    deps = [
+        "@com_github_google_shell//:serialization_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "rlwe_kt_jvm_proto",
+    srcs = ["@com_github_google_shell//:serialization_proto"],
+    deps = [":rlwe_java_proto"],
 )
 
 proto_library(

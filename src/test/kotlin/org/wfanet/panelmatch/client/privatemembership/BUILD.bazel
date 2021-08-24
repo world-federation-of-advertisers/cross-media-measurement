@@ -38,6 +38,8 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_shared_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
