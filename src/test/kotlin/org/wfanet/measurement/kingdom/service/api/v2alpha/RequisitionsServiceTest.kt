@@ -36,8 +36,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
@@ -45,6 +44,16 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -52,14 +61,21 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest as InternalRefuseRequest
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
+import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
+import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
+import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
+import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val UPDATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
@@ -73,35 +89,29 @@ private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAA
 private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 
-private val INTERNAL_REQUISITION: InternalRequisition =
-  InternalRequisition.newBuilder()
-    .apply {
-      externalMeasurementConsumerId = 1
-      externalMeasurementId = 2
-      externalRequisitionId = 3
-      externalComputationId = 4
-      externalDataProviderId = 5
-      externalDataProviderCertificateId = 6
-      updateTime = UPDATE_TIME
-      state = InternalState.FULFILLED
-      externalFulfillingDuchyId = "9"
-      putDuchies(
-        DUCHIES_MAP_KEY,
-        DuchyValue.newBuilder()
-          .apply {
-            externalDuchyCertificateId = 1
-            liquidLegionsV2Builder.apply {
-              elGamalPublicKey = UPDATE_TIME.toByteString()
-              elGamalPublicKeySignature = UPDATE_TIME.toByteString()
-            }
-          }
-          .build()
-      )
-      parentMeasurementBuilder.apply { apiVersion = Version.V2_ALPHA.string }
+private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
+  externalMeasurementConsumerId = 1
+  externalMeasurementId = 2
+  externalRequisitionId = 3
+  externalComputationId = 4
+  externalDataProviderId = 5
+  externalDataProviderCertificateId = 6
+  updateTime = UPDATE_TIME
+  state = InternalState.FULFILLED
+  externalFulfillingDuchyId = "9"
+  duchies[DUCHIES_MAP_KEY] =
+    duchyValue {
+      externalDuchyCertificateId = 1
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = UPDATE_TIME.toByteString()
+          elGamalPublicKeySignature = UPDATE_TIME.toByteString()
+        }
     }
-    .build()
+  parentMeasurement = parentMeasurement { apiVersion = Version.V2_ALPHA.string }
+}
 
-private val REQUISITION: Requisition = buildRequisition {
+private val REQUISITION: Requisition = requisition {
   name =
     RequisitionKey(
         externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
@@ -123,38 +133,41 @@ private val REQUISITION: Requisition = buildRequisition {
         )
       )
       .toName()
-  measurementSpec {
-    data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
-    signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
-  }
+  measurementSpec =
+    signedData {
+      data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
+      signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
+    }
   dataProviderCertificate =
     DataProviderCertificateKey(
         externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
         externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderCertificateId)
       )
       .toName()
-  dataProviderPublicKey {
-    data = INTERNAL_REQUISITION.details.dataProviderPublicKey
-    signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
-  }
+  dataProviderPublicKey =
+    signedData {
+      data = INTERNAL_REQUISITION.details.dataProviderPublicKey
+      signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
+    }
 
   val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]!!
-  addAllDuchies(
-    List(1) {
-      buildDuchyEntry {
-        key = DUCHIES_MAP_KEY
+
+  duchies +=
+    duchyEntry {
+      key = DUCHIES_MAP_KEY
+      value =
         value {
           duchyCertificate = externalIdToApiId(entry.externalDuchyCertificateId)
-          buildLiquidLegionsV2 {
-            elGamalPublicKey {
-              data = entry.liquidLegionsV2.elGamalPublicKey
-              signature = entry.liquidLegionsV2.elGamalPublicKeySignature
+          liquidLegionsV2 =
+            liquidLegionsV2 {
+              elGamalPublicKey =
+                signedData {
+                  data = entry.liquidLegionsV2.elGamalPublicKey
+                  signature = entry.liquidLegionsV2.elGamalPublicKeySignature
+                }
             }
-          }
         }
-      }
     }
-  )
 
   state = State.FULFILLED
 }
@@ -178,18 +191,15 @@ class RequisitionsServiceTest {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
-    val request = buildListRequisitionsRequest { parent = DATA_PROVIDER_NAME }
+    val request = listRequisitionsRequest { parent = DATA_PROVIDER_NAME }
 
     val result = service.listRequisitions(request)
 
-    val expected =
-      ListRequisitionsResponse.newBuilder()
-        .apply {
-          addRequisitions(REQUISITION)
-          addRequisitions(REQUISITION)
-          nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION
+      requisitions += REQUISITION
+      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+    }
 
     val streamRequisitionRequest =
       captureFirst<StreamRequisitionsRequest> {
@@ -199,12 +209,13 @@ class RequisitionsServiceTest {
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamRequisitionsRequest {
+        streamRequisitionsRequest {
           limit = DEFAULT_LIMIT
-          filterBuilder.apply {
-            externalDataProviderId =
-              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-          }
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalDataProviderId =
+                apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+            }
         }
       )
 
@@ -215,24 +226,21 @@ class RequisitionsServiceTest {
   fun `listRequisitions with page token and filter uses filter with timestamp from page token`() =
       runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION.rebuild { updateTime = UPDATE_TIME_B }))
+      .thenReturn(flowOf(INTERNAL_REQUISITION.copy { updateTime = UPDATE_TIME_B }))
 
-    val request = buildListRequisitionsRequest {
+    val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
       pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-      filterBuilder.apply { addStates(State.UNFULFILLED) }
+      filter = filter { states += State.UNFULFILLED }
     }
 
     val result = service.listRequisitions(request)
 
-    val expected =
-      ListRequisitionsResponse.newBuilder()
-        .apply {
-          addRequisitions(REQUISITION)
-          nextPageToken = UPDATE_TIME_B.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION
+      nextPageToken = UPDATE_TIME_B.toByteArray().base64UrlEncode()
+    }
 
     val streamRequisitionRequest =
       captureFirst<StreamRequisitionsRequest> {
@@ -242,14 +250,15 @@ class RequisitionsServiceTest {
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamRequisitionsRequest {
+        streamRequisitionsRequest {
           limit = 2
-          filterBuilder.apply {
-            externalDataProviderId =
-              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-            updatedAfter = UPDATE_TIME
-            addStates(InternalState.UNFULFILLED)
-          }
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalDataProviderId =
+                apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+              updatedAfter = UPDATE_TIME
+              states += InternalState.UNFULFILLED
+            }
         }
       )
 
@@ -262,20 +271,17 @@ class RequisitionsServiceTest {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION))
 
-    val request = buildListRequisitionsRequest {
+    val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
-      filterBuilder.apply { measurement = MEASUREMENT_NAME }
+      filter = filter { measurement = MEASUREMENT_NAME }
     }
 
     val result = service.listRequisitions(request)
 
-    val expected =
-      ListRequisitionsResponse.newBuilder()
-        .apply {
-          addRequisitions(REQUISITION)
-          nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION
+      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+    }
 
     val streamRequisitionRequest =
       captureFirst<StreamRequisitionsRequest> {
@@ -285,14 +291,15 @@ class RequisitionsServiceTest {
     assertThat(streamRequisitionRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamRequisitionsRequest {
+        streamRequisitionsRequest {
           limit = DEFAULT_LIMIT
-          filterBuilder.apply {
-            externalMeasurementConsumerId =
-              apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
-            externalDataProviderId =
-              apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-          }
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalMeasurementConsumerId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
+              externalDataProviderId =
+                apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+            }
         }
       )
 
@@ -303,9 +310,7 @@ class RequisitionsServiceTest {
   fun `listRequisitions throws INVALID_ARGUMENT when only wildcard parent`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listRequisitions(buildListRequisitionsRequest { parent = WILDCARD_NAME })
-        }
+        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
@@ -316,9 +321,7 @@ class RequisitionsServiceTest {
   fun `listRequisitions throws INVALID_ARGUMENT when parent is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listRequisitions(buildListRequisitionsRequest { parent = "adsfasdf" })
-        }
+        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = "adsfasdf" }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid")
@@ -330,9 +333,9 @@ class RequisitionsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.listRequisitions(
-            buildListRequisitionsRequest {
+            listRequisitionsRequest {
               parent = DATA_PROVIDER_NAME
-              filterBuilder.addStates(State.STATE_UNSPECIFIED)
+              filter = filter { states += State.STATE_UNSPECIFIED }
             }
           )
         }
@@ -356,9 +359,7 @@ class RequisitionsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.refuseRequisition(
-            RefuseRequisitionRequest.newBuilder().apply { name = REQUISITION_NAME }.build()
-          )
+          service.refuseRequisition(refuseRequisitionRequest { name = REQUISITION_NAME })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -369,55 +370,42 @@ class RequisitionsServiceTest {
   fun `refuseRequisition with refusal returns the updated requisition`() = runBlocking {
     whenever(internalRequisitionMock.refuseRequisition(any()))
       .thenReturn(
-        INTERNAL_REQUISITION.rebuild {
+        INTERNAL_REQUISITION.copy {
           state = InternalState.REFUSED
-          detailsBuilder.apply {
-            refusalBuilder.apply { justification = InternalRefusal.Justification.UNFULFILLABLE }
-          }
+          details =
+            details {
+              refusal =
+                InternalRequisitionKt.refusal {
+                  justification = InternalRefusal.Justification.UNFULFILLABLE
+                }
+            }
         }
       )
 
-    val request =
-      RefuseRequisitionRequest.newBuilder()
-        .apply {
-          name = REQUISITION_NAME
-          refusalBuilder.apply { justification = Refusal.Justification.UNFULFILLABLE }
-        }
-        .build()
+    val request = refuseRequisitionRequest {
+      name = REQUISITION_NAME
+      refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+    }
 
     val result = service.refuseRequisition(request)
 
     val expected =
-      REQUISITION
-        .toBuilder()
-        .apply {
-          state = State.REFUSED
-          refusalBuilder.apply { justification = Refusal.Justification.UNFULFILLABLE }
-        }
-        .build()
+      REQUISITION.copy {
+        state = State.REFUSED
+        refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+      }
 
     verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        InternalRefuseRequest.newBuilder()
-          .apply {
-            refusalBuilder.apply { justification = InternalRefusal.Justification.UNFULFILLABLE }
-          }
-          .build()
+        org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest {
+          refusal =
+            InternalRequisitionKt.refusal {
+              justification = InternalRefusal.Justification.UNFULFILLABLE
+            }
+        }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 }
-
-internal inline fun Requisition.DuchyEntry.Builder.value(
-  fill: (@Builder Requisition.DuchyEntry.Value.Builder).() -> Unit
-) = valueBuilder.apply(fill)
-
-internal inline fun InternalRequisition.rebuild(
-  fill: (@Builder InternalRequisition.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-internal inline fun buildListRequisitionsRequest(
-  fill: (@Builder ListRequisitionsRequest.Builder).() -> Unit
-) = ListRequisitionsRequest.newBuilder().apply(fill).build()
