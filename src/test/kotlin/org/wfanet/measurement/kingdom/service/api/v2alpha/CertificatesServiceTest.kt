@@ -55,7 +55,11 @@ import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificat
 import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
+import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
+import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
 
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
@@ -96,7 +100,7 @@ class CertificatesServiceTest {
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.getCertificateRequest {
+        internalGetCertificateRequest {
           val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
           externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
@@ -129,7 +133,7 @@ class CertificatesServiceTest {
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.getCertificateRequest {
+        internalGetCertificateRequest {
           val key =
             MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
           externalMeasurementConsumerId = apiIdToExternalId(key!!.measurementConsumerId)
@@ -163,7 +167,7 @@ class CertificatesServiceTest {
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.getCertificateRequest {
+        internalGetCertificateRequest {
           val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)
           externalDuchyId = key!!.duchyId
           externalCertificateId = apiIdToExternalId(key.certificateId)
@@ -248,7 +252,7 @@ class CertificatesServiceTest {
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::revokeCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.revokeCertificateRequest {
+        internalRevokeCertificateRequest {
           val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
           externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
@@ -298,7 +302,7 @@ class CertificatesServiceTest {
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest {
+        internalReleaseCertificateHoldRequest {
           val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
           externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
@@ -329,13 +333,12 @@ private val CERTIFICATE: Certificate = certificate {
   x509Der = SERVER_CERTIFICATE_DER
 }
 
-private val INTERNAL_CERTIFICATE =
-  org.wfanet.measurement.internal.kingdom.certificate {
-    val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-    externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
-    externalCertificateId = apiIdToExternalId(key.certificateId)
-    subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
-    notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
-    notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
-    details = details { x509Der = SERVER_CERTIFICATE_DER }
-  }
+private val INTERNAL_CERTIFICATE = internalCertificate {
+  val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
+  externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+  externalCertificateId = apiIdToExternalId(key.certificateId)
+  subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
+  notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
+  notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
+  details = details { x509Der = SERVER_CERTIFICATE_DER }
+}
