@@ -1,0 +1,50 @@
+load("//build/cue:defs.bzl", "cue_string_field")
+
+package(default_visibility = [
+    "//src/main/k8s:__subpackages__",
+])
+
+exports_files(["duchy_rpc_config.textproto"])
+
+exports_files(["duchy_id_config.textproto"])
+
+exports_files(["public_api_protocol_configs.textproto"])
+
+exports_files(["aggregator_protocols_setup_config.textproto"])
+
+exports_files(["non_aggregator_protocols_setup_config.textproto"])
+
+cue_string_field(
+    name = "duchy_rpc_config",
+    src = "duchy_rpc_config.textproto",
+    identifier = "#DuchyInfoConfig",
+    package = "k8s",
+)
+
+cue_string_field(
+    name = "duchy_id_config",
+    src = "duchy_id_config.textproto",
+    identifier = "#DuchyIdConfig",
+    package = "k8s",
+)
+
+cue_string_field(
+    name = "public_api_protocol_configs",
+    src = "public_api_protocol_configs.textproto",
+    identifier = "#PublicApiProtocolConfigs",
+    package = "k8s",
+)
+
+cue_string_field(
+    name = "aggregator_protocols_setup_config",
+    src = "aggregator_protocols_setup_config.textproto",
+    identifier = "#AggregatorProtocolsSetupConfig",
+    package = "k8s",
+)
+
+cue_string_field(
+    name = "non_aggregator_protocols_setup_config",
+    src = "non_aggregator_protocols_setup_config.textproto",
+    identifier = "#NonAggregatorProtocolsSetupConfig",
+    package = "k8s",
+)

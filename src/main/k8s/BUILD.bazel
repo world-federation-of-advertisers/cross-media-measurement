@@ -1,63 +1,19 @@
-load("//build/cue:defs.bzl", "cue_string_field")
 load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load(":macros.bzl", "cue_dump")
 
-exports_files(["duchy_rpc_config.textproto"])
-
-exports_files(["duchy_id_config.textproto"])
-
-exports_files(["public_api_protocol_configs.textproto"])
-
-exports_files(["aggregator_protocols_setup_config.textproto"])
-
-exports_files(["non_aggregator_protocols_setup_config.textproto"])
-
-cue_string_field(
-    name = "duchy_rpc_config",
-    src = "duchy_rpc_config.textproto",
-    identifier = "#DuchyInfoConfig",
-    package = "k8s",
-)
-
-cue_string_field(
-    name = "duchy_id_config",
-    src = "duchy_id_config.textproto",
-    identifier = "#DuchyIdConfig",
-    package = "k8s",
-)
-
-cue_string_field(
-    name = "public_api_protocol_configs",
-    src = "public_api_protocol_configs.textproto",
-    identifier = "#PublicApiProtocolConfigs",
-    package = "k8s",
-)
-
-cue_string_field(
-    name = "aggregator_protocols_setup_config",
-    src = "aggregator_protocols_setup_config.textproto",
-    identifier = "#AggregatorProtocolsSetupConfig",
-    package = "k8s",
-)
-
-cue_string_field(
-    name = "non_aggregator_protocols_setup_config",
-    src = "non_aggregator_protocols_setup_config.textproto",
-    identifier = "#NonAggregatorProtocolsSetupConfig",
-    package = "k8s",
-)
-
 CUE_LIBRARIES = [
-    ":aggregator_protocols_setup_config.cue",
-    ":non_aggregator_protocols_setup_config.cue",
-    ":duchy_rpc_config.cue",
-    ":duchy_id_config.cue",
-    ":public_api_protocol_configs.cue",
+    "//src/main/k8s/configs:aggregator_protocols_setup_config.cue",
+    "//src/main/k8s/configs:non_aggregator_protocols_setup_config.cue",
+    "//src/main/k8s/configs:duchy_rpc_config.cue",
+    "//src/main/k8s/configs:duchy_id_config.cue",
+    "//src/main/k8s/configs:public_api_protocol_configs.cue",
     "base.cue",
     "duchy.cue",
     "kingdom.cue",
+    "frontend_simulator.cue",
+    "resource_setup.cue",
 ]
 
 cue_dump(

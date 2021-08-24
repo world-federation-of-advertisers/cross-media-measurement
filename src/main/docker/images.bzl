@@ -57,6 +57,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/v2alpha-public-api",
     ),
     struct(
+        name = "resource_setup_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup_runner_image",
+        repository = _PREFIX + "/loadtest/resource-setup",
+    ),
+    struct(
         name = "setup_spanner_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
         repository = _PREFIX + "/setup/push-spanner-schema",
@@ -76,6 +81,11 @@ GKE_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_requisition_fulfillment_server_image",
         repository = _PREFIX + "/duchy/requisition-fulfillment",
     ),
+    struct(
+        name = "gcs_frontend_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:gcs_frontend_simulator_runner_image",
+        repository = _PREFIX + "/loadtest/frontend-simulator",
+    ),
 ]
 
 # List of image build rules that are only used locally (e.g. in Kind).
@@ -91,6 +101,10 @@ LOCAL_IMAGES = [
     struct(
         name = "forwarded_storage_requisition_fulfillment_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image",
+    ),
+    struct(
+        name = "forwarded_storage_frontend_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image",
     ),
     struct(
         name = "fake_storage_server_image",
