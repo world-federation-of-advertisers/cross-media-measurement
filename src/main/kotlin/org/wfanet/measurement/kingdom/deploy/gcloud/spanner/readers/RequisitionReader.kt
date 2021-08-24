@@ -33,13 +33,23 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 private val BASE_SQL =
   """
   SELECT
-    Requisitions.*,
+    Requisitions.MeasurementConsumerId,
+    Requisitions.MeasurementId,
+    Requisitions.RequisitionId,
+    Requisitions.DataProviderId,
+    Requisitions.UpdateTime,
+    Requisitions.ExternalRequisitionId,
+    Requisitions.DataProviderCertificateId,
+    Requisitions.State AS RequisitionState,
+    Requisitions.FulfillingDuchyId,
+    Requisitions.RequisitionDetails,
     ExternalMeasurementId,
     ExternalMeasurementConsumerId,
     ExternalMeasurementConsumerCertificateId,
     ExternalComputationId,
     ExternalDataProviderId,
     ExternalDataProviderCertificateId,
+    Measurements.State AS MeasurementState,
     MeasurementDetails,
     ARRAY(
       SELECT AS STRUCT
@@ -134,7 +144,7 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
       externalDataProviderId = struct.getLong("ExternalDataProviderId")
       externalDataProviderCertificateId = struct.getLong("ExternalDataProviderCertificateId")
       updateTime = struct.getTimestamp("UpdateTime").toProto()
-      state = struct.getProtoEnum("State", Requisition.State::forNumber)
+      state = struct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
       if (state == Requisition.State.FULFILLED) {
         val fulfillingDuchyId = struct.getLong("FulfillingDuchyId")
         externalFulfillingDuchyId =
@@ -164,6 +174,7 @@ private fun buildParentMeasurement(struct: Struct) = parentMeasurement {
     struct.getLong("ExternalMeasurementConsumerCertificateId")
   measurementSpec = measurementDetails.measurementSpec
   measurementSpecSignature = measurementDetails.measurementSpecSignature
+  state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
   // TODO(@uakyol): Fill external protocol config ID once we have a config mapping.
 }
 
