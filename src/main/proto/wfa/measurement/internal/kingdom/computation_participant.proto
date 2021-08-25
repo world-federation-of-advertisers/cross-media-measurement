@@ -70,7 +70,6 @@ message ComputationParticipant {
 
   DuchyMeasurementLogEntry failure_log_entry = 9;
 
-
   // Version of the public API for serialized message definitions as well as
   // resource names, which is denormalized from the parent Measurement.
   // Output-only.
