@@ -14,220 +14,180 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionKt.details as requisitionDetails
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
-// TODO(@uakyol) : Read this from protocol config when it is implemented.
+/**
+ * Hard-coded fake internal ID for ProtocolConfig.
+ *
+ * TODO(@wangyaopw): Map this from ProtocolConfigs when it is implemented.
+ */
 private const val FAKE_PROTOCOL_CONFIG_ID = 0L
 
-/** Creates a measurement in the database. */
+private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PARAMS
+
+/**
+ * Creates a measurement in the database.
+ *
+ * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
+ * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * * [KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND]
+ * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val measurementConsumerId =
-      MeasurementConsumerReader()
-        .readExternalIdOrNull(
-          transactionContext,
-          ExternalId(measurement.externalMeasurementConsumerId)
-        )
-        ?.measurementConsumerId
-        ?: throw KingdomInternalException(
-          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-        )
-
+    val measurementConsumerId: InternalId =
+      readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
     val existingMeasurement = findExistingMeasurement(measurementConsumerId)
     if (existingMeasurement != null) {
       return existingMeasurement
     }
 
-    // Insert this measurement into Measurements
-    val measurementId = idGenerator.generateInternalId().value
-
-    val measurementConsumerCertificateId =
-      getMeasurementConsumerCertificateId(
-        measurement.externalMeasurementConsumerId,
-        measurement.externalMeasurementConsumerCertificateId
-      )
-
-    val measurement =
-      createNewMeasurement(measurementId, measurementConsumerId, measurementConsumerCertificateId)
+    val measurementId: InternalId = idGenerator.generateInternalId()
+    val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
+    val externalComputationId: ExternalId = idGenerator.generateExternalId()
+    insertMeasurement(
+      measurementConsumerId,
+      measurementId,
+      externalMeasurementId,
+      externalComputationId
+    )
 
     // Insert into Requisitions for each EDP
-    for ((externalDataProviderIdValue, dataProviderValue) in measurement.dataProvidersMap) {
-      val externalDataProviderId = ExternalId(externalDataProviderIdValue)
-      val dataProviderId =
-        DataProviderReader()
-          .readExternalIdOrNull(transactionContext, externalDataProviderId)
-          ?.dataProviderId
-          ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-
-      val dataProviderCertificateId =
-        getDataProviderCertificateId(
-          externalDataProviderId.value,
-          dataProviderValue.externalDataProviderCertificateId
-        )
-      createRequisition(
-        externalDataProviderId.value,
-        measurementConsumerId,
-        measurementId,
-        dataProviderId,
-        dataProviderCertificateId
-      )
+    for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
+      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
+      insertRequisition(measurementConsumerId, measurementId, dataProviderId, dataProviderValue)
     }
 
     // Insert into ComputationParticipants for each Duchy
     DuchyIds.entries.forEach { entry ->
-      createComputationParticipant(measurementConsumerId, measurementId, entry.internalDuchyId)
+      insertComputationParticipant(
+        measurementConsumerId,
+        measurementId,
+        InternalId(entry.internalDuchyId)
+      )
     }
-    return measurement
+    return measurement.copy {
+      this.externalMeasurementId = externalMeasurementId.value
+      this.externalComputationId = externalComputationId.value
+      state = INITIAL_MEASUREMENT_STATE
+    }
   }
 
-  private suspend fun TransactionScope.createNewMeasurement(
-    measurementId: Long,
-    measurementConsumerId: Long,
-    measurementConsumerCertificateId: Long
-  ): Measurement {
-    val externalMeasurementId = idGenerator.generateExternalId()
-    val externalComputationId = idGenerator.generateExternalId()
-
-    insertMutation("Measurements") {
-        set("MeasurementId" to measurementId)
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("ExternalMeasurementId" to externalMeasurementId.value)
-        set("ExternalComputationId" to externalComputationId.value)
-        set("ProvidedMeasurementId" to measurement.providedMeasurementId)
-        set("CertificateId" to measurementConsumerCertificateId)
-        set("ProtocolConfigId" to FAKE_PROTOCOL_CONFIG_ID)
-        set("State" to Measurement.State.PENDING_REQUISITION_PARAMS)
-        set("MeasurementDetails" to measurement.details)
-        setJson("MeasurementDetailsJson" to measurement.details)
-        set("CreateTime" to Value.COMMIT_TIMESTAMP)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      }
-      .bufferTo(transactionContext)
-
-    return measurement
-      .toBuilder()
-      .also {
-        it.externalMeasurementId = externalMeasurementId.value
-        it.externalComputationId = externalComputationId.value
-      }
-      .build()
-  }
-
-  private suspend fun TransactionScope.createComputationParticipant(
-    measurementConsumerId: Long,
-    measurementId: Long,
-    duchyId: Long
+  private suspend fun TransactionScope.insertMeasurement(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    externalMeasurementId: ExternalId,
+    externalComputationId: ExternalId
   ) {
-    // TODO(@uakyol): populate all the relevant fields for a computationParticipants.
-    insertMutation("ComputationParticipants") {
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("MeasurementId" to measurementId)
-        set("DuchyId" to duchyId)
-        set("State" to ComputationParticipant.State.CREATED)
-      }
-      .bufferTo(transactionContext)
+    val measurementConsumerCertificateId =
+      readMeasurementConsumerCertificateId(
+        measurementConsumerId,
+        ExternalId(measurement.externalMeasurementConsumerCertificateId)
+      )
+    transactionContext.bufferInsertMutation("Measurements") {
+      set("MeasurementConsumerId" to measurementConsumerId.value)
+      set("MeasurementId" to measurementId.value)
+      set("ExternalMeasurementId" to externalMeasurementId.value)
+      set("ExternalComputationId" to externalComputationId.value)
+      set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      set("CertificateId" to measurementConsumerCertificateId.value)
+      set("ProtocolConfigId" to FAKE_PROTOCOL_CONFIG_ID)
+      set("State" to INITIAL_MEASUREMENT_STATE)
+      set("MeasurementDetails" to measurement.details)
+      setJson("MeasurementDetailsJson" to measurement.details)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+    }
   }
 
-  private suspend fun TransactionScope.createRequisition(
-    externalDataProviderId: Long,
-    measurementConsumerId: Long,
-    measurementId: Long,
-    dataProviderId: Long,
-    dataProviderCertificateId: Long
+  private fun TransactionScope.insertComputationParticipant(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    duchyId: InternalId
   ) {
-    val internalRequisitionId = idGenerator.generateInternalId()
+    transactionContext.bufferInsertMutation("ComputationParticipants") {
+      set("MeasurementConsumerId" to measurementConsumerId.value)
+      set("MeasurementId" to measurementId.value)
+      set("DuchyId" to duchyId.value)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      set("State" to ComputationParticipant.State.CREATED)
+    }
+  }
+
+  private suspend fun TransactionScope.insertRequisition(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    dataProviderId: InternalId,
+    dataProviderValue: Measurement.DataProviderValue
+  ) {
+    val dataProviderCertificateId =
+      readDataProviderCertificateId(
+        dataProviderId,
+        ExternalId(dataProviderValue.externalDataProviderCertificateId)
+      )
+
+    val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
+    val details: Requisition.Details = requisitionDetails {
+      dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+      dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+      encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+    }
 
-    insertMutation("Requisitions") {
-        set("MeasurementConsumerId" to measurementConsumerId)
-        set("MeasurementId" to measurementId)
-        set("RequisitionId" to internalRequisitionId.value)
-        set("DataProviderId" to dataProviderId)
-        set("CreateTime" to Value.COMMIT_TIMESTAMP)
-        set("ExternalRequisitionId" to externalRequisitionId.value)
-        set("DataProviderCertificateId" to dataProviderCertificateId)
-        set("State" to Requisition.State.UNFULFILLED)
-      }
-      .bufferTo(transactionContext)
-  }
-
-  private suspend fun TransactionScope.getMeasurementConsumerCertificateId(
-    externalMeasurementConsumerId: Long,
-    externalMeasurementConsumerCertificateId: Long
-  ): Long {
-    val measurementConsumerGetCertificateRequest =
-      GetCertificateRequest.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.externalCertificateId = measurement.externalMeasurementConsumerCertificateId
-        }
-        .build()
-
-    return CertificateReader(measurementConsumerGetCertificateRequest)
-      .readExternalIdOrNull(
-        transactionContext,
-        ExternalId(measurementConsumerGetCertificateRequest.externalCertificateId)
-      )
-      ?.certificateId
-      ?: throw KingdomInternalException(
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-      )
-  }
-
-  private suspend fun TransactionScope.getDataProviderCertificateId(
-    externalDataProviderId: Long,
-    externalDataProviderCertificateId: Long
-  ): Long {
-    val dataProviderGetCertificateRequest =
-      GetCertificateRequest.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.externalCertificateId = externalDataProviderCertificateId
-        }
-        .build()
-    return CertificateReader(dataProviderGetCertificateRequest)
-      .readExternalIdOrNull(
-        transactionContext,
-        ExternalId(dataProviderGetCertificateRequest.externalCertificateId)
-      )
-      ?.certificateId
-      ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+    transactionContext.bufferInsertMutation("Requisitions") {
+      set("MeasurementConsumerId" to measurementConsumerId.value)
+      set("MeasurementId" to measurementId.value)
+      set("RequisitionId" to requisitionId.value)
+      set("DataProviderId" to dataProviderId.value)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      set("ExternalRequisitionId" to externalRequisitionId.value)
+      set("DataProviderCertificateId" to dataProviderCertificateId.value)
+      set("State" to Requisition.State.UNFULFILLED)
+      set("RequisitionDetails" to details)
+      setJson("RequisitionDetailsJson" to details)
+    }
   }
 
   private suspend fun TransactionScope.findExistingMeasurement(
-    measurementConsumerId: Long
+    measurementConsumerId: InternalId
   ): Measurement? {
+    val params =
+      object {
+        val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
+        val PROVIDED_MEASUREMENT_ID = "providedMeasurementId"
+      }
     val whereClause =
       """
-      WHERE Measurements.MeasurementConsumerId = @measurement_consumer_id
-        AND Measurements.ProvidedMeasurementId = @provided_measurement_id
+      WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
+        AND ProvidedMeasurementId = @${params.PROVIDED_MEASUREMENT_ID}
       """.trimIndent()
 
     return MeasurementReader(Measurement.View.DEFAULT)
       .withBuilder {
         appendClause(whereClause)
-        bind("measurement_consumer_id").to(measurementConsumerId)
-        bind("provided_measurement_id").to(measurement.providedMeasurementId)
+        bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId.value)
+        bind(params.PROVIDED_MEASUREMENT_ID to measurement.providedMeasurementId)
       }
       .execute(transactionContext)
       .map { it.measurement }
@@ -236,10 +196,81 @@ class CreateMeasurement(private val measurement: Measurement) :
 
   override fun ResultScope<Measurement>.buildResult(): Measurement {
     val measurement = checkNotNull(transactionResult)
-    return if (measurement.hasCreateTime()) {
-      measurement
-    } else {
-      measurement.toBuilder().apply { createTime = commitTimestamp.toProto() }.build()
+    if (measurement.hasCreateTime()) {
+      // Existing measurement was returned instead of inserting new one, so keep its timestamps.
+      return measurement
+    }
+    return measurement.copy {
+      createTime = commitTimestamp.toProto()
+      updateTime = commitTimestamp.toProto()
     }
   }
+}
+
+private suspend fun TransactionScope.readMeasurementConsumerId(
+  externalMeasurementConsumerId: ExternalId
+): InternalId {
+  val column = "MeasurementConsumerId"
+  return transactionContext.readRowUsingIndex(
+      "MeasurementConsumers",
+      "MeasurementConsumersByExternalId",
+      Key.of(externalMeasurementConsumerId.value),
+      column
+    )
+    ?.let { struct -> InternalId(struct.getLong(column)) }
+    ?: throw KingdomInternalException(
+      KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
+    ) { "MeasurementConsumer with external ID $externalMeasurementConsumerId not found" }
+}
+
+private suspend fun TransactionScope.readDataProviderId(
+  externalDataProviderId: ExternalId
+): InternalId {
+  val column = "DataProviderId"
+  return transactionContext.readRowUsingIndex(
+      "DataProviders",
+      "DataProvidersByExternalId",
+      Key.of(externalDataProviderId.value),
+      column
+    )
+    ?.let { struct -> InternalId(struct.getLong(column)) }
+    ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND) {
+      "DataProvider with external ID $externalDataProviderId not found"
+    }
+}
+
+private suspend fun TransactionScope.readDataProviderCertificateId(
+  dataProviderId: InternalId,
+  externalCertificateId: ExternalId
+): InternalId {
+  val column = "CertificateId"
+  return transactionContext.readRowUsingIndex(
+      "DataProviderCertificates",
+      "DataProviderCertificatesByExternalId",
+      Key.of(dataProviderId.value, externalCertificateId.value),
+      column
+    )
+    ?.let { struct -> InternalId(struct.getLong(column)) }
+    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
+      "Certificate for DataProvider ${dataProviderId.value} with external ID " +
+        "$externalCertificateId not found"
+    }
+}
+
+private suspend fun TransactionScope.readMeasurementConsumerCertificateId(
+  measurementConsumerId: InternalId,
+  externalCertificateId: ExternalId
+): InternalId {
+  val column = "CertificateId"
+  return transactionContext.readRowUsingIndex(
+      "MeasurementConsumerCertificates",
+      "MeasurementConsumerCertificatesByExternalId",
+      Key.of(measurementConsumerId.value, externalCertificateId.value),
+      column
+    )
+    ?.let { struct -> InternalId(struct.getLong(column)) }
+    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
+      "Certificate for MeasurementConsumer ${measurementConsumerId.value} with external ID " +
+        "$externalCertificateId not found"
+    }
 }

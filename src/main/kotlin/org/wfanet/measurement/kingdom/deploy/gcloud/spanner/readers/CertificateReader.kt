@@ -29,18 +29,15 @@ class CertificateReader(private val request: GetCertificateRequest) :
 
   data class Result(val certificate: Certificate, val certificateId: Long)
 
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  private val tableName: String
-  init {
-    tableName =
-      when (request.parentCase) {
-        GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-        GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-        GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-        GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-          throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
-      }
-  }
+  private val tableName: String =
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (request.parentCase) {
+      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
+    }
 
   override val externalIdColumn: String =
     "${tableName}Certificates.External${tableName}CertificateId"
@@ -51,6 +48,7 @@ class CertificateReader(private val request: GetCertificateRequest) :
   override val baseSql: String = constructBaseSql(request)
 
   private fun constructBaseSql(request: GetCertificateRequest): String {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (request.parentCase) {
       GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> getConfigBaseSql(tableName)
       GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> getTableBaseSql(tableName)
