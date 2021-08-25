@@ -31,7 +31,6 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
-import org.wfanet.measurement.loadtest.EventGroupServiceFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.storage.StorageClient
@@ -78,9 +77,9 @@ abstract class EdpSimulator : Runnable {
     val eventGroupStub =
       EventGroupsCoroutineStub(
         buildMutualTlsChannel(
-            flags.eventGroupServiceFlags.target,
+            flags.requisitionFulfillmentServiceFlags.target,
             clientCerts,
-            flags.eventGroupServiceFlags.certHost,
+            flags.requisitionFulfillmentServiceFlags.certHost,
           )
           .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
       )
@@ -92,17 +91,10 @@ abstract class EdpSimulator : Runnable {
           parent = flags.dataProviderResourceName
           eventGroup =
             EventGroup.newBuilder()
-              .apply({
-                name = ""
-                measurementConsumer = flags.measurementConsumerResourceName
-                eventGroupReferenceId = "aaa"
-              })
+              .apply({ measurementConsumer = flags.measurementConsumerResourceName })
               .build()
         }
         .build()
-
-    // todo: do we care about the result?
-    val result = runBlocking { eventGroupStub.createEventGroup(request) }
 
     val workflow =
       RequisitionFulfillmentWorkflow(
@@ -117,7 +109,11 @@ abstract class EdpSimulator : Runnable {
         storageClient,
       )
 
-    runBlocking { throttler.loopOnReady { workflow.execute() } }
+    runBlocking {
+      eventGroupStub.createEventGroup(request)
+
+      throttler.loopOnReady { workflow.execute() }
+    }
   }
 
   protected class Flags {
@@ -170,15 +166,6 @@ abstract class EdpSimulator : Runnable {
     lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
       private set
 
-    @CommandLine.Mixin
-    lateinit var eventGroupServiceFlags: EventGroupServiceFlags
-      private set
-
-    @set:CommandLine.Option(
-      names = ["--debug-verbose-grpc-client-logging"],
-      description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-      defaultValue = "false"
-    )
     var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
       private set
   }
