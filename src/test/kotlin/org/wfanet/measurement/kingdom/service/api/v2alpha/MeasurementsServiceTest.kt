@@ -73,7 +73,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
-import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter as internalFilter
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
@@ -524,7 +524,7 @@ class MeasurementsServiceTest {
         streamMeasurementsRequest {
           limit = DEFAULT_LIMIT
           filter =
-            internalFilter {
+            StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId =
                 apiIdToExternalId(
                   MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId

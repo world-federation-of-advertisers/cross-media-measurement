@@ -114,11 +114,12 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
-    measurement.dataProvidersList.forEach { it.validate() }
+    val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
+    measurement.dataProvidersList.forEach { it.validateAndMap(dataProvidersMap) }
 
     val internalMeasurement =
       internalMeasurementsStub.createMeasurement(
-        request.measurement.toInternal(measurementConsumerCertificateKey)
+        request.measurement.toInternal(measurementConsumerCertificateKey, dataProvidersMap)
       )
 
     return internalMeasurement.toMeasurement()
@@ -152,18 +153,14 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
           for (state in request.filter.statesList) {
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
             when (state) {
-              State.AWAITING_REQUISITION_FULFILLMENT ->
-                states +=
-                  listOf(
-                    InternalState.PENDING_REQUISITION_PARAMS,
-                    InternalState.PENDING_REQUISITION_FULFILLMENT
-                  )
-              State.COMPUTING ->
-                states +=
-                  listOf(
-                    InternalState.PENDING_PARTICIPANT_CONFIRMATION,
-                    InternalState.PENDING_COMPUTATION
-                  )
+              State.AWAITING_REQUISITION_FULFILLMENT -> {
+                states += InternalState.PENDING_REQUISITION_PARAMS
+                states += InternalState.PENDING_REQUISITION_FULFILLMENT
+              }
+              State.COMPUTING -> {
+                states += InternalState.PENDING_PARTICIPANT_CONFIRMATION
+                states += InternalState.PENDING_COMPUTATION
+              }
               State.SUCCEEDED -> states += InternalState.SUCCEEDED
               State.FAILED -> states += InternalState.FAILED
               State.CANCELLED -> states += InternalState.CANCELLED
@@ -286,7 +283,8 @@ private fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProvid
 
 /** Converts a public [Measurement] to an internal [InternalMeasurement] for creation. */
 private fun Measurement.toInternal(
-  measurementConsumerCertificateKey: MeasurementConsumerCertificateKey
+  measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
+  dataProvidersMap: Map<Long, DataProviderValue>
 ): InternalMeasurement {
   val publicMeasurement = this
   return internalMeasurement {
@@ -295,22 +293,7 @@ private fun Measurement.toInternal(
       apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
     externalMeasurementConsumerCertificateId =
       apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
-    dataProviders.putAll(
-      publicMeasurement.dataProvidersList.associateBy(
-        { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
-        {
-          val key = DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)
-          val publicKey = it.value.dataProviderPublicKey
-
-          dataProviderValue {
-            externalDataProviderCertificateId = apiIdToExternalId(key!!.certificateId)
-            dataProviderPublicKey = publicKey.data
-            dataProviderPublicKeySignature = publicKey.signature
-            encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
-          }
-        }
-      )
-    )
+    dataProviders.putAll(dataProvidersMap)
     details =
       details {
         apiVersion = Version.V2_ALPHA.string
@@ -351,15 +334,19 @@ private fun MeasurementSpec.validate() {
   }
 }
 
-/** Validates a [DataProviderEntry] for a request. */
-private fun DataProviderEntry.validate() {
-  grpcRequireNotNull(DataProviderKey.fromName(this.key)) {
-    "Data Provider resource name is either unspecified or invalid"
-  }
+/** Validates a [DataProviderEntry] for a request and then creates a map entry from it. */
+private fun DataProviderEntry.validateAndMap(
+  dataProvidersMap: MutableMap<Long, DataProviderValue>
+) {
+  val dataProviderKey =
+    grpcRequireNotNull(DataProviderKey.fromName(this.key)) {
+      "Data Provider resource name is either unspecified or invalid"
+    }
 
-  grpcRequireNotNull(DataProviderCertificateKey.fromName(this.value.dataProviderCertificate)) {
-    "Data Provider certificate resource name is either unspecified or invalid"
-  }
+  val dataProviderCertificateKey =
+    grpcRequireNotNull(DataProviderCertificateKey.fromName(this.value.dataProviderCertificate)) {
+      "Data Provider certificate resource name is either unspecified or invalid"
+    }
 
   val publicKey = this.value.dataProviderPublicKey
   grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
@@ -369,4 +356,13 @@ private fun DataProviderEntry.validate() {
   grpcRequire(!this.value.encryptedRequisitionSpec.isEmpty) {
     "Encrypted Requisition spec is unspecified"
   }
+
+  val dataProviderEntry = this
+  val dataProviderValue = dataProviderValue {
+    externalDataProviderCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+    dataProviderPublicKey = publicKey.data
+    dataProviderPublicKeySignature = publicKey.signature
+    encryptedRequisitionSpec = dataProviderEntry.value.encryptedRequisitionSpec
+  }
+  dataProvidersMap[apiIdToExternalId(dataProviderKey.dataProviderId)] = dataProviderValue
 }
