@@ -127,7 +127,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementId: InternalId,
     duchyId: InternalId
   ) {
-    val emptyParticipantDetails = computationParticipantDetails{}
+    val emptyParticipantDetails = ComputationParticipant.Details.getDefaultInstance()
     transactionContext.bufferInsertMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId.value)
       set("MeasurementId" to measurementId.value)

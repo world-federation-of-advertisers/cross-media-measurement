@@ -142,7 +142,7 @@ suspend fun computationParticipantsInState(
   state: ComputationParticipant.State
 ): Boolean {
 
-  val wrongStateExists =
+  val wrongState =
     duchyIds
       .asFlow()
       .map {
@@ -150,5 +150,5 @@ suspend fun computationParticipantsInState(
       }
       .firstOrNull { it != state }
 
-  return wrongStateExists == null
+  return wrongState == null
 }

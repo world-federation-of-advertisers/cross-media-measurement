@@ -40,102 +40,103 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 
-internal fun buildRequestCertificate(derUtf8: String, skidUtf8: String, now: Instant): Certificate {
-  return certificate {
-    notValidBefore = now.toProtoTime()
-    notValidAfter = now.plus(365L, ChronoUnit.DAYS).toProtoTime()
-    subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
-    details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
+class Population(val clock: Clock, val idGenerator: IdGenerator) {
+
+  fun buildRequestCertificate(
+    derUtf8: String,
+    skidUtf8: String,
+    notValidBefore: Instant
+  ): Certificate {
+    return certificate {
+      this.notValidBefore = notValidBefore.toProtoTime()
+      notValidAfter = notValidBefore.plus(365L, ChronoUnit.DAYS).toProtoTime()
+      subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
+      details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
+    }
   }
-}
 
-internal suspend fun createMeasurementConsumer(
-  measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-  clock: Clock,
-  idGenerator: IdGenerator,
-  apiVersion: String
-): MeasurementConsumer {
-  return measurementConsumersService.createMeasurementConsumer(
-    measurementConsumer {
-      certificate =
-        buildRequestCertificate(
-          "MC cert",
-          "MC SKID " + idGenerator.generateExternalId().value,
-          clock.instant()
-        )
-      details =
-        MeasurementConsumerKt.details {
-          this.apiVersion = apiVersion
-          publicKey = ByteString.copyFromUtf8("MC public key")
-          publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
-        }
-    }
-  )
-}
-
-internal suspend fun createDataProvider(
-  dataProvidersService: DataProvidersCoroutineImplBase,
-  clock: Clock,
-  idGenerator: IdGenerator,
-  apiVersion: String
-): DataProvider {
-  return dataProvidersService.createDataProvider(
-    dataProvider {
-      certificate =
-        buildRequestCertificate(
-          "EDP cert",
-          "EDP SKID " + idGenerator.generateExternalId().value,
-          clock.instant()
-        )
-      details =
-        DataProviderKt.details {
-          this.apiVersion = apiVersion
-          publicKey = ByteString.copyFromUtf8("EDP public key")
-          publicKeySignature = ByteString.copyFromUtf8("EDP public key signature")
-        }
-    }
-  )
-}
-
-inline suspend fun createMeasurement(
-  measurementsService: MeasurementsCoroutineImplBase,
-  clock: Clock,
-  idGenerator: IdGenerator,
-  apiVersion: String,
-  measurementConsumer: MeasurementConsumer,
-  providedMeasurementId: String,
-  vararg dataProviders: DataProvider
-): Measurement {
-  return measurementsService.createMeasurement(
-    measurement {
-      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      this.providedMeasurementId = providedMeasurementId
-      externalMeasurementConsumerCertificateId =
-        measurementConsumer.certificate.externalCertificateId
-      externalProtocolConfigId = "llv2"
-      details =
-        MeasurementKt.details {
-          this.apiVersion = apiVersion
-          measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-          measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-          dataProviderList = ByteString.copyFromUtf8("EDP list")
-          dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
-          duchyProtocolConfig =
-            duchyProtocolConfig {
-              liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-            }
-        }
-      for (dataProvider in dataProviders) {
-        this.dataProviders.put(
-          dataProvider.externalDataProviderId,
-          dataProviderValue {
-            externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-            dataProviderPublicKey = dataProvider.details.publicKey
-            dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-            encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
+  suspend fun createMeasurementConsumer(
+    measurementConsumersService: MeasurementConsumersCoroutineImplBase
+  ): MeasurementConsumer {
+    return measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        certificate =
+          buildRequestCertificate(
+            "MC cert",
+            "MC SKID " + idGenerator.generateExternalId().value,
+            clock.instant()
+          )
+        details =
+          MeasurementConsumerKt.details {
+            apiVersion = API_VERSION
+            publicKey = ByteString.copyFromUtf8("MC public key")
+            publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
           }
-        )
       }
-    }
-  )
+    )
+  }
+
+  suspend fun createDataProvider(
+    dataProvidersService: DataProvidersCoroutineImplBase
+  ): DataProvider {
+    return dataProvidersService.createDataProvider(
+      dataProvider {
+        certificate =
+          buildRequestCertificate(
+            "EDP cert",
+            "EDP SKID " + idGenerator.generateExternalId().value,
+            clock.instant()
+          )
+        details =
+          DataProviderKt.details {
+            apiVersion = API_VERSION
+            publicKey = ByteString.copyFromUtf8("EDP public key")
+            publicKeySignature = ByteString.copyFromUtf8("EDP public key signature")
+          }
+      }
+    )
+  }
+
+  suspend fun createMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    vararg dataProviders: DataProvider
+  ): Measurement {
+    return measurementsService.createMeasurement(
+      measurement {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        this.providedMeasurementId = providedMeasurementId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        externalProtocolConfigId = "llv2"
+        details =
+          MeasurementKt.details {
+            apiVersion = API_VERSION
+            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+            dataProviderList = ByteString.copyFromUtf8("EDP list")
+            dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
+            duchyProtocolConfig =
+              duchyProtocolConfig {
+                liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+              }
+          }
+        for (dataProvider in dataProviders) {
+          this.dataProviders.put(
+            dataProvider.externalDataProviderId,
+            dataProviderValue {
+              externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+              dataProviderPublicKey = dataProvider.details.publicKey
+              dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
+              encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
+            }
+          )
+        }
+      }
+    )
+  }
+  companion object {
+    protected const val API_VERSION = "v2alpha"
+  }
 }
