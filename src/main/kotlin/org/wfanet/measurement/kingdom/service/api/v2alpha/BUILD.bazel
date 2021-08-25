@@ -60,6 +60,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "event_groups_service",
     srcs = ["EventGroupsService.kt"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__"],
     deps = [
         ":builder",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

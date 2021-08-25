@@ -18,6 +18,9 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -28,6 +31,7 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
+import org.wfanet.measurement.loadtest.EventGroupServiceFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.storage.StorageClient
@@ -71,6 +75,35 @@ abstract class EdpSimulator : Runnable {
           .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
       )
 
+    val eventGroupStub =
+      EventGroupsCoroutineStub(
+        buildMutualTlsChannel(
+            flags.eventGroupServiceFlags.target,
+            clientCerts,
+            flags.eventGroupServiceFlags.certHost,
+          )
+          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+      )
+
+    // create an EventGroup for the MC
+    val request =
+      CreateEventGroupRequest.newBuilder()
+        .apply {
+          parent = flags.dataProviderResourceName
+          eventGroup =
+            EventGroup.newBuilder()
+              .apply({
+                name = ""
+                measurementConsumer = flags.measurementConsumerResourceName
+                eventGroupReferenceId = "aaa"
+              })
+              .build()
+        }
+        .build()
+
+    // todo: do we care about the result?
+    val result = runBlocking { eventGroupStub.createEventGroup(request) }
+
     val workflow =
       RequisitionFulfillmentWorkflow(
         flags.dataProviderResourceName,
@@ -110,6 +143,14 @@ abstract class EdpSimulator : Runnable {
       private set
 
     @CommandLine.Option(
+      names = ["--measurement-consumer-resource-name"],
+      description = ["The public API resource name of the Measurement Consumer."],
+      required = true
+    )
+    lateinit var measurementConsumerResourceName: String
+      private set
+
+    @CommandLine.Option(
       names = ["--throttler-minimum-interval"],
       description = ["Minimum throttle interval"],
       defaultValue = "1s"
@@ -127,6 +168,10 @@ abstract class EdpSimulator : Runnable {
 
     @CommandLine.Mixin
     lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
+      private set
+
+    @CommandLine.Mixin
+    lateinit var eventGroupServiceFlags: EventGroupServiceFlags
       private set
 
     @set:CommandLine.Option(
