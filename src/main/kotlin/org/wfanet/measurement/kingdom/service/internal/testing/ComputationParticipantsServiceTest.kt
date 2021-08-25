@@ -85,7 +85,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val certificatesService: CertificatesCoroutineImplBase
   )
 
-
   private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
@@ -135,8 +134,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `confirmComputationParticipant fails for wrong externalDuchyId`() = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -170,12 +168,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `confirmComputationParticipant fails for wrong externalComputationId`() = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(
-        measurementConsumersService)
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     measurementConsumer.certificate.externalCertificateId
-    val dataProvider =
-      population.createDataProvider(dataProvidersService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
 
     population.createMeasurement(
       measurementsService,
@@ -208,8 +203,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `confirmComputationParticipant fails for wrong certificate for computationParticipant`() =
       runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -244,8 +238,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
@@ -300,8 +293,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams succeeds for last duchy`() = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
