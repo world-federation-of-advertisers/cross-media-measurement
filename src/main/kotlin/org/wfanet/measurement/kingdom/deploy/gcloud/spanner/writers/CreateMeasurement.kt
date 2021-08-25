@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details as requisitionDetails
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details as computationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -126,12 +127,15 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementId: InternalId,
     duchyId: InternalId
   ) {
+    val emptyParticipantDetails = computationParticipantDetails{}
     transactionContext.bufferInsertMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId.value)
       set("MeasurementId" to measurementId.value)
       set("DuchyId" to duchyId.value)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to ComputationParticipant.State.CREATED)
+      set("ParticipantDetails" to emptyParticipantDetails)
+      setJson("ParticipantDetailsJson" to emptyParticipantDetails)
     }
   }
 

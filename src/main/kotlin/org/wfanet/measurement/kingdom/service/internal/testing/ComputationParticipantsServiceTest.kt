@@ -49,7 +49,6 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
@@ -93,9 +92,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val certificatesService: CertificatesCoroutineImplBase
   )
 
-  private val clock: Clock = Clock.systemUTC()
-  protected val idGenerator =
-    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
+  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
 
   protected lateinit var computationParticipantsService: T
     private set
@@ -124,76 +122,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     certificatesService = services.certificatesService
   }
 
-  // TODO(uakyol) : Move these functions to Population.kt, refactor all the other service tests.
-  private suspend fun createMeasurementConsumer(): MeasurementConsumer {
-    return measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        certificate =
-          buildRequestCertificate("MC cert", "MC SKID " + idGenerator.generateExternalId().value)
-        details =
-          MeasurementConsumerKt.details {
-            apiVersion = API_VERSION
-            publicKey = ByteString.copyFromUtf8("MC public key")
-            publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
-          }
-      }
-    )
-  }
-
-  private suspend fun createDataProvider(): DataProvider {
-    return dataProvidersService.createDataProvider(
-      dataProvider {
-        certificate =
-          buildRequestCertificate("EDP cert", "EDP SKID " + idGenerator.generateExternalId().value)
-        details =
-          DataProviderKt.details {
-            apiVersion = API_VERSION
-            publicKey = ByteString.copyFromUtf8("EDP public key")
-            publicKeySignature = ByteString.copyFromUtf8("EDP public key signature")
-          }
-      }
-    )
-  }
-
-  private suspend fun createMeasurement(
-    measurementConsumer: MeasurementConsumer,
-    providedMeasurementId: String,
-    vararg dataProviders: DataProvider
-  ): Measurement {
-    return measurementsService.createMeasurement(
-      measurement {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        this.providedMeasurementId = providedMeasurementId
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
-        externalProtocolConfigId = "llv2"
-        details =
-          MeasurementKt.details {
-            apiVersion = API_VERSION
-            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-            dataProviderList = ByteString.copyFromUtf8("EDP list")
-            dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
-            duchyProtocolConfig =
-              duchyProtocolConfig {
-                liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-              }
-          }
-        for (dataProvider in dataProviders) {
-          this.dataProviders.put(
-            dataProvider.externalDataProviderId,
-            dataProviderValue {
-              externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-              dataProviderPublicKey = dataProvider.details.publicKey
-              dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-              encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-            }
-          )
-        }
-      }
-    )
-  }
-
   private suspend fun createDuchyCertificate(
     externalDuchyId: String,
     subjectKeyIdentifier: ByteString
@@ -210,22 +138,13 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     )
   }
 
-  private fun buildRequestCertificate(derUtf8: String, skidUtf8: String): Certificate {
-    val now = clock.instant()
-    return certificate {
-      notValidBefore = now.toProtoTime()
-      notValidAfter = now.plus(365L, ChronoUnit.DAYS).toProtoTime()
-      subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
-      details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
-    }
-  }
-
   @Test
   fun `confirmComputationParticipant fails for wrong externalDuchyId`() = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider = createDataProvider()
+    val measurementConsumer =
+      createMeasurementConsumer(measurementConsumersService, clock, idGenerator, API_VERSION)
+    val dataProvider = createDataProvider(dataProvidersService, clock, idGenerator, API_VERSION)
 
-    val measurement = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
+    val measurement = createMeasurement(measurementsService, clock, idGenerator, API_VERSION, measurementConsumer, "measurement 1", dataProvider)
     val certificate =
       createDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
 
@@ -250,11 +169,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `confirmComputationParticipant fails for wrong externalComputationId`() = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
+    val measurementConsumer =
+      createMeasurementConsumer(measurementConsumersService, clock, idGenerator, API_VERSION)
     measurementConsumer.certificate.externalCertificateId
-    val dataProvider = createDataProvider()
+    val dataProvider = createDataProvider(dataProvidersService, clock, idGenerator, API_VERSION)
 
-    createMeasurement(measurementConsumer, "measurement 1", dataProvider)
+    createMeasurement(measurementsService, clock, idGenerator, API_VERSION, measurementConsumer, "measurement 1", dataProvider)
     val certificate =
       createDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
 
@@ -280,10 +200,11 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `confirmComputationParticipant fails for wrong certificate for computationParticipant`() =
       runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider = createDataProvider()
+    val measurementConsumer =
+      createMeasurementConsumer(measurementConsumersService, clock, idGenerator, API_VERSION)
+    val dataProvider = createDataProvider(dataProvidersService, clock, idGenerator, API_VERSION)
 
-    val measurement = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
+    val measurement = createMeasurement(measurementsService, clock, idGenerator, API_VERSION, measurementConsumer, "measurement 1", dataProvider)
     createDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
 
     val request = setParticipantRequisitionParamsRequest {
@@ -309,11 +230,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams succeeds for non-last duchy`() = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
+    val measurementConsumer =
+      createMeasurementConsumer(measurementConsumersService, clock, idGenerator, API_VERSION)
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-    val dataProvider = createDataProvider()
+    val dataProvider = createDataProvider(dataProvidersService, clock, idGenerator, API_VERSION)
 
-    val measurement = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
+    val measurement = createMeasurement(measurementsService, clock, idGenerator, API_VERSION, measurementConsumer, "measurement 1", dataProvider)
     val certificate =
       createDuchyCertificate(EXTERNAL_DUCHY_IDS.get(0), DUCHY_SUBJECT_KEY_IDENTIFIERS.get(0))
 
@@ -358,11 +280,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams succeeds for last duchy`() = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
+    val measurementConsumer =
+      createMeasurementConsumer(measurementConsumersService, clock, idGenerator, API_VERSION)
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-    val dataProvider = createDataProvider()
+    val dataProvider = createDataProvider(dataProvidersService, clock, idGenerator, API_VERSION)
 
-    val measurement = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
+    val measurement = createMeasurement(measurementsService, clock, idGenerator, API_VERSION, measurementConsumer, "measurement 1", dataProvider)
 
     // Insert Certificate and set Participant Params for first computationParticipant.
     computationParticipantsService.setParticipantRequisitionParams(

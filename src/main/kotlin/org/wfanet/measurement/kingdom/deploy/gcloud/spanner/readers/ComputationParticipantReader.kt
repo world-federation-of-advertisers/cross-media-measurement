@@ -15,54 +15,66 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
-class ComputationParticipantReader() : SpannerReader<ComputationParticipantReader.Result>() {
+private val SELECT_EXPRESSIONS =
+  listOf(
+    "ComputationParticipants.MeasurementConsumerId",
+    "ComputationParticipants.MeasurementId",
+    "ComputationParticipants.DuchyId",
+    "ComputationParticipants.CertificateId",
+    "ComputationParticipants.State",
+    "ComputationParticipants.ParticipantDetails",
+    "ComputationParticipants.ParticipantDetailsJson",
+    "ComputationParticipants.UpdateTime",
+    "Measurements.ExternalMeasurementId",
+    "Measurements.ExternalComputationId",
+    "MeasurementConsumers.ExternalMeasurementConsumerId"
+  )
+
+private val FROM_CLAUSE =
+  """
+  FROM ComputationParticipants
+    JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN MEASUREMENTS USING(MeasurementConsumerId, MeasurementId)
+  """.trimIndent()
+
+class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantReader.Result>() {
 
   data class Result(
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
     val measurementConsumerId: Long
   )
+  override val builder: Statement.Builder = initBuilder()
 
-  override val baseSql: String =
-    """
-    SELECT
-      ComputationParticipants.MeasurementConsumerId,
-      ComputationParticipants.MeasurementId,
-      ComputationParticipants.DuchyId,
-      ComputationParticipants.CertificateId,
-      ComputationParticipants.State,
-      ComputationParticipants.ParticipantDetails,
-      ComputationParticipants.ParticipantDetailsJson,
-      ComputationParticipants.UpdateTime,
-      Measurements.ExternalMeasurementId,
-      Measurements.ExternalComputationId,
-      MeasurementConsumers.ExternalMeasurementConsumerId
-    FROM ComputationParticipants
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN MEASUREMENTS USING(MeasurementConsumerId, MeasurementId)
-    """.trimIndent()
-
-  override val externalIdColumn: String
-    get() = error("This isn't supported.")
+  /** Fills [builder], returning this [ComputationParticipantReader] for chaining. */
+  fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): ComputationParticipantReader {
+    builder.fill()
+    return this
+  }
 
   suspend fun readWithIdsOrNull(
     readContext: AsyncDatabaseClient.ReadContext,
     externalComputationId: ExternalId,
     duchyId: InternalId
   ): Result? {
-    return withBuilder {
+    return fillStatementBuilder {
         appendClause("WHERE Measurements.externalComputationId = @externalComputationId")
         appendClause("AND ComputationParticipants.duchyId = @duchyId")
         bind("externalComputationId").to(externalComputationId.value)
@@ -81,16 +93,20 @@ class ComputationParticipantReader() : SpannerReader<ComputationParticipantReade
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant =
-      computationParticipant {
+  // TOOO(@uakyol) : Also populate failure_log_entry and api_version.
+  computationParticipant {
     externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
     externalMeasurementId = struct.getLong("ExternalMeasurementId")
     externalDuchyId = checkNotNull(DuchyIds.getExternalId(struct.getLong("DuchyId")))
     externalComputationId = struct.getLong("ExternalComputationId")
-
     updateTime = struct.getTimestamp("UpdateTime").toProto()
-    // details =
-    //   struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser()) ?:
     state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+    details = struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
+  }
+  private fun initBuilder(): Statement.Builder {
+    val sqlBuilder = StringBuilder("SELECT\n")
+    SELECT_EXPRESSIONS.joinTo(sqlBuilder, ", ")
+    return Statement.newBuilder(sqlBuilder.toString()).appendClause(FROM_CLAUSE)
   }
 }
 
@@ -120,21 +136,9 @@ suspend fun computationParticipantsInState(
   state: ComputationParticipant.State
 ): Boolean {
 
-  // return duchyIds
-  // .asSequence()
-  // .map { readComputationParticipantState(readContext, measurementConsumerId, measurementId, it) }
-  // .all { it == state }
-
-  duchyIds.forEach { internalDuchyId ->
-    if (readComputationParticipantState(
-        readContext,
-        measurementConsumerId,
-        measurementId,
-        internalDuchyId
-      ) != state
-    ) {
-      return false
-    }
-  }
-  return true
+  return duchyIds
+    .asFlow()
+    .map { readComputationParticipantState(readContext, measurementConsumerId, measurementId, it) }
+    .toList()
+    .all { it == state }
 }

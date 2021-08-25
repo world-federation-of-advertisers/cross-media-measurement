@@ -44,7 +44,7 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
-  SimpleSpannerWriter<ComputationParticipant>() {
+  SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
 
@@ -84,13 +84,12 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val participantDetails =
       computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
-    val updateTime = Value.COMMIT_TIMESTAMP
     transactionContext.bufferUpdateMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("CertificateId" to duchyCertificateId.value)
-      set("UpdateTime" to updateTime)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
       set("ParticipantDetails" to participantDetails)
       setJson("ParticipantDetailsJson" to participantDetails)
@@ -118,8 +117,11 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
       externalDuchyCertificateId = request.externalDuchyCertificateId
       details = participantDetails
-      this.updateTime = updateTime.toProto()
     }
+  }
+
+  override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
+    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
   }
 
   private suspend fun TransactionScope.readDuchyCertificateId(
