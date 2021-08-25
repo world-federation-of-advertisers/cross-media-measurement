@@ -38,7 +38,15 @@ import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
+import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -52,7 +60,7 @@ private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a MC subject key identifier.")
 private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
   ByteString.copyFromUtf8("This is a DP subject key identifier.")
-private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
+private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
@@ -87,15 +95,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     dataProvidersService = services.dataProvidersService
   }
 
-  private suspend fun insertMeasurementConsumer(): MeasurementConsumer {
-    return measurementConsumersService.createMeasurementConsumer(
-      MeasurementConsumer.newBuilder()
+  private suspend fun insertDataProvider(): DataProvider {
+    return dataProvidersService.createDataProvider(
+      DataProvider.newBuilder()
         .apply {
           certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
+            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
           }
           detailsBuilder.apply {
             apiVersion = "v2alpha"
@@ -107,15 +115,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     )
   }
 
-  private suspend fun insertDataProvider(): DataProvider {
-    return dataProvidersService.createDataProvider(
-      DataProvider.newBuilder()
+  private suspend fun insertMeasurementConsumer(): MeasurementConsumer {
+    return measurementConsumersService.createMeasurementConsumer(
+      MeasurementConsumer.newBuilder()
         .apply {
           certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            subjectKeyIdentifier = PREFERRED_DP_SUBJECT_KEY_IDENTIFIER
-            detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
+            subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
+            detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
           }
           detailsBuilder.apply {
             apiVersion = "v2alpha"
@@ -268,82 +276,86 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `getMeasurementByComputationId COMPUTATION View succeeds`() = runBlocking {
-    val measurementConsumer = insertMeasurementConsumer()
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-    val externalMeasurementConsumerCertificateId =
-      measurementConsumer.certificate.externalCertificateId
-    val dataProvider = insertDataProvider()
-    val externalDataProviderId = dataProvider.externalDataProviderId
-    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+  fun `getMeasurementByComputationId COMPUTATION View succeeds`() =
+    runBlocking<Unit> {
+      val measurementConsumer = insertMeasurementConsumer()
+      val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      val externalMeasurementConsumerCertificateId =
+        measurementConsumer.certificate.externalCertificateId
+      val dataProvider = insertDataProvider()
+      val externalDataProviderId = dataProvider.externalDataProviderId
+      val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          measurement {
+            details = MeasurementKt.details { apiVersion = "v2alpha" }
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+            dataProviders[externalDataProviderId] =
+              MeasurementKt.dataProviderValue {
+                this.externalDataProviderCertificateId = externalDataProviderCertificateId
+              }
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          }
+        )
 
-    val request =
-      Measurement.newBuilder()
-        .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
-          it.putAllDataProviders(
-            mapOf(
-              externalDataProviderId to
-                Measurement.DataProviderValue.newBuilder()
-                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
-                  .build()
-            )
-          )
-          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
-        }
-        .build()
-
-    val createdMeasurement = measurementsService.createMeasurement(request)
-
-    val measurement =
-      measurementsService.getMeasurementByComputationId(
-        GetMeasurementByComputationIdRequest.newBuilder()
-          .apply {
+      val measurement =
+        measurementsService.getMeasurementByComputationId(
+          getMeasurementByComputationIdRequest {
             externalComputationId = createdMeasurement.externalComputationId
             measurementView = Measurement.View.COMPUTATION
           }
-          .build()
-      )
+        )
 
-    // TODO(@uakyol) : Populate the expected proto fields once the field popultaion is implemented.
+      assertThat(measurement)
+        .ignoringFields(
+          Measurement.REQUISITIONS_FIELD_NUMBER,
+          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+        )
+        .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
+      assertThat(measurement.requisitionsList)
+        .ignoringFields(Requisition.EXTERNAL_REQUISITION_ID_FIELD_NUMBER)
+        .containsExactly(
+          requisition {
+            externalMeasurementId = createdMeasurement.externalMeasurementId
+            this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+            externalComputationId = measurement.externalComputationId
+            this.externalDataProviderId = externalDataProviderId
+            this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            updateTime = createdMeasurement.createTime
+            state = Requisition.State.UNFULFILLED
+            parentMeasurement =
+              parentMeasurement {
+                apiVersion = createdMeasurement.details.apiVersion
+                this.externalMeasurementConsumerCertificateId =
+                  externalMeasurementConsumerCertificateId
+                state = createdMeasurement.state
+              }
+            details = Requisition.Details.getDefaultInstance()
+            duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()
+            duchies["Rippon"] = Requisition.DuchyValue.getDefaultInstance()
+            duchies["Shoaks"] = Requisition.DuchyValue.getDefaultInstance()
+          }
+        )
 
-    val expectedMeasurement =
-      createdMeasurement
-        .toBuilder()
-        .apply {
-          clearDataProviders()
-          addRequisitionsBuilder().also {
-            it.externalMeasurementId = createdMeasurement.externalMeasurementId
-            it.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-          }
-          addComputationParticipantsBuilder().also {
-            it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-            it.externalMeasurementId = createdMeasurement.externalMeasurementId
-            it.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-            it.externalComputationId = createdMeasurement.externalComputationId
-            it.state = ComputationParticipant.State.CREATED
-          }
-          addComputationParticipantsBuilder().also {
-            it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-            it.externalMeasurementId = createdMeasurement.externalMeasurementId
-            it.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-            it.externalComputationId = createdMeasurement.externalComputationId
-            it.state = ComputationParticipant.State.CREATED
-          }
-          addComputationParticipantsBuilder().also {
-            it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(2)
-            it.externalMeasurementId = createdMeasurement.externalMeasurementId
-            it.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-            it.externalComputationId = createdMeasurement.externalComputationId
-            it.state = ComputationParticipant.State.CREATED
-          }
-        }
-        .build()
-    assertThat(measurement)
-      .ignoringFields(Measurement.CREATE_TIME_FIELD_NUMBER, Measurement.UPDATE_TIME_FIELD_NUMBER)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedMeasurement)
-  }
+      // TODO(@SanjayVas): Verify requisition params once SetParticipantRequisitionParams can be
+      // called from this test.
+      // TODO(@SanjayVas): Verify requisition params once FailComputationParticipant can be called
+      // from this test.
+      val templateParticipant = computationParticipant {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        externalMeasurementId = createdMeasurement.externalMeasurementId
+        externalComputationId = createdMeasurement.externalComputationId
+        updateTime = createdMeasurement.createTime
+        state = ComputationParticipant.State.CREATED
+        details = ComputationParticipant.Details.getDefaultInstance()
+        apiVersion = createdMeasurement.details.apiVersion
+      }
+      assertThat(measurement.computationParticipantsList)
+        .containsExactly(
+          templateParticipant.copy { externalDuchyId = "Buck" },
+          templateParticipant.copy { externalDuchyId = "Rippon" },
+          templateParticipant.copy { externalDuchyId = "Shoaks" }
+        )
+    }
 }
