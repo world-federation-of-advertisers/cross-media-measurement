@@ -18,9 +18,9 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -44,7 +44,8 @@ private val SELECT_EXPRESSIONS =
     "ComputationParticipants.UpdateTime",
     "Measurements.ExternalMeasurementId",
     "Measurements.ExternalComputationId",
-    "MeasurementConsumers.ExternalMeasurementConsumerId"
+    "MeasurementConsumers.ExternalMeasurementConsumerId",
+    "DuchyCertificates.ExternalDuchyCertificateId"
   )
 
 private val FROM_CLAUSE =
@@ -52,6 +53,8 @@ private val FROM_CLAUSE =
   FROM ComputationParticipants
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     JOIN MEASUREMENTS USING(MeasurementConsumerId, MeasurementId)
+    LEFT JOIN DuchyCertificates ON DuchyCertificates.DuchyId = ComputationParticipants.DuchyId 
+         AND DuchyCertificates.CertificateId = ComputationParticipants.CertificateId
   """.trimIndent()
 
 class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantReader.Result>() {
@@ -99,6 +102,9 @@ class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantR
     externalMeasurementId = struct.getLong("ExternalMeasurementId")
     externalDuchyId = checkNotNull(DuchyIds.getExternalId(struct.getLong("DuchyId")))
     externalComputationId = struct.getLong("ExternalComputationId")
+    if (!struct.isNull("ExternalDuchyCertificateId")) {
+      externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
+    }
     updateTime = struct.getTimestamp("UpdateTime").toProto()
     state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
     details = struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
@@ -136,9 +142,13 @@ suspend fun computationParticipantsInState(
   state: ComputationParticipant.State
 ): Boolean {
 
-  return duchyIds
-    .asFlow()
-    .map { readComputationParticipantState(readContext, measurementConsumerId, measurementId, it) }
-    .toList()
-    .all { it == state }
+  val wrongStateExists =
+    duchyIds
+      .asFlow()
+      .map {
+        readComputationParticipantState(readContext, measurementConsumerId, measurementId, it)
+      }
+      .firstOrNull { it != state }
+
+  return wrongStateExists == null
 }
