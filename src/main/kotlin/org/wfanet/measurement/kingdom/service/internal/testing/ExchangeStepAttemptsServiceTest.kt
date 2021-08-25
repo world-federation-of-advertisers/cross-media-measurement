@@ -20,6 +20,7 @@ import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Timestamp
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -46,6 +47,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.Exchan
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
+import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -307,32 +309,11 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
-        finishExchangeStepAttemptRequest {
-          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
-          stepIndex = STEP_INDEX
-          attemptNumber = 1
-          state = ExchangeStepAttempt.State.SUCCEEDED
-        }
+        makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
       )
 
-    val expected = exchangeStepAttempt {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
-      stepIndex = STEP_INDEX
-      attemptNumber = 1
-      state = ExchangeStepAttempt.State.SUCCEEDED
-      details =
-        exchangeStepAttemptDetails {
-          startTime = response.details.startTime
-          updateTime = Value.COMMIT_TIMESTAMP.toProto()
-          debugLogEntries +=
-            debugLog {
-              message = "Attempt for Step: 1 Succeeded."
-              time = Value.COMMIT_TIMESTAMP.toProto()
-            }
-        }
-    }
+    val expected =
+      makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED, response.details.startTime)
 
     assertThat(response).isEqualTo(expected)
   }
@@ -351,32 +332,11 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
-        finishExchangeStepAttemptRequest {
-          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
-          stepIndex = STEP_INDEX
-          attemptNumber = 1
-          state = ExchangeStepAttempt.State.FAILED
-        }
+        makeRequest(ExchangeStepAttempt.State.FAILED)
       )
 
-    val expected = exchangeStepAttempt {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
-      stepIndex = STEP_INDEX
-      attemptNumber = 1
-      state = ExchangeStepAttempt.State.FAILED
-      details =
-        exchangeStepAttemptDetails {
-          startTime = response.details.startTime
-          updateTime = Value.COMMIT_TIMESTAMP.toProto()
-          debugLogEntries +=
-            debugLog {
-              message = "Attempt for Step: 1 Failed."
-              time = Value.COMMIT_TIMESTAMP.toProto()
-            }
-        }
-    }
+    val expected =
+      makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED, response.details.startTime)
 
     assertThat(response).isEqualTo(expected)
   }
@@ -395,33 +355,52 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
-        finishExchangeStepAttemptRequest {
-          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
-          stepIndex = STEP_INDEX
-          attemptNumber = 1
-          state = ExchangeStepAttempt.State.FAILED_STEP
-        }
+        makeRequest(ExchangeStepAttempt.State.FAILED_STEP)
       )
 
-    val expected = exchangeStepAttempt {
+    val expected =
+      makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP, response.details.startTime)
+
+    assertThat(response).isEqualTo(expected)
+  }
+
+  private fun makeRequest(
+    attemptState: ExchangeStepAttempt.State
+  ): FinishExchangeStepAttemptRequest {
+    return finishExchangeStepAttemptRequest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = DATE
       stepIndex = STEP_INDEX
       attemptNumber = 1
-      state = ExchangeStepAttempt.State.FAILED_STEP
+      state = attemptState
+    }
+  }
+
+  private fun makeExchangeStepAttempt(
+    attemptState: ExchangeStepAttempt.State,
+    detailStartTime: Timestamp,
+  ): ExchangeStepAttempt {
+    val debugLogMessage =
+      when (attemptState) {
+        ExchangeStepAttempt.State.SUCCEEDED -> "Attempt for Step: 1 Succeeded."
+        else -> "Attempt for Step: 1 Failed."
+      }
+    return exchangeStepAttempt {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = 1
+      state = attemptState
       details =
         exchangeStepAttemptDetails {
-          startTime = response.details.startTime
+          startTime = detailStartTime
           updateTime = Value.COMMIT_TIMESTAMP.toProto()
           debugLogEntries +=
             debugLog {
-              message = "Attempt for Step: 1 Failed."
+              message = debugLogMessage
               time = Value.COMMIT_TIMESTAMP.toProto()
             }
         }
     }
-
-    assertThat(response).isEqualTo(expected)
   }
 }
