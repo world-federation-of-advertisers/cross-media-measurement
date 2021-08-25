@@ -3,10 +3,13 @@ load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
-package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
-])
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
+)
 
 kt_jvm_library(
     name = "edp_simulator",
@@ -16,10 +19,10 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
         "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
         "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/config:public_api_protocol_configs_kt_jvm_proto",

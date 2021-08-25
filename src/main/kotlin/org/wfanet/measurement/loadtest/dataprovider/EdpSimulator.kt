@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
+import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
@@ -106,7 +107,7 @@ abstract class EdpSimulator : Runnable {
           .configsMap,
         requisitionsStub,
         requisitionFulfillmentStub,
-        storageClient,
+        SketchStore(storageClient),
       )
 
     runBlocking {

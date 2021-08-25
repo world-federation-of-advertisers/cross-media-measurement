@@ -45,7 +45,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.loadtest.storage.SketchStore
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
@@ -53,7 +53,7 @@ class RequisitionFulfillmentWorkflow(
   private val protocolConfigMap: Map<String, ProtocolConfig>,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
-  private val storageClient: StorageClient,
+  private val sketchStore: SketchStore,
 ) {
 
   fun generateSketch(sketchConfig: SketchConfig): Sketch {
@@ -140,7 +140,7 @@ class RequisitionFulfillmentWorkflow(
     val sketch = generateSketch(sketchConfig)
 
     val blobKey = "sketch/for-req-${requisition.name}"
-    storageClient.createBlob(blobKey, sketch.toByteString().asBufferedFlow(1024))
+    sketchStore.write(blobKey, sketch.toByteString().asBufferedFlow(1024))
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
 
