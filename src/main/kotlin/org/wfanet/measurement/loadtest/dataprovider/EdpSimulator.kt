@@ -34,7 +34,6 @@ import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.loadtest.storage.SketchStore
-import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 /** [EdpSimulator] runs the [RequisitionFulfillmentWorkflow] that does the actual work */
@@ -43,7 +42,7 @@ abstract class EdpSimulator : Runnable {
   protected lateinit var flags: Flags
     private set
 
-  abstract val storageClient: StorageClient
+  abstract val storageClient: SketchStore
 
   override fun run() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
@@ -100,7 +99,7 @@ abstract class EdpSimulator : Runnable {
           .configsMap,
         requisitionsStub,
         requisitionFulfillmentStub,
-        SketchStore(storageClient),
+        storageClient,
       )
 
     runBlocking {

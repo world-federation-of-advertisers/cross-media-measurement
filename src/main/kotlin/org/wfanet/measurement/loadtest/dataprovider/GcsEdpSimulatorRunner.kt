@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.loadtest.storage.SketchStore
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -29,7 +30,7 @@ import picocli.CommandLine
 class GcsEdpSimulatorRunner : EdpSimulator() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
-  override val storageClient = GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
+  override val storageClient = SketchStore(GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags)))
 }
 
 fun main(args: Array<String>) = commandLineMain(GcsEdpSimulatorRunner(), args)
