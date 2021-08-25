@@ -24,6 +24,9 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.CertificateKt.details
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 
 private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
 
@@ -33,7 +36,11 @@ private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
  * @throws io.grpc.StatusRuntimeException if [certificateDer] cannot be parsed into an
  * [InternalCertificate].
  */
-fun parseCertificateDer(certificateDer: ByteString): InternalCertificate {
+fun parseCertificateDer(certificateDer: ByteString): InternalCertificate = internalCertificate {
+  fillCertificateFromDer(certificateDer)
+}
+
+fun CertificateKt.Dsl.fillCertificateFromDer(certificateDer: ByteString) {
   grpcRequire(!certificateDer.isEmpty) { "$CERTIFICATE_DER_FIELD_NAME is not specified" }
 
   val x509Certificate: X509Certificate =
@@ -50,14 +57,8 @@ fun parseCertificateDer(certificateDer: ByteString): InternalCertificate {
       "Cannot find Subject Key Identifier of $CERTIFICATE_DER_FIELD_NAME"
     }
 
-  return buildInternalCertificate {
-    subjectKeyIdentifier = skid
-    notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
-    notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
-    detailsBuilder.x509Der = certificateDer
-  }
+  subjectKeyIdentifier = skid
+  notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
+  notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
+  details = details { x509Der = certificateDer }
 }
-
-private inline fun buildInternalCertificate(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) = InternalCertificate.newBuilder().apply(fill).build()
