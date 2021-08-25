@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificateKt.details
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 
 private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
 
@@ -36,33 +37,8 @@ private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
  * [InternalCertificate].
  */
 fun parseCertificateDer(certificateDer: ByteString): InternalCertificate {
-  grpcRequire(!certificateDer.isEmpty) { "$CERTIFICATE_DER_FIELD_NAME is not specified" }
-
-  val x509Certificate: X509Certificate =
-    try {
-      readCertificate(certificateDer)
-    } catch (e: CertificateException) {
-      throw Status.INVALID_ARGUMENT
-        .withCause(e)
-        .withDescription("Cannot parse $CERTIFICATE_DER_FIELD_NAME")
-        .asRuntimeException()
-    }
-  val skid: ByteString =
-    grpcRequireNotNull(x509Certificate.subjectKeyIdentifier) {
-      "Cannot find Subject Key Identifier of $CERTIFICATE_DER_FIELD_NAME"
-    }
-
-  return buildInternalCertificate {
-    subjectKeyIdentifier = skid
-    notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
-    notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
-    detailsBuilder.x509Der = certificateDer
-  }
+  return internalCertificate { fillCertificateFromDer(certificateDer) }
 }
-
-private inline fun buildInternalCertificate(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) = InternalCertificate.newBuilder().apply(fill).build()
 
 fun CertificateKt.Dsl.fillCertificateFromDer(certificateDer: ByteString) {
   grpcRequire(!certificateDer.isEmpty) { "$CERTIFICATE_DER_FIELD_NAME is not specified" }

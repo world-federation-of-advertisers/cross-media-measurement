@@ -101,8 +101,8 @@ class CertificatesServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalGetCertificateRequest {
-          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-          externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -117,8 +117,8 @@ class CertificatesServiceTest {
         .thenReturn(
           INTERNAL_CERTIFICATE.copy {
             val key =
-              MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
-            externalMeasurementConsumerId = apiIdToExternalId(key!!.measurementConsumerId)
+              MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+            externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
             externalCertificateId = apiIdToExternalId(key.certificateId)
           }
         )
@@ -135,8 +135,8 @@ class CertificatesServiceTest {
       .isEqualTo(
         internalGetCertificateRequest {
           val key =
-            MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
-          externalMeasurementConsumerId = apiIdToExternalId(key!!.measurementConsumerId)
+            MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -151,8 +151,8 @@ class CertificatesServiceTest {
         .thenReturn(
           INTERNAL_CERTIFICATE.copy {
             clearExternalDataProviderId()
-            val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)
-            externalDuchyId = key!!.duchyId
+            val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
+            externalDuchyId = key.duchyId
             externalCertificateId = apiIdToExternalId(key.certificateId)
           }
         )
@@ -168,8 +168,8 @@ class CertificatesServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalGetCertificateRequest {
-          val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)
-          externalDuchyId = key!!.duchyId
+          val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
+          externalDuchyId = key.duchyId
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -253,8 +253,8 @@ class CertificatesServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalRevokeCertificateRequest {
-          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-          externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
           revocationState = InternalCertificate.RevocationState.REVOKED
         }
@@ -303,8 +303,8 @@ class CertificatesServiceTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         internalReleaseCertificateHoldRequest {
-          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-          externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -334,8 +334,8 @@ private val CERTIFICATE: Certificate = certificate {
 }
 
 private val INTERNAL_CERTIFICATE = internalCertificate {
-  val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-  externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+  val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+  externalDataProviderId = apiIdToExternalId(key.dataProviderId)
   externalCertificateId = apiIdToExternalId(key.certificateId)
   subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
   notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
