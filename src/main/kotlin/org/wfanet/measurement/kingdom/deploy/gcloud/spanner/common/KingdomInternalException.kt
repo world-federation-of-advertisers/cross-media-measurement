@@ -39,6 +39,9 @@ class KingdomInternalException : Exception {
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
 
     /** Certificate resource queried could not be found. */
-    CERTIFICATE_NOT_FOUND
+    CERTIFICATE_NOT_FOUND,
+
+    /** ProtocolConfig resource queried could not be found. */
+    PROTOCOL_CONFIG_NOT_FOUND
   }
 }

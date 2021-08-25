@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Rule
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -59,10 +59,13 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
-import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.ProtocolConfigIds
 
+private const val EXTERNAL_PROTOCOL_CONFIG_ID = "llv2"
 private const val RANDOM_SEED = 1L
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+private val API_VERSION = Version.V2_ALPHA
 
 @RunWith(JUnit4::class)
 abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
@@ -75,7 +78,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected lateinit var dataServices: TestDataServices
     private set
@@ -450,6 +452,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   companion object {
-    protected val API_VERSION = Version.V2_ALPHA
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      ProtocolConfigIds.setForTest(listOf(EXTERNAL_PROTOCOL_CONFIG_ID))
+      DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    }
   }
 }

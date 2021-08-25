@@ -42,6 +42,8 @@ class SpannerMeasurementsService(
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
+        KingdomInternalException.Code.PROTOCOL_CONFIG_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "ProtocolConfig not found" }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
