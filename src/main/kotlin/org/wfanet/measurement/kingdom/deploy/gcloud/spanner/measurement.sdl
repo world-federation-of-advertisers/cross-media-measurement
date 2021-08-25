@@ -307,8 +307,8 @@ CREATE TABLE ComputationParticipants (
   State                       INT64 NOT NULL,  -- ParticipantState proto enum
 
   -- ParticipantDetails serialized proto
-  ParticipantDetails          BYTES(MAX),
-  ParticipantDetailsJson      STRING(MAX),
+  ParticipantDetails          BYTES(MAX) NOT NULL,
+  ParticipantDetailsJson      STRING(MAX) NOT NULL,
 
   FOREIGN KEY (DuchyId, CertificateId)
     REFERENCES DuchyCertificates(DuchyId, CertificateId),
