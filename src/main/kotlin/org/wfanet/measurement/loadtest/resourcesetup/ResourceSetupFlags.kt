@@ -30,6 +30,15 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--duchy-consent-signaling-cert-der-files"],
+    description =
+      ["The map from external Duchy Id to its consent signaling cert (DER format) file."],
+    required = true
+  )
+  lateinit var duchyCsCertDerFiles: Map<String, File>
+    private set
+
+  @CommandLine.Option(
     names = ["--edp-consent-signaling-cert-der-files"],
     description =
       ["The map from EDP display name to its consent signaling cert (DER format) file."],
