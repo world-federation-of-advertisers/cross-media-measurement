@@ -42,23 +42,20 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
   exchangeStep: ExchangeStep,
   recurringExchangeId: Long,
   state: ExchangeStep.State
-): ExchangeStep {
-  if (exchangeStep.state == state) {
-    return exchangeStep
-  }
+) {
+  if (exchangeStep.state == state) return
+
   require(!exchangeStep.state.isTerminal) {
     "ExchangeStep with StepIndex: ${exchangeStep.stepIndex} is in a terminal state."
   }
-  val updateTime = Value.COMMIT_TIMESTAMP
+
   transactionContext.bufferUpdateMutation("ExchangeSteps") {
     set("RecurringExchangeId" to recurringExchangeId)
     set("Date" to exchangeStep.date.toCloudDate())
     set("StepIndex" to exchangeStep.stepIndex.toLong())
     set("State" to state)
-    set("UpdateTime" to updateTime)
+    set("UpdateTime" to Value.COMMIT_TIMESTAMP)
   }
-
-  return exchangeStep.toBuilder().setState(state).setUpdateTime(updateTime.toProto()).build()
 }
 
 internal val ExchangeStep.State.isTerminal: Boolean
