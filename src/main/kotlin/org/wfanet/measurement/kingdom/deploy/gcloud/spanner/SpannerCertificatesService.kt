@@ -57,6 +57,7 @@ class SpannerCertificatesService(
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.PROTOCOL_CONFIG_NOT_FOUND,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
       }
     }
