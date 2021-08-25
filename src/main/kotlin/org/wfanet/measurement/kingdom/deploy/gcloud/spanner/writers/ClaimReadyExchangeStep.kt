@@ -16,36 +16,37 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.cloud.spanner.Value
 import com.google.common.base.Optional
 import com.google.type.Date
+import java.time.Duration
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
-import org.wfanet.measurement.gcloud.spanner.bufferTo
-import org.wfanet.measurement.gcloud.spanner.insertMutation
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
-class ClaimReadyExchangeStep(
-  private val externalModelProviderId: Long?,
-  private val externalDataProviderId: Long?
-) : SimpleSpannerWriter<Optional<Result>>() {
+private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
+
+class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProviderId: Long?) :
+  SimpleSpannerWriter<Optional<Result>>() {
+  data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   private val externalModelProviderIds =
     if (externalModelProviderId == null) emptyList()
     else listOf(ExternalId(externalModelProviderId))
   private val externalDataProviderIds =
     if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
-
-  data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
     // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
@@ -88,22 +89,28 @@ class ClaimReadyExchangeStep(
     date: Date,
     stepIndex: Long
   ): Long {
-    // TODO: Set ExchangeStepAttemptDetails with suitable fields.
-    val details =
-      ExchangeStepAttemptDetails.newBuilder()
-        .apply { startTime = Value.COMMIT_TIMESTAMP.toProto() }
-        .build()
+    val now = clock.instant()
+
+    val details = exchangeStepAttemptDetails {
+      startTime = now.toProtoTime()
+      // TODO(@yunyeng): Set ExchangeStepAttemptDetails with suitable fields.
+    }
+
     val attemptIndex = findAttemptIndex(recurringExchangeId, date, stepIndex)
-    insertMutation("ExchangeStepAttempts") {
-        set("RecurringExchangeId" to recurringExchangeId)
-        set("Date" to date.toCloudDate())
-        set("StepIndex" to stepIndex)
-        set("AttemptIndex" to attemptIndex)
-        set("State" to ExchangeStepAttempt.State.ACTIVE)
-        set("ExchangeStepAttemptDetails" to details)
-        setJson("ExchangeStepAttemptDetailsJson" to details)
-      }
-      .bufferTo(transactionContext)
+
+    transactionContext.bufferInsertMutation("ExchangeStepAttempts") {
+      set("RecurringExchangeId" to recurringExchangeId)
+      set("Date" to date.toCloudDate())
+      set("StepIndex" to stepIndex)
+      set("AttemptIndex" to attemptIndex)
+      set("State" to ExchangeStepAttempt.State.ACTIVE)
+
+      // TODO(@efoxepstein): make this variable based on the step type or something.
+      set("ExpirationTime" to (now + DEFAULT_EXPIRATION_DURATION).toGcloudTimestamp())
+
+      set("ExchangeStepAttemptDetails" to details)
+      setJson("ExchangeStepAttemptDetailsJson" to details)
+    }
 
     return attemptIndex
   }
@@ -123,14 +130,12 @@ class ClaimReadyExchangeStep(
       """.trimIndent()
 
     val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("recurring_exchange_id")
-        .to(recurringExchangeId)
-        .bind("date")
-        .to(date.toCloudDate())
-        .bind("step_index")
-        .to(stepIndex)
-        .build()
+      makeStatement(sql) {
+        bind("recurring_exchange_id").to(recurringExchangeId)
+        bind("date").to(date.toCloudDate())
+        bind("step_index").to(stepIndex)
+      }
+
     val row: Struct = transactionContext.executeQuery(statement).single()
 
     return row.getLong("MaxAttemptIndex") + 1L

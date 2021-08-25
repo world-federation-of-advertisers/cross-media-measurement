@@ -54,7 +54,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest as InternalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
@@ -690,7 +689,6 @@ private val INTERNAL_MEASUREMENT: InternalMeasurement = buildInternalMeasurement
     dataProviderList = MEASUREMENT.serializedDataProviderList
     dataProviderListSalt = MEASUREMENT.dataProviderListSalt
   }
-  detailsJson = details.toJson()
 }
 
 private inline fun MeasurementSpec.rebuild(fill: (@Builder MeasurementSpec.Builder).() -> Unit) =

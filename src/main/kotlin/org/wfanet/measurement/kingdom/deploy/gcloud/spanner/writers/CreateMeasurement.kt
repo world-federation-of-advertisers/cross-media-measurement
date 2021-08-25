@@ -164,7 +164,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementId" to measurementId.value)
       set("RequisitionId" to requisitionId.value)
       set("DataProviderId" to dataProviderId.value)
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("ExternalRequisitionId" to externalRequisitionId.value)
       set("DataProviderCertificateId" to dataProviderCertificateId.value)
       set("State" to Requisition.State.UNFULFILLED)
