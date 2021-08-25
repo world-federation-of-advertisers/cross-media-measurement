@@ -18,10 +18,14 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurement
-import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class MeasurementReader(private val view: Measurement.View) :
@@ -46,50 +50,9 @@ class MeasurementReader(private val view: Measurement.View) :
 
   private fun buildMeasurement(struct: Struct): Measurement {
     return measurement {
-      externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-      externalMeasurementId = struct.getLong("ExternalMeasurementId")
-      externalComputationId = struct.getLong("ExternalComputationId")
-      providedMeasurementId = struct.getString("ProvidedMeasurementId")
-      externalMeasurementConsumerCertificateId =
-        struct.getLong("ExternalMeasurementConsumerCertificateId")
-      createTime = struct.getTimestamp("CreateTime").toProto()
-      updateTime = struct.getTimestamp("UpdateTime").toProto()
-      state = struct.getProtoEnum("State", Measurement.State::forNumber)
-      details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-
-      // TODO(@wangyaopw): Map external protocol config ID from ProtocolConfigs after it is
-      // implemented.
-
       when (view) {
-        Measurement.View.DEFAULT -> {}
-        Measurement.View.COMPUTATION -> {
-          // TODO(@SanjayVas): populate all the relevant fields for a requisition.
-          for (requisitionStruct in struct.getStructList("Requisitions")) {
-            requisitions +=
-              requisition {
-                externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-                externalMeasurementId = struct.getLong("ExternalMeasurementId")
-                externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
-              }
-          }
-          // TODO(@uakyol) : populate all the relevant fields for a computationParticipant.
-          for (participantStruct in struct.getStructList("ComputationParticipants")) {
-            val duchyId = participantStruct.getLong("DuchyId")
-            val externalDuchyId =
-              checkNotNull(DuchyIds.getExternalId(duchyId)) {
-                "Duchy with internal ID $duchyId not found"
-              }
-            computationParticipants +=
-              computationParticipant {
-                this.externalDuchyId = externalDuchyId
-                externalMeasurementId = struct.getLong("ExternalMeasurementId")
-                externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-                externalComputationId = struct.getLong("ExternalComputationId")
-                state =
-                  participantStruct.getProtoEnum("State", ComputationParticipant.State::forNumber)
-              }
-          }
-        }
+        Measurement.View.DEFAULT -> fillDefaultView(struct)
+        Measurement.View.COMPUTATION -> fillComputationView(struct)
         Measurement.View.UNRECOGNIZED ->
           throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
@@ -108,7 +71,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       Measurements.UpdateTime,
-      Measurements.State,
+      Measurements.State AS MeasurementState,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
     FROM Measurements
@@ -119,35 +82,167 @@ class MeasurementReader(private val view: Measurement.View) :
     private val computationViewBaseSql =
       """
     SELECT
+      ExternalMeasurementConsumerId,
+      ExternalMeasurementConsumerCertificateId,
       Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
       Measurements.ExternalMeasurementId,
       Measurements.ExternalComputationId,
       Measurements.ProvidedMeasurementId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       Measurements.UpdateTime,
-      Measurements.State,
-      MeasurementConsumers.ExternalMeasurementConsumerId,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      Measurements.State AS MeasurementState,
       ARRAY(
-         SELECT AS STRUCT
-           r.ExternalRequisitionId
-         FROM Requisitions AS r
-         WHERE Measurements.MeasurementId = r.MeasurementId
-         AND Measurements.MeasurementConsumerId = r.MeasurementConsumerId
-       ) AS Requisitions,
+        SELECT AS STRUCT
+          ExternalDataProviderId,
+          ExternalDataProviderCertificateId,
+          Requisitions.UpdateTime,
+          Requisitions.ExternalRequisitionId,
+          Requisitions.State AS RequisitionState,
+          Requisitions.FulfillingDuchyId,
+          Requisitions.RequisitionDetails
+        FROM
+          Requisitions
+          JOIN DataProviders USING (DataProviderId)
+          JOIN DataProviderCertificates
+            ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
+        WHERE
+          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND Requisitions.MeasurementId = Measurements.MeasurementId
+      ) AS Requisitions,
       ARRAY(
-         SELECT AS STRUCT
-           c.DuchyId,
-           c.State
-         FROM ComputationParticipants AS c
-         WHERE Measurements.MeasurementId = c.MeasurementId
-         AND Measurements.MeasurementConsumerId = c.MeasurementConsumerId
-       ) AS ComputationParticipants
-    FROM Measurements
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
+        SELECT AS STRUCT
+          ExternalDuchyCertificateId,
+          ComputationParticipants.DuchyId,
+          ComputationParticipants.UpdateTime,
+          ComputationParticipants.State,
+          ComputationParticipants.ParticipantDetails,
+          ARRAY(
+            SELECT AS STRUCT
+              DuchyMeasurementLogEntries.CreateTime,
+              DuchyMeasurementLogEntries.ExternalComputationLogEntryId,
+              DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
+              MeasurementLogEntries.MeasurementLogDetails
+            FROM
+              DuchyMeasurementLogEntries
+              JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+            WHERE DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+            ORDER BY MeasurementLogEntries.CreateTime DESC
+          ) AS DuchyMeasurementLogEntries
+        FROM
+          ComputationParticipants
+          LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
+        WHERE
+          ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
+      ) AS ComputationParticipants
+    FROM
+      Measurements
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """.trimIndent()
   }
+}
+
+private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
+  externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+  externalMeasurementId = struct.getLong("ExternalMeasurementId")
+  externalComputationId = struct.getLong("ExternalComputationId")
+  providedMeasurementId = struct.getString("ProvidedMeasurementId")
+  externalMeasurementConsumerCertificateId =
+    struct.getLong("ExternalMeasurementConsumerCertificateId")
+  createTime = struct.getTimestamp("CreateTime").toProto()
+  updateTime = struct.getTimestamp("UpdateTime").toProto()
+  state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
+  details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+  // TODO(@wangyaopw): Map external protocol config ID from ProtocolConfigs after it is
+  // implemented.
+}
+
+private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
+  fillMeasurementCommon(struct)
+
+  // TODO(@SanjayVas): Fill data providers.
+}
+
+private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
+  fillMeasurementCommon(struct)
+
+  val externalMeasurementId = struct.getLong("ExternalMeasurementId")
+  val externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+  val externalComputationId = struct.getLong("ExternalComputationId")
+  val apiVersion = details.apiVersion
+
+  // Map of external Duchy ID to ComputationParticipant struct.
+  val participantStructs: Map<String, Struct> =
+    struct.getStructList("ComputationParticipants").associateBy {
+      val duchyId = it.getLong("DuchyId")
+      checkNotNull(DuchyIds.getExternalId(duchyId)) { "Duchy with internal ID $duchyId not found" }
+    }
+
+  for ((externalDuchyId, participantStruct) in participantStructs) {
+    // TODO(@SanjayVas): Share this logic with ComputationParticipantReader once it exists.
+    computationParticipants +=
+      computationParticipant {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalMeasurementId = externalMeasurementId
+        this.externalDuchyId = externalDuchyId
+        this.externalComputationId = externalComputationId
+        if (!participantStruct.isNull("ExternalDuchyCertificateId")) {
+          externalDuchyCertificateId = participantStruct.getLong("ExternalDuchyCertificateId")
+          // TODO(@SanjayVas): Include denormalized Certificate.
+        }
+        updateTime = participantStruct.getTimestamp("UpdateTime").toProto()
+        state = participantStruct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+        details =
+          participantStruct.getProtoMessage(
+            "ParticipantDetails",
+            ComputationParticipant.Details.parser()
+          )
+        this.apiVersion = apiVersion
+
+        buildFailureLogEntry(
+          externalMeasurementConsumerId,
+          externalMeasurementId,
+          externalDuchyId,
+          participantStruct.getStructList("DuchyMeasurementLogEntries")
+        )
+          ?.let { failureLogEntry = it }
+      }
+  }
+
+  for (requisitionStruct in struct.getStructList("Requisitions")) {
+    requisitions +=
+      RequisitionReader.buildRequisition(struct, requisitionStruct, participantStructs)
+  }
+}
+
+private fun buildFailureLogEntry(
+  externalMeasurementConsumerId: Long,
+  externalMeasurementId: Long,
+  externalDuchyId: String,
+  logEntryStructs: Iterable<Struct>
+): DuchyMeasurementLogEntry? {
+  return logEntryStructs
+    .asSequence()
+    .map { it to it.getProtoMessage("MeasurementLogDetails", MeasurementLogEntry.Details.parser()) }
+    .find { (_, logEntryDetails) -> logEntryDetails.hasError() }
+    ?.let { (struct, logEntryDetails) ->
+      duchyMeasurementLogEntry {
+        logEntry =
+          measurementLogEntry {
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            this.externalMeasurementId = externalMeasurementId
+            createTime = struct.getTimestamp("CreateTime").toProto()
+            details = logEntryDetails
+          }
+        this.externalDuchyId = externalDuchyId
+        externalComputationLogEntryId = struct.getLong("ExternalComputationLogEntryId")
+        details =
+          struct.getProtoMessage(
+            "DuchyMeasurementLogDetails",
+            DuchyMeasurementLogEntry.Details.parser()
+          )
+      }
+    }
 }
