@@ -64,7 +64,7 @@ class EventGroupServiceFlags {
 
   @CommandLine.Option(
     names = ["--event-group-service-cert-host"],
-    description = ["The expected hostname in theEventGroupService's TLS certificate."],
+    description = ["The expected hostname in the EventGroupService's TLS certificate."],
     required = true
   )
   lateinit var certHost: String
