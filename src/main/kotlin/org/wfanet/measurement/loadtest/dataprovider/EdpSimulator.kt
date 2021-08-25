@@ -18,11 +18,11 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -85,17 +85,10 @@ abstract class EdpSimulator : Runnable {
           .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
       )
 
-    // create an EventGroup for the MC
-    val request =
-      CreateEventGroupRequest.newBuilder()
-        .apply {
-          parent = flags.dataProviderResourceName
-          eventGroup =
-            EventGroup.newBuilder()
-              .apply({ measurementConsumer = flags.measurementConsumerResourceName })
-              .build()
-        }
-        .build()
+    var request = createEventGroupRequest {
+      parent = flags.dataProviderResourceName
+      eventGroup = eventGroup { measurementConsumer = flags.measurementConsumerResourceName }
+    }
 
     val workflow =
       RequisitionFulfillmentWorkflow(
