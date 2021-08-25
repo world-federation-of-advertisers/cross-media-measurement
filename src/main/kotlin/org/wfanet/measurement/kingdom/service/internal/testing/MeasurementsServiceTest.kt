@@ -24,7 +24,7 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Rule
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -48,11 +48,14 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.requisition
-import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.ProtocolConfigIds
 
+private const val API_VERSION = "v2alpha"
+private const val EXTERNAL_PROTOCOL_CONFIG_ID = "llv2"
 private const val RANDOM_SEED = 1
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
+private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val PREFERRED_MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
@@ -65,8 +68,6 @@ private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
-
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val measurementsService: T,
@@ -107,7 +108,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             detailsBuilder.x509Der = PREFERRED_DP_CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "v2alpha"
+            apiVersion = API_VERSION
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
@@ -127,7 +128,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
           }
           detailsBuilder.apply {
-            apiVersion = "v2alpha"
+            apiVersion = API_VERSION
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
@@ -159,9 +160,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurement =
       Measurement.newBuilder()
         .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
+          it.detailsBuilder.apiVersion = API_VERSION
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
           it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          it.externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
           it.putAllDataProviders(
             mapOf(
               externalDataProviderId to
@@ -188,8 +190,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurement =
       Measurement.newBuilder()
         .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
+          it.detailsBuilder.apiVersion = API_VERSION
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
           it.putAllDataProviders(
             mapOf(
               externalDataProviderId to
@@ -221,9 +224,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurement =
       Measurement.newBuilder()
         .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
+          it.detailsBuilder.apiVersion = API_VERSION
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
           it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          it.externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
           it.putAllDataProviders(
             mapOf(
               externalDataProviderId to
@@ -263,9 +267,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurement =
       Measurement.newBuilder()
         .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
+          it.detailsBuilder.apiVersion = API_VERSION
           it.externalMeasurementConsumerId = externalMeasurementConsumerId
           it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          it.externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
           it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
         }
         .build()
@@ -285,8 +290,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           externalMeasurementConsumerCertificateId =
             measurementConsumer.certificate.externalCertificateId
+          externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
           providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          details = MeasurementKt.details { apiVersion = API_VERSION }
           dataProviders[dataProvider.externalDataProviderId] =
             dataProviderValue {
               externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
@@ -320,9 +326,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val createdMeasurement =
         measurementsService.createMeasurement(
           measurement {
-            details = MeasurementKt.details { apiVersion = "v2alpha" }
+            details = MeasurementKt.details { apiVersion = API_VERSION }
             this.externalMeasurementConsumerId = externalMeasurementConsumerId
             this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+            externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
             dataProviders[externalDataProviderId] =
               MeasurementKt.dataProviderValue {
                 this.externalDataProviderCertificateId = externalDataProviderCertificateId
@@ -390,4 +397,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           templateParticipant.copy { externalDuchyId = "Shoaks" }
         )
     }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      ProtocolConfigIds.setForTest(listOf(EXTERNAL_PROTOCOL_CONFIG_ID))
+      DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    }
+  }
 }

@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.ProtocolConfigIds
 
 class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
@@ -70,6 +71,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ExternalMeasurementId,
       Measurements.ExternalComputationId,
       Measurements.ProvidedMeasurementId,
+      Measurements.ProtocolConfigId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       Measurements.UpdateTime,
@@ -105,6 +107,7 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.ExternalMeasurementId,
       Measurements.ExternalComputationId,
       Measurements.ProvidedMeasurementId,
+      Measurements.ProtocolConfigId,
       Measurements.MeasurementDetails,
       Measurements.CreateTime,
       Measurements.UpdateTime,
@@ -168,12 +171,15 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   providedMeasurementId = struct.getString("ProvidedMeasurementId")
   externalMeasurementConsumerCertificateId =
     struct.getLong("ExternalMeasurementConsumerCertificateId")
+  val protocolConfigId = struct.getLong("ProtocolConfigId")
+  externalProtocolConfigId =
+    checkNotNull(ProtocolConfigIds.getExternalId(protocolConfigId)) {
+      "ProtocolConfig with internal ID $protocolConfigId not found."
+    }
   createTime = struct.getTimestamp("CreateTime").toProto()
   updateTime = struct.getTimestamp("UpdateTime").toProto()
   state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
   details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-  // TODO(@wangyaopw): Map external protocol config ID from ProtocolConfigs after it is
-  // implemented.
 }
 
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {

@@ -26,8 +26,8 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Ignore
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -53,13 +53,15 @@ import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
-import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.ProtocolConfigIds
 
+private const val EXTERNAL_PROTOCOL_CONFIG_ID = "llv2"
 private const val RANDOM_SEED = 1
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
+private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
+private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a public key signature.")
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2")
 private val DUCHY_SUBJECT_KEY_IDENTIFIERS =
   listOf(
@@ -74,8 +76,6 @@ private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =
 
 @RunWith(JUnit4::class)
 abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCoroutineImplBase> {
-
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val computationParticipantsService: T,
@@ -369,7 +369,15 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Ignore @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
 
   @Ignore @Test fun `failComputationParticipant succeeds`() = runBlocking {}
+
   companion object {
     protected const val API_VERSION = "v2alpha"
+
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      ProtocolConfigIds.setForTest(listOf(EXTERNAL_PROTOCOL_CONFIG_ID))
+      DuchyIds.setForTest(EXTERNAL_DUCHY_IDS)
+    }
   }
 }

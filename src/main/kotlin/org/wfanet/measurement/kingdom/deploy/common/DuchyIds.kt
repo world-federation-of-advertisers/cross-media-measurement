@@ -19,7 +19,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
 
 object DuchyIds {
-  public lateinit var entries: List<Entry>
+  lateinit var entries: List<Entry>
     private set
 
   fun initializeFromFlags(flags: DuchyIdsFlags) {

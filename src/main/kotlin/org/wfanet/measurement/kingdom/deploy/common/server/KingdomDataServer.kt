@@ -20,6 +20,8 @@ import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIdsFlags
+import org.wfanet.measurement.kingdom.deploy.common.ProtocolConfigIds
+import org.wfanet.measurement.kingdom.deploy.common.ProtocolConfigIdsFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import picocli.CommandLine
@@ -31,9 +33,12 @@ abstract class KingdomDataServer : Runnable {
 
   @CommandLine.Mixin private lateinit var duchyIdsFlags: DuchyIdsFlags
 
+  @CommandLine.Mixin private lateinit var protocolConfigIdsFlags: ProtocolConfigIdsFlags
+
   protected suspend fun run(dataServices: DataServices) {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
     DuchyIds.initializeFromFlags(duchyIdsFlags)
+    ProtocolConfigIds.initializeFromFlags(protocolConfigIdsFlags)
 
     val services = dataServices.buildDataServices().toList()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)

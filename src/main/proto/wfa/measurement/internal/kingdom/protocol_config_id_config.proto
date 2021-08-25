@@ -19,18 +19,16 @@ package wfa.measurement.internal.kingdom;
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Duchy ID configuration. Used to map external and internal ids for duchies in
-// internal Kingdom services.
-message DuchyIdConfig {
-  message Duchy {
-    // The ID of the Duchy that is provided by the duchy owner entity.
-    // Can be known by external entities.
-    string external_duchy_id = 1;
+// ProtocolConfig ID configuration. Used to map external and internal ids for
+// protocolConfigs in internal Kingdom services.
+message ProtocolConfigIdConfig {
+  message ProtocolConfig {
+    // The external ID of the ProtocolConfig. Can be known by external entities.
+    string external_id = 1;
 
-    // The ID of the Duchy that is provided by the Kingdom upon start.
-    // Not known by external entities - only Kingdom is aware of this ID.
-    fixed64 internal_duchy_id = 2;
+    // The internal ID of the ProtocolConfig. Only Kingdom is aware of this ID.
+    fixed64 internal_id = 2;
   }
-  // The list of all the Duchy information in this config message
-  repeated Duchy duchies = 1;
+  // The list of all the ProtocolConfig information in this config message.
+  repeated ProtocolConfig protocol_configs = 1;
 }
