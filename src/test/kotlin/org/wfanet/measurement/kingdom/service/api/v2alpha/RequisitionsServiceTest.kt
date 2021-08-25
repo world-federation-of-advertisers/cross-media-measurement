@@ -30,7 +30,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.capture
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -62,8 +61,8 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 
-private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-private val CREATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
+private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val UPDATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
 private const val DEFAULT_LIMIT = 50
 
@@ -83,7 +82,7 @@ private val INTERNAL_REQUISITION: InternalRequisition =
       externalComputationId = 4
       externalDataProviderId = 5
       externalDataProviderCertificateId = 6
-      createTime = CREATE_TIME
+      updateTime = UPDATE_TIME
       state = InternalState.FULFILLED
       externalFulfillingDuchyId = "9"
       putDuchies(
@@ -92,8 +91,8 @@ private val INTERNAL_REQUISITION: InternalRequisition =
           .apply {
             externalDuchyCertificateId = 1
             liquidLegionsV2Builder.apply {
-              elGamalPublicKey = CREATE_TIME.toByteString()
-              elGamalPublicKeySignature = CREATE_TIME.toByteString()
+              elGamalPublicKey = UPDATE_TIME.toByteString()
+              elGamalPublicKeySignature = UPDATE_TIME.toByteString()
             }
           }
           .build()
@@ -188,7 +187,7 @@ class RequisitionsServiceTest {
         .apply {
           addRequisitions(REQUISITION)
           addRequisitions(REQUISITION)
-          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+          nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
         }
         .build()
 
@@ -216,12 +215,12 @@ class RequisitionsServiceTest {
   fun `listRequisitions with page token and filter uses filter with timestamp from page token`() =
       runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION.rebuild { createTime = CREATE_TIME_B }))
+      .thenReturn(flowOf(INTERNAL_REQUISITION.rebuild { updateTime = UPDATE_TIME_B }))
 
     val request = buildListRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
-      pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+      pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
       filterBuilder.apply { addStates(State.UNFULFILLED) }
     }
 
@@ -231,7 +230,7 @@ class RequisitionsServiceTest {
       ListRequisitionsResponse.newBuilder()
         .apply {
           addRequisitions(REQUISITION)
-          nextPageToken = CREATE_TIME_B.toByteArray().base64UrlEncode()
+          nextPageToken = UPDATE_TIME_B.toByteArray().base64UrlEncode()
         }
         .build()
 
@@ -248,7 +247,7 @@ class RequisitionsServiceTest {
           filterBuilder.apply {
             externalDataProviderId =
               apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-            createdAfter = CREATE_TIME
+            updatedAfter = UPDATE_TIME
             addStates(InternalState.UNFULFILLED)
           }
         }
@@ -274,7 +273,7 @@ class RequisitionsServiceTest {
       ListRequisitionsResponse.newBuilder()
         .apply {
           addRequisitions(REQUISITION)
-          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+          nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
         }
         .build()
 

@@ -31,8 +31,7 @@ message ComputationParticipant {
 
   fixed64 external_duchy_certificate_id = 5;
 
-  google.protobuf.Timestamp create_time = 6;
-  google.protobuf.Timestamp update_time = 7;
+  google.protobuf.Timestamp update_time = 6;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -53,7 +52,7 @@ message ComputationParticipant {
     // The parent `Measurement` will be in the `FAILED` state.
     FAILED = 4;
   }
-  State state = 8;
+  State state = 7;
 
   message LiquidLegionsV2Details {
     // Serialized `ElGamalPublicKey` message from public API.
@@ -66,13 +65,12 @@ message ComputationParticipant {
       LiquidLegionsV2Details liquid_legions_v2 = 1;
     }
   }
-  Details details = 9;
-  string details_json = 10;
+  Details details = 8;
 
-  DuchyMeasurementLogEntry failure_log_entry = 11;
+  DuchyMeasurementLogEntry failure_log_entry = 9;
 
   // Version of the public API for serialized message definitions as well as
   // resource names, which is denormalized from the parent Measurement.
   // Output-only.
-  string api_version = 12;
+  string api_version = 10;
 }
