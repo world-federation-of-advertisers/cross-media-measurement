@@ -33,13 +33,8 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 private val BASE_SQL =
   """
   SELECT
-    Requisitions.MeasurementConsumerId,
-    Requisitions.MeasurementId,
-    Requisitions.RequisitionId,
-    Requisitions.DataProviderId,
     Requisitions.UpdateTime,
     Requisitions.ExternalRequisitionId,
-    Requisitions.DataProviderCertificateId,
     Requisitions.State AS RequisitionState,
     Requisitions.FulfillingDuchyId,
     Requisitions.RequisitionDetails,
@@ -53,11 +48,12 @@ private val BASE_SQL =
     MeasurementDetails,
     ARRAY(
       SELECT AS STRUCT
-        ComputationParticipants.*,
+        ComputationParticipants.DuchyId,
+        ComputationParticipants.ParticipantDetails,
         ExternalDuchyCertificateId
       FROM
         ComputationParticipants
-        JOIN DuchyCertificates USING (DuchyId, CertificateId)
+        LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
       WHERE
         ComputationParticipants.MeasurementConsumerId = Requisitions.MeasurementConsumerId
         AND ComputationParticipants.MeasurementId = Requisitions.MeasurementId
@@ -179,7 +175,9 @@ private fun buildParentMeasurement(struct: Struct) = parentMeasurement {
 }
 
 private fun buildDuchyValue(struct: Struct): Requisition.DuchyValue = duchyValue {
-  externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
+  if (!struct.isNull("ExternalDuchyCertificateId")) {
+    externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
+  }
 
   val participantDetails =
     struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())

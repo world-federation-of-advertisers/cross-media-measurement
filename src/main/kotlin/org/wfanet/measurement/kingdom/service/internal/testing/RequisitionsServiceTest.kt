@@ -46,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
@@ -61,6 +62,7 @@ import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1L
+private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
 @RunWith(JUnit4::class)
 abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
@@ -73,7 +75,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
-  @get:Rule val duchyIdSetter = DuchyIdSetter("alpha", "bravo", "charlie")
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected lateinit var dataServices: TestDataServices
     private set
@@ -353,8 +355,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `getRequisition returns expected requisition`() = runBlocking {
     val measurementConsumer = createMeasurementConsumer()
     val dataProvider = createDataProvider()
-    val providedMeasurementId = "measurement"
-    val measurement = createMeasurement(measurementConsumer, providedMeasurementId, dataProvider)
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val measurement = createMeasurement(measurementConsumer, "measurement", dataProvider)
+    val dataProviderValue: Measurement.DataProviderValue =
+      measurement.dataProvidersMap[externalDataProviderId]!!
     val listedRequisition =
       service
         .streamRequisitions(
@@ -381,9 +385,17 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val expectedRequisition = requisition {
       externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
       externalMeasurementId = measurement.externalMeasurementId
-      externalDataProviderId = dataProvider.externalDataProviderId
+      this.externalDataProviderId = externalDataProviderId
       this.externalRequisitionId = externalRequisitionId
+      externalComputationId = measurement.externalComputationId
+      externalDataProviderCertificateId = dataProviderValue.externalDataProviderCertificateId
       state = Requisition.State.UNFULFILLED
+      details =
+        RequisitionKt.details {
+          dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+        }
       parentMeasurement =
         parentMeasurement {
           apiVersion = measurement.details.apiVersion
@@ -391,9 +403,21 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             measurement.externalMeasurementConsumerCertificateId
           measurementSpec = measurement.details.measurementSpec
           measurementSpecSignature = measurement.details.measurementSpecSignature
+          state = Measurement.State.PENDING_REQUISITION_PARAMS
         }
     }
-    assertThat(requisition).comparingExpectedFieldsOnly().isEqualTo(expectedRequisition)
+    assertThat(requisition)
+      .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
+      .isEqualTo(expectedRequisition)
+    assertThat(requisition.duchiesMap)
+      .containsExactly(
+        "Buck",
+        Requisition.DuchyValue.getDefaultInstance(),
+        "Rippon",
+        Requisition.DuchyValue.getDefaultInstance(),
+        "Shoaks",
+        Requisition.DuchyValue.getDefaultInstance()
+      )
     assertThat(requisition).isEqualTo(listedRequisition)
   }
 
