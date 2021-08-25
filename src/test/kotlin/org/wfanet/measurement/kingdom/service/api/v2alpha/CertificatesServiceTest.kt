@@ -32,13 +32,18 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Certificate
-import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.releaseCertificateHoldRequest
+import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
@@ -47,8 +52,14 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
+import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
+import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
 
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
@@ -80,7 +91,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate with data provider certificate name returns certificate`() {
 
-    val request = buildGetCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
+    val request = getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
 
     val result = runBlocking { service.getCertificate(request) }
 
@@ -89,9 +100,9 @@ class CertificatesServiceTest {
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        buildInternalGetCertificateRequest {
-          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-          externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+        internalGetCertificateRequest {
+          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -104,28 +115,28 @@ class CertificatesServiceTest {
     runBlocking {
       whenever(internalCertificatesMock.getCertificate(any()))
         .thenReturn(
-          INTERNAL_CERTIFICATE.change {
+          INTERNAL_CERTIFICATE.copy {
             val key =
-              MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
-            externalMeasurementConsumerId = apiIdToExternalId(key!!.measurementConsumerId)
+              MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+            externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
             externalCertificateId = apiIdToExternalId(key.certificateId)
           }
         )
     }
 
-    val request = buildGetCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
+    val request = getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
 
     val result = runBlocking { service.getCertificate(request) }
 
-    val expected = CERTIFICATE.rebuild { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
+    val expected = CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
 
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        buildInternalGetCertificateRequest {
+        internalGetCertificateRequest {
           val key =
-            MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
-          externalMeasurementConsumerId = apiIdToExternalId(key!!.measurementConsumerId)
+            MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -138,27 +149,27 @@ class CertificatesServiceTest {
     runBlocking {
       whenever(internalCertificatesMock.getCertificate(any()))
         .thenReturn(
-          INTERNAL_CERTIFICATE.change {
+          INTERNAL_CERTIFICATE.copy {
             clearExternalDataProviderId()
-            val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)
-            externalDuchyId = key!!.duchyId
+            val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
+            externalDuchyId = key.duchyId
             externalCertificateId = apiIdToExternalId(key.certificateId)
           }
         )
     }
 
-    val request = buildGetCertificateRequest { name = DUCHY_CERTIFICATE_NAME }
+    val request = getCertificateRequest { name = DUCHY_CERTIFICATE_NAME }
 
     val result = runBlocking { service.getCertificate(request) }
 
-    val expected = CERTIFICATE.rebuild { name = DUCHY_CERTIFICATE_NAME }
+    val expected = CERTIFICATE.copy { name = DUCHY_CERTIFICATE_NAME }
 
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        buildInternalGetCertificateRequest {
-          val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)
-          externalDuchyId = key!!.duchyId
+        internalGetCertificateRequest {
+          val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
+          externalDuchyId = key.duchyId
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -179,7 +190,7 @@ class CertificatesServiceTest {
   @Test
   fun `createCertificate returns certificate`() {
 
-    val request = buildCreateCertificateRequest {
+    val request = createCertificateRequest {
       parent = DATA_PROVIDER_NAME
       certificate = CERTIFICATE
     }
@@ -189,7 +200,7 @@ class CertificatesServiceTest {
     val expected = CERTIFICATE
 
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::createCertificate)
-      .isEqualTo(INTERNAL_CERTIFICATE.change { clearExternalCertificateId() })
+      .isEqualTo(INTERNAL_CERTIFICATE.copy { clearExternalCertificateId() })
 
     assertThat(result).isEqualTo(expected)
   }
@@ -199,7 +210,7 @@ class CertificatesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.createCertificate(buildCreateCertificateRequest { certificate = CERTIFICATE })
+          service.createCertificate(createCertificateRequest { certificate = CERTIFICATE })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -211,11 +222,7 @@ class CertificatesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.createCertificate(
-            buildCreateCertificateRequest {
-              parent = org.wfanet.measurement.kingdom.service.api.v2alpha.DATA_PROVIDER_NAME
-            }
-          )
+          service.createCertificate(createCertificateRequest { parent = DATA_PROVIDER_NAME })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -227,27 +234,27 @@ class CertificatesServiceTest {
     runBlocking {
       whenever(internalCertificatesMock.revokeCertificate(any()))
         .thenReturn(
-          INTERNAL_CERTIFICATE.change {
+          INTERNAL_CERTIFICATE.copy {
             revocationState = InternalCertificate.RevocationState.REVOKED
           }
         )
     }
 
-    val request = buildRevokeCertificateRequest {
+    val request = revokeCertificateRequest {
       name = DATA_PROVIDER_CERTIFICATE_NAME
       revocationState = Certificate.RevocationState.REVOKED
     }
 
     val result = runBlocking { service.revokeCertificate(request) }
 
-    val expected = CERTIFICATE.rebuild { revocationState = Certificate.RevocationState.REVOKED }
+    val expected = CERTIFICATE.copy { revocationState = Certificate.RevocationState.REVOKED }
 
     verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::revokeCertificate)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        buildInternalRevokeCertificateRequest {
-          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-          externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+        internalRevokeCertificateRequest {
+          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
           revocationState = InternalCertificate.RevocationState.REVOKED
         }
@@ -272,7 +279,7 @@ class CertificatesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.revokeCertificate(
-            buildRevokeCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
+            revokeCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
           )
         }
       }
@@ -283,7 +290,7 @@ class CertificatesServiceTest {
   @Test
   fun `releaseCertificateHold returns certificate with hold released`() {
 
-    val request = buildReleaseCertificateHoldRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
+    val request = releaseCertificateHoldRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
 
     val result = runBlocking { service.releaseCertificateHold(request) }
 
@@ -295,9 +302,9 @@ class CertificatesServiceTest {
       )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        buildInternalReleaseCertificateHoldRequest {
-          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-          externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
+        internalReleaseCertificateHoldRequest {
+          val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
         }
       )
@@ -321,43 +328,17 @@ class CertificatesServiceTest {
 private val SERVER_CERTIFICATE: X509Certificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
 private val SERVER_CERTIFICATE_DER = ByteString.copyFrom(SERVER_CERTIFICATE.encoded)
 
-private val CERTIFICATE: Certificate = buildCertificate {
+private val CERTIFICATE: Certificate = certificate {
   name = DATA_PROVIDER_CERTIFICATE_NAME
   x509Der = SERVER_CERTIFICATE_DER
 }
 
-private val INTERNAL_CERTIFICATE =
-  InternalCertificate.newBuilder()
-    .apply {
-      val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)
-      externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
-      externalCertificateId = apiIdToExternalId(key.certificateId)
-      subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier
-      notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
-      notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
-      detailsBuilder.x509Der = SERVER_CERTIFICATE_DER
-    }
-    .build()
-
-internal inline fun InternalCertificate.change(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-internal inline fun Certificate.rebuild(fill: (@Builder Certificate.Builder).() -> Unit) =
-  toBuilder().apply(fill).build()
-
-internal inline fun buildGetCertificateRequest(
-  fill: (@Builder GetCertificateRequest.Builder).() -> Unit
-) = GetCertificateRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildCreateCertificateRequest(
-  fill: (@Builder CreateCertificateRequest.Builder).() -> Unit
-) = CreateCertificateRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildRevokeCertificateRequest(
-  fill: (@Builder RevokeCertificateRequest.Builder).() -> Unit
-) = RevokeCertificateRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildReleaseCertificateHoldRequest(
-  fill: (@Builder ReleaseCertificateHoldRequest.Builder).() -> Unit
-) = ReleaseCertificateHoldRequest.newBuilder().apply(fill).build()
+private val INTERNAL_CERTIFICATE = internalCertificate {
+  val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
+  externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+  externalCertificateId = apiIdToExternalId(key.certificateId)
+  subjectKeyIdentifier = SERVER_CERTIFICATE.subjectKeyIdentifier!!
+  notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
+  notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
+  details = details { x509Der = SERVER_CERTIFICATE_DER }
+}
