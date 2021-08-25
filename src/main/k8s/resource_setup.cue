@@ -16,6 +16,7 @@ package k8s
 
 #ResourceSetup: {
 	_edp_display_names: [...string]
+	_duchy_ids: [...string]
 
 	_edp_cert_key_files_flags:
 		[
@@ -41,6 +42,11 @@ package k8s
 		"--tls-key-file=/var/run/secrets/files/mc_tls.key",
 		"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 	]
+	_duchy_cs_cert_files_flags: [
+		for d in _duchy_ids {
+			"--duchy-consent-signaling-cert-der-files=\(d)=/var/run/secrets/files/\(d)_cs_cert.der"
+		},
+	]
 	_kingdom_public_api_flags: [
 		"--kingdom-public-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 		"--kingdom-public-api-cert-host=localhost",
@@ -65,6 +71,7 @@ package k8s
 						_edp_cert_key_files_flags,
 						_mc_cert_key_files_flags,
 						_tls_cert_key_files_flags,
+						_duchy_cs_cert_files_flags,
 						_kingdom_public_api_flags,
 
 			] + _args
