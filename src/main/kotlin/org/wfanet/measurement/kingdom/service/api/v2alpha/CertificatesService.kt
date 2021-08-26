@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -37,9 +38,10 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState as InternalRevocationState
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest as InternalGetCertificateRequest
-import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest as InternalReleaseCertificateHoldRequest
-import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest as InternalRevokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.getCertificateRequest
+import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
+import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 
 class CertificatesService(private val internalCertificatesStub: CertificatesCoroutineStub) :
   CertificatesCoroutineImplBase() {
@@ -48,7 +50,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val key =
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
-    val internalGetCertificateRequest = buildInternalGetCertificateRequest {
+    val internalGetCertificateRequest = getCertificateRequest {
       when (key) {
         is DataProviderCertificateKey -> {
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
@@ -73,21 +75,18 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val duchyKey = DuchyKey.fromName(request.parent)
     val measurementConsumerKey = MeasurementConsumerKey.fromName(request.parent)
 
-    val internalCertificate =
-      parseCertificateDer(request.certificate.x509Der)
-        .toBuilder()
-        .apply {
-          when {
-            dataProviderKey != null ->
-              externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-            duchyKey != null -> externalDuchyId = duchyKey.duchyId
-            measurementConsumerKey != null ->
-              externalMeasurementConsumerId =
-                apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
-            else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
-          }
-        }
-        .build()
+    val internalCertificate = internalCertificate {
+      fillCertificateFromDer(request.certificate.x509Der)
+      when {
+        dataProviderKey != null ->
+          externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
+        duchyKey != null -> externalDuchyId = duchyKey.duchyId
+        measurementConsumerKey != null ->
+          externalMeasurementConsumerId =
+            apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+        else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
+      }
+    }
 
     return internalCertificatesStub.createCertificate(internalCertificate).toCertificate()
   }
@@ -100,7 +99,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       "Revocation State unspecified"
     }
 
-    val internalRevokeCertificateRequest = buildInternalRevokeCertificateRequest {
+    val internalRevokeCertificateRequest = revokeCertificateRequest {
       when (key) {
         is DataProviderCertificateKey -> {
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
@@ -127,7 +126,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val key =
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
-    val internalReleaseCertificateHoldRequest = buildInternalReleaseCertificateHoldRequest {
+    val internalReleaseCertificateHoldRequest = releaseCertificateHoldRequest {
       when (key) {
         is DataProviderCertificateKey -> {
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
@@ -152,7 +151,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
 /** Converts an internal [InternalCertificate] to a public [Certificate]. */
 private fun InternalCertificate.toCertificate(): Certificate {
-  return buildCertificate {
+  return certificate {
     name =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (this@toCertificate.parentCase) {
@@ -183,9 +182,6 @@ private fun InternalCertificate.toCertificate(): Certificate {
   }
 }
 
-internal inline fun buildCertificate(fill: (@Builder Certificate.Builder).() -> Unit) =
-  Certificate.newBuilder().apply(fill).build()
-
 /** Converts an internal [InternalRevocationState] to a public [RevocationState]. */
 private fun InternalRevocationState.toRevocationState(): RevocationState =
   when (this) {
@@ -203,18 +199,6 @@ private fun RevocationState.toInternal(): InternalRevocationState =
     RevocationState.UNRECOGNIZED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
       InternalRevocationState.REVOCATION_STATE_UNSPECIFIED
   }
-
-internal inline fun buildInternalGetCertificateRequest(
-  fill: (@Builder InternalGetCertificateRequest.Builder).() -> Unit
-) = InternalGetCertificateRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildInternalRevokeCertificateRequest(
-  fill: (@Builder InternalRevokeCertificateRequest.Builder).() -> Unit
-) = InternalRevokeCertificateRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildInternalReleaseCertificateHoldRequest(
-  fill: (@Builder InternalReleaseCertificateHoldRequest.Builder).() -> Unit
-) = InternalReleaseCertificateHoldRequest.newBuilder().apply(fill).build()
 
 /** Checks the resource name against multiple certificate [ResourceKey] to find the right one. */
 private fun createResourceKey(name: String): ResourceKey? {
