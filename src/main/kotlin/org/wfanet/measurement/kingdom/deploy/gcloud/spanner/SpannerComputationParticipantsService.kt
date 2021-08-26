@@ -28,6 +28,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmComputationParticipant
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FailComputationParticipant
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 
 class SpannerComputationParticipantsService(
   private val clock: Clock,
