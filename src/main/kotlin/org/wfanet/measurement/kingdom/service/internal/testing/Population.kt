@@ -137,6 +137,6 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
   companion object {
-    protected const val API_VERSION = "v2alpha"
+    private const val API_VERSION = "v2alpha"
   }
 }

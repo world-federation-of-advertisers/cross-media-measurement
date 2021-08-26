@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -61,7 +62,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
-  @get:Rule val duchyIdSetter = DuchyIdSetter("alpha", "bravo", "charlie")
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected lateinit var dataServices: TestDataServices
     private set
