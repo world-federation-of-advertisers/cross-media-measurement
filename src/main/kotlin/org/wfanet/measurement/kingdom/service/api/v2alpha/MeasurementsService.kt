@@ -338,7 +338,7 @@ private fun MeasurementSpec.validate() {
 }
 
 /** Validates a [DataProviderEntry] for a request and then creates a map entry from it. */
-private fun DataProviderEntry.validateAndMap(): MutableMap.MutableEntry<Long, DataProviderValue> {
+private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValue> {
   val dataProviderKey =
     grpcRequireNotNull(DataProviderKey.fromName(this.key)) {
       "Data Provider resource name is either unspecified or invalid"
