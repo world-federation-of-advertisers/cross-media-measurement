@@ -29,8 +29,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
-import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
@@ -256,7 +256,7 @@ private fun State.toInternal(): InternalState =
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */
 private fun DuchyValue.toDuchyEntryValue(): DuchyEntry.Value {
   val value = this
-  return DuchyEntryKt.value {
+  return value {
     duchyCertificate = externalIdToApiId(externalDuchyCertificateId)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (value.protocolCase) {
