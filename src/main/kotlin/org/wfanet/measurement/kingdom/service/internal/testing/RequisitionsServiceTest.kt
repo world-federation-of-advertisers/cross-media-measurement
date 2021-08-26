@@ -15,9 +15,7 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import java.time.Clock
-import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
@@ -30,29 +28,17 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
-import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
-import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.dataProvider
-import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.measurement
@@ -75,6 +61,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  private val population = Population(clock, idGenerator)
   @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected lateinit var dataServices: TestDataServices
@@ -103,90 +90,31 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     service = newService()
   }
 
-  protected suspend fun createMeasurementConsumer(): MeasurementConsumer {
-    return dataServices.measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        certificate =
-          buildRequestCertificate("MC cert", "MC SKID " + idGenerator.generateExternalId().value)
-        details =
-          MeasurementConsumerKt.details {
-            apiVersion = API_VERSION.string
-            publicKey = ByteString.copyFromUtf8("MC public key")
-            publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
-          }
-      }
-    )
-  }
-
-  protected suspend fun createDataProvider(): DataProvider {
-    return dataServices.dataProvidersService.createDataProvider(
-      dataProvider {
-        certificate =
-          buildRequestCertificate("EDP cert", "EDP SKID " + idGenerator.generateExternalId().value)
-        details =
-          DataProviderKt.details {
-            apiVersion = API_VERSION.string
-            publicKey = ByteString.copyFromUtf8("EDP public key")
-            publicKeySignature = ByteString.copyFromUtf8("EDP public key signature")
-          }
-      }
-    )
-  }
-
-  protected suspend fun createMeasurement(
-    measurementConsumer: MeasurementConsumer,
-    providedMeasurementId: String,
-    vararg dataProviders: DataProvider
-  ): Measurement {
-    return dataServices.measurementsService.createMeasurement(
-      measurement {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        this.providedMeasurementId = providedMeasurementId
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
-        externalProtocolConfigId = "llv2"
-        details =
-          MeasurementKt.details {
-            apiVersion = API_VERSION.string
-            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-            dataProviderList = ByteString.copyFromUtf8("EDP list")
-            dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
-            duchyProtocolConfig =
-              duchyProtocolConfig {
-                liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-              }
-          }
-        for (dataProvider in dataProviders) {
-          this.dataProviders[dataProvider.externalDataProviderId] =
-            dataProviderValue {
-              externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-              dataProviderPublicKey = dataProvider.details.publicKey
-              dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-              encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-            }
-        }
-      }
-    )
-  }
-
-  private fun buildRequestCertificate(derUtf8: String, skidUtf8: String): Certificate {
-    val now = clock.instant()
-    return certificate {
-      notValidBefore = now.toProtoTime()
-      notValidAfter = now.plus(365L, ChronoUnit.DAYS).toProtoTime()
-      subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
-      details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
-    }
-  }
-
   @Test
   fun `streamRequisitions returns all requisitions for EDP in order`(): Unit = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider = createDataProvider()
-    val measurement1 = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
-    val measurement2 = createMeasurement(measurementConsumer, "measurement 2", dataProvider)
-    createMeasurement(measurementConsumer, "measurement 3", createDataProvider())
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement1 =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+    val measurement2 =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 2",
+        dataProvider
+      )
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 3",
+      population.createDataProvider(dataServices.dataProvidersService)
+    )
 
     val requisitions: List<Requisition> =
       service
@@ -214,13 +142,31 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   @Test
   fun `streamRequisitions returns all requisitions for MC`(): Unit = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider1 = createDataProvider()
-    val dataProvider2 = createDataProvider()
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider1 = population.createDataProvider(dataServices.dataProvidersService)
+    val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
     val measurement1 =
-      createMeasurement(measurementConsumer, "measurement 1", dataProvider1, dataProvider2)
-    val measurement2 = createMeasurement(measurementConsumer, "measurement 2", dataProvider1)
-    createMeasurement(createMeasurementConsumer(), "other MC measurement", dataProvider1)
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider1,
+        dataProvider2
+      )
+    val measurement2 =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 2",
+        dataProvider1
+      )
+    population.createMeasurement(
+      dataServices.measurementsService,
+      population.createMeasurementConsumer(dataServices.measurementConsumersService),
+      "other MC measurement",
+      dataProvider1
+    )
 
     val requisitions: List<Requisition> =
       service
@@ -257,12 +203,24 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   @Test
   fun `streamRequisitions returns all requisitions for measurement`(): Unit = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider1 = createDataProvider()
-    val dataProvider2 = createDataProvider()
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider1 = population.createDataProvider(dataServices.dataProvidersService)
+    val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
-      createMeasurement(measurementConsumer, "measurement 1", dataProvider1, dataProvider2)
-    createMeasurement(measurementConsumer, "measurement 2", dataProvider1)
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider1,
+        dataProvider2
+      )
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 2",
+      dataProvider1
+    )
 
     val requisitions: List<Requisition> =
       service
@@ -295,11 +253,29 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   @Test
   fun `streamRequisitions respects updated_after`(): Unit = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider = createDataProvider()
-    val measurement1 = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
-    val measurement2 = createMeasurement(measurementConsumer, "measurement 2", dataProvider)
-    createMeasurement(measurementConsumer, "measurement 3", createDataProvider())
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement1 =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+    val measurement2 =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 2",
+        dataProvider
+      )
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 3",
+      population.createDataProvider(dataServices.dataProvidersService)
+    )
 
     val requisitions: List<Requisition> =
       service
@@ -326,10 +302,22 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   @Test
   fun `streamRequisitions respects limit`(): Unit = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider = createDataProvider()
-    val measurement1 = createMeasurement(measurementConsumer, "measurement 1", dataProvider)
-    createMeasurement(measurementConsumer, "measurement 2", dataProvider)
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement1 =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 2",
+      dataProvider
+    )
 
     val requisitions: List<Requisition> =
       service
@@ -353,10 +341,19 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   @Test
   fun `getRequisition returns expected requisition`() = runBlocking {
-    val measurementConsumer = createMeasurementConsumer()
-    val dataProvider = createDataProvider()
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val providedMeasurementId = "measurement"
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        providedMeasurementId,
+        dataProvider
+      )
+
     val externalDataProviderId = dataProvider.externalDataProviderId
-    val measurement = createMeasurement(measurementConsumer, "measurement", dataProvider)
     val dataProviderValue: Measurement.DataProviderValue =
       measurement.dataProvidersMap[externalDataProviderId]!!
     val listedRequisition =
@@ -423,8 +420,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   @Test
   fun `getRequisitionByDataProviderId returns requisition`() = runBlocking {
-    val dataProvider = createDataProvider()
-    val measurement = createMeasurement(createMeasurementConsumer(), "measurement", dataProvider)
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        dataProvider
+      )
     val listedRequisition =
       service
         .streamRequisitions(
