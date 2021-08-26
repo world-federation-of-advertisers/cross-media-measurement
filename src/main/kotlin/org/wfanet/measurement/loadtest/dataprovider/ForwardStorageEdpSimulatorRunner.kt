@@ -29,7 +29,7 @@ import picocli.CommandLine
 class ForwardStorageEdpSimulatorRunner : EdpSimulator() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
-  override val storageClient =
+  override val sketchStore =
     SketchStore(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
 }
 

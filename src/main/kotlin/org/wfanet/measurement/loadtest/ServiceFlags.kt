@@ -52,21 +52,3 @@ class RequisitionFulfillmentServiceFlags {
   lateinit var certHost: String
     private set
 }
-
-class EventGroupServiceFlags {
-  @CommandLine.Option(
-    names = ["--event-group-service-target"],
-    description = ["Address and port of the EventGroupService"],
-    required = true
-  )
-  lateinit var target: String
-    private set
-
-  @CommandLine.Option(
-    names = ["--event-group-service-cert-host"],
-    description = ["The expected hostname in the EventGroupService's TLS certificate."],
-    required = true
-  )
-  lateinit var certHost: String
-    private set
-}

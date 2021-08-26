@@ -30,7 +30,7 @@ import picocli.CommandLine
 class GcsEdpSimulatorRunner : EdpSimulator() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
-  override val storageClient = SketchStore(GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags)))
+  override val sketchStore = SketchStore(GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags)))
 }
 
 fun main(args: Array<String>) = commandLineMain(GcsEdpSimulatorRunner(), args)

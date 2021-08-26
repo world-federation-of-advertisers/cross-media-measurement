@@ -126,6 +126,7 @@ class RequisitionFulfillmentWorkflow(
 
     // todo(@ohardt): needs checking of signed data on
     //                measurementSpec and reqSpec of the requisition
+    //                and then sign the uplaoded sketch
 
     val protoConfig = protocolConfigMap.get(requisition.protocolConfig) ?: return
     require(protoConfig.hasLiquidLegionsV2()) {

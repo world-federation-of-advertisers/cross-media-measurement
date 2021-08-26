@@ -42,7 +42,7 @@ abstract class EdpSimulator : Runnable {
   protected lateinit var flags: Flags
     private set
 
-  abstract val storageClient: SketchStore
+  abstract val sketchStore: SketchStore
 
   override fun run() {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
@@ -84,11 +84,6 @@ abstract class EdpSimulator : Runnable {
           .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
       )
 
-    var request = createEventGroupRequest {
-      parent = flags.dataProviderResourceName
-      eventGroup = eventGroup { measurementConsumer = flags.measurementConsumerResourceName }
-    }
-
     val workflow =
       RequisitionFulfillmentWorkflow(
         flags.dataProviderResourceName,
@@ -99,11 +94,14 @@ abstract class EdpSimulator : Runnable {
           .configsMap,
         requisitionsStub,
         requisitionFulfillmentStub,
-        storageClient,
+        sketchStore,
       )
 
     runBlocking {
-      eventGroupStub.createEventGroup(request)
+      eventGroupStub.createEventGroup(createEventGroupRequest {
+        parent = flags.dataProviderResourceName
+        eventGroup = eventGroup { measurementConsumer = flags.measurementConsumerResourceName }
+      })
 
       throttler.loopOnReady { workflow.execute() }
     }
