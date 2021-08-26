@@ -28,7 +28,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.RequisitionKt.details as requisitionDetails
+import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -79,12 +79,11 @@ class CreateMeasurement(private val measurement: Measurement) :
       insertRequisition(measurementConsumerId, measurementId, dataProviderId, dataProviderValue)
     }
 
-    // Insert into ComputationParticipants for each Duchy
     DuchyIds.entries.forEach { entry ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
-        InternalId(entry.internalDuchyId)
+        InternalId(entry.internalDuchyId),
       )
     }
     return measurement.copy {
@@ -126,15 +125,15 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementId: InternalId,
     duchyId: InternalId
   ) {
-    val emptyParticipantDetails = ComputationParticipant.Details.getDefaultInstance()
+    val participantDetails = ComputationParticipant.Details.getDefaultInstance()
     transactionContext.bufferInsertMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId.value)
       set("MeasurementId" to measurementId.value)
       set("DuchyId" to duchyId.value)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to ComputationParticipant.State.CREATED)
-      set("ParticipantDetails" to emptyParticipantDetails)
-      setJson("ParticipantDetailsJson" to emptyParticipantDetails)
+      set("ParticipantDetails" to participantDetails)
+      setJson("ParticipantDetailsJson" to participantDetails)
     }
   }
 
@@ -152,11 +151,12 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
-    val details: Requisition.Details = requisitionDetails {
-      dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-      dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-      encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-    }
+    val details: Requisition.Details =
+      RequisitionKt.details {
+        dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+        encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+      }
 
     transactionContext.bufferInsertMutation("Requisitions") {
       set("MeasurementConsumerId" to measurementConsumerId.value)
