@@ -51,6 +51,7 @@ import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
@@ -145,6 +146,7 @@ import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.EXECUTI
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2.Description.SETUP_PHASE_INPUT
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 
@@ -1756,6 +1758,20 @@ class LiquidLegionsV2MillTest {
     assertThat(systemComputationResult.name).isEqualTo("computations/$GLOBAL_ID")
     // The signature is non-deterministic, so we only verity the encryption is not empty.
     assertThat(systemComputationResult.encryptedResult).isNotEmpty()
+    assertThat(systemComputationResult)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        setComputationResultRequest {
+          name = "computations/$GLOBAL_ID"
+          aggregatorCertificate = CONSENT_SIGNALING_CERT_DER
+          resultPublicKey =
+            encryptionPublicKey {
+                type = V2AlphaEncryptionPublicKey.Type.EC_P256
+                publicKeyInfo = ENCRYPTION_PUBLIC_KEY_DER
+              }
+              .toByteString()
+        }
+      )
 
     assertThat(cryptoRequest)
       .isEqualTo(
