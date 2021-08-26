@@ -21,14 +21,17 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest as InternalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -46,13 +49,14 @@ class MeasurementConsumersService(
 
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
-        buildInternalMeasurementConsumer {
+        internalMeasurementConsumer {
           certificate = parseCertificateDer(measurementConsumer.certificateDer)
-          details {
-            apiVersion = API_VERSION.string
-            publicKey = measurementConsumer.publicKey.data
-            publicKeySignature = measurementConsumer.publicKey.signature
-          }
+          details =
+            details {
+              apiVersion = API_VERSION.string
+              publicKey = measurementConsumer.publicKey.data
+              publicKeySignature = measurementConsumer.publicKey.signature
+            }
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
         // as owner.
@@ -71,37 +75,13 @@ class MeasurementConsumersService(
     // ownership check.
     val internalResponse: InternalMeasurementConsumer =
       internalClient.getMeasurementConsumer(
-        buildInternalGetMeasurementConsumerRequest {
+        getMeasurementConsumerRequest {
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
         }
       )
     return internalResponse.toMeasurementConsumer()
   }
 }
-
-internal inline fun buildMeasurementConsumer(
-  fill: (@Builder MeasurementConsumer.Builder).() -> Unit
-) = MeasurementConsumer.newBuilder().apply(fill).build()
-
-internal inline fun MeasurementConsumer.Builder.publicKey(
-  fill: (@Builder SignedData.Builder).() -> Unit
-) {
-  publicKeyBuilder.apply(fill)
-}
-
-internal inline fun buildInternalMeasurementConsumer(
-  fill: (@Builder InternalMeasurementConsumer.Builder).() -> Unit
-) = InternalMeasurementConsumer.newBuilder().apply(fill).build()
-
-internal inline fun InternalMeasurementConsumer.Builder.details(
-  fill: (@Builder InternalMeasurementConsumer.Details.Builder).() -> Unit
-) {
-  detailsBuilder.apply(fill)
-}
-
-internal inline fun buildInternalGetMeasurementConsumerRequest(
-  fill: (@Builder InternalGetMeasurementConsumerRequest.Builder).() -> Unit
-) = InternalGetMeasurementConsumerRequest.newBuilder().apply(fill).build()
 
 private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementConsumer {
   check(Version.fromString(details.apiVersion) == API_VERSION) {
@@ -111,13 +91,14 @@ private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementCons
   val measurementConsumerId: String = externalIdToApiId(externalMeasurementConsumerId)
   val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
 
-  return buildMeasurementConsumer {
+  return measurementConsumer {
     name = MeasurementConsumerKey(measurementConsumerId).toName()
     certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
     certificateDer = internalMeasurementConsumer.certificate.details.x509Der
-    publicKey {
-      data = internalMeasurementConsumer.details.publicKey
-      signature = internalMeasurementConsumer.details.publicKeySignature
-    }
+    publicKey =
+      signedData {
+        data = internalMeasurementConsumer.details.publicKey
+        signature = internalMeasurementConsumer.details.publicKeySignature
+      }
   }
 }
