@@ -46,7 +46,9 @@ class SpannerMeasurementsService(
           failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "Certificate not found" }
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
       }
     }
   }
