@@ -98,10 +98,12 @@ abstract class EdpSimulator : Runnable {
       )
 
     runBlocking {
-      eventGroupStub.createEventGroup(createEventGroupRequest {
-        parent = flags.dataProviderResourceName
-        eventGroup = eventGroup { measurementConsumer = flags.measurementConsumerResourceName }
-      })
+      eventGroupStub.createEventGroup(
+        createEventGroupRequest {
+          parent = flags.dataProviderResourceName
+          eventGroup = eventGroup { measurementConsumer = flags.measurementConsumerResourceName }
+        }
+      )
 
       throttler.loopOnReady { workflow.execute() }
     }
