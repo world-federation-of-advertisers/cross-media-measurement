@@ -19,6 +19,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
@@ -36,6 +37,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
+import org.wfanet.measurement.system.v1alpha.RevocationState
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
@@ -88,14 +90,23 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
       it.state = state.toSystemRequisitionState()
       it.updateTime = updateTime
       it.requisitionParamsBuilder.apply {
-        duchyCertificate =
-          when (Version.fromString(apiVersion)) {
-            Version.V2_ALPHA ->
-              DuchyCertificateKey(externalDuchyId, externalIdToApiId(externalDuchyCertificateId))
-                .toName()
-            Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-          }
-        // TODO: set duchy_certificate_der
+        if (hasDuchyCertificate()) {
+          val duchyCertificate = this@toSystemComputationParticipant.duchyCertificate
+
+          this.duchyCertificate =
+            when (Version.fromString(apiVersion)) {
+              Version.V2_ALPHA ->
+                DuchyCertificateKey(
+                    externalDuchyId,
+                    externalIdToApiId(duchyCertificate.externalCertificateId)
+                  )
+                  .toName()
+              Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+            }
+          duchyCertificateDer = duchyCertificate.details.x509Der
+          duchyCertificateRevocationState =
+            duchyCertificate.revocationState.toSystemRevocationState()
+        }
         if (details.hasLiquidLegionsV2()) {
           liquidLegionsV2Builder.apply {
             elGamalPublicKey = details.liquidLegionsV2.elGamalPublicKey
@@ -153,6 +164,17 @@ fun InternalComputationParticipant.State.toSystemRequisitionState(): Computation
     InternalComputationParticipant.State.STATE_UNSPECIFIED,
     InternalComputationParticipant.State.UNRECOGNIZED ->
       error("Invalid computationParticipant state.")
+  }
+}
+
+private fun InternalCertificate.RevocationState.toSystemRevocationState(): RevocationState {
+  return when (this) {
+    InternalCertificate.RevocationState.HOLD -> RevocationState.HOLD
+    InternalCertificate.RevocationState.REVOKED -> RevocationState.REVOKED
+    InternalCertificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+      RevocationState.REVOCATION_STATE_UNSPECIFIED
+    InternalCertificate.RevocationState.UNRECOGNIZED ->
+      error("Unrecognized revocation state ${this.number}.")
   }
 }
 

@@ -117,6 +117,11 @@ class MeasurementReader(private val view: Measurement.View) :
           ComputationParticipants.UpdateTime,
           ComputationParticipants.State,
           ComputationParticipants.ParticipantDetails,
+          Certificates.SubjectKeyIdentifier,
+          Certificates.NotValidBefore,
+          Certificates.NotValidAfter,
+          Certificates.RevocationState,
+          Certificates.CertificateDetails,
           ARRAY(
             SELECT AS STRUCT
               DuchyMeasurementLogEntries.CreateTime,
@@ -131,7 +136,8 @@ class MeasurementReader(private val view: Measurement.View) :
           ) AS DuchyMeasurementLogEntries
         FROM
           ComputationParticipants
-          LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
+          LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
+            USING (DuchyId, CertificateId)
         WHERE
           ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
@@ -188,10 +194,6 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
         this.externalMeasurementId = externalMeasurementId
         this.externalDuchyId = externalDuchyId
         this.externalComputationId = externalComputationId
-        if (!participantStruct.isNull("ExternalDuchyCertificateId")) {
-          externalDuchyCertificateId = participantStruct.getLong("ExternalDuchyCertificateId")
-          // TODO(@SanjayVas): Include denormalized Certificate.
-        }
         updateTime = participantStruct.getTimestamp("UpdateTime").toProto()
         state = participantStruct.getProtoEnum("State", ComputationParticipant.State::forNumber)
         details =
@@ -199,7 +201,6 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
             "ParticipantDetails",
             ComputationParticipant.Details.parser()
           )
-        this.apiVersion = apiVersion
 
         buildFailureLogEntry(
           externalMeasurementConsumerId,
@@ -208,6 +209,12 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
           participantStruct.getStructList("DuchyMeasurementLogEntries")
         )
           ?.let { failureLogEntry = it }
+
+        this.apiVersion = apiVersion
+        if (!participantStruct.isNull("ExternalDuchyCertificateId")) {
+          duchyCertificate =
+            CertificateReader.buildDuchyCertificate(externalDuchyId, participantStruct)
+        }
       }
   }
 

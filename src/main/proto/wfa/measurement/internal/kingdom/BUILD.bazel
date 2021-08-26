@@ -9,6 +9,7 @@ package(default_visibility = ["//:__subpackages__"])
 proto_and_java_proto_library(
     name = "computation_participant",
     deps = [
+        ":certificate_proto",
         ":measurement_log_entry_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.Truth
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -33,6 +34,8 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt as InternalCertificateKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as InternalComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
@@ -40,9 +43,16 @@ import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequ
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest as InternalFailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest as InternalSetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.system.v1alpha.ComputationParticipant
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt.liquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.RevocationState
 import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.system.v1alpha.computationParticipant
 
 private const val DUCHY_ID: String = "some-duchy-id"
 private const val MILL_ID: String = "some-mill-id"
@@ -61,6 +71,7 @@ private val DUCHY_CERTIFICATE_PUBLIC_API_NAME =
 private val SYSTEM_COMPUTATION_PARTICIPATE_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
 
+private val DUCHY_CERTIFICATE_DER = ByteString.copyFromUtf8("an X.509 certificate")
 private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
 
@@ -68,7 +79,6 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
   InternalComputationParticipant.newBuilder()
     .apply {
       externalDuchyId = DUCHY_ID
-      externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
       externalComputationId = EXTERNAL_COMPUTATION_ID
       state = InternalComputationParticipant.State.FAILED
       updateTimeBuilder.apply {
@@ -133,7 +143,19 @@ class ComputationParticipantsServiceTest {
   @Test
   fun `SetParticipantRequisitionParams successfully`() = runBlocking {
     whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
-      .thenReturn(INTERNAL_COMPUTATION_PARTICIPANT)
+      .thenReturn(
+        INTERNAL_COMPUTATION_PARTICIPANT.copy {
+          clearFailureLogEntry()
+          state = InternalComputationParticipant.State.REQUISITION_PARAMS_SET
+          duchyCertificate =
+            internalCertificate {
+              externalDuchyId = DUCHY_ID
+              externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+              details = InternalCertificateKt.details { x509Der = DUCHY_CERTIFICATE_DER }
+              revocationState = InternalCertificate.RevocationState.REVOKED
+            }
+        }
+      )
 
     val request =
       SetParticipantRequisitionParamsRequest.newBuilder()
@@ -149,7 +171,7 @@ class ComputationParticipantsServiceTest {
         }
         .build()
 
-    service.setParticipantRequisitionParams(request)
+    val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
 
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
@@ -167,6 +189,25 @@ class ComputationParticipantsServiceTest {
             }
           }
           .build()
+      )
+    assertThat(response)
+      .isEqualTo(
+        computationParticipant {
+          name = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+          state = ComputationParticipant.State.REQUISITION_PARAMS_SET
+          updateTime = INTERNAL_COMPUTATION_PARTICIPANT.updateTime
+          requisitionParams =
+            requisitionParams {
+              duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+              duchyCertificateDer = DUCHY_CERTIFICATE_DER
+              duchyCertificateRevocationState = RevocationState.REVOKED
+              liquidLegionsV2 =
+                liquidLegionsV2 {
+                  elGamalPublicKey = DUCHY_ELGAMAL_KEY
+                  elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+                }
+            }
+        }
       )
   }
 

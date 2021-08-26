@@ -8,6 +8,24 @@ IMPORT_PREFIX = "/src/main/proto"
 # Resources and shared message types.
 
 proto_library(
+    name = "certificate_proto",
+    srcs = ["certificate.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "certificate_java_proto",
+    deps = ["certificate_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "certificate_kt_jvm_proto",
+    srcs = [":certificate_proto"],
+    visibility = ["//visibility:public"],
+    deps = [":certificate_java_proto"],
+)
+
+proto_library(
     name = "computation_proto",
     srcs = ["computation.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -59,6 +77,7 @@ proto_library(
     srcs = ["computation_participant.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":certificate_proto",
         ":stage_attempt_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",

@@ -18,6 +18,7 @@ package wfa.measurement.system.v1alpha;
 
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/system/v1alpha/certificate.proto";
 import "wfa/measurement/system/v1alpha/stage_attempt.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -70,6 +71,12 @@ message ComputationParticipant {
     // Duchy's root certificate. Output-only.
     bytes duchy_certificate_der = 2;
 
+    // Revocation state of `duchy_certificate`. Output-only.
+    //
+    // Note that this is the revocation state tracked by the system and does not
+    // necessarily reflect the revocation state from the certificate authority.
+    RevocationState duchy_certificate_revocation_state = 3;
+
     message LiquidLegionsV2 {
       // Serialized `ElGamalPublicKey` message from public API.
       bytes el_gamal_public_key = 1;
@@ -80,7 +87,7 @@ message ComputationParticipant {
 
     oneof protocol {
       // Requisition parameters for the Liquid Legions v2 protocol.
-      LiquidLegionsV2 liquid_legions_v2 = 3;
+      LiquidLegionsV2 liquid_legions_v2 = 4;
     }
   }
   // Parameters needed for `Requisition` to be made available in public API.
