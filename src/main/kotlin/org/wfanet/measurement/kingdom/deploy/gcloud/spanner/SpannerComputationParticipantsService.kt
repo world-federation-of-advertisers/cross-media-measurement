@@ -26,7 +26,6 @@ import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmComputationParticipant
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FailComputationParticipant
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 
