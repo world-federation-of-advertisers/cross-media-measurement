@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import java.util.AbstractMap
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
@@ -115,7 +116,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
-    measurement.dataProvidersList.forEach { it.validateAndMap(dataProvidersMap) }
+    measurement.dataProvidersList.forEach {
+      with(it.validateAndMap()) { dataProvidersMap[key] = value }
+    }
 
     val internalMeasurement =
       internalMeasurementsStub.createMeasurement(
@@ -335,9 +338,7 @@ private fun MeasurementSpec.validate() {
 }
 
 /** Validates a [DataProviderEntry] for a request and then creates a map entry from it. */
-private fun DataProviderEntry.validateAndMap(
-  dataProvidersMap: MutableMap<Long, DataProviderValue>
-) {
+private fun DataProviderEntry.validateAndMap(): MutableMap.MutableEntry<Long, DataProviderValue> {
   val dataProviderKey =
     grpcRequireNotNull(DataProviderKey.fromName(this.key)) {
       "Data Provider resource name is either unspecified or invalid"
@@ -364,5 +365,9 @@ private fun DataProviderEntry.validateAndMap(
     dataProviderPublicKeySignature = publicKey.signature
     encryptedRequisitionSpec = dataProviderEntry.value.encryptedRequisitionSpec
   }
-  dataProvidersMap[apiIdToExternalId(dataProviderKey.dataProviderId)] = dataProviderValue
+
+  return AbstractMap.SimpleEntry(
+    apiIdToExternalId(dataProviderKey.dataProviderId),
+    dataProviderValue
+  )
 }
