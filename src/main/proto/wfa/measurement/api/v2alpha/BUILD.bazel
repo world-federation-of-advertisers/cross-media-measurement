@@ -172,6 +172,21 @@ kt_jvm_proto_library(
     deps = [":encrypted_sketch_java_proto"],
 )
 
+java_proto_library(
+    name = "event_group_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_group_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
+    ],
+    deps = [":event_group_java_proto"],
+)
+
 alias(
     name = "event_groups_service_proto",
     actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_proto",
@@ -186,21 +201,6 @@ kt_jvm_proto_library(
     name = "event_groups_service_kt_jvm_proto",
     srcs = [":event_groups_service_proto"],
     deps = [":event_groups_service_java_proto"],
-)
-
-java_proto_library(
-    name = "event_group_java_proto",
-    deps = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
-    ],
-)
-
-kt_jvm_proto_library(
-    name = "event_group_kt_jvm_proto",
-    srcs = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
-    ],
-    deps = [":event_group_java_proto"],
 )
 
 java_proto_library(
