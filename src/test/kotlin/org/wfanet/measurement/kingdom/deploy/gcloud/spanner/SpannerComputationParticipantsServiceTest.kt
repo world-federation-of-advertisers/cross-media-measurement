@@ -39,7 +39,10 @@ class SpannerComputationParticipantsServiceTest :
 
     return Services<SpannerComputationParticipantsService>(
       spannerServices.computationParticipantsService as SpannerComputationParticipantsService,
-      spannerServices.measurementsService
+      spannerServices.measurementConsumersService,
+      spannerServices.dataProvidersService,
+      spannerServices.measurementsService,
+      spannerServices.certificatesService
     )
   }
 }
