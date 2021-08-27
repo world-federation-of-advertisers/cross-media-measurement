@@ -21,7 +21,9 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurement
@@ -73,10 +75,25 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.UpdateTime,
       Measurements.State AS MeasurementState,
       MeasurementConsumers.ExternalMeasurementConsumerId,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
-    FROM Measurements
-    JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      ARRAY(
+        SELECT AS STRUCT
+          ExternalDataProviderId,
+          ExternalDataProviderCertificateId,
+          RequisitionDetails
+        FROM
+          Requisitions
+          JOIN DataProviders USING (DataProviderId)
+          JOIN DataProviderCertificates
+            ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
+        WHERE
+          Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND Requisitions.MeasurementId = Measurements.MeasurementId
+      ) AS Requisitions
+    FROM
+      Measurements
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """.trimIndent()
 
     private val computationViewBaseSql =
@@ -162,7 +179,18 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
   fillMeasurementCommon(struct)
 
-  // TODO(@SanjayVas): Fill data providers.
+  for (requisitionStruct in struct.getStructList("Requisitions")) {
+    val requisitionDetails =
+      requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
+    dataProviders[requisitionStruct.getLong("ExternalDataProviderId")] =
+      dataProviderValue {
+        externalDataProviderCertificateId =
+          requisitionStruct.getLong("ExternalDataProviderCertificateId")
+        dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+        dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
+        encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+      }
+  }
 }
 
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
