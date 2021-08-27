@@ -26,10 +26,39 @@ _repository_prefix:         string @tag("repository_prefix")
 _container_registry_prefix: _container_registry + "/" + _repository_prefix
 
 objectSets: [
+		frontend_simulator,
+		resource_setup_job,
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
 ] + [ for d in duchies for v in d {v}]
+
+#Edps: [
+	{
+		display_name:  "edp1"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp2"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp3"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp4"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp5"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp6"
+		resource_name: "dataProviders/TBD"
+	},
+]
 
 #Duchies: [
 	{
@@ -101,7 +130,26 @@ kingdom: #Kingdom & {
 		"push-spanner-schema-container": "\(_container_registry_prefix)/setup/push-spanner-schema"
 		"gcp-kingdom-data-server":       "\(_container_registry_prefix)/kingdom/data-server"
 		"system-api-server":             "\(_container_registry_prefix)/kingdom/system-api"
+		"v2alpha-public-api-server":     "\(_container_registry_prefix)/kingdom/v2alpha-public-api"
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"
+}
+
+frontend_simulator: "frontend_simulator": #FrontendSimulator & {
+	_mc_resource_name: "measurementConsumers/TBD"
+	_image:            "\(_container_registry_prefix)/loadtest/frontend-simulator"
+	_imagePullPolicy:  "Always"
+	_args: [
+		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
+		"--google-cloud-storage-project=\(_cloud_storage_project)",
+	]
+	_dependencies: ["v2alpha-public-api-server"]
+}
+
+resource_setup_job: "resource_setup_job": #ResourceSetup & {
+	_edp_display_names: [ for d in #Edps {d.display_name}]
+	_image:           "\(_container_registry_prefix)/loadtest/resource-setup"
+	_imagePullPolicy: "Always"
+	_dependencies: ["v2alpha-public-api-server"]
 }
