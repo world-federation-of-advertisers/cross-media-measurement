@@ -62,7 +62,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
-import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
+import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 
 /**
  * A [MillBase] wrapping common functionalities of mills.
@@ -212,15 +212,19 @@ abstract class MillBase(
   }
 
   /** Sends measurement result to the kingdom's system computationsService. */
-  protected suspend fun sendResultToKingdom(globalId: String, result: ByteString) {
-    val request =
-      SetComputationResultRequest.newBuilder()
-        .apply {
-          name = ComputationKey(globalId).toName()
-          // TODO(wangyaopw): set aggregatorCertificate and resultPublicKey
-          encryptedResult = result
-        }
-        .build()
+  protected suspend fun sendResultToKingdom(
+    globalId: String,
+    certificate: X509Certificate,
+    resultPublicKey: ByteString,
+    encryptedResult: ByteString
+  ) {
+    val request = setComputationResultRequest {
+      name = ComputationKey(globalId).toName()
+      // TODO(wangyaopw): set the cert resourceName when it is added to the protos.
+      aggregatorCertificate = ByteString.copyFrom(certificate.encoded)
+      this.resultPublicKey = resultPublicKey
+      this.encryptedResult = encryptedResult
+    }
     systemComputationsClient.setComputationResult(request)
   }
 
