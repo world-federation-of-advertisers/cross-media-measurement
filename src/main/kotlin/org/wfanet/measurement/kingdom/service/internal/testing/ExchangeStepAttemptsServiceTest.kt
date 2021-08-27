@@ -34,14 +34,17 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
@@ -50,10 +53,14 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.internal.kingdom.recurringExchange
+import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -79,17 +86,13 @@ private val idGenerator =
   FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 
 private const val STEP_INDEX = 1
-private val EXCHANGE_WORKFLOW: ExchangeWorkflow =
-  ExchangeWorkflow.newBuilder()
-    .apply {
-      addSteps(
-        ExchangeWorkflow.Step.newBuilder().apply {
-          party = ExchangeWorkflow.Party.MODEL_PROVIDER
-          stepIndex = STEP_INDEX
-        }
-      )
+private val EXCHANGE_WORKFLOW = exchangeWorkflow {
+  steps +=
+    ExchangeWorkflowKt.step {
+      party = ExchangeWorkflow.Party.MODEL_PROVIDER
+      stepIndex = STEP_INDEX
     }
-    .build()
+}
 
 private val DATE: Date =
   Date.newBuilder()
@@ -100,36 +103,32 @@ private val DATE: Date =
     }
     .build()
 
-private val RECURRING_EXCHANGE: RecurringExchange =
-  RecurringExchange.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      state = RecurringExchange.State.ACTIVE
-      detailsBuilder.apply {
-        cronSchedule = "@daily"
-        exchangeWorkflow = EXCHANGE_WORKFLOW
-      }
-      nextExchangeDate = DATE
+private val RECURRING_EXCHANGE = recurringExchange {
+  externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+  state = RecurringExchange.State.ACTIVE
+  details =
+    recurringExchangeDetails {
+      cronSchedule = "@daily"
+      exchangeWorkflow = EXCHANGE_WORKFLOW
     }
-    .build()
+  nextExchangeDate = DATE
+}
 
-private val DATA_PROVIDER: DataProvider =
-  DataProvider.newBuilder()
-    .apply {
-      certificateBuilder.apply {
-        notValidBeforeBuilder.seconds = 12345
-        notValidAfterBuilder.seconds = 23456
-        detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-      }
-      detailsBuilder.apply {
-        apiVersion = "2"
-        publicKey = ByteString.copyFromUtf8("This is a  public key.")
-        publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-      }
+private val DATA_PROVIDER = dataProvider {
+  Certificate.newBuilder().apply {
+    notValidBeforeBuilder.seconds = 12345
+    notValidAfterBuilder.seconds = 23456
+    detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+  }
+  details =
+    DataProviderKt.details {
+      apiVersion = "2"
+      publicKey = ByteString.copyFromUtf8("This is a  public key.")
+      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
     }
-    .build()
+}
 
 private val EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT: FieldScope =
   FieldScopes.allowingFieldDescriptors(
@@ -225,18 +224,19 @@ abstract class ExchangeStepAttemptsServiceTest {
             }
         }
       )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.state)
+      .isEqualTo(ExchangeStep.State.IN_PROGRESS)
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
         makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
       )
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
 
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
-
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
       .isEqualTo(expected)
-    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
 
   @Test
@@ -251,18 +251,19 @@ abstract class ExchangeStepAttemptsServiceTest {
             }
         }
       )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.state)
+      .isEqualTo(ExchangeStep.State.IN_PROGRESS)
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
         makeRequest(ExchangeStepAttempt.State.FAILED)
       )
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
 
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
-
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
       .isEqualTo(expected)
-    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
 
   @Test
@@ -277,18 +278,19 @@ abstract class ExchangeStepAttemptsServiceTest {
             }
         }
       )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.state)
+      .isEqualTo(ExchangeStep.State.IN_PROGRESS)
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
         makeRequest(ExchangeStepAttempt.State.FAILED_STEP)
       )
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
 
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
-
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
       .isEqualTo(expected)
-    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
 
   @Test
@@ -303,6 +305,8 @@ abstract class ExchangeStepAttemptsServiceTest {
             }
         }
       )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.state)
+      .isEqualTo(ExchangeStep.State.IN_PROGRESS)
 
     val failedAttempt =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
@@ -319,6 +323,8 @@ abstract class ExchangeStepAttemptsServiceTest {
             }
         }
       )
+    assertThat(claimReadyExchangeStepResponse2.exchangeStep.state)
+      .isEqualTo(ExchangeStep.State.IN_PROGRESS)
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
@@ -327,18 +333,17 @@ abstract class ExchangeStepAttemptsServiceTest {
           claimReadyExchangeStepResponse2.attemptNumber
         )
       )
+    assertThat(response.attemptNumber).isEqualTo(claimReadyExchangeStepResponse2.attemptNumber)
+    assertThat(response.attemptNumber - 1).isEqualTo(failedAttempt.attemptNumber)
 
     val expected =
       makeExchangeStepAttempt(
         ExchangeStepAttempt.State.SUCCEEDED,
         claimReadyExchangeStepResponse2.attemptNumber
       )
-
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
       .isEqualTo(expected)
-    assertThat(response.attemptNumber).isEqualTo(claimReadyExchangeStepResponse2.attemptNumber)
-    assertThat(response.attemptNumber - 1).isEqualTo(failedAttempt.attemptNumber)
     // Also, make sure ExchangeStep is updated properly.
     assertThat(claimReadyExchangeStepResponse2.exchangeStep.updateTime.toGcloudTimestamp())
       .isGreaterThan(claimReadyExchangeStepResponse.exchangeStep.updateTime.toGcloudTimestamp())

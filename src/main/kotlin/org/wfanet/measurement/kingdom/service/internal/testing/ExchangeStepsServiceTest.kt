@@ -32,11 +32,13 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
@@ -45,7 +47,12 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.Recurrin
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.exchangeStep
+import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.internal.kingdom.recurringExchange
+import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -70,17 +77,13 @@ private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val idGenerator =
   FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 
-private val EXCHANGE_WORKFLOW: ExchangeWorkflow =
-  ExchangeWorkflow.newBuilder()
-    .apply {
-      addSteps(
-        ExchangeWorkflow.Step.newBuilder().apply {
-          party = ExchangeWorkflow.Party.MODEL_PROVIDER
-          stepIndex = 1
-        }
-      )
+private val EXCHANGE_WORKFLOW = exchangeWorkflow {
+  steps +=
+    ExchangeWorkflowKt.step {
+      party = ExchangeWorkflow.Party.MODEL_PROVIDER
+      stepIndex = 1
     }
-    .build()
+}
 
 private val DATE: Date =
   Date.newBuilder()
@@ -91,52 +94,46 @@ private val DATE: Date =
     }
     .build()
 
-private val RECURRING_EXCHANGE: RecurringExchange =
-  RecurringExchange.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      state = RecurringExchange.State.ACTIVE
-      detailsBuilder.apply {
-        cronSchedule = "@daily"
-        exchangeWorkflow = EXCHANGE_WORKFLOW
-      }
-      nextExchangeDate = DATE
+private val RECURRING_EXCHANGE = recurringExchange {
+  externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+  state = RecurringExchange.State.ACTIVE
+  details =
+    recurringExchangeDetails {
+      cronSchedule = "@daily"
+      exchangeWorkflow = EXCHANGE_WORKFLOW
     }
-    .build()
+  nextExchangeDate = DATE
+}
 
-private val EXCHANGE_STEP =
-  ExchangeStep.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
-      state = ExchangeStep.State.IN_PROGRESS
-      stepIndex = 1
-      providerBuilder.apply {
-        externalId = EXTERNAL_MODEL_PROVIDER_ID
-        type = Provider.Type.MODEL_PROVIDER
-      }
+private val EXCHANGE_STEP = exchangeStep {
+  externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+  date = DATE
+  state = ExchangeStep.State.IN_PROGRESS
+  stepIndex = 1
+  provider =
+    provider {
+      externalId = EXTERNAL_MODEL_PROVIDER_ID
+      type = Provider.Type.MODEL_PROVIDER
     }
-    .build()
+}
 
-private val DATA_PROVIDER: DataProvider =
-  DataProvider.newBuilder()
-    .apply {
-      certificateBuilder.apply {
-        notValidBeforeBuilder.seconds = 12345
-        notValidAfterBuilder.seconds = 23456
-        detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-      }
-      detailsBuilder.apply {
-        apiVersion = "2"
-        publicKey = ByteString.copyFromUtf8("This is a  public key.")
-        publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-      }
+private val DATA_PROVIDER = dataProvider {
+  Certificate.newBuilder().apply {
+    notValidBeforeBuilder.seconds = 12345
+    notValidAfterBuilder.seconds = 23456
+    detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+  }
+  details =
+    DataProviderKt.details {
+      apiVersion = "2"
+      publicKey = ByteString.copyFromUtf8("This is a  public key.")
+      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
     }
-    .build()
+}
 
-private val EXCHANGE_STEP_RESPONSE_CONTEXT: FieldScope =
+private val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
   FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
 
 @RunWith(JUnit4::class)
@@ -228,7 +225,9 @@ abstract class ExchangeStepsServiceTest {
       attemptNumber = 1
     }
 
-    assertThat(response).ignoringFieldScope(EXCHANGE_STEP_RESPONSE_CONTEXT).isEqualTo(expected)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
   }
 
   @Test
