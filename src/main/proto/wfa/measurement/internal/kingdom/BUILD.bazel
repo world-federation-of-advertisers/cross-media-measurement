@@ -133,14 +133,6 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
-    name = "protocol_metadata",
-    deps = [
-        ":crypto_proto",
-        ":differential_privacy_proto",
-    ],
-)
-
 proto_library(
     name = "duchy_id_config_proto",
     srcs = ["duchy_id_config.proto"],
