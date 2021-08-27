@@ -34,11 +34,14 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -46,10 +49,15 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as InternalMeasurementConsumersService
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersClient
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest as internalGetMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 
 /**
  * Path to `testdata` directory containing certs and keys.
@@ -95,17 +103,18 @@ class MeasurementConsumersServiceTest {
 
   @Test
   fun `create fills created resource names`() {
-    val request = buildCreateMeasurementConsumerRequest {
-      measurementConsumerBuilder.apply {
-        certificateDer = SERVER_CERTIFICATE_DER
-        publicKey = SIGNED_PUBLIC_KEY
-      }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer =
+        measurementConsumer {
+          certificateDer = SERVER_CERTIFICATE_DER
+          publicKey = SIGNED_PUBLIC_KEY
+        }
     }
 
     val createdMeasurementConsumer = runBlocking { service.createMeasurementConsumer(request) }
 
     val expectedMeasurementConsumer =
-      request.measurementConsumer.rebuild {
+      request.measurementConsumer.copy {
         name = MEASUREMENT_CONSUMER_NAME
         certificate = CERTIFICATE_NAME
       }
@@ -115,20 +124,21 @@ class MeasurementConsumersServiceTest {
         InternalMeasurementConsumersService::createMeasurementConsumer
       )
       .isEqualTo(
-        INTERNAL_MEASUREMENT_CONSUMER.rebuild {
+        INTERNAL_MEASUREMENT_CONSUMER.copy {
           clearExternalMeasurementConsumerId()
-          certificate {
-            clearExternalMeasurementConsumerId()
-            clearExternalCertificateId()
-          }
+          certificate =
+            certificate.copy {
+              clearExternalMeasurementConsumerId()
+              clearExternalCertificateId()
+            }
         }
       )
   }
 
   @Test
   fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
-    val request = buildCreateMeasurementConsumerRequest {
-      measurementConsumerBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer = measurementConsumer { publicKey = SIGNED_PUBLIC_KEY }
     }
 
     val exception =
@@ -141,8 +151,8 @@ class MeasurementConsumersServiceTest {
 
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
-    val request = buildCreateMeasurementConsumerRequest {
-      measurementConsumerBuilder.apply { certificateDer = SERVER_CERTIFICATE_DER }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer = measurementConsumer { certificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
@@ -157,11 +167,11 @@ class MeasurementConsumersServiceTest {
   fun `get returns resource`() {
     val measurementConsumer = runBlocking {
       service.getMeasurementConsumer(
-        buildGetMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+        getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
       )
     }
 
-    val expectedMeasurementConsumer = buildMeasurementConsumer {
+    val expectedMeasurementConsumer = measurementConsumer {
       name = MEASUREMENT_CONSUMER_NAME
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
@@ -173,7 +183,7 @@ class MeasurementConsumersServiceTest {
         InternalMeasurementConsumersService::getMeasurementConsumer
       )
       .isEqualTo(
-        buildInternalGetMeasurementConsumerRequest {
+        internalGetMeasurementConsumerRequest {
           externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         }
       )
@@ -196,7 +206,7 @@ class MeasurementConsumersServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.getMeasurementConsumer(buildGetMeasurementConsumerRequest { name = "foo" })
+          service.getMeasurementConsumer(getMeasurementConsumerRequest { name = "foo" })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -223,59 +233,34 @@ class MeasurementConsumersServiceTest {
       PUBLIC_KEY_DER = publicKeyPath.toFile().inputStream().use { ByteString.readFrom(it) }
     }
 
-    private val PUBLIC_KEY = buildEncryptionPublicKey {
+    private val PUBLIC_KEY = encryptionPublicKey {
       type = EncryptionPublicKey.Type.EC_P256
       publicKeyInfo = PUBLIC_KEY_DER
     }
 
-    private val SIGNED_PUBLIC_KEY = buildSignedData {
+    private val SIGNED_PUBLIC_KEY = signedData {
       data = PUBLIC_KEY.toByteString()
       signature = ByteString.copyFromUtf8("Fake signature of public key")
     }
 
     private val INTERNAL_MEASUREMENT_CONSUMER: InternalMeasurementConsumer =
-        buildInternalMeasurementConsumer {
+        internalMeasurementConsumer {
       externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-      details {
-        apiVersion = Version.V2_ALPHA.string
-        publicKey = SIGNED_PUBLIC_KEY.data
-        publicKeySignature = SIGNED_PUBLIC_KEY.signature
-      }
-      certificate {
-        externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-        externalCertificateId = CERTIFICATE_ID
-        subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier
-        notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
-        notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
-        detailsBuilder.x509Der = SERVER_CERTIFICATE_DER
-      }
+      details =
+        details {
+          apiVersion = Version.V2_ALPHA.string
+          publicKey = SIGNED_PUBLIC_KEY.data
+          publicKeySignature = SIGNED_PUBLIC_KEY.signature
+        }
+      certificate =
+        certificate {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+          externalCertificateId = CERTIFICATE_ID
+          subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
+          notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
+          notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
+          details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
+        }
     }
   }
 }
-
-private inline fun buildCreateMeasurementConsumerRequest(
-  fill: (@Builder CreateMeasurementConsumerRequest.Builder).() -> Unit
-) = CreateMeasurementConsumerRequest.newBuilder().apply(fill).build()
-
-private inline fun buildGetMeasurementConsumerRequest(
-  fill: (@Builder GetMeasurementConsumerRequest.Builder).() -> Unit
-) = GetMeasurementConsumerRequest.newBuilder().apply(fill).build()
-
-private inline fun buildEncryptionPublicKey(
-  fill: (@Builder EncryptionPublicKey.Builder).() -> Unit
-) = EncryptionPublicKey.newBuilder().apply(fill).build()
-
-private inline fun buildSignedData(fill: (@Builder SignedData.Builder).() -> Unit) =
-  SignedData.newBuilder().apply(fill).build()
-
-private inline fun MeasurementConsumer.rebuild(
-  fill: (@Builder MeasurementConsumer.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-private inline fun InternalMeasurementConsumer.rebuild(
-  fill: (@Builder InternalMeasurementConsumer.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-private inline fun InternalMeasurementConsumer.Builder.certificate(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) = certificateBuilder.apply(fill).build()

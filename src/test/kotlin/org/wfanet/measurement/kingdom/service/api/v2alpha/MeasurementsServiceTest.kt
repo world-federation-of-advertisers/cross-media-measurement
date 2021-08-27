@@ -30,37 +30,55 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.capture
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.hybridCipherSuite
+import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
+import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest as InternalCancelMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest as InternalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private const val DATA_PROVIDERS_NAME = "dataProviders/AAAAAAAAAHs"
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
@@ -96,7 +114,7 @@ class MeasurementsServiceTest {
 
   @Test
   fun `getMeasurement returns measurement`() {
-    val request = buildGetMeasurementRequest { name = MEASUREMENT_NAME }
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
 
     val result = runBlocking { service.getMeasurement(request) }
 
@@ -107,7 +125,7 @@ class MeasurementsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::getMeasurement
       )
       .isEqualTo(
-        buildInternalGetMeasurementRequest {
+        internalGetMeasurementRequest {
           externalMeasurementConsumerId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
           externalMeasurementId =
@@ -132,7 +150,7 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement returns measurement with resource name set`() {
-    val request = buildCreateMeasurementRequest { measurement = MEASUREMENT }
+    val request = createMeasurementRequest { measurement = MEASUREMENT }
 
     val result = runBlocking { service.createMeasurement(request) }
 
@@ -143,7 +161,7 @@ class MeasurementsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
       )
       .isEqualTo(
-        INTERNAL_MEASUREMENT.rebuild {
+        INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
           clearExternalProtocolConfigId()
           clearExternalMeasurementId()
@@ -159,8 +177,8 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
-              measurement = MEASUREMENT.rebuild { clearMeasurementConsumerCertificate() }
+            createMeasurementRequest {
+              measurement = MEASUREMENT.copy { clearMeasurementConsumerCertificate() }
             }
           )
         }
@@ -176,9 +194,7 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
-              measurement = MEASUREMENT.rebuild { clearMeasurementSpec() }
-            }
+            createMeasurementRequest { measurement = MEASUREMENT.copy { clearMeasurementSpec() } }
           )
         }
       }
@@ -192,13 +208,14 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  measurementSpec {
-                    data = MEASUREMENT_SPEC.rebuild { clearMeasurementPublicKey() }
-                    signature = UPDATE_TIME.toByteString()
-                  }
+                MEASUREMENT.copy {
+                  measurementSpec =
+                    signedData {
+                      data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
                 }
             }
           )
@@ -214,13 +231,14 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  measurementSpec {
-                    data = MEASUREMENT_SPEC.rebuild { clearCipherSuite() }
-                    signature = UPDATE_TIME.toByteString()
-                  }
+                MEASUREMENT.copy {
+                  measurementSpec =
+                    signedData {
+                      data = MEASUREMENT_SPEC.copy { clearCipherSuite() }.toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
                 }
             }
           )
@@ -236,22 +254,27 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  measurementSpec {
-                    data =
-                      MEASUREMENT_SPEC.rebuild {
-                        clearReachAndFrequency()
-                        reachAndFrequencyBuilder.apply {
-                          frequencyPrivacyParamsBuilder.apply {
-                            epsilon = 1.0
-                            delta = 1.0
+                MEASUREMENT.copy {
+                  measurementSpec =
+                    signedData {
+                      data =
+                        MEASUREMENT_SPEC
+                          .copy {
+                            clearReachAndFrequency()
+                            reachAndFrequency =
+                              reachAndFrequency {
+                                frequencyPrivacyParams =
+                                  differentialPrivacyParams {
+                                    epsilon = 1.0
+                                    delta = 1.0
+                                  }
+                              }
                           }
-                        }
-                      }
-                    signature = UPDATE_TIME.toByteString()
-                  }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
                 }
             }
           )
@@ -267,22 +290,27 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  measurementSpec {
-                    data =
-                      MEASUREMENT_SPEC.rebuild {
-                        clearReachAndFrequency()
-                        reachAndFrequencyBuilder.apply {
-                          reachPrivacyParamsBuilder.apply {
-                            epsilon = 1.0
-                            delta = 1.0
+                MEASUREMENT.copy {
+                  measurementSpec =
+                    signedData {
+                      data =
+                        MEASUREMENT_SPEC
+                          .copy {
+                            clearReachAndFrequency()
+                            reachAndFrequency =
+                              reachAndFrequency {
+                                reachPrivacyParams =
+                                  differentialPrivacyParams {
+                                    epsilon = 1.0
+                                    delta = 1.0
+                                  }
+                              }
                           }
-                        }
-                      }
-                    signature = UPDATE_TIME.toByteString()
-                  }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
                 }
             }
           )
@@ -298,13 +326,14 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  measurementSpec {
-                    data = MEASUREMENT_SPEC.rebuild { clearMeasurementType() }
-                    signature = UPDATE_TIME.toByteString()
-                  }
+                MEASUREMENT.copy {
+                  measurementSpec =
+                    signedData {
+                      data = MEASUREMENT_SPEC.copy { clearMeasurementType() }.toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
                 }
             }
           )
@@ -320,8 +349,8 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
-              measurement = MEASUREMENT.rebuild { clearSerializedDataProviderList() }
+            createMeasurementRequest {
+              measurement = MEASUREMENT.copy { clearSerializedDataProviderList() }
             }
           )
         }
@@ -337,8 +366,8 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
-              measurement = MEASUREMENT.rebuild { clearDataProviderListSalt() }
+            createMeasurementRequest {
+              measurement = MEASUREMENT.copy { clearDataProviderListSalt() }
             }
           )
         }
@@ -353,9 +382,7 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
-              measurement = MEASUREMENT.rebuild { clearDataProviders() }
-            }
+            createMeasurementRequest { measurement = MEASUREMENT.copy { dataProviders.clear() } }
           )
         }
       }
@@ -369,13 +396,11 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  clearDataProviders()
-                  addDataProviders(
-                    Measurement.DataProviderEntry.newBuilder().apply { key = "" }.build()
-                  )
+                MEASUREMENT.copy {
+                  dataProviders.clear()
+                  dataProviders += dataProviderEntry { key = "" }
                 }
             }
           )
@@ -392,15 +417,11 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  clearDataProviders()
-                  addDataProviders(
-                    Measurement.DataProviderEntry.newBuilder()
-                      .apply { key = DATA_PROVIDERS_NAME }
-                      .build()
-                  )
+                MEASUREMENT.copy {
+                  dataProviders.clear()
+                  dataProviders += dataProviderEntry { key = DATA_PROVIDERS_NAME }
                 }
             }
           )
@@ -417,20 +438,15 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  clearDataProviders()
-                  addDataProviders(
-                    Measurement.DataProviderEntry.newBuilder()
-                      .apply {
-                        key = DATA_PROVIDERS_NAME
-                        valueBuilder.apply {
-                          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-                        }
-                      }
-                      .build()
-                  )
+                MEASUREMENT.copy {
+                  dataProviders.clear()
+                  dataProviders +=
+                    dataProviderEntry {
+                      key = DATA_PROVIDERS_NAME
+                      value = value { dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME }
+                    }
                 }
             }
           )
@@ -446,24 +462,23 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createMeasurement(
-            buildCreateMeasurementRequest {
+            createMeasurementRequest {
               measurement =
-                MEASUREMENT.rebuild {
-                  clearDataProviders()
-                  addDataProviders(
-                    Measurement.DataProviderEntry.newBuilder()
-                      .apply {
-                        key = DATA_PROVIDERS_NAME
-                        valueBuilder.apply {
+                MEASUREMENT.copy {
+                  dataProviders.clear()
+                  dataProviders +=
+                    dataProviderEntry {
+                      key = DATA_PROVIDERS_NAME
+                      value =
+                        value {
                           dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-                          dataProviderPublicKeyBuilder.apply {
-                            data = UPDATE_TIME.toByteString()
-                            signature = UPDATE_TIME.toByteString()
-                          }
+                          dataProviderPublicKey =
+                            signedData {
+                              data = UPDATE_TIME.toByteString()
+                              signature = UPDATE_TIME.toByteString()
+                            }
                         }
-                      }
-                      .build()
-                  )
+                    }
                 }
             }
           )
@@ -475,31 +490,28 @@ class MeasurementsServiceTest {
 
   @Test
   fun `listMeasurements with page token uses filter with timestamp from page token`() {
-    val request = buildListMeasurementsRequest {
+    val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-      filterBuilder.apply {
-        addAllStates(
-          listOf(
-            State.FAILED,
-            State.SUCCEEDED,
-            State.AWAITING_REQUISITION_FULFILLMENT,
-            State.COMPUTING,
-            State.CANCELLED
-          )
-        )
-      }
+      filter =
+        filter {
+          states +=
+            listOf(
+              State.FAILED,
+              State.SUCCEEDED,
+              State.AWAITING_REQUISITION_FULFILLMENT,
+              State.COMPUTING,
+              State.CANCELLED
+            )
+        }
     }
 
     val result = runBlocking { service.listMeasurements(request) }
 
-    val expected =
-      ListMeasurementsResponse.newBuilder()
-        .apply {
-          addMeasurement(MEASUREMENT)
-          nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listMeasurementsResponse {
+      measurement += MEASUREMENT
+      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+    }
 
     val streamMeasurementsRequest =
       captureFirst<StreamMeasurementsRequest> {
@@ -509,26 +521,26 @@ class MeasurementsServiceTest {
     assertThat(streamMeasurementsRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamMeasurementsRequest {
+        streamMeasurementsRequest {
           limit = DEFAULT_LIMIT
-          filterBuilder.apply {
-            externalMeasurementConsumerId =
-              apiIdToExternalId(
-                MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-              )
-            updatedAfter = UPDATE_TIME
-            addAllStates(
-              listOf(
-                InternalState.FAILED,
-                InternalState.CANCELLED,
-                InternalState.PENDING_PARTICIPANT_CONFIRMATION,
-                InternalState.PENDING_COMPUTATION,
-                InternalState.SUCCEEDED,
-                InternalState.PENDING_REQUISITION_PARAMS,
-                InternalState.PENDING_REQUISITION_FULFILLMENT
-              )
-            )
-          }
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId =
+                apiIdToExternalId(
+                  MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+                )
+              updatedAfter = UPDATE_TIME
+              states +=
+                listOf(
+                  InternalState.FAILED,
+                  InternalState.CANCELLED,
+                  InternalState.PENDING_PARTICIPANT_CONFIRMATION,
+                  InternalState.PENDING_COMPUTATION,
+                  InternalState.SUCCEEDED,
+                  InternalState.PENDING_REQUISITION_PARAMS,
+                  InternalState.PENDING_REQUISITION_FULFILLMENT
+                )
+            }
         }
       )
 
@@ -552,7 +564,7 @@ class MeasurementsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.listMeasurements(
-            buildListMeasurementsRequest {
+            listMeasurementsRequest {
               parent = MEASUREMENT_CONSUMER_NAME
               pageSize = -1
             }
@@ -565,7 +577,7 @@ class MeasurementsServiceTest {
 
   @Test
   fun `cancelMeasurement returns measurement`() {
-    val request = buildCancelMeasurementRequest { name = MEASUREMENT_NAME }
+    val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
 
     val result = runBlocking { service.cancelMeasurement(request) }
 
@@ -576,7 +588,7 @@ class MeasurementsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineImplBase::cancelMeasurement
       )
       .isEqualTo(
-        buildInternalCancelMeasurementRequest {
+        internalCancelMeasurementRequest {
           externalMeasurementConsumerId =
             apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
           externalMeasurementId =
@@ -599,54 +611,57 @@ class MeasurementsServiceTest {
   }
 }
 
-private val MEASUREMENT_SPEC: MeasurementSpec =
-  MeasurementSpec.newBuilder()
-    .apply {
-      measurementPublicKey = UPDATE_TIME.toByteString()
-      cipherSuiteBuilder.apply {
-        kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-        dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
-      }
-      reachAndFrequencyBuilder.apply {
-        reachPrivacyParamsBuilder.apply {
-          epsilon = 1.0
-          delta = 1.0
-        }
-        frequencyPrivacyParamsBuilder.apply {
-          epsilon = 1.0
-          delta = 1.0
-        }
-      }
+private val MEASUREMENT_SPEC: MeasurementSpec = measurementSpec {
+  measurementPublicKey = UPDATE_TIME.toByteString()
+  cipherSuite =
+    hybridCipherSuite {
+      kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+      dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
     }
-    .build()
+  reachAndFrequency =
+    reachAndFrequency {
+      reachPrivacyParams =
+        differentialPrivacyParams {
+          epsilon = 1.0
+          delta = 1.0
+        }
+      frequencyPrivacyParams =
+        differentialPrivacyParams {
+          epsilon = 1.0
+          delta = 1.0
+        }
+    }
+}
 
-private val MEASUREMENT: Measurement = buildMeasurement {
+private val MEASUREMENT: Measurement = measurement {
   name = MEASUREMENT_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  measurementSpec {
-    data = MEASUREMENT_SPEC.toByteString()
-    signature = UPDATE_TIME.toByteString()
-  }
+  measurementSpec =
+    signedData {
+      data = MEASUREMENT_SPEC.toByteString()
+      signature = UPDATE_TIME.toByteString()
+    }
   serializedDataProviderList = UPDATE_TIME.toByteString()
   dataProviderListSalt = UPDATE_TIME.toByteString()
-  addDataProviders(
-    Measurement.DataProviderEntry.newBuilder().apply {
+  dataProviders +=
+    dataProviderEntry {
       key = DATA_PROVIDERS_NAME
-      valueBuilder.apply {
-        dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-        dataProviderPublicKeyBuilder.apply {
-          data = UPDATE_TIME.toByteString()
-          signature = UPDATE_TIME.toByteString()
+      value =
+        value {
+          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
+          dataProviderPublicKey =
+            signedData {
+              data = UPDATE_TIME.toByteString()
+              signature = UPDATE_TIME.toByteString()
+            }
+          encryptedRequisitionSpec = UPDATE_TIME.toByteString()
         }
-        encryptedRequisitionSpec = UPDATE_TIME.toByteString()
-      }
     }
-  )
   protocolConfig = PROTOCOL_CONFIGS_NAME
   measurementReferenceId = "ref_id"
 }
 
-private val INTERNAL_MEASUREMENT: InternalMeasurement = buildInternalMeasurement {
+private val INTERNAL_MEASUREMENT: InternalMeasurement = internalMeasurement {
   externalMeasurementConsumerId =
     apiIdToExternalId(
       MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
@@ -663,64 +678,28 @@ private val INTERNAL_MEASUREMENT: InternalMeasurement = buildInternalMeasurement
   externalProtocolConfigId =
     ProtocolConfigKey.fromName(MEASUREMENT.protocolConfig)!!.protocolConfigId
   updateTime = UPDATE_TIME
-  putAllDataProviders(
+  dataProviders.putAll(
     MEASUREMENT.dataProvidersList.associateBy(
       { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
       {
-        InternalMeasurement.DataProviderValue.newBuilder()
-          .apply {
-            externalDataProviderCertificateId =
-              apiIdToExternalId(
-                DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!
-                  .certificateId
-              )
-            dataProviderPublicKey = it.value.dataProviderPublicKey.data
-            dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
-            encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
-          }
-          .build()
+        dataProviderValue {
+          externalDataProviderCertificateId =
+            apiIdToExternalId(
+              DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!.certificateId
+            )
+          dataProviderPublicKey = it.value.dataProviderPublicKey.data
+          dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
+          encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
+        }
       }
     )
   )
-  detailsBuilder.apply {
-    apiVersion = Version.V2_ALPHA.string
-    measurementSpec = MEASUREMENT.measurementSpec.data
-    measurementSpecSignature = MEASUREMENT.measurementSpec.signature
-    dataProviderList = MEASUREMENT.serializedDataProviderList
-    dataProviderListSalt = MEASUREMENT.dataProviderListSalt
-  }
+  details =
+    details {
+      apiVersion = Version.V2_ALPHA.string
+      measurementSpec = MEASUREMENT.measurementSpec.data
+      measurementSpecSignature = MEASUREMENT.measurementSpec.signature
+      dataProviderList = MEASUREMENT.serializedDataProviderList
+      dataProviderListSalt = MEASUREMENT.dataProviderListSalt
+    }
 }
-
-private inline fun MeasurementSpec.rebuild(fill: (@Builder MeasurementSpec.Builder).() -> Unit) =
-  toBuilder().apply(fill).build().toByteString()
-
-private inline fun Measurement.rebuild(fill: (@Builder Measurement.Builder).() -> Unit) =
-  toBuilder().apply(fill).build()
-
-private inline fun InternalMeasurement.rebuild(
-  fill: (@Builder InternalMeasurement.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-private inline fun buildGetMeasurementRequest(
-  fill: (@Builder GetMeasurementRequest.Builder).() -> Unit
-) = GetMeasurementRequest.newBuilder().apply(fill).build()
-
-private inline fun buildCancelMeasurementRequest(
-  fill: (@Builder CancelMeasurementRequest.Builder).() -> Unit
-) = CancelMeasurementRequest.newBuilder().apply(fill).build()
-
-private inline fun buildCreateMeasurementRequest(
-  fill: (@Builder CreateMeasurementRequest.Builder).() -> Unit
-) = CreateMeasurementRequest.newBuilder().apply(fill).build()
-
-private inline fun buildListMeasurementsRequest(
-  fill: (@Builder ListMeasurementsRequest.Builder).() -> Unit
-) = ListMeasurementsRequest.newBuilder().apply(fill).build()
-
-private inline fun buildInternalGetMeasurementRequest(
-  fill: (@Builder InternalGetMeasurementRequest.Builder).() -> Unit
-) = InternalGetMeasurementRequest.newBuilder().apply(fill).build()
-
-private inline fun buildInternalCancelMeasurementRequest(
-  fill: (@Builder InternalCancelMeasurementRequest.Builder).() -> Unit
-) = InternalCancelMeasurementRequest.newBuilder().apply(fill).build()

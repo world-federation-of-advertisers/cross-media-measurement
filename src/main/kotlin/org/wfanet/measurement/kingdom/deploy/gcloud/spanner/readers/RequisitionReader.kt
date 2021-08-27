@@ -57,7 +57,7 @@ private val BASE_SQL =
       WHERE
         ComputationParticipants.MeasurementConsumerId = Requisitions.MeasurementConsumerId
         AND ComputationParticipants.MeasurementId = Requisitions.MeasurementId
-    ) AS Duchies
+    ) AS ComputationParticipants
   FROM
     Requisitions
     JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
@@ -132,61 +132,79 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
 
   companion object {
     /** Builds a [Requisition] from [struct]. */
-    fun buildRequisition(struct: Struct): Requisition = requisition {
-      externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-      externalMeasurementId = struct.getLong("ExternalMeasurementId")
-      externalRequisitionId = struct.getLong("ExternalRequisitionId")
-      externalComputationId = struct.getLong("ExternalComputationId")
-      externalDataProviderId = struct.getLong("ExternalDataProviderId")
-      externalDataProviderCertificateId = struct.getLong("ExternalDataProviderCertificateId")
-      updateTime = struct.getTimestamp("UpdateTime").toProto()
-      state = struct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
+    private fun buildRequisition(struct: Struct): Requisition {
+      // Map of external Duchy ID to ComputationParticipant struct.
+      val participantStructs =
+        struct.getStructList("ComputationParticipants").associateBy {
+          val duchyId = it.getLong("DuchyId")
+          checkNotNull(DuchyIds.getExternalId(duchyId)) {
+            "Duchy with internal ID $duchyId not found"
+          }
+        }
+      return buildRequisition(struct, struct, participantStructs)
+    }
+
+    fun buildRequisition(
+      measurementStruct: Struct,
+      requisitionStruct: Struct,
+      participantStructs: Map<String, Struct>
+    ) = requisition {
+      externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
+      externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
+      externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
+      externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
+      externalDataProviderCertificateId =
+        requisitionStruct.getLong("ExternalDataProviderCertificateId")
+      updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
+      state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
       if (state == Requisition.State.FULFILLED) {
-        val fulfillingDuchyId = struct.getLong("FulfillingDuchyId")
+        val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
         externalFulfillingDuchyId =
           checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
             "External ID not found for fulfilling Duchy $fulfillingDuchyId"
           }
       }
-      details = struct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
-      for (duchyStruct in struct.getStructList("Duchies")) {
-        val duchyId = duchyStruct.getLong("DuchyId")
-        val externalDuchyId =
-          checkNotNull(DuchyIds.getExternalId(duchyId)) {
-            "External ID not found for Duchy $duchyId"
-          }
-        duchies.put(externalDuchyId, buildDuchyValue(duchyStruct))
+      details =
+        requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
+      for ((externalDuchyId, participantStruct) in participantStructs) {
+        duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
-      parentMeasurement = buildParentMeasurement(struct)
+      parentMeasurement = buildParentMeasurement(measurementStruct)
     }
-  }
-}
 
-private fun buildParentMeasurement(struct: Struct) = parentMeasurement {
-  val measurementDetails =
-    struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-  apiVersion = measurementDetails.apiVersion
-  externalMeasurementConsumerCertificateId =
-    struct.getLong("ExternalMeasurementConsumerCertificateId")
-  measurementSpec = measurementDetails.measurementSpec
-  measurementSpecSignature = measurementDetails.measurementSpecSignature
-  state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
-  // TODO(@uakyol): Fill external protocol config ID once we have a config mapping.
-}
+    /**
+     * Builds a [Requisition.DuchyValue] from a [Struct].
+     *
+     * @param struct a [Struct] representing a single ComputationParticipant
+     */
+    private fun buildDuchyValue(struct: Struct): Requisition.DuchyValue = duchyValue {
+      if (!struct.isNull("ExternalDuchyCertificateId")) {
+        externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
+      }
 
-private fun buildDuchyValue(struct: Struct): Requisition.DuchyValue = duchyValue {
-  if (!struct.isNull("ExternalDuchyCertificateId")) {
-    externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
-  }
-
-  val participantDetails =
-    struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  when (participantDetails.protocolCase) {
-    ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
-      liquidLegionsV2 = participantDetails.liquidLegionsV2
+      val participantDetails =
+        struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (participantDetails.protocolCase) {
+        ComputationParticipant.Details.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+          liquidLegionsV2 = participantDetails.liquidLegionsV2
+        }
+        // Protocol may only be set after computation participant sets requisition params.
+        ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+      }
     }
-    // Protocol may only be set after computation participant sets requisition params.
-    ComputationParticipant.Details.ProtocolCase.PROTOCOL_NOT_SET -> Unit
+
+    private fun buildParentMeasurement(struct: Struct) = parentMeasurement {
+      val measurementDetails =
+        struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+      apiVersion = measurementDetails.apiVersion
+      externalMeasurementConsumerCertificateId =
+        struct.getLong("ExternalMeasurementConsumerCertificateId")
+      measurementSpec = measurementDetails.measurementSpec
+      measurementSpecSignature = measurementDetails.measurementSpecSignature
+      state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
+      // TODO(@uakyol): Fill external protocol config ID once we have a config mapping.
+    }
   }
 }

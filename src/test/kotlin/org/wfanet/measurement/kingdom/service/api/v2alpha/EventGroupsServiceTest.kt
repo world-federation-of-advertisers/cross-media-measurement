@@ -32,14 +32,19 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
-import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -50,6 +55,11 @@ import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -85,7 +95,7 @@ class EventGroupsServiceTest {
 
   @Test
   fun `getEventGroup returns event group`() {
-    val request = buildGetEventGroupRequest { name = EVENT_GROUP_NAME }
+    val request = getEventGroupRequest { name = EVENT_GROUP_NAME }
 
     val result = runBlocking { service.getEventGroup(request) }
 
@@ -93,7 +103,7 @@ class EventGroupsServiceTest {
 
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::getEventGroup)
       .isEqualTo(
-        buildInternalGetEventGroupRequest {
+        internalGetEventGroupRequest {
           val key = EventGroupKey.fromName(EVENT_GROUP.name)
           externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
           externalEventGroupId = apiIdToExternalId(key.eventGroupId)
@@ -116,7 +126,7 @@ class EventGroupsServiceTest {
 
   @Test
   fun `createEventGroup returns event group`() {
-    val request = buildCreateEventGroupRequest {
+    val request = createEventGroupRequest {
       parent = DATA_PROVIDER_NAME
       eventGroup = EVENT_GROUP
     }
@@ -127,7 +137,7 @@ class EventGroupsServiceTest {
 
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::createEventGroup)
       .isEqualTo(
-        INTERNAL_EVENT_GROUP.rebuild {
+        INTERNAL_EVENT_GROUP.copy {
           clearCreateTime()
           clearExternalEventGroupId()
         }
@@ -141,7 +151,7 @@ class EventGroupsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.createEventGroup(buildCreateEventGroupRequest { eventGroup = EVENT_GROUP })
+          service.createEventGroup(createEventGroupRequest { eventGroup = EVENT_GROUP })
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -154,9 +164,9 @@ class EventGroupsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createEventGroup(
-            buildCreateEventGroupRequest {
+            createEventGroupRequest {
               parent = DATA_PROVIDER_NAME
-              eventGroup = EVENT_GROUP.rebuild { clearMeasurementConsumer() }
+              eventGroup = EVENT_GROUP.copy { clearMeasurementConsumer() }
             }
           )
         }
@@ -168,18 +178,15 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups with parent uses filter with parent`() {
-    val request = buildListEventGroupsRequest { parent = DATA_PROVIDER_NAME }
+    val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
     val result = runBlocking { service.listEventGroups(request) }
 
-    val expected =
-      ListEventGroupsResponse.newBuilder()
-        .apply {
-          addEventGroups(EVENT_GROUP)
-          addEventGroups(EVENT_GROUP)
-          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listEventGroupsResponse {
+      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP
+      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+    }
 
     val streamEventGroupsRequest =
       captureFirst<StreamEventGroupsRequest> {
@@ -189,9 +196,10 @@ class EventGroupsServiceTest {
     assertThat(streamEventGroupsRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamEventGroupsRequest {
+        streamEventGroupsRequest {
           limit = DEFAULT_LIMIT
-          filterBuilder.apply { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
+          filter =
+            StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
         }
       )
 
@@ -200,7 +208,7 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups with page token uses filter with timestamp from page token`() {
-    val request = buildListEventGroupsRequest {
+    val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
       pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
@@ -208,14 +216,11 @@ class EventGroupsServiceTest {
 
     val result = runBlocking { service.listEventGroups(request) }
 
-    val expected =
-      ListEventGroupsResponse.newBuilder()
-        .apply {
-          addEventGroups(EVENT_GROUP)
-          addEventGroups(EVENT_GROUP)
-          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listEventGroupsResponse {
+      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP
+      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+    }
 
     val streamEventGroupsRequest =
       captureFirst<StreamEventGroupsRequest> {
@@ -225,12 +230,13 @@ class EventGroupsServiceTest {
     assertThat(streamEventGroupsRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamEventGroupsRequest {
+        streamEventGroupsRequest {
           limit = 2
-          filterBuilder.apply {
-            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-            createdAfter = CREATE_TIME
-          }
+          filter =
+            StreamEventGroupsRequestKt.filter {
+              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+              createdAfter = CREATE_TIME
+            }
         }
       )
 
@@ -239,24 +245,22 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups with parent and filter with measurement consumers uses filter with both`() {
-    val request = buildListEventGroupsRequest {
+    val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      filterBuilder.apply {
-        addMeasurementConsumers(MEASUREMENT_CONSUMER_NAME)
-        addMeasurementConsumers(MEASUREMENT_CONSUMER_NAME)
-      }
+      filter =
+        filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_NAME
+          measurementConsumers += MEASUREMENT_CONSUMER_NAME
+        }
     }
 
     val result = runBlocking { service.listEventGroups(request) }
 
-    val expected =
-      ListEventGroupsResponse.newBuilder()
-        .apply {
-          addEventGroups(EVENT_GROUP)
-          addEventGroups(EVENT_GROUP)
-          nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
-        }
-        .build()
+    val expected = listEventGroupsResponse {
+      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP
+      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+    }
 
     val streamEventGroupsRequest =
       captureFirst<StreamEventGroupsRequest> {
@@ -266,17 +270,18 @@ class EventGroupsServiceTest {
     assertThat(streamEventGroupsRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        buildStreamEventGroupsRequest {
+        streamEventGroupsRequest {
           limit = DEFAULT_LIMIT
-          filterBuilder.apply {
-            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-            val measurementConsumerId =
-              apiIdToExternalId(
-                MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-              )
-            addExternalMeasurementConsumerIds(measurementConsumerId)
-            addExternalMeasurementConsumerIds(measurementConsumerId)
-          }
+          filter =
+            StreamEventGroupsRequestKt.filter {
+              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+              val measurementConsumerId =
+                apiIdToExternalId(
+                  MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+                )
+              externalMeasurementConsumerIds += measurementConsumerId
+              externalMeasurementConsumerIds += measurementConsumerId
+            }
         }
       )
 
@@ -287,9 +292,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when only wildcard parent`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listEventGroups(buildListEventGroupsRequest { parent = WILDCARD_NAME })
-        }
+        runBlocking { service.listEventGroups(listEventGroupsRequest { parent = WILDCARD_NAME }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
@@ -312,9 +315,9 @@ class EventGroupsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.listEventGroups(
-            buildListEventGroupsRequest {
+            listEventGroupsRequest {
               parent = DATA_PROVIDER_NAME
-              filterBuilder.addMeasurementConsumers("asdf")
+              filter = filter { measurementConsumers += "asdf" }
             }
           )
         }
@@ -330,9 +333,9 @@ class EventGroupsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.listEventGroups(
-            buildListEventGroupsRequest {
+            listEventGroupsRequest {
               parent = DATA_PROVIDER_NAME
-              filterBuilder.apply { pageSize = -1 }
+              pageSize = -1
             }
           )
         }
@@ -342,13 +345,13 @@ class EventGroupsServiceTest {
   }
 }
 
-private val EVENT_GROUP: EventGroup = buildEventGroup {
+private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "aaa"
 }
 
-private val INTERNAL_EVENT_GROUP: InternalEventGroup = buildInternalEventGroup {
+private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   val key = EventGroupKey.fromName(EVENT_GROUP.name)
   externalDataProviderId = apiIdToExternalId(key!!.dataProviderId)
   externalEventGroupId = apiIdToExternalId(key.eventGroupId)
@@ -357,22 +360,3 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = buildInternalEventGroup {
   providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
   createTime = CREATE_TIME
 }
-
-internal inline fun EventGroup.rebuild(fill: (@Builder EventGroup.Builder).() -> Unit) =
-  toBuilder().apply(fill).build()
-
-internal inline fun InternalEventGroup.rebuild(
-  fill: (@Builder InternalEventGroup.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-internal inline fun buildGetEventGroupRequest(
-  fill: (@Builder GetEventGroupRequest.Builder).() -> Unit
-) = GetEventGroupRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildCreateEventGroupRequest(
-  fill: (@Builder CreateEventGroupRequest.Builder).() -> Unit
-) = CreateEventGroupRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildListEventGroupsRequest(
-  fill: (@Builder ListEventGroupsRequest.Builder).() -> Unit
-) = ListEventGroupsRequest.newBuilder().apply(fill).build()
