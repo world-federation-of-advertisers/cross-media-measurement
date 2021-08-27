@@ -25,46 +25,61 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
-private val SELECT_EXPRESSIONS =
-  listOf(
-    "ComputationParticipants.MeasurementConsumerId",
-    "ComputationParticipants.MeasurementId",
-    "ComputationParticipants.DuchyId",
-    "ComputationParticipants.CertificateId",
-    "ComputationParticipants.State",
-    "ComputationParticipants.ParticipantDetails",
-    "ComputationParticipants.ParticipantDetailsJson",
-    "ComputationParticipants.UpdateTime",
-    "Measurements.ExternalMeasurementId",
-    "Measurements.ExternalComputationId",
-    "MeasurementConsumers.ExternalMeasurementConsumerId",
-    "DuchyCertificates.ExternalDuchyCertificateId"
-  )
-
-private val FROM_CLAUSE =
+private val BASE_SQL =
   """
-  FROM ComputationParticipants
+  SELECT
+    ComputationParticipants.MeasurementConsumerId,
+    ComputationParticipants.MeasurementId,
+    ComputationParticipants.DuchyId,
+    ComputationParticipants.CertificateId,
+    ComputationParticipants.State,
+    ComputationParticipants.ParticipantDetails,
+    ComputationParticipants.UpdateTime,
+    Measurements.ExternalMeasurementId,
+    Measurements.ExternalComputationId,
+    Measurements.MeasurementDetails,
+    MeasurementConsumers.ExternalMeasurementConsumerId,
+    DuchyCertificates.ExternalDuchyCertificateId,
+    ARRAY(
+      SELECT AS STRUCT
+        DuchyMeasurementLogEntries.CreateTime,
+        DuchyMeasurementLogEntries.ExternalComputationLogEntryId,
+        DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
+        MeasurementLogEntries.MeasurementLogDetails
+      FROM
+        DuchyMeasurementLogEntries
+        JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+      WHERE DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+      ORDER BY MeasurementLogEntries.CreateTime DESC
+    ) AS DuchyMeasurementLogEntries
+  FROM
+    ComputationParticipants
+    LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
+    JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
-    JOIN MEASUREMENTS USING(MeasurementConsumerId, MeasurementId)
-    LEFT JOIN DuchyCertificates ON DuchyCertificates.DuchyId = ComputationParticipants.DuchyId 
-         AND DuchyCertificates.CertificateId = ComputationParticipants.CertificateId
   """.trimIndent()
 
-class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantReader.Result>() {
-
+class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantReader.Result>() {
   data class Result(
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
     val measurementConsumerId: Long
   )
-  override val builder: Statement.Builder = initBuilder()
+
+  override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
 
   /** Fills [builder], returning this [ComputationParticipantReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): ComputationParticipantReader {
@@ -72,47 +87,117 @@ class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantR
     return this
   }
 
-  suspend fun readWithIdsOrNull(
+  suspend fun readByExternalComputationId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalComputationId: ExternalId,
     duchyId: InternalId
   ): Result? {
-    return fillStatementBuilder {
-        appendClause("WHERE Measurements.externalComputationId = @externalComputationId")
-        appendClause("AND ComputationParticipants.duchyId = @duchyId")
-        bind("externalComputationId").to(externalComputationId.value)
-        bind("duchyId").to(duchyId.value)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
+    fillStatementBuilder {
+      appendClause(
+        """
+        WHERE
+          ExternalComputationId = @externalComputationId
+          AND DuchyId = @duchyId
+        """.trimIndent()
+      )
+      bind("externalComputationId" to externalComputationId.value)
+      bind("duchyId" to duchyId.value)
+      appendClause("LIMIT 1")
+    }
+    return execute(readContext).singleOrNull()
   }
 
-  override suspend fun translate(struct: Struct): Result =
+  override suspend fun translate(struct: Struct) =
     Result(
       buildComputationParticipant(struct),
       struct.getLong("MeasurementId"),
       struct.getLong("MeasurementConsumerId")
     )
 
-  private fun buildComputationParticipant(struct: Struct): ComputationParticipant =
-  // TOOO(@uakyol) : Also populate failure_log_entry and api_version.
-  computationParticipant {
-    externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-    externalMeasurementId = struct.getLong("ExternalMeasurementId")
-    externalDuchyId = checkNotNull(DuchyIds.getExternalId(struct.getLong("DuchyId")))
-    externalComputationId = struct.getLong("ExternalComputationId")
-    if (!struct.isNull("ExternalDuchyCertificateId")) {
-      externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
-    }
-    updateTime = struct.getTimestamp("UpdateTime").toProto()
-    state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
-    details = struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
+  private fun buildComputationParticipant(struct: Struct): ComputationParticipant {
+    val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+    val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+    val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
+    val measurementDetails =
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+
+    val duchyId = struct.getLong("DuchyId")
+    val externalDuchyId =
+      checkNotNull(DuchyIds.getExternalId(duchyId)) { "Duchy with internal ID $duchyId not found" }
+
+    return buildComputationParticipant(
+      externalMeasurementConsumerId = externalMeasurementConsumerId,
+      externalMeasurementId = externalMeasurementId,
+      externalDuchyId = externalDuchyId,
+      externalComputationId = externalComputationId,
+      measurementDetails = measurementDetails,
+      struct = struct
+    )
   }
-  private fun initBuilder(): Statement.Builder {
-    val sqlBuilder = StringBuilder("SELECT\n")
-    SELECT_EXPRESSIONS.joinTo(sqlBuilder, ", ")
-    return Statement.newBuilder(sqlBuilder.toString()).appendClause(FROM_CLAUSE)
+
+  companion object {
+    fun buildComputationParticipant(
+      externalMeasurementConsumerId: ExternalId,
+      externalMeasurementId: ExternalId,
+      externalDuchyId: String,
+      externalComputationId: ExternalId,
+      measurementDetails: Measurement.Details,
+      struct: Struct
+    ) = computationParticipant {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+      this.externalMeasurementId = externalMeasurementId.value
+      this.externalDuchyId = externalDuchyId
+      this.externalComputationId = externalComputationId.value
+      if (!struct.isNull("ExternalDuchyCertificateId")) {
+        externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
+        // TODO(@SanjayVas): Include denormalized Certificate.
+      }
+      updateTime = struct.getTimestamp("UpdateTime").toProto()
+      state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+      details =
+        struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
+      apiVersion = measurementDetails.apiVersion
+
+      buildFailureLogEntry(
+        externalMeasurementConsumerId,
+        externalMeasurementId,
+        externalDuchyId,
+        struct.getStructList("DuchyMeasurementLogEntries")
+      )
+        ?.let { failureLogEntry = it }
+    }
+
+    private fun buildFailureLogEntry(
+      externalMeasurementConsumerId: ExternalId,
+      externalMeasurementId: ExternalId,
+      externalDuchyId: String,
+      logEntryStructs: Iterable<Struct>
+    ): DuchyMeasurementLogEntry? {
+      return logEntryStructs
+        .asSequence()
+        .map {
+          it to it.getProtoMessage("MeasurementLogDetails", MeasurementLogEntry.Details.parser())
+        }
+        .find { (_, logEntryDetails) -> logEntryDetails.hasError() }
+        ?.let { (struct, logEntryDetails) ->
+          duchyMeasurementLogEntry {
+            logEntry =
+              measurementLogEntry {
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+                this.externalMeasurementId = externalMeasurementId.value
+                createTime = struct.getTimestamp("CreateTime").toProto()
+                details = logEntryDetails
+              }
+            this.externalDuchyId = externalDuchyId
+            externalComputationLogEntryId = struct.getLong("ExternalComputationLogEntryId")
+            details =
+              struct.getProtoMessage(
+                "DuchyMeasurementLogDetails",
+                DuchyMeasurementLogEntry.Details.parser()
+              )
+          }
+        }
+    }
   }
 }
 
@@ -123,12 +208,13 @@ suspend fun readComputationParticipantState(
   duchyId: InternalId
 ): ComputationParticipant.State {
   val column = "State"
-  return readContext.readRow(
+  return readContext
+    .readRow(
       "ComputationParticipants",
       Key.of(measurementConsumerId.value, measurementId.value, duchyId.value),
       listOf(column)
     )
-    ?.let { struct -> struct.getProtoEnum(column, ComputationParticipant.State::forNumber) }
+    ?.getProtoEnum(column, ComputationParticipant.State::forNumber)
     ?: throw KingdomInternalException(
       KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND
     ) { "ComputationParticipant not found $duchyId" }
