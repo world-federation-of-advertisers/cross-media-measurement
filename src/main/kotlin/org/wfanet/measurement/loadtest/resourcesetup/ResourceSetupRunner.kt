@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
@@ -45,6 +46,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     )
   val dataProvidersStub = DataProvidersCoroutineStub(v2alphaPublicApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
+  val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
 
   val inMemoryKeyStore = InMemoryKeyStore()
 
@@ -70,6 +72,10 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       consentSignalCertificateDer = flags.mcCsCertDerFile.readBytes().toByteString(),
       encryptionPublicKeyDer = flags.mcEncryptionPublicKeyDerFile.readBytes().toByteString(),
     )
+  val duchyCerts =
+    flags.duchyCsCertDerFiles.map {
+      DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readBytes().toByteString())
+    }
 
   runBlocking {
     // Populates data to the inMemoryKeyStore.
@@ -82,8 +88,14 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     )
 
     // Runs the resource setup job.
-    ResourceSetup(inMemoryKeyStore, dataProvidersStub, measurementConsumersStub, flags.runId)
-      .process(dataProviderContents, measurementConsumerContent)
+    ResourceSetup(
+        inMemoryKeyStore,
+        dataProvidersStub,
+        certificatesStub,
+        measurementConsumersStub,
+        flags.runId
+      )
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }
 }
 
