@@ -15,8 +15,6 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.FieldScope
-import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.Date
@@ -137,9 +135,6 @@ private val DATA_PROVIDER = dataProvider {
       publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
     }
 }
-
-internal val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
-  FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepsServiceTest {
