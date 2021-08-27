@@ -31,6 +31,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
@@ -39,7 +40,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
 class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProviderId: Long?) :
-  SimpleSpannerWriter<Optional<Result>>() {
+  SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   private val externalModelProviderIds =
@@ -74,14 +75,27 @@ class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProvide
       )
 
     // Finally, update the Exchange Step status to IN_PROGRESS.
-    val updatedStep =
-      updateExchangeStepState(
-        exchangeStep = exchangeStep,
-        recurringExchangeId = exchangeStepResult.recurringExchangeId,
-        state = ExchangeStep.State.IN_PROGRESS
-      )
+    updateExchangeStepState(
+      exchangeStep = exchangeStep,
+      recurringExchangeId = exchangeStepResult.recurringExchangeId,
+      state = ExchangeStep.State.IN_PROGRESS
+    )
+
+    val updatedStep = exchangeStep.copy { state = ExchangeStep.State.IN_PROGRESS }
 
     return Optional.of(Result(updatedStep, attemptIndex.toInt()))
+  }
+
+  override fun ResultScope<Optional<Result>>.buildResult(): Optional<Result> {
+    requireNotNull(transactionResult)
+    if (!transactionResult.isPresent) {
+      return Optional.absent()
+    }
+
+    val exchangeStepWithUpdateTime =
+      transactionResult.get().step.copy { updateTime = commitTimestamp.toProto() }
+
+    return Optional.of(Result(exchangeStepWithUpdateTime, transactionResult.get().attemptIndex))
   }
 
   private suspend fun TransactionScope.createExchangeStepAttempt(
