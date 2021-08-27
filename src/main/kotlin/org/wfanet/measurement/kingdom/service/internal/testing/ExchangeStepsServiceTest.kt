@@ -22,6 +22,7 @@ import com.google.protobuf.ByteString
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -32,18 +33,20 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
@@ -79,7 +82,7 @@ private val idGenerator =
 
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   steps +=
-    ExchangeWorkflowKt.step {
+    step {
       party = ExchangeWorkflow.Party.MODEL_PROVIDER
       stepIndex = 1
     }
@@ -120,20 +123,22 @@ private val EXCHANGE_STEP = exchangeStep {
 }
 
 private val DATA_PROVIDER = dataProvider {
-  Certificate.newBuilder().apply {
-    notValidBeforeBuilder.seconds = 12345
-    notValidAfterBuilder.seconds = 23456
-    detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-  }
+  certificate =
+    certificate {
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details =
+        CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
+    }
   details =
-    DataProviderKt.details {
+    details {
       apiVersion = "2"
       publicKey = ByteString.copyFromUtf8("This is a  public key.")
       publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
     }
 }
 
-private val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
+internal val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
   FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
 
 @RunWith(JUnit4::class)

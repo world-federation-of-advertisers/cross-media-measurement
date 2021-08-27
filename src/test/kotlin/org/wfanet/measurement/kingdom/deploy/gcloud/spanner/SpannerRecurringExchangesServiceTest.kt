@@ -21,7 +21,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
@@ -42,9 +42,7 @@ class SpannerRecurringExchangesServiceTest : RecurringExchangesServiceTest() {
     return makeKingdomDataServices(idGenerator).dataProvidersService
   }
 
-  override fun newModelProvidersService(
-    idGenerator: IdGenerator
-  ): ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase {
+  override fun newModelProvidersService(idGenerator: IdGenerator): ModelProvidersCoroutineImplBase {
     return makeKingdomDataServices(idGenerator).modelProvidersService
   }
 
