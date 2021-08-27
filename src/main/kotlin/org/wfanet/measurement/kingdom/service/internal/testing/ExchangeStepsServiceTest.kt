@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -30,19 +31,25 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.provider
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
@@ -68,17 +75,13 @@ private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val idGenerator =
   FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 
-private val EXCHANGE_WORKFLOW: ExchangeWorkflow =
-  ExchangeWorkflow.newBuilder()
-    .apply {
-      addSteps(
-        ExchangeWorkflow.Step.newBuilder().apply {
-          party = ExchangeWorkflow.Party.MODEL_PROVIDER
-          stepIndex = 1
-        }
-      )
+private val EXCHANGE_WORKFLOW = exchangeWorkflow {
+  steps +=
+    step {
+      party = ExchangeWorkflow.Party.MODEL_PROVIDER
+      stepIndex = 1
     }
-    .build()
+}
 
 private val DATE: Date =
   Date.newBuilder()
@@ -118,40 +121,44 @@ private val EXCHANGE_STEP =
     }
     .build()
 
-private val DATA_PROVIDER: DataProvider =
-  DataProvider.newBuilder()
-    .apply {
-      certificateBuilder.apply {
-        notValidBeforeBuilder.seconds = 12345
-        notValidAfterBuilder.seconds = 23456
-        detailsBuilder.x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-      }
-      detailsBuilder.apply {
-        apiVersion = "2"
-        publicKey = ByteString.copyFromUtf8("This is a  public key.")
-        publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-      }
+private val DATA_PROVIDER = dataProvider {
+  certificate =
+    certificate {
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details =
+        CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
     }
-    .build()
+  details =
+    details {
+      apiVersion = "2"
+      publicKey = ByteString.copyFromUtf8("This is a  public key.")
+      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+    }
+}
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepsServiceTest {
 
+  /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator
   ): RecurringExchangesCoroutineImplBase
 
   /** Creates a test subject. */
+  /** Creates a test subject. */
   protected abstract fun newDataProvidersService(
     idGenerator: IdGenerator
   ): DataProvidersCoroutineImplBase
 
   /** Creates a test subject. */
+  /** Creates a test subject. */
   protected abstract fun newModelProvidersService(
     idGenerator: IdGenerator
   ): ModelProvidersCoroutineImplBase
 
+  /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
   /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
   protected abstract fun newExchangeStepsService(
     idGenerator: IdGenerator
