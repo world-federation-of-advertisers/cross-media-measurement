@@ -377,6 +377,7 @@ abstract class ExchangeStepAttemptsServiceTest {
             }
         }
       )
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
 
     val failedAttempt =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
@@ -399,8 +400,7 @@ abstract class ExchangeStepAttemptsServiceTest {
       .isEqualTo(claimReadyExchangeStepResponse2.exchangeStep)
     assertThat(claimReadyExchangeStepResponse2.exchangeStep.updateTime.toGcloudTimestamp())
       .isGreaterThan(claimReadyExchangeStepResponse.exchangeStep.updateTime.toGcloudTimestamp())
-    assertThat(claimReadyExchangeStepResponse.attemptNumber + 1)
-      .isEqualTo(claimReadyExchangeStepResponse2.attemptNumber)
+    assertThat(claimReadyExchangeStepResponse2.attemptNumber).isEqualTo(2L)
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
