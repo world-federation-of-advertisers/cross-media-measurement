@@ -130,7 +130,7 @@ private val DATA_PROVIDER = dataProvider {
     }
 }
 
-private val EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT: FieldScope =
+private val EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS: FieldScope =
   FieldScopes.allowingFieldDescriptors(
     ExchangeStepAttemptDetails.getDescriptor().findFieldByName("start_time"),
     ExchangeStepAttemptDetails.getDescriptor().findFieldByName("update_time"),
@@ -235,7 +235,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
   }
 
@@ -262,7 +262,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
   }
 
@@ -289,7 +289,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
   }
 
@@ -342,7 +342,7 @@ abstract class ExchangeStepAttemptsServiceTest {
         claimReadyExchangeStepResponse2.attemptNumber
       )
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
     // Also, make sure ExchangeStep is updated properly.
     assertThat(claimReadyExchangeStepResponse2.exchangeStep.updateTime.toGcloudTimestamp())
