@@ -25,7 +25,7 @@ objectSets: [
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
-] + [ for d in duchies for v in d {v}]
+] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
 
 fake_service: "spanner-emulator": {
 	apiVersion: "v1"
@@ -128,7 +128,6 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 ]
 
 #LocalDuchy: #Duchy & {
-	_aggregator_name: "duchy-aggregator"
 	_spanner_schema_push_flags: [
 		"--create-instance",
 		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
@@ -191,9 +190,9 @@ kingdom: #Kingdom & {
 frontend_simulator: "frontend_simulator": #FrontendSimulator & {
 	_edp_display_names: [ for d in #Edps {d.display_name}]
 	_mc_resource_name: "measurementConsumers/TBD"
-	_image:            "bazel/src/main/kotlin/org/wfanet/measurement/loadtest:forwarded_storage_frontend_simulator_runner_image"
+	_image:            "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image"
 	_imagePullPolicy:  "Never"
-	_args: [
+	_blob_storage_flags: [
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 	]
 	_dependencies: ["v2alpha-public-api-server"]
@@ -202,6 +201,19 @@ frontend_simulator: "frontend_simulator": #FrontendSimulator & {
 resource_setup_job: "resource_setup_job": #ResourceSetup & {
 	_edp_display_names: [ for d in #Edps {d.display_name}]
 	_image:           "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup_runner_image"
-	_imagePullPolicy: "Always"
+	_imagePullPolicy: "Never"
 	_dependencies: ["v2alpha-public-api-server"]
+}
+
+edp_simulators: {
+	for d in #Edps {
+		"\(d.display_name)": #EdpSimulator & {
+			_edp: d
+			_blob_storage_flags: [
+				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
+			]
+			_image:           "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
+			_imagePullPolicy: "Never"
+		}
+	}
 }
