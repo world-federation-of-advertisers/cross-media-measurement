@@ -32,6 +32,7 @@ class SpannerComputationParticipantsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ComputationParticipantsCoroutineImplBase() {
+
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
@@ -50,16 +51,19 @@ class SpannerComputationParticipantsService(
             "Certificate for Computation participant not found."
           }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.PROTOCOL_CONFIG_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
       }
     }
   }
+
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
   ): ComputationParticipant {
     TODO("not implemented yet")
   }
+
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
   ): ComputationParticipant {

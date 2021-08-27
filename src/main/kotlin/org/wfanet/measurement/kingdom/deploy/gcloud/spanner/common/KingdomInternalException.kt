@@ -45,6 +45,9 @@ class KingdomInternalException : Exception {
     COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
 
     /** Computation Participant resource queried could not be found. */
-    COMPUTATION_PARTICIPANT_NOT_FOUND
+    COMPUTATION_PARTICIPANT_NOT_FOUND,
+
+    /** ProtocolConfig resource queried could not be found. */
+    PROTOCOL_CONFIG_NOT_FOUND
   }
 }
