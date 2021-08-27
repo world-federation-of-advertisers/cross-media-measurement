@@ -11,6 +11,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_encryption_methods_kt_jvm_proto",
         "//src/main/swig/protocol/liquidlegionsv2:liquid_legions_v2_encryption_utility",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

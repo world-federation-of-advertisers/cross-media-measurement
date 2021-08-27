@@ -739,6 +739,7 @@ class LiquidLegionsV2Mill(
       ReachAndFrequency(llv2Details.reachEstimate.reach, frequencyDistributionMap)
 
     val kingdomComputation = token.computationDetails.kingdomComputation
+    val serializedPublicApiEncryptionPublicKey: ByteString
     val encryptedResult =
       when (Version.fromString(kingdomComputation.publicApiVersion)) {
         Version.V2_ALPHA -> {
@@ -748,16 +749,24 @@ class LiquidLegionsV2Mill(
               PrivateKeyHandle(CONSENT_SIGNALING_PRIVATE_KEY_ID, keyStore),
               consentSignalCert.value
             )
+          val publicApiEncryptionPublicKey =
+            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
+          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
           encryptResult(
             signedResult,
-            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey(),
+            publicApiEncryptionPublicKey,
             kingdomComputation.cipherSuite.toV2AlphaHybridCipherSuite(),
             ::fakeGetHybridCryptorForCipherSuite // TODO: use the real HybridCryptor.
           )
         }
         Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
-    sendResultToKingdom(token.globalComputationId, encryptedResult)
+    sendResultToKingdom(
+      globalId = token.globalComputationId,
+      certificate = consentSignalCert.value,
+      resultPublicKey = serializedPublicApiEncryptionPublicKey,
+      encryptedResult = encryptedResult
+    )
 
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
