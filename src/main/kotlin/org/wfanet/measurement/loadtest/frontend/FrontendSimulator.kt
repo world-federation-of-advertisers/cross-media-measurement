@@ -26,10 +26,8 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.estimation.Estimators
 import org.wfanet.estimation.ValueHistogram
-import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DataProviderList
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -37,28 +35,44 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite.DataEncapsulationMechanism
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite.KeyEncapsulationMechanism
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Result
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.dataProviderList
+import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.hybridCipherSuite
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.consent.client.measurementconsumer.createDataProviderListHash
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -77,13 +91,10 @@ private const val INDEX_SIZE = 100000L
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
-private val CIPHER_SUITE =
-  HybridCipherSuite.newBuilder()
-    .apply {
-      kem = KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-      dem = DataEncapsulationMechanism.AES_128_GCM
-    }
-    .build()
+private val CIPHER_SUITE = hybridCipherSuite {
+  kem = KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+  dem = DataEncapsulationMechanism.AES_128_GCM
+}
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -134,43 +145,37 @@ class FrontendSimulator(
   private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
     val serializedDataProviderList =
-      DataProviderList.newBuilder()
-        .addAllDataProvider(eventGroups.map { extractDataProviderName(it.name) })
-        .build()
+      dataProviderList { dataProvider += eventGroups.map { extractDataProviderName(it.name) } }
         .toByteString()
     val dataProviderListSalt = Random.Default.nextBytes(32).toByteString()
     val dataProviderListHash =
-      ByteString.copyFromUtf8("TODO: call createDataProviderListHash(list, salt)")
+      createDataProviderListHash(serializedDataProviderList, dataProviderListSalt)
     val dataProviderEntries =
       eventGroups.map { createDataProviderEntry(it, measurementConsumer, dataProviderListHash) }
 
-    val request =
-      CreateMeasurementRequest.newBuilder()
-        .apply {
-          measurementBuilder.also {
-            it.measurementConsumerCertificate = measurementConsumer.certificate
-            it.measurementSpec =
-              signMeasurementSpec(
-                newMeasurementSpec(measurementConsumer.publicKey.data),
-                PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
-                readCertificate(measurementConsumer.certificateDer)
-              )
-            it.serializedDataProviderList = serializedDataProviderList
-            it.dataProviderListSalt = dataProviderListSalt
-            it.addAllDataProviders(dataProviderEntries)
-            it.measurementReferenceId = runId
-          }
+    val request = createMeasurementRequest {
+      measurement =
+        measurement {
+          measurementConsumerCertificate = measurementConsumer.certificate
+          measurementSpec =
+            signMeasurementSpec(
+              newMeasurementSpec(measurementConsumer.publicKey.data),
+              PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
+              readCertificate(measurementConsumer.certificateDer)
+            )
+          this.serializedDataProviderList = serializedDataProviderList
+          this.dataProviderListSalt = dataProviderListSalt
+          dataProviders += dataProviderEntries
+          this.measurementReferenceId = runId
         }
-        .build()
+    }
     return measurementsClient.createMeasurement(request)
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getResult(measurementName: String): Result? {
     val measurement =
-      measurementsClient.getMeasurement(
-        GetMeasurementRequest.newBuilder().apply { name = measurementName }.build()
-      )
+      measurementsClient.getMeasurement(getMeasurementRequest { name = measurementName })
     return if (measurement.state == Measurement.State.SUCCEEDED) {
       val signedResult =
         decryptResult(
@@ -210,12 +215,10 @@ class FrontendSimulator(
 
     val expectedReach = estimateCardinality(combinedAnySketch, DECAY_RATE, INDEX_SIZE)
     val expectedFrequency = estimateFrequency(combinedAnySketch, MAXIMUM_FREQUENCY)
-    return Result.newBuilder()
-      .apply {
-        reachBuilder.value = expectedReach
-        frequencyBuilder.putAllRelativeFrequencyDistribution(expectedFrequency)
-      }
-      .build()
+    return result {
+      reach = reach { value = expectedReach }
+      frequency = frequency { relativeFrequencyDistribution.putAll(expectedFrequency) }
+    }
   }
 
   /** Estimates the cardinality of an [AnySketch]. */
@@ -238,42 +241,35 @@ class FrontendSimulator(
   }
 
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
-    val request = GetMeasurementConsumerRequest.newBuilder().also { it.name = name }.build()
+    val request = getMeasurementConsumerRequest { this.name = name }
     return measurementConsumersClient.getMeasurementConsumer(request)
   }
 
   private fun newMeasurementSpec(serializedMeasurementPublicKey: ByteString): MeasurementSpec {
-    return MeasurementSpec.newBuilder()
-      .apply {
-        measurementPublicKey = serializedMeasurementPublicKey
-        cipherSuite = CIPHER_SUITE
-        reachAndFrequencyBuilder.apply {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      cipherSuite = CIPHER_SUITE
+      reachAndFrequency =
+        reachAndFrequency {
           reachPrivacyParams = outputDpParams
           frequencyPrivacyParams = outputDpParams
         }
-      }
-      .build()
+    }
   }
 
   private suspend fun listEventGroups(measurementConsumer: String): List<EventGroup> {
-    val request =
-      ListEventGroupsRequest.newBuilder()
-        .apply {
-          parent = DATA_PROVIDER_WILDCARD
-          filterBuilder.addMeasurementConsumers(measurementConsumer)
-        }
-        .build()
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_WILDCARD
+      filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
+    }
     return eventGroupsClient.listEventGroups(request).eventGroupsList
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
-    val request =
-      ListRequisitionsRequest.newBuilder()
-        .apply {
-          parent = DATA_PROVIDER_WILDCARD
-          filterBuilder.measurement = measurement
-        }
-        .build()
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_WILDCARD
+      filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
+    }
     return requisitionsClient.listRequisitions(request).requisitionsList
   }
 
@@ -293,17 +289,15 @@ class FrontendSimulator(
     dataProviderListHash: ByteString
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
-    val requisitionSpec =
-      RequisitionSpec.newBuilder()
-        .also {
-          it.addEventGroupsBuilder().apply {
-            key = eventGroup.name
-            // TODO: populate other fields when the EventGroup design is done.
-          }
-          it.measurementPublicKey = measurementConsumer.publicKey.data
-          it.dataProviderListHash = dataProviderListHash
+    val requisitionSpec = requisitionSpec {
+      eventGroups +=
+        eventGroupEntry {
+          key = eventGroup.name
+          // TODO: populate other fields when the EventGroup design is done.
         }
-        .build()
+      measurementPublicKey = measurementConsumer.publicKey.data
+      this.dataProviderListHash = dataProviderListHash
+    }
     val signedRequisitionSpec =
       signRequisitionSpec(
         requisitionSpec,
@@ -313,29 +307,25 @@ class FrontendSimulator(
     return dataProvider.toDataProviderEntry(signedRequisitionSpec)
   }
 
-  private suspend fun DataProvider.toDataProviderEntry(
+  private fun DataProvider.toDataProviderEntry(
     signedRequisitionSpec: SignedData
   ): DataProviderEntry {
-    val value =
-      DataProviderEntry.Value.newBuilder()
-        .also {
-          it.dataProviderCertificate = this.certificate
-          it.dataProviderPublicKey = this.publicKey
-          it.encryptedRequisitionSpec =
+    val source = this
+    return dataProviderEntry {
+      key = source.name
+      this.value =
+        MeasurementKt.DataProviderEntryKt.value {
+          dataProviderCertificate = source.certificate
+          dataProviderPublicKey = source.publicKey
+          encryptedRequisitionSpec =
             encryptRequisitionSpec(
               signedRequisitionSpec,
-              EncryptionPublicKey.parseFrom(this.publicKey.data),
+              EncryptionPublicKey.parseFrom(source.publicKey.data),
               CIPHER_SUITE,
               ::fakeGetHybridCryptorForCipherSuite // TODO: use the real HybridCryptor.
             )
         }
-        .build()
-    return DataProviderEntry.newBuilder()
-      .also {
-        it.key = this.name
-        it.value = value
-      }
-      .build()
+    }
   }
 
   // TODO: delete this fake when the EciesCryptor is done.
