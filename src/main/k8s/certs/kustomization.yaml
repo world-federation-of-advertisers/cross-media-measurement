@@ -18,12 +18,18 @@ secretGenerator:
   - all_root_certs.pem
   - kingdom.key
   - kingdom.pem
-  - aggregator.key
-  - aggregator.pem
-  - worker_1.key
-  - worker_1.pem
-  - worker_2.key
-  - worker_2.pem
+  - aggregator_tls.key
+  - aggregator_tls.pem
+  - aggregator_cs_cert.der
+  - aggregator_cs_private.der
+  - worker_1_tls.key
+  - worker_1_tls.pem
+  - worker_1_cs_cert.der
+  - worker_1_cs_private.der
+  - worker_2_tls.key
+  - worker_2_tls.pem
+  - worker_2_cs_cert.der
+  - worker_2_cs_private.der
   - edp1_cs_cert.der
   - edp1_cs_private.der
   - edp1_enc_private.der

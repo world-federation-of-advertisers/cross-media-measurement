@@ -27,6 +27,8 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -61,11 +63,14 @@ class ResourceSetupImplTest {
     mock(useConstructor = UseConstructor.parameterless())
   private val mockMeasurementConsumersService: MeasurementConsumersCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
+  private val mockCertificatesService: CertificatesCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(mockDataProvidersService)
     addService(mockMeasurementConsumersService)
+    addService(mockCertificatesService)
   }
 
   private val dataProvidersStub: DataProvidersCoroutineStub by lazy {
@@ -74,9 +79,12 @@ class ResourceSetupImplTest {
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub by lazy {
     MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
   }
+  private val certificatesStub: CertificatesCoroutineStub by lazy {
+    CertificatesCoroutineStub(grpcTestServerRule.channel)
+  }
 
   private var resourceSetup: ResourceSetup =
-    ResourceSetup(KEY_STORE, dataProvidersStub, measurementConsumersStub, RUN_ID)
+    ResourceSetup(KEY_STORE, dataProvidersStub, certificatesStub, measurementConsumersStub, RUN_ID)
 
   @Test
   fun `create data provider successfully`() = runBlocking {
