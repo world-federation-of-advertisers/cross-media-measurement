@@ -14,13 +14,11 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -37,6 +35,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -140,6 +139,13 @@ private val DATA_PROVIDER = dataProvider {
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
 
 private val EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS: FieldScope =
+  FieldScopes.allowingFieldDescriptors(
+    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("start_time"),
+    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("update_time"),
+    ExchangeStepAttemptDetails.DebugLog.getDescriptor().findFieldByName("time")
+  )
+
+private val EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT: FieldScope =
   FieldScopes.allowingFieldDescriptors(
     ExchangeStepAttemptDetails.getDescriptor().findFieldByName("start_time"),
     ExchangeStepAttemptDetails.getDescriptor().findFieldByName("update_time"),
@@ -297,88 +303,151 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
-    )
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
         makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
       )
 
-    val expected =
-      makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED, response.details.startTime)
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
 
-    assertThat(response).isEqualTo(expected)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
-    )
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
         makeRequest(ExchangeStepAttempt.State.FAILED)
       )
 
-    val expected =
-      makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED, response.details.startTime)
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
 
-    assertThat(response).isEqualTo(expected)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
-    exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
-    )
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
         makeRequest(ExchangeStepAttempt.State.FAILED_STEP)
       )
 
-    val expected =
-      makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP, response.details.startTime)
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
 
-    assertThat(response).isEqualTo(expected)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt succeeds on second try`() = runBlocking {
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
+
+    val failedAttempt =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.FAILED)
+      )
+
+    val claimReadyExchangeStepResponse2 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest {
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(
+          ExchangeStepAttempt.State.SUCCEEDED,
+          claimReadyExchangeStepResponse2.attemptNumber
+        )
+      )
+
+    val expected =
+      makeExchangeStepAttempt(
+        ExchangeStepAttempt.State.SUCCEEDED,
+        claimReadyExchangeStepResponse2.attemptNumber
+      )
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .isEqualTo(expected)
+    assertThat(response.attemptNumber).isEqualTo(claimReadyExchangeStepResponse2.attemptNumber)
+    assertThat(response.attemptNumber - 1).isEqualTo(failedAttempt.attemptNumber)
+    // Also, make sure ExchangeStep is updated properly.
+    assertThat(claimReadyExchangeStepResponse2.exchangeStep.updateTime.toGcloudTimestamp())
+      .isGreaterThan(claimReadyExchangeStepResponse.exchangeStep.updateTime.toGcloudTimestamp())
   }
 
   private fun makeRequest(
-    attemptState: ExchangeStepAttempt.State
+    attemptState: ExchangeStepAttempt.State,
+    attemptNo: Int? = null
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = DATE
       stepIndex = STEP_INDEX
-      attemptNumber = 1
+      attemptNumber = attemptNo ?: 1
       state = attemptState
     }
   }
 
   private fun makeExchangeStepAttempt(
     attemptState: ExchangeStepAttempt.State,
-    detailStartTime: Timestamp,
+    attemptNo: Int? = null
   ): ExchangeStepAttempt {
     val debugLogMessage =
       when (attemptState) {
@@ -389,18 +458,10 @@ abstract class ExchangeStepAttemptsServiceTest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = DATE
       stepIndex = STEP_INDEX
-      attemptNumber = 1
+      attemptNumber = attemptNo ?: 1
       state = attemptState
       details =
-        exchangeStepAttemptDetails {
-          startTime = detailStartTime
-          updateTime = Value.COMMIT_TIMESTAMP.toProto()
-          debugLogEntries +=
-            debugLog {
-              message = debugLogMessage
-              time = Value.COMMIT_TIMESTAMP.toProto()
-            }
-        }
+        exchangeStepAttemptDetails { debugLogEntries += debugLog { message = debugLogMessage } }
     }
   }
 }
