@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub
-import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest as InternalUpdatePublicKeyRequest
+import org.wfanet.measurement.internal.kingdom.updatePublicKeyRequest
 
 class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineStub) :
   PublicKeysCoroutineImplBase() {
@@ -54,7 +54,7 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
     ) { "Resource name does not have same parent as Certificate name" }
 
     internalPublicKeysStub.updatePublicKey(
-      buildInternalUpdatePublicKeyRequest {
+      updatePublicKeyRequest {
         when (certificateKey) {
           is MeasurementConsumerCertificateKey -> {
             externalMeasurementConsumerId = apiIdToExternalId(certificateKey.measurementConsumerId)
@@ -74,10 +74,6 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
     return request.publicKey
   }
 }
-
-internal inline fun buildInternalUpdatePublicKeyRequest(
-  fill: (@Builder InternalUpdatePublicKeyRequest.Builder).() -> Unit
-) = InternalUpdatePublicKeyRequest.newBuilder().apply(fill).build()
 
 /** Checks the resource name against multiple public key [ResourceKey] to find the right one. */
 private fun createPublicKeyResourceKey(name: String): ResourceKey? {
