@@ -15,8 +15,6 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.FieldScope
-import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.Date
@@ -40,7 +38,6 @@ import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
@@ -137,20 +134,6 @@ private val DATA_PROVIDER = dataProvider {
 }
 
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
-
-private val EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS: FieldScope =
-  FieldScopes.allowingFieldDescriptors(
-    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("start_time"),
-    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("update_time"),
-    ExchangeStepAttemptDetails.DebugLog.getDescriptor().findFieldByName("time")
-  )
-
-private val EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT: FieldScope =
-  FieldScopes.allowingFieldDescriptors(
-    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("start_time"),
-    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("update_time"),
-    ExchangeStepAttemptDetails.DebugLog.getDescriptor().findFieldByName("time")
-  )
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepAttemptsServiceTest {
@@ -322,7 +305,7 @@ abstract class ExchangeStepAttemptsServiceTest {
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
 
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
     assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
@@ -348,7 +331,7 @@ abstract class ExchangeStepAttemptsServiceTest {
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
 
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
     assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
@@ -374,7 +357,7 @@ abstract class ExchangeStepAttemptsServiceTest {
     val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
 
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
     assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
   }
@@ -423,7 +406,7 @@ abstract class ExchangeStepAttemptsServiceTest {
       )
 
     assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_CONTEXT)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
     assertThat(response.attemptNumber).isEqualTo(claimReadyExchangeStepResponse2.attemptNumber)
     assertThat(response.attemptNumber - 1).isEqualTo(failedAttempt.attemptNumber)
