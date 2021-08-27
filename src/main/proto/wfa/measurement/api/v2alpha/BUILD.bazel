@@ -172,6 +172,21 @@ kt_jvm_proto_library(
     deps = [":encrypted_sketch_java_proto"],
 )
 
+java_proto_library(
+    name = "event_group_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_group_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
+    ],
+    deps = [":event_group_java_proto"],
+)
+
 alias(
     name = "event_groups_service_proto",
     actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_proto",
@@ -186,21 +201,6 @@ kt_jvm_proto_library(
     name = "event_groups_service_kt_jvm_proto",
     srcs = [":event_groups_service_proto"],
     deps = [":event_groups_service_java_proto"],
-)
-
-java_proto_library(
-    name = "event_group_java_proto",
-    deps = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
-    ],
-)
-
-kt_jvm_proto_library(
-    name = "event_group_kt_jvm_proto",
-    srcs = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_group_proto",
-    ],
-    deps = [":event_group_java_proto"],
 )
 
 java_proto_library(
@@ -326,6 +326,22 @@ kt_jvm_proto_library(
     deps = [":measurement_java_proto"],
 )
 
+alias(
+    name = "measurements_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "measurements_service_kt_jvm_grpc",
+    srcs = [":measurements_service_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "measurements_service_kt_jvm_proto",
+    srcs = [":measurements_service_proto"],
+    deps = [":measurements_service_java_proto"],
+)
+
 java_proto_library(
     name = "measurement_consumer_java_proto",
     deps = [
@@ -372,22 +388,6 @@ kt_jvm_proto_library(
     deps = [":measurement_spec_java_proto"],
 )
 
-alias(
-    name = "measurements_service_proto",
-    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_proto",
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "measurements_service_kt_jvm_grpc",
-    srcs = [":measurements_service_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "measurements_service_kt_jvm_proto",
-    srcs = [":measurements_service_proto"],
-    deps = [":measurements_service_java_proto"],
-)
-
 java_proto_library(
     name = "model_provider_java_proto",
     deps = [
@@ -401,6 +401,37 @@ kt_jvm_proto_library(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_provider_proto",
     ],
     deps = [":model_provider_java_proto"],
+)
+
+java_proto_library(
+    name = "public_key_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_key_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "public_key_kt_jvm_proto",
+    srcs = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_key_proto",
+    ],
+    deps = [":public_key_java_proto"],
+)
+
+alias(
+    name = "public_keys_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:public_keys_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "public_keys_service_kt_jvm_grpc",
+    srcs = [":public_keys_service_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "public_keys_service_kt_jvm_proto",
+    srcs = [":public_keys_service_proto"],
+    deps = [":public_keys_service_java_proto"],
 )
 
 java_proto_library(
@@ -481,6 +512,22 @@ kt_jvm_proto_library(
 )
 
 alias(
+    name = "requisitions_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "requisitions_service_kt_jvm_grpc",
+    srcs = [":requisitions_service_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "requisitions_service_kt_jvm_proto",
+    srcs = [":requisitions_service_proto"],
+    deps = [":requisitions_service_java_proto"],
+)
+
+alias(
     name = "requisition_fulfillment_service_proto",
     actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_proto",
 )
@@ -509,20 +556,4 @@ kt_jvm_proto_library(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_proto",
     ],
     deps = [":requisition_spec_java_proto"],
-)
-
-alias(
-    name = "requisitions_service_proto",
-    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_proto",
-)
-
-kt_jvm_grpc_and_java_proto_library(
-    name = "requisitions_service_kt_jvm_grpc",
-    srcs = [":requisitions_service_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "requisitions_service_kt_jvm_proto",
-    srcs = [":requisitions_service_proto"],
-    deps = [":requisitions_service_java_proto"],
 )

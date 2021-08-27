@@ -25,6 +25,8 @@ import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -33,8 +35,10 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
@@ -50,7 +54,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         "Resource name is either unspecified or invalid"
       }
 
-    val getRequest = buildInternalGetEventGroupRequest {
+    val getRequest = getEventGroupRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalEventGroupId = apiIdToExternalId(key.eventGroupId)
     }
@@ -95,26 +99,26 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         else -> request.pageSize
       }
 
-    val streamRequest = buildStreamEventGroupsRequest {
+    val streamRequest = streamEventGroupsRequest {
       limit = pageSize
-      filterBuilder.apply {
-        if (request.pageToken.isNotBlank()) {
-          createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
-        }
-
-        if (parentKey.dataProviderId != WILDCARD) {
-          externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-        }
-
-        addAllExternalMeasurementConsumerIds(
-          request.filter.measurementConsumersList.map { measurementConsumerName ->
-            grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
-              "Measurement consumer name in filter invalid"
-            }
-              .let { key -> apiIdToExternalId(key.measurementConsumerId) }
+      filter =
+        filter {
+          if (request.pageToken.isNotBlank()) {
+            createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
           }
-        )
-      }
+
+          if (parentKey.dataProviderId != WILDCARD) {
+            externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+          }
+
+          externalMeasurementConsumerIds +=
+            request.filter.measurementConsumersList.map { measurementConsumerName ->
+              grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
+                "Measurement consumer name in filter invalid"
+              }
+                .let { key -> apiIdToExternalId(key.measurementConsumerId) }
+            }
+        }
     }
 
     val results: List<InternalEventGroup> =
@@ -124,16 +128,16 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       return ListEventGroupsResponse.getDefaultInstance()
     }
 
-    return ListEventGroupsResponse.newBuilder()
-      .addAllEventGroups(results.map(InternalEventGroup::toEventGroup))
-      .setNextPageToken(results.last().createTime.toByteArray().base64UrlEncode())
-      .build()
+    return listEventGroupsResponse {
+      eventGroups += results.map(InternalEventGroup::toEventGroup)
+      nextPageToken = results.last().createTime.toByteArray().base64UrlEncode()
+    }
   }
 }
 
 /** Converts an internal [InternalEventGroup] to a public [EventGroup]. */
 private fun InternalEventGroup.toEventGroup(): EventGroup {
-  return buildEventGroup {
+  return eventGroup {
     name =
       EventGroupKey(
           externalIdToApiId(externalDataProviderId),
@@ -151,24 +155,9 @@ private fun EventGroup.toInternal(
   parentKey: DataProviderKey,
   measurementConsumerKey: MeasurementConsumerKey
 ): InternalEventGroup {
-  return buildInternalEventGroup {
+  return internalEventGroup {
     externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
     providedEventGroupId = eventGroupReferenceId
   }
 }
-
-internal inline fun buildEventGroup(fill: (@Builder EventGroup.Builder).() -> Unit) =
-  EventGroup.newBuilder().apply(fill).build()
-
-internal inline fun buildInternalEventGroup(
-  fill: (@Builder InternalEventGroup.Builder).() -> Unit
-) = InternalEventGroup.newBuilder().apply(fill).build()
-
-internal inline fun buildInternalGetEventGroupRequest(
-  fill: (@Builder InternalGetEventGroupRequest.Builder).() -> Unit
-) = InternalGetEventGroupRequest.newBuilder().apply(fill).build()
-
-internal inline fun buildStreamEventGroupsRequest(
-  fill: (@Builder StreamEventGroupsRequest.Builder).() -> Unit
-) = StreamEventGroupsRequest.newBuilder().apply(fill).build()
