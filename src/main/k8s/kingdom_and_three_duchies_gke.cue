@@ -31,7 +31,7 @@ objectSets: [
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
-] + [ for d in duchies for v in d {v}]
+] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
 
 #Edps: [
 	{
@@ -79,7 +79,6 @@ objectSets: [
 ]
 
 #GkeDuchy: #Duchy & {
-	_aggregator_name: "duchy-aggregator"
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
 		"--instance-name=\(_spanner_instance)",
@@ -134,7 +133,7 @@ frontend_simulator: "frontend_simulator": #FrontendSimulator & {
 	_mc_resource_name: "measurementConsumers/TBD"
 	_image:            "\(_container_registry_prefix)/loadtest/frontend-simulator"
 	_imagePullPolicy:  "Always"
-	_args: [
+	_blob_storage_flags: [
 		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
 		"--google-cloud-storage-project=\(_cloud_storage_project)",
 	]
@@ -147,4 +146,18 @@ resource_setup_job: "resource_setup_job": #ResourceSetup & {
 	_image:           "\(_container_registry_prefix)/loadtest/resource-setup"
 	_imagePullPolicy: "Always"
 	_dependencies: ["v2alpha-public-api-server"]
+}
+
+edp_simulators: {
+	for d in #Edps {
+		"\(d.display_name)": #EdpSimulator & {
+			_edp: d
+			_blob_storage_flags: [
+				"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
+				"--google-cloud-storage-project=\(_cloud_storage_project)",
+			]
+			_image:           "\(_container_registry_prefix)/loadtest/edp-simulator"
+			_imagePullPolicy: "Always"
+		}
+	}
 }

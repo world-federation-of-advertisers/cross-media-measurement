@@ -14,8 +14,12 @@
 
 package k8s
 
-#FrontendSimulator: {
+#EdpSimulator: {
+	_edp: {display_name: string, resource_name: string}
 	_mc_resource_name: string
+
+	_edp_display_name:  _edp.display_name
+	_edp_resource_name: _edp.resource_name
 
 	_image:           string
 	_imagePullPolicy: string
@@ -24,25 +28,25 @@ package k8s
 	apiVersion: "batch/v1"
 	kind:       "Job"
 	metadata: {
-		name: "frontend-simulator"
+		name: "edp-simulator"
 		labels: "app.kubernetes.io/name": #AppName
 	}
 	spec: template: spec: {
 		containers: [{
-			name:            "frontend-simulator-container"
+			name:            "edp-simulator-container"
 			image:           _image
 			imagePullPolicy: _imagePullPolicy
 			args:            [
-						"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
-						"--tls-key-file=/var/run/secrets/files/mc_tls.key",
+						"--tls-cert-file=/var/run/secrets/files/\(_edp_display_name)_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/\(_edp_display_name)_tls.key",
 						"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+						"--public-api-protocol-configs=" + #PublicApiProtocolConfigs,
+						"--data-provider-resource-name=\(_edp_resource_name)",
+						"--measurement-consumer-resource-name=\(_mc_resource_name)",
 						"--kingdom-public-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 						"--kingdom-public-api-cert-host=localhost",
-						"--mc-resource-name=\(_mc_resource_name)",
-						"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
-						"--mc-encryption-private-key-der-file=var/run/secrets/files/mc_enc_private.der",
-						"--output-differential-privacy-epsilon=1.0",
-						"--output-differential-privacy-delta=1.0",
+						"--requisition-fulfillment-service-target=" + (#Target & {name: "worker-1-requisition-fulfillment-server"}).target,
+						"--requisition-fulfillment-service-cert-host=localhost",
 			] + _blob_storage_flags
 			volumeMounts: [{
 				name:      "cache-volume"
