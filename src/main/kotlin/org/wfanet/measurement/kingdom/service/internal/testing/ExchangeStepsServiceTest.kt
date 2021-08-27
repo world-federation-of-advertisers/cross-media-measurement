@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.FieldScope
+import com.google.common.truth.extensions.proto.FieldScopes
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.Date
 import io.grpc.Status
@@ -115,7 +117,6 @@ private val EXCHANGE_STEP =
         externalId = EXTERNAL_MODEL_PROVIDER_ID
         type = Provider.Type.MODEL_PROVIDER
       }
-      updateTime = Value.COMMIT_TIMESTAMP.toProto()
     }
     .build()
 
@@ -134,6 +135,9 @@ private val DATA_PROVIDER: DataProvider =
       }
     }
     .build()
+
+private val EXCHANGE_STEP_RESPONSE_CONTEXT: FieldScope =
+  FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepsServiceTest {
@@ -224,7 +228,7 @@ abstract class ExchangeStepsServiceTest {
       attemptNumber = 1
     }
 
-    assertThat(response).isEqualTo(expected)
+    assertThat(response).ignoringFieldScope(EXCHANGE_STEP_RESPONSE_CONTEXT).isEqualTo(expected)
   }
 
   @Test
