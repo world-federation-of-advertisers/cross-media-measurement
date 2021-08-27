@@ -22,10 +22,8 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
-import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -56,7 +54,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readWithIdsOrNull(
+        .readByExternalComputationId(
           transactionContext,
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
