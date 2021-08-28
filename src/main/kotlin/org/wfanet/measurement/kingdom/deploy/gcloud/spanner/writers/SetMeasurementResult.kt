@@ -41,9 +41,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val measurementResult =
       MeasurementReader(Measurement.View.DEFAULT)
         .readExternalIdOrNull(transactionContext, ExternalId(request.externalComputationId))
-        ?: throw KingdomInternalException(
-          KingdomInternalException.Code.MEASUREMENT_NOT_FOUND
-        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
+        ?: throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_NOT_FOUND) {
+          "Measurement for external computation ID ${request.externalComputationId} not found"
+        }
 
     val measurement = measurementResult.measurement
     val measurementId = measurementResult.measurementId
