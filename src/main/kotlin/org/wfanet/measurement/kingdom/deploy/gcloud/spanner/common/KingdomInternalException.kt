@@ -35,6 +35,9 @@ class KingdomInternalException : Exception {
     /** Duchy resource queried could not be found. */
     DUCHY_NOT_FOUND,
 
+    /** Measurement resource queried could not be found. */
+    MEASUREMENT_NOT_FOUND,
+
     /** Certificate with the same subject key identifier (SKID) already exists. */
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
 
