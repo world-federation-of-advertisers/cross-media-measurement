@@ -406,6 +406,49 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
 
   @Test
+  fun `setMeasurementResult fails for wrong externalComputationId`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          it.putAllDataProviders(
+            mapOf(
+              externalDataProviderId to
+                Measurement.DataProviderValue.newBuilder()
+                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
+                  .build()
+            )
+          )
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    measurementsService.createMeasurement(measurement)
+
+    val request = setMeasurementResultRequest {
+      externalComputationId = 1234L // wrong externalComputationId
+      aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+      resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+      encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.setMeasurementResult(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Measurement not found")
+  }
+
+  @Test
   fun `setMeasurementResult succeeds`() = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -434,17 +477,21 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val createdMeasurement = measurementsService.createMeasurement(measurement)
 
-    val measurementWithResult =
-      measurementsService.setMeasurementResult(
-        setMeasurementResultRequest {
-          externalComputationId = createdMeasurement.externalComputationId
-          aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
-          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
-          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
-        }
-      )
+    val request = setMeasurementResultRequest {
+      externalComputationId = createdMeasurement.externalComputationId
+      aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+      resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+      encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+    }
+    val measurementWithResult = measurementsService.setMeasurementResult(request)
 
+    val expectedMeasurementDetails =
+      measurement.details.copy {
+        this.aggregatorCertificate = request.aggregatorCertificate
+        this.resultPublicKey = request.resultPublicKey
+        this.encryptedResult = request.encryptedResult
+      }
     assertThat(measurementWithResult.state).isEqualTo(Measurement.State.SUCCEEDED)
-
+    assertThat(measurementWithResult.details).isEqualTo(expectedMeasurementDetails)
   }
 }

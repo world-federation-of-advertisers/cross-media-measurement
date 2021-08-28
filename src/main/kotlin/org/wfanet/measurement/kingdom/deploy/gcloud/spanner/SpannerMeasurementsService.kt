@@ -22,9 +22,9 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
@@ -49,6 +49,7 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "Certificate not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
       }
@@ -66,15 +67,15 @@ class SpannerMeasurementsService(
       ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
 
-  override suspend fun setMeasurementResult(
-    request: SetMeasurementResultRequest
-  ): Measurement {
+  override suspend fun setMeasurementResult(request: SetMeasurementResultRequest): Measurement {
     try {
       return SetMeasurementResult(request).execute(client, idGenerator, clock)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Measurement not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
