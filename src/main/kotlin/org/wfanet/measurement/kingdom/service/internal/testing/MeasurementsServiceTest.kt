@@ -457,23 +457,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val dataProvider = insertDataProvider()
     val externalDataProviderId = dataProvider.externalDataProviderId
     val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-    val measurement =
-      Measurement.newBuilder()
-        .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
-          it.putAllDataProviders(
-            mapOf(
-              externalDataProviderId to
-                Measurement.DataProviderValue.newBuilder()
-                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
-                  .build()
-            )
-          )
-          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+
+    val measurement = measurement {
+      details = MeasurementKt.details { apiVersion = "v2alpha" }
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+      dataProviders[externalDataProviderId] =
+        MeasurementKt.dataProviderValue {
+          this.externalDataProviderCertificateId = externalDataProviderCertificateId
         }
-        .build()
+      providedMeasurementId = PROVIDED_MEASUREMENT_ID
+    }
 
     val createdMeasurement = measurementsService.createMeasurement(measurement)
 
@@ -493,5 +487,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       }
     assertThat(measurementWithResult.state).isEqualTo(Measurement.State.SUCCEEDED)
     assertThat(measurementWithResult.details).isEqualTo(expectedMeasurementDetails)
+    assertThat(measurementWithResult.updateTime.seconds).isGreaterThan(0L)
+
+    assertThat(measurementWithResult)
+      .ignoringFields(
+        Measurement.DETAILS_FIELD_NUMBER,
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.DATA_PROVIDERS_FIELD_NUMBER,
+        Measurement.STATE_FIELD_NUMBER
+      )
+      .isEqualTo(createdMeasurement)
   }
 }
