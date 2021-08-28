@@ -31,7 +31,11 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
 
-  data class Result(val measurement: Measurement, val measurementId: Long)
+  data class Result(
+    val measurement: Measurement,
+    val measurementId: Long,
+    val measurementConsumerId: Long
+  )
 
   private fun constructBaseSql(view: Measurement.View): String {
     return when (view) {
@@ -46,7 +50,11 @@ class MeasurementReader(private val view: Measurement.View) :
   override val externalIdColumn: String = "Measurements.ExternalComputationId"
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildMeasurement(struct), struct.getLong("MeasurementId"))
+    Result(
+      buildMeasurement(struct),
+      struct.getLong("MeasurementId"),
+      struct.getLong("MeasurementConsumerId")
+    )
 
   private fun buildMeasurement(struct: Struct): Measurement {
     return measurement {
@@ -85,6 +93,7 @@ class MeasurementReader(private val view: Measurement.View) :
       ExternalMeasurementConsumerId,
       ExternalMeasurementConsumerCertificateId,
       Measurements.MeasurementId,
+      Measurements.MeasurementConsumerId,
       Measurements.ExternalMeasurementId,
       Measurements.ExternalComputationId,
       Measurements.ProvidedMeasurementId,
