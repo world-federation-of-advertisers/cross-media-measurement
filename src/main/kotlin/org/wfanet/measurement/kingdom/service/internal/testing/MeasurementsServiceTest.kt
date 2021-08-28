@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -403,4 +404,47 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           templateParticipant.copy { externalDuchyId = "Shoaks" }
         )
     }
+
+  @Test
+  fun `setMeasurementResult succeeds`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          it.putAllDataProviders(
+            mapOf(
+              externalDataProviderId to
+                Measurement.DataProviderValue.newBuilder()
+                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
+                  .build()
+            )
+          )
+          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+        }
+        .build()
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+
+    val measurementWithResult =
+      measurementsService.setMeasurementResult(
+        setMeasurementResultRequest {
+          externalComputationId = createdMeasurement.externalComputationId
+          aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+        }
+      )
+
+    assertThat(measurementWithResult.state).isEqualTo(Measurement.State.SUCCEEDED)
+
+  }
 }
