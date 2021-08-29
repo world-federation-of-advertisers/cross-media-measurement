@@ -21,8 +21,8 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
@@ -35,7 +35,8 @@ class SpannerMeasurementLogEntriesService(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
     if (request.measurementLogEntryDetails.error.type ==
-    MeasurementLogEntry.ErrorDetails.Type.PERMANENT) {
+        MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+    ) {
       failGrpc(Status.INVALID_ARGUMENT) {
         "MeasurementLogEntries Service does not support PERMANENT errors, " +
           "use FailComputationParticipant instead."
