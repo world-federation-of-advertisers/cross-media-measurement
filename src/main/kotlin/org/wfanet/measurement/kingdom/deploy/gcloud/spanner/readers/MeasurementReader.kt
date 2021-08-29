@@ -15,7 +15,14 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+<<<<<<< HEAD
 import org.wfanet.measurement.common.identity.ExternalId
+=======
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
+>>>>>>> 14c762a6 (done)
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -52,6 +59,27 @@ class MeasurementReader(private val view: Measurement.View) :
       struct.getLong("MeasurementId"),
       struct.getLong("MeasurementConsumerId")
     )
+
+  suspend fun readByExternalIdsOrNull(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalMeasurementConsumerId: ExternalId,
+    externalMeasurementId: ExternalId
+  ): Result? {
+    return this.withBuilder {
+        appendClause(
+          """
+          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId 
+            AND ExternalMeasurementId = @externalMeasurementId
+          """
+        )
+        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+        bind("externalMeasurementId").to(externalMeasurementId.value)
+
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 
   private fun buildMeasurement(struct: Struct): Measurement {
     return measurement {

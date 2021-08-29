@@ -46,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
@@ -282,6 +283,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+<<<<<<< HEAD
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val dataProvider = insertDataProvider()
@@ -318,6 +320,91 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
       .isEqualTo(createdMeasurement)
   }
+=======
+  fun `getMeasurement COMPUTATION View succeeds`() =
+    runBlocking<Unit> {
+      val measurementConsumer = insertMeasurementConsumer()
+      val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      val externalMeasurementConsumerCertificateId =
+        measurementConsumer.certificate.externalCertificateId
+      val dataProvider = insertDataProvider()
+      val externalDataProviderId = dataProvider.externalDataProviderId
+      val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          measurement {
+            details = MeasurementKt.details { apiVersion = "v2alpha" }
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+            dataProviders[externalDataProviderId] =
+              MeasurementKt.dataProviderValue {
+                this.externalDataProviderCertificateId = externalDataProviderCertificateId
+              }
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          }
+        )
+
+      val measurement =
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+            externalMeasurementId = createdMeasurement.externalMeasurementId
+            measurementView = Measurement.View.COMPUTATION
+          }
+        )
+
+      assertThat(measurement)
+        .ignoringFields(
+          Measurement.REQUISITIONS_FIELD_NUMBER,
+          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+        )
+        .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
+      assertThat(measurement.requisitionsList)
+        .ignoringFields(Requisition.EXTERNAL_REQUISITION_ID_FIELD_NUMBER)
+        .containsExactly(
+          requisition {
+            externalMeasurementId = createdMeasurement.externalMeasurementId
+            this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+            externalComputationId = measurement.externalComputationId
+            this.externalDataProviderId = externalDataProviderId
+            this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            updateTime = createdMeasurement.createTime
+            state = Requisition.State.UNFULFILLED
+            parentMeasurement =
+              parentMeasurement {
+                apiVersion = createdMeasurement.details.apiVersion
+                this.externalMeasurementConsumerCertificateId =
+                  externalMeasurementConsumerCertificateId
+                state = createdMeasurement.state
+              }
+            details = Requisition.Details.getDefaultInstance()
+            duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()
+            duchies["Rippon"] = Requisition.DuchyValue.getDefaultInstance()
+            duchies["Shoaks"] = Requisition.DuchyValue.getDefaultInstance()
+          }
+        )
+
+      // TODO(@SanjayVas): Verify requisition params once SetParticipantRequisitionParams can be
+      // called from this test.
+      // TODO(@SanjayVas): Verify requisition params once FailComputationParticipant can be called
+      // from this test.
+      val templateParticipant = computationParticipant {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        externalMeasurementId = createdMeasurement.externalMeasurementId
+        externalComputationId = createdMeasurement.externalComputationId
+        updateTime = createdMeasurement.createTime
+        state = ComputationParticipant.State.CREATED
+        details = ComputationParticipant.Details.getDefaultInstance()
+        apiVersion = createdMeasurement.details.apiVersion
+      }
+      assertThat(measurement.computationParticipantsList)
+        .containsExactly(
+          templateParticipant.copy { externalDuchyId = "Buck" },
+          templateParticipant.copy { externalDuchyId = "Rippon" },
+          templateParticipant.copy { externalDuchyId = "Shoaks" }
+        )
+    }
+>>>>>>> 14c762a6 (done)
 
   @Test
   fun `getMeasurementByComputationId COMPUTATION View succeeds`() =
