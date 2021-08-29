@@ -33,7 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
- * Sets participant details for a computationPartcipant in the database.
+ * Creates a DuchyMeasurementLogEntry and MeasurementLogEntry in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.MEASUREMENT_NOT_FOUND]

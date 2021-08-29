@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -47,15 +46,6 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
-private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val PREFERRED_MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
-private val PREFERRED_DP_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a DP certificate der.")
-private val PREFERRED_MC_SUBJECT_KEY_IDENTIFIER =
-  ByteString.copyFromUtf8("This is a MC subject key identifier.")
-private val PREFERRED_DP_SUBJECT_KEY_IDENTIFIER =
-  ByteString.copyFromUtf8("This is a DP subject key identifier.")
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
 @RunWith(JUnit4::class)
