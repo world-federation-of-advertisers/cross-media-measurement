@@ -33,13 +33,16 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -189,50 +192,60 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       )
   }
 
-  //   @Test
-  //   fun `createMeasurementLogEntry succeeds`() = runBlocking {
-  //     val measurementConsumer = insertMeasurementConsumer()
-  //     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-  //     val externalMeasurementConsumerCertificateId =
-  //       measurementConsumer.certificate.externalCertificateId
-  //     val dataProvider = insertDataProvider()
-  //     val externalDataProviderId = dataProvider.externalDataProviderId
-  //     val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-  //     val measurement =
-  //       Measurement.newBuilder()
-  //         .also {
-  //           it.detailsBuilder.apiVersion = "v2alpha"
-  //           it.externalMeasurementConsumerId = externalMeasurementConsumerId
-  //           it.externalMeasurementConsumerCertificateId =
-  // externalMeasurementConsumerCertificateId
-  //           it.putAllDataProviders(
-  //             mapOf(
-  //               externalDataProviderId to
-  //                 Measurement.DataProviderValue.newBuilder()
-  //                   .also { it.externalDataProviderCertificateId =
-  // externalDataProviderCertificateId }
-  //                   .build()
-  //             )
-  //           )
-  //           it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  //         }
-  //         .build()
+  @Test
+  fun `createMeasurementLogEntry succeeds`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val dataProvider = population.createDataProvider(dataProvidersService)
 
-  //     val createdMeasurement = measurementsService.createMeasurement(measurement)
-  //     assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
-  //     assertThat(createdMeasurement.externalComputationId).isNotEqualTo(0L)
-  //     assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
-  //     assertThat(createdMeasurement.updateTime).isEqualTo(createdMeasurement.createTime)
-  //
-  // assertThat(createdMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
-  //     assertThat(createdMeasurement)
-  //       .ignoringFields(
-  //         Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
-  //         Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
-  //         Measurement.CREATE_TIME_FIELD_NUMBER,
-  //         Measurement.UPDATE_TIME_FIELD_NUMBER,
-  //         Measurement.STATE_FIELD_NUMBER
-  //       )
-  //       .isEqualTo(measurement)
-  //   }
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details {
+        error =
+          MeasurementLogEntryKt.errorDetails {
+            type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+          }
+      }
+
+    val duchyMeasurementLogEntryDetails =
+      DuchyMeasurementLogEntryKt.details {
+        duchyChildReferenceId = "some child reference"
+        stageAttempt = DuchyMeasurementLogEntryKt.stageAttempt { stage = 1 }
+      }
+
+    val createdDuchyMeasurementLogEntry =
+      measurementLogEntriesService.createDuchyMeasurementLogEntry(
+        createDuchyMeasurementLogEntryRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          this.measurementLogEntryDetails = measurementLogEntryDetails
+          details = duchyMeasurementLogEntryDetails
+        }
+      )
+
+    val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
+      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      this.externalComputationLogEntryId =
+        createdDuchyMeasurementLogEntry.externalComputationLogEntryId
+      logEntry =
+        measurementLogEntry {
+          this.externalMeasurementId = measurement.externalMeasurementId
+          this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          details = measurementLogEntryDetails
+          createTime = createdDuchyMeasurementLogEntry.logEntry.createTime
+        }
+      details = duchyMeasurementLogEntryDetails
+    }
+
+    assertThat(createdDuchyMeasurementLogEntry.externalComputationLogEntryId).isNotEqualTo(0L)
+    assertThat(createdDuchyMeasurementLogEntry.logEntry.createTime.seconds).isGreaterThan(0L)
+    assertThat(createdDuchyMeasurementLogEntry).isEqualTo(expectedDuchyMeasurementLogEntry)
+  }
 }
