@@ -14,12 +14,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import io.grpc.Status
 import java.time.Clock
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
 class SpannerMeasurementLogEntriesService(
   private val clock: Clock,
@@ -29,6 +34,29 @@ class SpannerMeasurementLogEntriesService(
   override suspend fun createDuchyMeasurementLogEntry(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
-    TODO("not implemented yet")
+    if (request.measurementLogEntryDetails.error.type ==
+    MeasurementLogEntry.ErrorDetails.Type.PERMANENT) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        "MeasurementLogEntries Service does not support PERMANENT errors, " +
+          "use FailComputationParticipant instead."
+      }
+    }
+
+    try {
+      return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator, clock)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+      }
+    }
   }
 }
