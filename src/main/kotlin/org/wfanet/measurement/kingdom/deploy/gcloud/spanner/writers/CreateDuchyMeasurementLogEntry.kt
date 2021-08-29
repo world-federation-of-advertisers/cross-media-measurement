@@ -32,7 +32,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
-
 /**
  * Sets participant details for a computationPartcipant in the database.
  *
@@ -56,19 +55,25 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
 
+    val measurement = measurementResult.measurement
     val measurementId = measurementResult.measurementId
     val measurementConsumerId = measurementResult.measurementConsumerId
-    val duchyMeasuerementLogEntry =
-      createDuchyMeasurementLogEntry(
-        InternalId(measurementId),
-        InternalId(measurementConsumerId),
-        InternalId(duchyId)
-      )
+    val measurementLogEntry =
+      createMeasurementLogEntry(InternalId(measurementId), InternalId(measurementConsumerId))
 
-    return duchyMeasuerementLogEntry.copy {
-      logEntry =
-        createMeasurementLogEntry(InternalId(measurementId), InternalId(measurementConsumerId))
-    }
+    return createDuchyMeasurementLogEntry(
+      InternalId(measurementId),
+      InternalId(measurementConsumerId),
+      InternalId(duchyId)
+    )
+      .copy {
+        externalDuchyId = request.externalDuchyId
+        logEntry =
+          measurementLogEntry.copy {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          }
+      }
   }
 
   private suspend fun TransactionScope.createMeasurementLogEntry(
@@ -84,7 +89,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       setJson("MeasurementLogDetailsJson" to request.measurementLogEntryDetails)
     }
 
-    return measurementLogEntry {}
+    return measurementLogEntry { details = request.measurementLogEntryDetails }
   }
 
   private suspend fun TransactionScope.createDuchyMeasurementLogEntry(
@@ -104,9 +109,15 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       setJson("DuchyMeasurementLogDetailsJson" to request.details)
     }
 
-    return duchyMeasurementLogEntry {}
+    return duchyMeasurementLogEntry {
+      this.externalComputationLogEntryId = externalComputationLogEntryId.value
+      details = request.details
+    }
   }
   override fun ResultScope<DuchyMeasurementLogEntry>.buildResult(): DuchyMeasurementLogEntry {
-    return checkNotNull(transactionResult)
+    val duchMeasurementLogEntry = checkNotNull(transactionResult)
+    return duchMeasurementLogEntry.copy {
+      logEntry = duchMeasurementLogEntry.logEntry.copy { createTime = commitTimestamp.toProto() }
+    }
   }
 }
