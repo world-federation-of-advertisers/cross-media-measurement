@@ -53,8 +53,9 @@ class SpannerExchangeStepsService(
     return requireNotNull(
         ExchangeStepReader()
           .withBuilder {
+            appendClause("WHERE ")
             appendClause(
-              "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
+              "RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
             )
             appendClause("AND ExchangeSteps.Date = @date")
             appendClause("AND ExchangeSteps.StepIndex = @step_index")
