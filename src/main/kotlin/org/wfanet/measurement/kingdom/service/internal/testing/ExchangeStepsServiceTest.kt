@@ -36,17 +36,17 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.DataProviderKt
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
 import org.wfanet.measurement.internal.kingdom.ModelProvider
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
-import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
@@ -84,7 +84,7 @@ private val idGenerator =
 
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   steps +=
-    ExchangeWorkflowKt.step {
+    step {
       party = ExchangeWorkflow.Party.MODEL_PROVIDER
       stepIndex = 1
     }
@@ -133,7 +133,7 @@ private val DATA_PROVIDER = dataProvider {
         CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
     }
   details =
-    DataProviderKt.details {
+    details {
       apiVersion = "2"
       publicKey = ByteString.copyFromUtf8("This is a  public key.")
       publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
@@ -149,25 +149,24 @@ abstract class ExchangeStepsServiceTest {
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator
-  ): RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+  ): RecurringExchangesCoroutineImplBase
 
   /** Creates a test subject. */
   protected abstract fun newDataProvidersService(
     idGenerator: IdGenerator
-  ): DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+  ): DataProvidersCoroutineImplBase
 
   /** Creates a test subject. */
   protected abstract fun newModelProvidersService(
     idGenerator: IdGenerator
-  ): ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+  ): ModelProvidersCoroutineImplBase
 
   /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
   protected abstract fun newExchangeStepsService(
     idGenerator: IdGenerator
   ): ExchangeStepsCoroutineImplBase
 
-  private lateinit var recurringExchangesService:
-    RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+  private lateinit var recurringExchangesService: RecurringExchangesCoroutineImplBase
   private lateinit var exchangeStepsService: ExchangeStepsCoroutineImplBase
 
   @Before
