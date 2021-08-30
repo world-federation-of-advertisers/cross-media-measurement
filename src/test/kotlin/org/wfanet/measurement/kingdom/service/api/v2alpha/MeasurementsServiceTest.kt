@@ -508,10 +508,7 @@ class MeasurementsServiceTest {
 
     val result = runBlocking { service.listMeasurements(request) }
 
-    val expected = listMeasurementsResponse {
-      measurement += MEASUREMENT
-      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-    }
+    val expected = listMeasurementsResponse { measurement += MEASUREMENT }
 
     val streamMeasurementsRequest =
       captureFirst<StreamMeasurementsRequest> {
@@ -543,6 +540,37 @@ class MeasurementsServiceTest {
             }
         }
       )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listMeasurements sets nextPageToken when number of results matches page size`() {
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = 1
+    }
+
+    val result = runBlocking { service.listMeasurements(request) }
+
+    val expected = listMeasurementsResponse {
+      measurement += MEASUREMENT
+      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listMeasurements doesn't set nextPageToken when number of results is less than page size`() {
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = 5
+    }
+
+    val result = runBlocking { service.listMeasurements(request) }
+
+    val expected = listMeasurementsResponse { measurement += MEASUREMENT }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }

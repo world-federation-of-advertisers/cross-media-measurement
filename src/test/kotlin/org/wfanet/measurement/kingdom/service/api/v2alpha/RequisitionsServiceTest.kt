@@ -176,7 +176,10 @@ private val REQUISITION: Requisition = requisition {
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+    mock(useConstructor = UseConstructor.parameterless()) {
+      onBlocking { streamRequisitions(any()) }
+        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+    }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalRequisitionMock) }
 
@@ -189,9 +192,6 @@ class RequisitionsServiceTest {
 
   @Test
   fun `listRequisitions with parent uses filter with parent`() = runBlocking {
-    whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
-
     val request = listRequisitionsRequest { parent = DATA_PROVIDER_NAME }
 
     val result = service.listRequisitions(request)
@@ -199,7 +199,6 @@ class RequisitionsServiceTest {
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
       requisitions += REQUISITION
-      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
     }
 
     val streamRequisitionRequest =
@@ -231,17 +230,13 @@ class RequisitionsServiceTest {
 
     val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
-      pageSize = 2
       pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
       filter = filter { states += State.UNFULFILLED }
     }
 
     val result = service.listRequisitions(request)
 
-    val expected = listRequisitionsResponse {
-      requisitions += REQUISITION
-      nextPageToken = UPDATE_TIME_B.toByteArray().base64UrlEncode()
-    }
+    val expected = listRequisitionsResponse { requisitions += REQUISITION }
 
     val streamRequisitionRequest =
       captureFirst<StreamRequisitionsRequest> {
@@ -252,7 +247,7 @@ class RequisitionsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamRequisitionsRequest {
-          limit = 2
+          limit = DEFAULT_LIMIT
           filter =
             StreamRequisitionsRequestKt.filter {
               externalDataProviderId =
@@ -262,6 +257,43 @@ class RequisitionsServiceTest {
             }
         }
       )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRequisitions sets nextPageToken when number of results matches page size`() =
+      runBlocking {
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 2
+    }
+
+    val result = service.listRequisitions(request)
+
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION
+      requisitions += REQUISITION
+      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRequisitions doesn't set nextPageToken when number of results is less than page size`() =
+      runBlocking {
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 5
+    }
+
+    val result = service.listRequisitions(request)
+
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION
+      requisitions += REQUISITION
+    }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
@@ -279,10 +311,7 @@ class RequisitionsServiceTest {
 
     val result = service.listRequisitions(request)
 
-    val expected = listRequisitionsResponse {
-      requisitions += REQUISITION
-      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-    }
+    val expected = listRequisitionsResponse { requisitions += REQUISITION }
 
     val streamRequisitionRequest =
       captureFirst<StreamRequisitionsRequest> {

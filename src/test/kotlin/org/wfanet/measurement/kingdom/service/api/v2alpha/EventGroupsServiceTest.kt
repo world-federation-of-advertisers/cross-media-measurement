@@ -185,7 +185,6 @@ class EventGroupsServiceTest {
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP
-      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }
 
     val streamEventGroupsRequest =
@@ -210,7 +209,6 @@ class EventGroupsServiceTest {
   fun `listEventGroups with page token uses filter with timestamp from page token`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      pageSize = 2
       pageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }
 
@@ -219,7 +217,6 @@ class EventGroupsServiceTest {
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP
-      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }
 
     val streamEventGroupsRequest =
@@ -231,7 +228,7 @@ class EventGroupsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamEventGroupsRequest {
-          limit = 2
+          limit = DEFAULT_LIMIT
           filter =
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
@@ -259,7 +256,6 @@ class EventGroupsServiceTest {
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP
-      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
     }
 
     val streamEventGroupsRequest =
@@ -284,6 +280,41 @@ class EventGroupsServiceTest {
             }
         }
       )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listEventGroups sets nextPageToken when number of results matches page size`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 2
+    }
+
+    val result = runBlocking { service.listEventGroups(request) }
+
+    val expected = listEventGroupsResponse {
+      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP
+      nextPageToken = CREATE_TIME.toByteArray().base64UrlEncode()
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listEventGroups doesn't set nextPageToken when number of results is less than page size`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 5
+    }
+
+    val result = runBlocking { service.listEventGroups(request) }
+
+    val expected = listEventGroupsResponse {
+      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP
+    }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }

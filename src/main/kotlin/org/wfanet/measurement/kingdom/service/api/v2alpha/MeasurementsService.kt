@@ -183,7 +183,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     return listMeasurementsResponse {
       measurement += results.map(InternalMeasurement::toMeasurement)
-      nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+      if (results.size == pageSize) {
+        nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+      }
     }
   }
 

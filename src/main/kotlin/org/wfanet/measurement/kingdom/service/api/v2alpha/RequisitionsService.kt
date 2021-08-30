@@ -116,7 +116,9 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
     return listRequisitionsResponse {
       requisitions += results.map(InternalRequisition::toRequisition)
-      nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+      if (results.size == pageSize) {
+        nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+      }
     }
   }
 

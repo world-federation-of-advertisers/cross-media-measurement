@@ -130,7 +130,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
 
     return listEventGroupsResponse {
       eventGroups += results.map(InternalEventGroup::toEventGroup)
-      nextPageToken = results.last().createTime.toByteArray().base64UrlEncode()
+      if (results.size == pageSize) {
+        nextPageToken = results.last().createTime.toByteArray().base64UrlEncode()
+      }
     }
   }
 }
