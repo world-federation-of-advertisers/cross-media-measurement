@@ -76,6 +76,7 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
             type = Provider.Type.DATA_PROVIDER
           }
         }
+      updateTime = struct.getTimestamp("UpdateTime").toProto()
     }
   }
 
