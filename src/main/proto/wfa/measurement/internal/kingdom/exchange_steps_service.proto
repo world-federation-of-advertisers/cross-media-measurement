@@ -29,11 +29,10 @@ service ExchangeSteps {
   // creates a new ExchangeStepAttempt for it. If none exist in this state,
   // returns an empty response.
   rpc ClaimReadyExchangeStep(ClaimReadyExchangeStepRequest)
-    returns (ClaimReadyExchangeStepResponse);
+      returns (ClaimReadyExchangeStepResponse);
 
   // Gets an existing `ExchangeStep`.
-  rpc GetExchangeStep(GetExchangeStepRequest)
-    returns (ExchangeStep);
+  rpc GetExchangeStep(GetExchangeStepRequest) returns (ExchangeStep);
 }
 
 // Request message for "/ExchangeSteps.ClaimReadyExchangeStep".
