@@ -21,7 +21,6 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.fold
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -29,6 +28,7 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
@@ -41,7 +41,7 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
-class ExchangeTaskExecutorImplTest {
+class ExchangeTaskExecutorTest {
   private val apiClient: ApiClient = mock()
   private val privateStorage = InMemoryStorageClient(keyPrefix = "private")
   private val sharedStorage = InMemoryStorageClient(keyPrefix = "shared")
@@ -54,18 +54,14 @@ class ExchangeTaskExecutorImplTest {
         input: Map<String, StorageClient.Blob>
       ): Map<String, Flow<ByteString>> {
         return input.mapKeys { "Out:${it.key}" }.mapValues {
-          val valString: String =
-            it.value
-              .read(1024)
-              .fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) })
-              .toStringUtf8()
+          val valString: String = it.value.read(1024).flatten().toStringUtf8()
           "Out:$valString".toByteString().asBufferedFlow(1024)
         }
       }
     }
 
   private val exchangeTaskExecutor =
-    ExchangeTaskExecutorImpl(apiClient, timeout, sharedStorage, privateStorage) { exchangeTask }
+    ExchangeTaskExecutor(apiClient, timeout, sharedStorage, privateStorage) { exchangeTask }
 
   @Test
   fun `reads inputs and writes outputs`() = runBlockingTest {
@@ -111,7 +107,7 @@ class ExchangeTaskExecutorImplTest {
 
     privateStorage.verifiedBatchWrite(
       outputLabels = mapOf("a" to "b"),
-      data = mapOf("a" to emptyFlow<ByteString>())
+      data = mapOf("a" to emptyFlow())
     )
 
     assertFailsWith<CancellationException> {

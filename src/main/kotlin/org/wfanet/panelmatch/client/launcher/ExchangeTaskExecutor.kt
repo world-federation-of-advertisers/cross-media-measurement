@@ -39,14 +39,17 @@ import org.wfanet.panelmatch.common.Timeout
  * Maps ExchangeWorkflow.Step to respective tasks. Retrieves necessary inputs. Executes step. Stores
  * outputs.
  */
-class ExchangeTaskExecutorImpl(
+class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
   private val sharedStorage: StorageClient,
   private val privateStorage: StorageClient,
   private val getExchangeTaskForStep: suspend (ExchangeWorkflow.Step) -> ExchangeTask
 ) : ExchangeStepExecutor {
-  /** Reads inputs for [step], executes [step], and writes the outputs to appropriate [Storage]. */
+  /**
+   * Reads inputs for [step], executes [step], and writes the outputs to appropriate [StorageClient]
+   * .
+   */
   override suspend fun execute(attemptKey: ExchangeStepAttemptKey, step: ExchangeWorkflow.Step) {
     withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {
       try {

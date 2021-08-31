@@ -18,51 +18,93 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
-import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.grpc.buildPlaintextChannel
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.panelmatch.client.launcher.BlockingJobLauncher
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
+import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
+import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.launcher.Identity
+import org.wfanet.panelmatch.common.asTimeout
+import org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCipher
 import picocli.CommandLine
 
-@CommandLine.Command(
-  name = "ExchangeWorkflowDaemon",
-  description = ["Daemon for Exchange workflow."],
-  mixinStandardHelpOptions = true,
-  showDefaultValues = true
-)
-private fun run(@CommandLine.Mixin flags: ExchangeWorkflowFlags) {
-  val exchangeStepsClient =
-    ExchangeStepsCoroutineStub(
-      buildPlaintextChannel(flags.exchangeStepsServiceTarget.toString())
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-    )
-  val exchangeStepAttemptsClient =
-    ExchangeStepAttemptsCoroutineStub(
-      buildPlaintextChannel(flags.exchangeStepAttemptsServiceTarget.toString())
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-    )
-  val grpcApiClient =
-    GrpcApiClient(
-      Identity(flags.id, flags.partyType),
-      exchangeStepsClient,
-      exchangeStepAttemptsClient,
-      Clock.systemUTC()
-    )
-  val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
-  val exchangeStepLauncher =
-    ExchangeStepLauncher(grpcApiClient, ExchangeStepValidatorImpl(), BlockingJobLauncher())
+/** Executes ExchangeWorkflows. */
+abstract class ExchangeWorkflowDaemon : Runnable {
+  @CommandLine.Mixin
+  protected lateinit var flags: ExchangeWorkflowFlags
+    private set
 
-  runBlocking {
-    pollingThrottler.loopOnReady {
-      logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
+  /** [StorageClient] for payloads to be shared with the other party. */
+  abstract val sharedStorage: StorageClient
+
+  /** [StorageClient] for payloads that should NOT shared with the other party. */
+  abstract val privateStorage: StorageClient
+
+  override fun run() {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.tlsFlags.certFile,
+        privateKeyFile = flags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      )
+
+    val channel =
+      buildMutualTlsChannel(
+          flags.exchangeApiTarget.toString(),
+          clientCerts,
+          flags.exchangeApiCertHost
+        )
+        .withShutdownTimeout(flags.channelShutdownTimeout)
+
+    val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
+    val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
+
+    val grpcApiClient =
+      GrpcApiClient(
+        Identity(flags.id, flags.partyType),
+        exchangeStepsClient,
+        exchangeStepAttemptsClient,
+        Clock.systemUTC()
+      )
+
+    val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
+
+    val exchangeTaskMapper =
+      ExchangeTaskMapperForJoinKeyExchange(
+        deterministicCommutativeCryptor = JniDeterministicCommutativeCipher(),
+        sharedStorage = sharedStorage,
+        privateStorage = privateStorage
+      )
+
+    val stepExecutor =
+      ExchangeTaskExecutor(
+        apiClient = grpcApiClient,
+        timeout = flags.taskTimeout.asTimeout(),
+        sharedStorage = sharedStorage,
+        privateStorage = privateStorage,
+        getExchangeTaskForStep = exchangeTaskMapper::getExchangeTaskForStep
+      )
+
+    val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
+
+    val exchangeStepLauncher =
+      ExchangeStepLauncher(
+        apiClient = grpcApiClient,
+        validator = ExchangeStepValidatorImpl(),
+        jobLauncher = launcher
+      )
+
+    runBlocking {
+      pollingThrottler.loopOnReady {
+        logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
+      }
     }
   }
 }
-
-fun main(args: Array<String>) = commandLineMain(::run, args)
