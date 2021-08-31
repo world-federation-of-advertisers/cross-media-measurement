@@ -284,6 +284,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
 <<<<<<< HEAD
+<<<<<<< HEAD
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val dataProvider = insertDataProvider()
@@ -322,6 +323,27 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 =======
   fun `getMeasurement COMPUTATION View succeeds`() =
+=======
+  fun `getMeasurement COMPUTATION View fails`() =
+    runBlocking<Unit> {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.getMeasurement(
+            getMeasurementRequest {
+              externalMeasurementConsumerId = 1L
+              externalMeasurementId = 1L
+              measurementView = Measurement.View.COMPUTATION
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("getMeasurement only supports DEFAULT View")
+    }
+
+  @Test
+  fun `getMeasurement DEFAULT View succeeds`() =
+>>>>>>> 4e998728 (addressed comments)
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -349,7 +371,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           getMeasurementRequest {
             this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
             externalMeasurementId = createdMeasurement.externalMeasurementId
-            measurementView = Measurement.View.COMPUTATION
+            measurementView = Measurement.View.DEFAULT
           }
         )
 
@@ -359,50 +381,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
         )
         .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
-      assertThat(measurement.requisitionsList)
-        .ignoringFields(Requisition.EXTERNAL_REQUISITION_ID_FIELD_NUMBER)
-        .containsExactly(
-          requisition {
-            externalMeasurementId = createdMeasurement.externalMeasurementId
-            this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-            externalComputationId = measurement.externalComputationId
-            this.externalDataProviderId = externalDataProviderId
-            this.externalDataProviderCertificateId = externalDataProviderCertificateId
-            updateTime = createdMeasurement.createTime
-            state = Requisition.State.UNFULFILLED
-            parentMeasurement =
-              parentMeasurement {
-                apiVersion = createdMeasurement.details.apiVersion
-                this.externalMeasurementConsumerCertificateId =
-                  externalMeasurementConsumerCertificateId
-                state = createdMeasurement.state
-              }
-            details = Requisition.Details.getDefaultInstance()
-            duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()
-            duchies["Rippon"] = Requisition.DuchyValue.getDefaultInstance()
-            duchies["Shoaks"] = Requisition.DuchyValue.getDefaultInstance()
-          }
-        )
-
-      // TODO(@SanjayVas): Verify requisition params once SetParticipantRequisitionParams can be
-      // called from this test.
-      // TODO(@SanjayVas): Verify requisition params once FailComputationParticipant can be called
-      // from this test.
-      val templateParticipant = computationParticipant {
-        this.externalMeasurementConsumerId = externalMeasurementConsumerId
-        externalMeasurementId = createdMeasurement.externalMeasurementId
-        externalComputationId = createdMeasurement.externalComputationId
-        updateTime = createdMeasurement.createTime
-        state = ComputationParticipant.State.CREATED
-        details = ComputationParticipant.Details.getDefaultInstance()
-        apiVersion = createdMeasurement.details.apiVersion
-      }
-      assertThat(measurement.computationParticipantsList)
-        .containsExactly(
-          templateParticipant.copy { externalDuchyId = "Buck" },
-          templateParticipant.copy { externalDuchyId = "Rippon" },
-          templateParticipant.copy { externalDuchyId = "Shoaks" }
-        )
     }
 >>>>>>> 14c762a6 (done)
 
