@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.deploy
 import java.net.InetSocketAddress
 import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
+import org.wfanet.measurement.common.grpc.TlsFlags
 import picocli.CommandLine
 import picocli.CommandLine.ITypeConverter
 import picocli.CommandLine.TypeConversionException
@@ -32,6 +33,10 @@ class ExchangeWorkflowFlags {
     required = true
   )
   lateinit var partyType: Party
+    private set
+
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
     private set
 
   @CommandLine.Option(
@@ -53,21 +58,30 @@ class ExchangeWorkflowFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--exchange-steps-service-target"],
-    description = ["Address and port of the Exchange Steps service"],
-    converter = [InetSocketAddressConverter::class],
+    names = ["--task-timeout"],
+    defaultValue = "24h",
+    description = ["How long to sleep between finding and running an ExchangeStep."],
     required = true
   )
-  lateinit var exchangeStepsServiceTarget: InetSocketAddress
+  lateinit var taskTimeout: Duration
     private set
 
   @CommandLine.Option(
-    names = ["--exchange-step-attempts-service-target"],
-    description = ["Address and port of the Exchange Step Attempts service"],
+    names = ["--exchange-api-target"],
+    description =
+      ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
     converter = [InetSocketAddressConverter::class],
     required = true
   )
-  lateinit var exchangeStepAttemptsServiceTarget: InetSocketAddress
+  lateinit var exchangeApiTarget: InetSocketAddress
+    private set
+
+  @CommandLine.Option(
+    names = ["--exchange-api-cert-host"],
+    description = ["Expected hostname in the TLS certificate for --exchange-api-target"],
+    required = true
+  )
+  lateinit var exchangeApiCertHost: String
     private set
 
   private inner class InetSocketAddressConverter : ITypeConverter<InetSocketAddress> {

@@ -56,9 +56,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ExchangeTaskExecutorImplTest",
-    srcs = ["ExchangeTaskExecutorImplTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutorImplTest",
+    name = "ExchangeTaskExecutorTest",
+    srcs = ["ExchangeTaskExecutorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing:ExchangeTaskTesting",
