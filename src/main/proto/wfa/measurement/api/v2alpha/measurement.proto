@@ -18,6 +18,7 @@ package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
+import "wfa/measurement/api/v2alpha/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -92,10 +93,9 @@ message Measurement {
   // Immutable.
   repeated DataProviderEntry data_providers = 6;
 
-  // Resource name of the well-known `ProtocolConfig` selected for
+  // The `ProtocolConfig` selected for this measurement according to the
   // `measurement_spec`. Output-only. Immutable.
-  string protocol_config = 7
-      [(google.api.resource_reference).type = "halo.wfanet.org/ProtocolConfig"];
+  ProtocolConfig protocol_config = 7;
 
   enum State {
     STATE_UNSPECIFIED = 0;

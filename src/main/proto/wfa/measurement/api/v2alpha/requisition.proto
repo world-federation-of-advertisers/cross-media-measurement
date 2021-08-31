@@ -18,6 +18,7 @@ package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/crypto.proto";
+import "wfa/measurement/api/v2alpha/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -54,8 +55,7 @@ message Requisition {
 
   // Denormalized `protocol_config` field from `measurement`. Required.
   // Immutable.
-  string protocol_config = 5
-      [(google.api.resource_reference).type = "halo.wfanet.org/ProtocolConfig"];
+  ProtocolConfig protocol_config = 5;
 
   // Denormalized `data_provider_certificate` field from the corresponding
   // `DataProviderEntry` in `measurement`.  Required. Immutable.

@@ -59,6 +59,9 @@ message ProtocolConfig {
     // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
     // prime256v1 curve. Required. Immutable.
     int32 elliptic_curve_id = 3;
+
+    // The maximum frequency to reveal in the histogram.
+    int32 maximum_frequency = 4;
   }
   // Configuration for the specific protocol. Required. Immutable.
   oneof protocol {

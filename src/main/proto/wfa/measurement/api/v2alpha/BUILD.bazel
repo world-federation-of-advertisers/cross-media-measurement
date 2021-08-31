@@ -53,6 +53,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
+        ":protocol_config_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
@@ -137,6 +138,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":crypto_proto",
+        ":protocol_config_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
