@@ -15,19 +15,14 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.computationParticipant
-import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurement
-import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class MeasurementReader(private val view: Measurement.View) :
@@ -196,10 +191,9 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   fillMeasurementCommon(struct)
 
-  val externalMeasurementId = struct.getLong("ExternalMeasurementId")
-  val externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-  val externalComputationId = struct.getLong("ExternalComputationId")
-  val apiVersion = details.apiVersion
+  val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+  val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+  val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
 
   // Map of external Duchy ID to ComputationParticipant struct.
   val participantStructs: Map<String, Struct> =
@@ -209,68 +203,19 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
     }
 
   for ((externalDuchyId, participantStruct) in participantStructs) {
-    // TODO(@SanjayVas): Share this logic with ComputationParticipantReader once it exists.
     computationParticipants +=
-      computationParticipant {
-        this.externalMeasurementConsumerId = externalMeasurementConsumerId
-        this.externalMeasurementId = externalMeasurementId
-        this.externalDuchyId = externalDuchyId
-        this.externalComputationId = externalComputationId
-        if (!participantStruct.isNull("ExternalDuchyCertificateId")) {
-          externalDuchyCertificateId = participantStruct.getLong("ExternalDuchyCertificateId")
-          // TODO(@SanjayVas): Include denormalized Certificate.
-        }
-        updateTime = participantStruct.getTimestamp("UpdateTime").toProto()
-        state = participantStruct.getProtoEnum("State", ComputationParticipant.State::forNumber)
-        details =
-          participantStruct.getProtoMessage(
-            "ParticipantDetails",
-            ComputationParticipant.Details.parser()
-          )
-        this.apiVersion = apiVersion
-
-        buildFailureLogEntry(
-          externalMeasurementConsumerId,
-          externalMeasurementId,
-          externalDuchyId,
-          participantStruct.getStructList("DuchyMeasurementLogEntries")
-        )
-          ?.let { failureLogEntry = it }
-      }
+      ComputationParticipantReader.buildComputationParticipant(
+        externalMeasurementConsumerId = externalMeasurementConsumerId,
+        externalMeasurementId = externalMeasurementId,
+        externalDuchyId = externalDuchyId,
+        externalComputationId = externalComputationId,
+        measurementDetails = details,
+        struct = participantStruct
+      )
   }
 
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     requisitions +=
       RequisitionReader.buildRequisition(struct, requisitionStruct, participantStructs)
   }
-}
-
-private fun buildFailureLogEntry(
-  externalMeasurementConsumerId: Long,
-  externalMeasurementId: Long,
-  externalDuchyId: String,
-  logEntryStructs: Iterable<Struct>
-): DuchyMeasurementLogEntry? {
-  return logEntryStructs
-    .asSequence()
-    .map { it to it.getProtoMessage("MeasurementLogDetails", MeasurementLogEntry.Details.parser()) }
-    .find { (_, logEntryDetails) -> logEntryDetails.hasError() }
-    ?.let { (struct, logEntryDetails) ->
-      duchyMeasurementLogEntry {
-        logEntry =
-          measurementLogEntry {
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
-            this.externalMeasurementId = externalMeasurementId
-            createTime = struct.getTimestamp("CreateTime").toProto()
-            details = logEntryDetails
-          }
-        this.externalDuchyId = externalDuchyId
-        externalComputationLogEntryId = struct.getLong("ExternalComputationLogEntryId")
-        details =
-          struct.getProtoMessage(
-            "DuchyMeasurementLogDetails",
-            DuchyMeasurementLogEntry.Details.parser()
-          )
-      }
-    }
 }
