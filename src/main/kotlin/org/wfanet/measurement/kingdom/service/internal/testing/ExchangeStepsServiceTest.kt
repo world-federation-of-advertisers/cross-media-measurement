@@ -19,7 +19,7 @@ import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -89,14 +89,11 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
     }
 }
 
-private val DATE: Date =
-  Date.newBuilder()
-    .apply {
-      year = 2021
-      month = 8
-      day = 5
-    }
-    .build()
+private val DATE = date {
+  year = 2021
+  month = 8
+  day = 5
+}
 
 private val RECURRING_EXCHANGE = recurringExchange {
   externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID

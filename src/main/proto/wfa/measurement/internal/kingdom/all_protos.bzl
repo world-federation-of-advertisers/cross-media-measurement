@@ -68,6 +68,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:provider_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_details_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:date_kt_jvm_proto",
 ]
 
 KINGDOM_INTERNAL_PROTOS = KINGDOM_INTERNAL_ENTITY_PROTOS + KINGDOM_INTERNAL_SERVICE_PROTOS
