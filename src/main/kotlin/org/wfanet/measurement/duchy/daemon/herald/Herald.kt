@@ -23,7 +23,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
@@ -51,7 +50,6 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
  * @param systemComputationsClient stub for communicating with the Kingdom's system Computations
  * Service.
  * @param protocolsSetupConfig duchy's local protocolsSetupConfig
- * @param configMaps a map of public Api ProtocolConfigIds to the configs.
  * @param blobStorageBucket blob storage path prefix.
  * @param maxAttempts maximum number of attempts to start a computation.
  */
@@ -59,7 +57,6 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
-  private val configMaps: Map<String, ProtocolConfig>,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 10
 ) {
@@ -150,7 +147,6 @@ class Herald(
             internalComputationsClient,
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2,
-            configMaps,
             blobStorageBucket
           )
         }

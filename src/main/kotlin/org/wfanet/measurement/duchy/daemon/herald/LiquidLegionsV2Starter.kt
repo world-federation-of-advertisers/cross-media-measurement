@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.daemon.herald
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.duchy.daemon.utils.extractDataProviderId
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
@@ -50,7 +49,6 @@ object LiquidLegionsV2Starter {
     computationStorageClient: ComputationsCoroutineStub,
     systemComputation: Computation,
     liquidLegionsV2SetupConfig: LiquidLegionsV2SetupConfig,
-    configMaps: Map<String, ProtocolConfig>,
     blobStorageBucket: String
   ) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
@@ -62,7 +60,7 @@ object LiquidLegionsV2Starter {
           kingdomComputation = systemComputation.toKingdomComputationDetails()
           liquidLegionsV2Builder.apply {
             role = liquidLegionsV2SetupConfig.role
-            parameters = systemComputation.toLiquidLegionsV2Parameters(configMaps)
+            parameters = systemComputation.toLiquidLegionsV2Parameters()
           }
         }
         .build()
@@ -304,28 +302,22 @@ object LiquidLegionsV2Starter {
   }
 
   /** Creates a liquid legions v2 `Parameters` from the system Api computation. */
-  private fun Computation.toLiquidLegionsV2Parameters(
-    configMaps: Map<String, ProtocolConfig>
-  ): Parameters {
-    val publicProtocolConfig =
-      configMaps[protocolConfig] ?: error("ProtocolConfig $protocolConfig not found.")
-    require(publicProtocolConfig.hasLiquidLegionsV2()) {
-      "Missing liquidLegionV2 in the public API protocol config."
-    }
-    require(duchyProtocolConfig.hasLiquidLegionsV2()) {
+  private fun Computation.toLiquidLegionsV2Parameters(): Parameters {
+    require(mpcProtocolConfig.hasLiquidLegionsV2()) {
       "Missing liquidLegionV2 in the duchy protocol config."
     }
+    val llv2Config = mpcProtocolConfig.liquidLegionsV2
 
     return Parameters.newBuilder()
       .also {
-        it.maximumFrequency = duchyProtocolConfig.liquidLegionsV2.maximumFrequency
+        it.maximumFrequency = llv2Config.maximumFrequency
         it.liquidLegionsSketchBuilder.apply {
-          decayRate = publicProtocolConfig.liquidLegionsV2.sketchParams.decayRate
-          size = publicProtocolConfig.liquidLegionsV2.sketchParams.maxSize
+          decayRate = llv2Config.sketchParams.decayRate
+          size = llv2Config.sketchParams.maxSize
         }
         it.noiseBuilder.apply {
           reachNoiseConfigBuilder.apply {
-            val mpcNoise = duchyProtocolConfig.liquidLegionsV2.mpcNoise
+            val mpcNoise = llv2Config.mpcNoise
             blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
             noiseForPublisherNoise =
               mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
@@ -345,7 +337,7 @@ object LiquidLegionsV2Starter {
             Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
           }
         }
-        it.ellipticCurveId = publicProtocolConfig.liquidLegionsV2.ellipticCurveId
+        it.ellipticCurveId = llv2Config.ellipticCurveId
       }
       .build()
   }

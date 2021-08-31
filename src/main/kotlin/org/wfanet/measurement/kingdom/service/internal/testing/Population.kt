@@ -35,11 +35,13 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.protocolConfig
 
 private const val API_VERSION = "v2alpha"
 
@@ -114,7 +116,6 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         this.providedMeasurementId = providedMeasurementId
         externalMeasurementConsumerCertificateId =
           measurementConsumer.certificate.externalCertificateId
-        externalProtocolConfigId = "llv2"
         details =
           MeasurementKt.details {
             apiVersion = API_VERSION
@@ -125,6 +126,10 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             duchyProtocolConfig =
               duchyProtocolConfig {
                 liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+              }
+            protocolConfig =
+              protocolConfig {
+                liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
           }
         for (dataProvider in dataProviders) {

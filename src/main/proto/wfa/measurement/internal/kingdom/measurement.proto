@@ -19,6 +19,7 @@ package wfa.measurement.internal.kingdom;
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
 import "wfa/measurement/internal/kingdom/duchy_protocol_config.proto";
+import "wfa/measurement/internal/kingdom/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -44,10 +45,9 @@ message Measurement {
   string provided_measurement_id = 4;
 
   fixed64 external_measurement_consumer_certificate_id = 5;
-  string external_protocol_config_id = 6;
 
-  google.protobuf.Timestamp create_time = 7;
-  google.protobuf.Timestamp update_time = 8;
+  google.protobuf.Timestamp create_time = 6;
+  google.protobuf.Timestamp update_time = 7;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -80,7 +80,7 @@ message Measurement {
     // Cancelled by Measurement Consumer. Terminal state.
     CANCELLED = 7;
   }
-  State state = 9;
+  State state = 8;
 
   message DataProviderValue {
     fixed64 external_data_provider_certificate_id = 1;
@@ -94,7 +94,7 @@ message Measurement {
   // Map of external DataProvider ID to DataProviderValue.
   //
   // Only set for DEFAULT view.
-  map<fixed64, DataProviderValue> data_providers = 10;
+  map<fixed64, DataProviderValue> data_providers = 9;
 
   message Details {
     // Version the public API for serialized message definitions.
@@ -107,23 +107,25 @@ message Measurement {
     bytes data_provider_list = 4;
     bytes data_provider_list_salt = 5;
 
-    DuchyProtocolConfig duchy_protocol_config = 6;
+    // The protocol config used in this measurement.
+    ProtocolConfig protocol_config = 6;
+    DuchyProtocolConfig duchy_protocol_config = 7;
 
-    bytes aggregator_certificate = 7;
-    bytes result_public_key = 8;
-    bytes encrypted_result = 9;
+    bytes aggregator_certificate = 8;
+    bytes result_public_key = 9;
+    bytes encrypted_result = 10;
   }
-  Details details = 11;
+  Details details = 10;
 
   // Child Requisitions of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated Requisition requisitions = 12;
+  repeated Requisition requisitions = 11;
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated ComputationParticipant computation_participants = 13;
+  repeated ComputationParticipant computation_participants = 12;
 }
 
 message Requisition {
@@ -232,7 +234,8 @@ message Requisition {
     bytes measurement_spec = 3;
     bytes measurement_spec_signature = 4;
 
-    string external_protocol_config_id = 5;
+    // The protocol config used in this measurement.
+    ProtocolConfig protocol_config = 5;
 
     Measurement.State state = 6;
   }

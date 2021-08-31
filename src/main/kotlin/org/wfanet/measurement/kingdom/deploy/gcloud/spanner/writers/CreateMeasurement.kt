@@ -36,11 +36,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
- * Hard-coded fake internal ID for ProtocolConfig.
- *
- * TODO(@wangyaopw): Map this from ProtocolConfigs when it is implemented.
+ * The protocol_config_id column in the measurement table in not used in current design yet. Set the
+ * value 0 for all rows.
  */
-private const val FAKE_PROTOCOL_CONFIG_ID = 0L
+private const val PROTOCOL_CONFIG_ID_DEFAULT_VALUE = 0L
 
 private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PARAMS
 
@@ -111,7 +110,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("ExternalComputationId" to externalComputationId.value)
       set("ProvidedMeasurementId" to measurement.providedMeasurementId)
       set("CertificateId" to measurementConsumerCertificateId.value)
-      set("ProtocolConfigId" to FAKE_PROTOCOL_CONFIG_ID)
+      set("ProtocolConfigId" to PROTOCOL_CONFIG_ID_DEFAULT_VALUE)
       set("State" to INITIAL_MEASUREMENT_STATE)
       set("MeasurementDetails" to measurement.details)
       setJson("MeasurementDetailsJson" to measurement.details)

@@ -22,6 +22,8 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.Exchan
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
@@ -40,8 +42,11 @@ private const val SERVER_NAME = "V2alphaPublicApiServer"
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
-  @CommandLine.Mixin commonServerFlags: CommonServer.Flags
+  @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
+  @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags
 ) {
+  Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
+
   runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
     channel ->
     listOf(
