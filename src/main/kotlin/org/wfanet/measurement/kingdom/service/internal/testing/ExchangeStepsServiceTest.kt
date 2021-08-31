@@ -22,7 +22,6 @@ import com.google.protobuf.ByteString
 import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.lang.IllegalArgumentException
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -273,7 +272,7 @@ abstract class ExchangeStepsServiceTest {
     )
 
     val exception =
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<StatusRuntimeException> {
         exchangeStepsService.getExchangeStep(
           getExchangeStepRequest {
             externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
@@ -288,6 +287,7 @@ abstract class ExchangeStepsServiceTest {
         )
       }
 
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Exchange Step not found.")
   }
 
