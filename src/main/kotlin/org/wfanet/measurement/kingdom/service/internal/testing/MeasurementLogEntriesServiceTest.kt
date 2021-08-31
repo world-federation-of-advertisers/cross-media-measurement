@@ -88,24 +88,19 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
 
   @Test
   fun `createMeasurementLogEntry fails for wrong externalComputationId`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-    val dataProvider = population.createDataProvider(dataProvidersService)
-
-    val measurement =
-      population.createMeasurement(
-        measurementsService,
-        measurementConsumer,
-        "measurement 1",
-        dataProvider
-      )
-
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1234L // WrongID
             externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            measurementLogEntryDetails =
+              MeasurementLogEntryKt.details {
+                error =
+                  MeasurementLogEntryKt.errorDetails {
+                    type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+                  }
+              }
           }
         )
       }
@@ -117,35 +112,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
   @Test
   fun `createMeasurementLogEntry fails for missing Duchy`() = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-    val dataProvider = population.createDataProvider(dataProvidersService)
-
-    val measurement =
-      population.createMeasurement(
-        measurementsService,
-        measurementConsumer,
-        "measurement 1",
-        dataProvider
-      )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        measurementLogEntriesService.createDuchyMeasurementLogEntry(
-          createDuchyMeasurementLogEntryRequest {
-            externalComputationId = measurement.externalComputationId // WrongID
-            externalDuchyId = "wrong duchy id" // WrongID
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Duchy not found")
-  }
-
-  @Test
-  fun `createMeasurementLogEntry fails for PERMENANT error type`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -161,6 +127,29 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = measurement.externalComputationId
+            externalDuchyId = "wrong duchy id" // WrongID
+            measurementLogEntryDetails =
+              MeasurementLogEntryKt.details {
+                error =
+                  MeasurementLogEntryKt.errorDetails {
+                    type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+                  }
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Duchy not found")
+  }
+
+  @Test
+  fun `createMeasurementLogEntry fails for PERMENANT error type`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementLogEntriesService.createDuchyMeasurementLogEntry(
+          createDuchyMeasurementLogEntryRequest {
+            externalComputationId = 1L
             externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
@@ -177,7 +166,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     assertThat(exception)
       .hasMessageThat()
       .contains(
-        "MeasurementLogEntries Service does not support PERMANENT errors, " +
+        "MeasurementLogEntries Service only supports TRANSIENT errors, " +
           "use FailComputationParticipant instead."
       )
   }
@@ -185,7 +174,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
   @Test
   fun `createMeasurementLogEntry succeeds`() = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -222,8 +210,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
 
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
       externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      this.externalComputationLogEntryId =
-        createdDuchyMeasurementLogEntry.externalComputationLogEntryId
+      externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
       logEntry =
         measurementLogEntry {
           this.externalMeasurementId = measurement.externalMeasurementId

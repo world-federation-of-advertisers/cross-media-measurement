@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
@@ -34,13 +35,13 @@ class SpannerMeasurementLogEntriesService(
   override suspend fun createDuchyMeasurementLogEntry(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
-    if (request.measurementLogEntryDetails.error.type ==
-        MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+
+    grpcRequire(
+      request.measurementLogEntryDetails.error.type ==
+        MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
     ) {
-      failGrpc(Status.INVALID_ARGUMENT) {
-        "MeasurementLogEntries Service does not support PERMANENT errors, " +
-          "use FailComputationParticipant instead."
-      }
+      "MeasurementLogEntries Service only supports TRANSIENT errors, " +
+        "use FailComputationParticipant instead."
     }
 
     try {
