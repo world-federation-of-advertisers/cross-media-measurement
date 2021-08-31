@@ -34,6 +34,7 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     SELECT $SELECT_COLUMNS_SQL
     FROM ExchangeStepAttempts
     JOIN RecurringExchanges USING (RecurringExchangeId)
+    JOIN ExchangeSteps USING (RecurringExchangeId, Date, StepIndex)
     """.trimIndent()
 
   override val externalIdColumn: String
@@ -87,7 +88,6 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
       return ExchangeStepAttemptReader().withBuilder {
         appendClause(
           """
-            JOIN ExchangeSteps USING (RecurringExchangeId, Date, StepIndex)
             WHERE ExchangeSteps.State = @exchange_step_state
               AND ExchangeStepAttempts.State = @exchange_step_attempt_state
               AND ExchangeStepAttempts.ExpirationTime <= CURRENT_TIMESTAMP()

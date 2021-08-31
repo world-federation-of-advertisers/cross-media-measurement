@@ -20,6 +20,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.ExchangeStepAttemptsServiceTest
 
@@ -29,7 +35,32 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
   private val clock = Clock.systemUTC()
 
-  override fun newService(idGenerator: IdGenerator): SpannerExchangeStepAttemptsService {
-    return SpannerExchangeStepAttemptsService(clock, idGenerator, spannerDatabase.databaseClient)
+  override fun newExchangeStepAttemptsService(
+    idGenerator: IdGenerator
+  ): ExchangeStepAttemptsCoroutineImplBase {
+    return makeKingdomDataServices(idGenerator).exchangeStepAttemptsService
+  }
+
+  override fun newExchangeStepsService(idGenerator: IdGenerator): ExchangeStepsCoroutineImplBase {
+    return makeKingdomDataServices(idGenerator).exchangeStepsService
+  }
+
+  override fun newRecurringExchangesService(
+    idGenerator: IdGenerator
+  ): RecurringExchangesCoroutineImplBase {
+    return makeKingdomDataServices(idGenerator).recurringExchangesService
+  }
+
+  override fun newDataProvidersService(idGenerator: IdGenerator): DataProvidersCoroutineImplBase {
+    return makeKingdomDataServices(idGenerator).dataProvidersService
+  }
+
+  override fun newModelProvidersService(idGenerator: IdGenerator): ModelProvidersCoroutineImplBase {
+    return makeKingdomDataServices(idGenerator).modelProvidersService
+  }
+
+  private fun makeKingdomDataServices(idGenerator: IdGenerator): KingdomDataServices {
+    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
+      .buildDataServices()
   }
 }
