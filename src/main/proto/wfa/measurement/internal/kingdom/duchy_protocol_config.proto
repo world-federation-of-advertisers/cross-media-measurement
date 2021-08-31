@@ -24,9 +24,6 @@ option java_multiple_files = true;
 // Protocol configuration that need only be known by Duchies.
 message DuchyProtocolConfig {
   message LiquidLegionsV2 {
-    // The maximum frequency to reveal in the histogram.
-    int32 maximum_frequency = 1;
-
     // Configuration for noises added by the MPC workers to protect intermediate
     // results. These noises don't affect the final output.
     message MpcNoise {
@@ -40,7 +37,7 @@ message DuchyProtocolConfig {
       // arbitrary key and count values.
       DifferentialPrivacyParams noise_for_publisher_noise = 2;
     }
-    MpcNoise mpc_noise = 2;
+    MpcNoise mpc_noise = 1;
   }
 
   oneof protocol {

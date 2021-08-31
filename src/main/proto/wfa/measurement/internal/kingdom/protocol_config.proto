@@ -22,6 +22,9 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message ProtocolConfig {
+  // The ID is reserved for future potential usage.
+  // Currently, we directly embed the protocolConfig into `Requisition` and
+  // `Measurement`.
   string external_protocol_config_id = 1;
 
   enum MeasurementType {
@@ -41,6 +44,13 @@ message ProtocolConfig {
     // Each of these registers contains a well-known constant register ID, and
     // arbitrary key and count values.
     DifferentialPrivacyParams data_provider_noise = 2;
+
+    // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
+    // prime256v1 curve. Required. Immutable.
+    int32 elliptic_curve_id = 3;
+
+    // The maximum frequency to reveal in the histogram.
+    int32 maximum_frequency = 4;
   }
 
   // Configuration for the specific protocol.

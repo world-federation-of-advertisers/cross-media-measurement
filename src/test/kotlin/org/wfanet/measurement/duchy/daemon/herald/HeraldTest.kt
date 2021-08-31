@@ -33,7 +33,6 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as publicApiHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
@@ -57,6 +56,10 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -65,37 +68,13 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 private const val EMPTY_TOKEN = ""
 private const val DUCHY_ONE = "BOHEMIA"
 private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
-private val OTHER_DUCHY_NAMES = listOf(DUCHY_TWO, DUCHY_THREE)
-
-private const val PUBLIC_PROTOCOL_CONFIG_NAME_1 = "protocolConfigs/config_1"
-private val PUBLIC_PROTOCOL_CONFIG_1 =
-  ProtocolConfig.newBuilder()
-    .apply {
-      name = PUBLIC_PROTOCOL_CONFIG_NAME_1
-      measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-      liquidLegionsV2Builder.apply {
-        sketchParamsBuilder.apply {
-          decayRate = 12.0
-          maxSize = 100_000L
-          samplingIndicatorSize = 10_000_000L
-        }
-        dataProviderNoiseBuilder.apply {
-          epsilon = 1.0
-          delta = 2.0
-        }
-        ellipticCurveId = 415
-      }
-    }
-    .build()
-
-private val PUBLIC_PROTOCOL_CONFIG_MAP =
-  mapOf(PUBLIC_PROTOCOL_CONFIG_NAME_1 to PUBLIC_PROTOCOL_CONFIG_1)
 
 private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY =
   EncryptionPublicKey.newBuilder()
@@ -128,24 +107,31 @@ private val PUBLIC_API_MEASUREMENT_SPEC =
 private val DATA_PROVIDER_LIST = ByteString.copyFromUtf8("This is a data provider list.")
 private val DATA_PROVIDER_LIST_SALT = ByteString.copyFromUtf8("This is a data provider list salt.")
 
-private val DUCHY_PROTOCOL_CONFIG =
-  Computation.DuchyProtocolConfig.newBuilder()
-    .apply {
-      liquidLegionsV2Builder.apply {
-        maximumFrequency = 10
-        mpcNoiseBuilder.apply {
-          blindedHistogramNoiseBuilder.apply {
-            epsilon = 3.1
-            delta = 3.2
-          }
-          noiseForPublisherNoiseBuilder.apply {
-            epsilon = 4.1
-            delta = 4.2
-          }
+private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
+  liquidLegionsV2 =
+    liquidLegionsV2 {
+      sketchParams =
+        liquidLegionsSketchParams {
+          decayRate = 12.0
+          maxSize = 100_000
         }
-      }
+      mpcNoise =
+        mpcNoise {
+          blindedHistogramNoise =
+            differentialPrivacyParams {
+              epsilon = 3.1
+              delta = 3.2
+            }
+          noiseForPublisherNoise =
+            differentialPrivacyParams {
+              epsilon = 4.1
+              delta = 4.2
+            }
+        }
+      ellipticCurveId = 415
+      maximumFrequency = 10
     }
-    .build()
+}
 
 private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG =
   ProtocolsSetupConfig.newBuilder()
@@ -214,18 +200,12 @@ class HeraldTest {
   @Before
   fun initHerald() {
     aggregatorHerald =
-      Herald(
-        internalComputationsStub,
-        systemComputationsStub,
-        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        PUBLIC_PROTOCOL_CONFIG_MAP
-      )
+      Herald(internalComputationsStub, systemComputationsStub, AGGREGATOR_PROTOCOLS_SETUP_CONFIG)
     nonAggregatorHerald =
       Herald(
         internalComputationsStub,
         systemComputationsStub,
-        NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        PUBLIC_PROTOCOL_CONFIG_MAP
+        NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG
       )
   }
 
@@ -656,7 +636,6 @@ class HeraldTest {
           internalComputationsStub,
           systemComputationsStub,
           NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-          PUBLIC_PROTOCOL_CONFIG_MAP,
           maxAttempts = 2
         )
 
@@ -709,11 +688,10 @@ class HeraldTest {
         it.measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
         it.dataProviderList = DATA_PROVIDER_LIST
         it.dataProviderListSalt = DATA_PROVIDER_LIST_SALT
-        it.protocolConfig = PUBLIC_PROTOCOL_CONFIG_NAME_1
         it.state = stateAtKingdom
         it.addAllRequisitions(systemApiRequisitions)
         it.addAllComputationParticipants(systemComputationParticipant)
-        it.duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
+        it.mpcProtocolConfig = MPC_PROTOCOL_CONFIG
       }
       .build()
   }

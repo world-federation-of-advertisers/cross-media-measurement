@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
-import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.flowOf
@@ -156,7 +155,6 @@ private val INTERNAL_MEASUREMENT =
   InternalMeasurement.newBuilder()
     .apply {
       externalComputationId = EXTERNAL_COMPUTATION_ID
-      externalProtocolConfigId = EXTERNAL_PROTOCOL_CONFIG_ID
       state = InternalMeasurement.State.FAILED
       detailsBuilder.apply {
         apiVersion = PUBLIC_API_VERSION
@@ -164,7 +162,6 @@ private val INTERNAL_MEASUREMENT =
         dataProviderList = DATA_PROVIDER_LIST
         dataProviderListSalt = DATA_PROVIDER_LIST_SALT
         duchyProtocolConfigBuilder.liquidLegionsV2Builder.apply {
-          maximumFrequency = 15
           mpcNoiseBuilder.apply {
             blindedHistogramNoiseBuilder.apply {
               epsilon = 1.1
@@ -175,6 +172,15 @@ private val INTERNAL_MEASUREMENT =
               delta = 4.1
             }
           }
+        }
+        protocolConfigBuilder.liquidLegionsV2Builder.apply {
+          sketchParamsBuilder.apply {
+            decayRate = 10.0
+            maxSize = 100
+            samplingIndicatorSize = 1000
+          }
+          ellipticCurveId = 123
+          maximumFrequency = 12
         }
         aggregatorCertificate = AGGREGATOR_CERTIFICATE
         resultPublicKey = RESULT_PUBLIC_KEY
@@ -213,7 +219,7 @@ class ComputationsServiceTest {
 
     val response = service.getComputation(request)
 
-    ProtoTruth.assertThat(response)
+    assertThat(response)
       .isEqualTo(
         Computation.newBuilder()
           .apply {
@@ -222,13 +228,16 @@ class ComputationsServiceTest {
             measurementSpec = MEASUREMENT_SPEC
             dataProviderList = DATA_PROVIDER_LIST
             dataProviderListSalt = DATA_PROVIDER_LIST_SALT
-            protocolConfig = PROTOCOL_CONFIG_PUBLIC_API_NAME
             state = Computation.State.FAILED
             aggregatorCertificate = AGGREGATOR_CERTIFICATE
             resultPublicKey = RESULT_PUBLIC_KEY
             encryptedResult = ENCRYPTED_RESULT
-            duchyProtocolConfigBuilder.liquidLegionsV2Builder.apply {
-              maximumFrequency = 15
+            mpcProtocolConfigBuilder.liquidLegionsV2Builder.apply {
+              sketchParamsBuilder.apply {
+                decayRate = 10.0
+                maxSize = 100
+              }
+              maximumFrequency = 12
               mpcNoiseBuilder.apply {
                 blindedHistogramNoiseBuilder.apply {
                   epsilon = 1.1
@@ -239,6 +248,8 @@ class ComputationsServiceTest {
                   delta = 4.1
                 }
               }
+              ellipticCurveId = 123
+              maximumFrequency = 12
             }
             addRequisitions(
               Requisition.newBuilder().apply {

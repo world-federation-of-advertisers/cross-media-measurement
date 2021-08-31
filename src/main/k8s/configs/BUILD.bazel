@@ -8,7 +8,7 @@ exports_files(["duchy_rpc_config.textproto"])
 
 exports_files(["duchy_id_config.textproto"])
 
-exports_files(["public_api_protocol_configs.textproto"])
+exports_files(["llv2_protocol_config_config.textproto"])
 
 exports_files(["aggregator_protocols_setup_config.textproto"])
 
@@ -29,9 +29,9 @@ cue_string_field(
 )
 
 cue_string_field(
-    name = "public_api_protocol_configs",
-    src = "public_api_protocol_configs.textproto",
-    identifier = "#PublicApiProtocolConfigs",
+    name = "llv2_protocol_config_config",
+    src = "llv2_protocol_config_config.textproto",
+    identifier = "#Llv2ProtocolConfigConfig",
     package = "k8s",
 )
 
