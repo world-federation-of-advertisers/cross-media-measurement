@@ -38,16 +38,16 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
 
-    val measurementResult =
-      MeasurementReader(Measurement.View.DEFAULT)
+    val existingMeasurement =
+      MeasurementReader(Measurement.View.COMPUTATION)
         .readExternalIdOrNull(transactionContext, ExternalId(request.externalComputationId))
         ?: throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_NOT_FOUND) {
           "Measurement for external computation ID ${request.externalComputationId} not found"
         }
 
-    val measurement = measurementResult.measurement
-    val measurementId = measurementResult.measurementId
-    val measurementConsumerId = measurementResult.measurementConsumerId
+    val measurement = existingMeasurement.measurement
+    val measurementId = existingMeasurement.measurementId
+    val measurementConsumerId = existingMeasurement.measurementConsumerId
 
     val measurementDetails =
       measurement.details.copy {
