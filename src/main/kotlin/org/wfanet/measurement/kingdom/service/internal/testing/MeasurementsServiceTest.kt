@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -236,20 +237,19 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .build()
 
     val createdMeasurement = measurementsService.createMeasurement(measurement)
+
     assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
     assertThat(createdMeasurement.externalComputationId).isNotEqualTo(0L)
     assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
     assertThat(createdMeasurement.updateTime).isEqualTo(createdMeasurement.createTime)
-    assertThat(createdMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     assertThat(createdMeasurement)
       .ignoringFields(
         Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
         Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
         Measurement.CREATE_TIME_FIELD_NUMBER,
         Measurement.UPDATE_TIME_FIELD_NUMBER,
-        Measurement.STATE_FIELD_NUMBER
       )
-      .isEqualTo(measurement)
+      .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
   }
 
   @Test
@@ -273,6 +273,38 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val createdMeasurement = measurementsService.createMeasurement(measurement)
     val secondCreateMeasurementAttempt = measurementsService.createMeasurement(measurement)
     assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
+  }
+
+  @Test
+  fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val dataProvider = insertDataProvider()
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        measurement {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          dataProviders[dataProvider.externalDataProviderId] =
+            dataProviderValue {
+              externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+              dataProviderPublicKey = dataProvider.details.publicKey
+              dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
+              encryptedRequisitionSpec = ByteString.copyFromUtf8("encrypted RequisitionSpec")
+            }
+        }
+      )
+
+    val measurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = createdMeasurement.externalComputationId
+        }
+      )
+
+    assertThat(measurement).isEqualTo(createdMeasurement)
   }
 
   @Test
