@@ -59,6 +59,9 @@ class SpannerMeasurementsService(
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
+    grpcRequire(request.measurementView == Measurement.View.DEFAULT) {
+      "getMeasurement only supports DEFAULT View"
+    }
     return MeasurementReader(request.measurementView)
       .readByExternalIdsOrNull(
         client.singleUse(),

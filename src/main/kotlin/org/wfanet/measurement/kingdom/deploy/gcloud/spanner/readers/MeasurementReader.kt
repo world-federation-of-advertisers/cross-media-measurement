@@ -68,7 +68,7 @@ class MeasurementReader(private val view: Measurement.View) :
     return this.withBuilder {
         appendClause(
           """
-          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId 
+          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
             AND ExternalMeasurementId = @externalMeasurementId
           """
         )
