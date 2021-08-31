@@ -40,7 +40,6 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -50,7 +49,6 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
   private val externalDataProviderId: String,
-  private val protocolConfigMap: Map<String, ProtocolConfig>,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
@@ -128,15 +126,10 @@ class RequisitionFulfillmentWorkflow(
     //                measurementSpec and reqSpec of the requisition
     //                and then sign the uplaoded sketch
 
-    val protoConfig = protocolConfigMap.get(requisition.protocolConfig) ?: return
-    require(protoConfig.hasLiquidLegionsV2()) {
-      "Missing liquidLegionV2 in the public API protocol config."
-    }
-
     val combinedPublicKey =
-      requisition.getCombinedPublicKey(protoConfig.liquidLegionsV2.ellipticCurveId)
+      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
 
-    val sketchConfig = protoConfig.liquidLegionsV2.sketchParams.toSketchConfig()
+    val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
 
     val sketch = generateSketch(sketchConfig)
 

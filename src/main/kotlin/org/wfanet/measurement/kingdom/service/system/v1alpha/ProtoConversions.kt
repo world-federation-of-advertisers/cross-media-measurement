@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
@@ -26,9 +25,14 @@ import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry.StageAtt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
+import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntryKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -165,11 +169,6 @@ fun InternalMeasurement.toSystemComputation(): Computation {
       it.measurementSpec = details.measurementSpec
       it.dataProviderList = details.dataProviderList
       it.dataProviderListSalt = details.dataProviderListSalt
-      it.protocolConfig =
-        when (Version.fromString(details.apiVersion)) {
-          Version.V2_ALPHA -> ProtocolConfigKey(externalProtocolConfigId).toName()
-          Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-        }
       it.state = state.toSystemComputationState()
       it.aggregatorCertificate = details.aggregatorCertificate
       it.resultPublicKey = details.resultPublicKey
@@ -184,28 +183,50 @@ fun InternalMeasurement.toSystemComputation(): Computation {
           requisition.toSystemRequisition(Version.fromString(details.apiVersion))
         }
       )
-      it.duchyProtocolConfig = details.duchyProtocolConfig.toSystemDuchyProtocolConfig()
+      it.mpcProtocolConfig =
+        buildMpcProtocolConfig(details.duchyProtocolConfig, details.protocolConfig)
     }
     .build()
 }
 
-/** Converts a kingdom internal Requisition.State to system Api Requisition.State. */
-fun InternalDuchyProtocolConfig.toSystemDuchyProtocolConfig(): Computation.DuchyProtocolConfig {
-  return Computation.DuchyProtocolConfig.newBuilder()
-    .also {
-      if (hasLiquidLegionsV2()) {
-        it.liquidLegionsV2Builder.apply {
-          maximumFrequency = liquidLegionsV2.maximumFrequency
-          mpcNoiseBuilder.apply {
-            blindedHistogramNoise =
-              liquidLegionsV2.mpcNoise.blindedHistogramNoise.toSystemDifferentialPrivacyParams()
-            noiseForPublisherNoise =
-              liquidLegionsV2.mpcNoise.noiseForPublisherNoise.toSystemDifferentialPrivacyParams()
+/**
+ * Builds a [Computation.MpcProtocolConfig] using the [InternalDuchyProtocolConfig] and
+ * [InternalProtocolConfig].
+ */
+fun buildMpcProtocolConfig(
+  duchyProtocolConfig: InternalDuchyProtocolConfig,
+  protocolConfig: InternalProtocolConfig
+): Computation.MpcProtocolConfig {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (duchyProtocolConfig.protocolCase) {
+    InternalDuchyProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 -> {
+      require(protocolConfig.hasLiquidLegionsV2()) {
+        "Public API ProtocolConfig type doesn't match DuchyProtocolConfig type."
+      }
+      mpcProtocolConfig {
+        liquidLegionsV2 =
+          liquidLegionsV2 {
+            sketchParams =
+              liquidLegionsSketchParams {
+                decayRate = protocolConfig.liquidLegionsV2.sketchParams.decayRate
+                maxSize = protocolConfig.liquidLegionsV2.sketchParams.maxSize
+              }
+            mpcNoise =
+              mpcNoise {
+                blindedHistogramNoise =
+                  duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
+                    .toSystemDifferentialPrivacyParams()
+                noiseForPublisherNoise =
+                  duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
+                    .toSystemDifferentialPrivacyParams()
+              }
+            ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
+            maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
           }
-        }
       }
     }
-    .build()
+    InternalDuchyProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol not set")
+  }
 }
 
 /**

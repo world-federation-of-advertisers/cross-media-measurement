@@ -176,7 +176,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
         data = parentMeasurement.measurementSpec
         signature = parentMeasurement.measurementSpecSignature
       }
-    protocolConfig = parentMeasurement.externalProtocolConfigId
+    protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
     dataProviderCertificate =

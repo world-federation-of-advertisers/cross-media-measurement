@@ -8,7 +8,7 @@ CUE_LIBRARIES = [
     "//src/main/k8s/configs:non_aggregator_protocols_setup_config.cue",
     "//src/main/k8s/configs:duchy_rpc_config.cue",
     "//src/main/k8s/configs:duchy_id_config.cue",
-    "//src/main/k8s/configs:public_api_protocol_configs.cue",
+    "//src/main/k8s/configs:llv2_protocol_config_config.cue",
     "base.cue",
     "duchy.cue",
     "kingdom.cue",

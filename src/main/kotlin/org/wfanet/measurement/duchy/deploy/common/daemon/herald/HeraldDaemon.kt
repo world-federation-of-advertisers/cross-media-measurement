@@ -25,7 +25,6 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
@@ -75,14 +74,6 @@ private class Flags {
   )
   lateinit var protocolsSetupConfig: String
     private set
-
-  @CommandLine.Option(
-    names = ["--public-api-protocol-configs"],
-    description = ["PublicApiProtocolConfigs proto message in text format."],
-    required = true
-  )
-  lateinit var publicApiProtocolConfigs: String
-    private set
 }
 
 @CommandLine.Command(
@@ -120,13 +111,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-        },
-      configMaps =
-        flags
-          .publicApiProtocolConfigs
-          .reader()
-          .use { parseTextProto(it, PublicApiProtocolConfigs.getDefaultInstance()) }
-          .configsMap
+        }
     )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }

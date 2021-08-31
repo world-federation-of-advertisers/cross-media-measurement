@@ -40,7 +40,6 @@ package k8s
 						"--tls-cert-file=/var/run/secrets/files/\(_edp_display_name)_tls.pem",
 						"--tls-key-file=/var/run/secrets/files/\(_edp_display_name)_tls.key",
 						"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-						"--public-api-protocol-configs=" + #PublicApiProtocolConfigs,
 						"--data-provider-resource-name=\(_edp_resource_name)",
 						"--measurement-consumer-resource-name=\(_mc_resource_name)",
 						"--kingdom-public-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,

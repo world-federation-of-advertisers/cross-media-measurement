@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -43,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdReq
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -401,6 +403,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           measurementSpec = measurement.details.measurementSpec
           measurementSpecSignature = measurement.details.measurementSpecSignature
           state = Measurement.State.PENDING_REQUISITION_PARAMS
+          protocolConfig =
+            protocolConfig { liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance() }
         }
     }
     assertThat(requisition)

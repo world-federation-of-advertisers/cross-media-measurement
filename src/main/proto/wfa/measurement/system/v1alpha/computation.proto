@@ -46,10 +46,6 @@ message Computation {
   // Salt for SHA256 hash of `data_provider_list`. Required. Immutable.
   bytes data_provider_list_salt = 5;
 
-  // Resource name of `ProtocolConfig` from the public API.
-  string protocol_config = 6
-      [(google.api.resource_reference).type = "halo.wfanet.org/ProtocolConfig"];
-
   // State of a `Computation`.
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -83,32 +79,40 @@ message Computation {
     CANCELLED = 7;
   }
   // State of this `Computation`. Output-only.
-  State state = 7;
+  State state = 6;
 
   // X.509 certificate in DER format which can be verified using the
   // Aggregator's root certificate. Must be set if `state` is `SUCCEEDED`.
-  bytes aggregator_certificate = 8;
+  bytes aggregator_certificate = 7;
 
   // Serialized `EncryptionPublicKey` message from the public API. Must be set
   // if `state` is `SUCCEEDED`.
-  bytes result_public_key = 9;
+  bytes result_public_key = 8;
 
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`. Must be set if `state` is `SUCCEEDED`.
-  bytes encrypted_result = 10;
+  bytes encrypted_result = 9;
 
   // Denormalized child `ComputationParticipant` resources. Output-only.
-  repeated ComputationParticipant computation_participants = 11;
+  repeated ComputationParticipant computation_participants = 10;
 
   // Denormalized child `Requisition` resources. Output-only.
-  repeated Requisition requisitions = 12;
+  repeated Requisition requisitions = 11;
 
-  // Protocol configuration that need only be known by Duchies.
-  message DuchyProtocolConfig {
+  // MPC Protocol configuration that need to be known by Duchies.
+  message MpcProtocolConfig {
+    // Configuration for the Liquid Legions v2 R/F protocol.
     message LiquidLegionsV2 {
-      // The maximum frequency to reveal in the histogram.
-      int32 maximum_frequency = 1;
+      // Parameters for a Liquid Legions sketch.
+      message LiquidLegionsSketchParams {
+        // The decay rate of the Liquid Legions sketch.
+        double decay_rate = 1;
+
+        // The maximum size of the Liquid Legions sketch.
+        int64 max_size = 2;
+      }
+      LiquidLegionsSketchParams sketch_params = 1;
 
       // Configuration for noises added by the MPC workers to protect
       // intermediate results. These noises don't affect the final output.
@@ -124,11 +128,22 @@ message Computation {
         DifferentialPrivacyParams noise_for_publisher_noise = 2;
       }
       MpcNoise mpc_noise = 2;
+
+      // ID of the OpenSSL built-in elliptic curve. For example, 415 for the
+      // prime256v1 curve. Required. Immutable.
+      int32 elliptic_curve_id = 3;
+
+      // The maximum frequency to reveal in the histogram.
+      int32 maximum_frequency = 4;
     }
 
+    // Configuration for the specific protocol.
     oneof protocol {
+      // Liquid Legions v2 config.
+      //
+      // May only be set when the measurement type is REACH_AND_FREQUENCY.
       LiquidLegionsV2 liquid_legions_v2 = 1;
     }
   }
-  DuchyProtocolConfig duchy_protocol_config = 13;
+  MpcProtocolConfig mpc_protocol_config = 13;
 }

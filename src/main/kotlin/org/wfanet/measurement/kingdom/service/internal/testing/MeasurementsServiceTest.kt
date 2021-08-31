@@ -41,12 +41,14 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -320,7 +322,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val createdMeasurement =
         measurementsService.createMeasurement(
           measurement {
-            details = MeasurementKt.details { apiVersion = "v2alpha" }
+            details =
+              MeasurementKt.details {
+                apiVersion = "v2alpha"
+                protocolConfig =
+                  protocolConfig {
+                    measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+                  }
+              }
             this.externalMeasurementConsumerId = externalMeasurementConsumerId
             this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
             dataProviders[externalDataProviderId] =
@@ -362,6 +371,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 this.externalMeasurementConsumerCertificateId =
                   externalMeasurementConsumerCertificateId
                 state = createdMeasurement.state
+                protocolConfig =
+                  protocolConfig {
+                    measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+                  }
               }
             details = Requisition.Details.getDefaultInstance()
             duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()

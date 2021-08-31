@@ -167,8 +167,6 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   updateTime = struct.getTimestamp("UpdateTime").toProto()
   state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
   details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-  // TODO(@wangyaopw): Map external protocol config ID from ProtocolConfigs after it is
-  // implemented.
 }
 
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
