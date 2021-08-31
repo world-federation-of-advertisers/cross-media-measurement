@@ -1,0 +1,11 @@
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//:__subpackages__"])
+
+kt_jvm_proto_library(
+    name = "date_kt_jvm_proto",
+    srcs = ["@com_google_googleapis//google/type:date_proto"],
+    deps = [
+        "@com_google_googleapis//google/type:type_java_proto",
+    ],
+)
