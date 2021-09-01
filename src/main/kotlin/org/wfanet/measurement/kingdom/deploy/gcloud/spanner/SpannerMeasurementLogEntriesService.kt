@@ -23,7 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
@@ -36,10 +36,7 @@ class SpannerMeasurementLogEntriesService(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
 
-    grpcRequire(
-      request.measurementLogEntryDetails.error.type ==
-        MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-    ) {
+    grpcRequire(request.measurementLogEntryDetails.error.type == TRANSIENT) {
       "MeasurementLogEntries Service only supports TRANSIENT errors, " +
         "use FailComputationParticipant instead."
     }
