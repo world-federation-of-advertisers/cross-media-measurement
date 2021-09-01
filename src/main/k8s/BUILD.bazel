@@ -13,6 +13,7 @@ CUE_LIBRARIES = [
     "duchy.cue",
     "kingdom.cue",
     "frontend_simulator.cue",
+    "edp_simulator.cue",
     "resource_setup.cue",
 ]
 

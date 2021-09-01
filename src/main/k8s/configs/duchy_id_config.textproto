@@ -2,13 +2,13 @@
 # proto-message: DuchyIdConfig
 duchies {
   external_duchy_id: "aggregator"
-  internal_duchy_id: 1234L
+  internal_duchy_id: 1234
 }
 duchies {
   duchy_id: "worker-1"
-  internal_duchy_id: 2345L
+  internal_duchy_id: 2345
 }
 duchies {
   duchy_id: "worker-2"
-  internal_duchy_id: 3456L
+  internal_duchy_id: 3456
 }

@@ -86,6 +86,11 @@ GKE_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:gcs_frontend_simulator_runner_image",
         repository = _PREFIX + "/loadtest/frontend-simulator",
     ),
+    struct(
+        name = "gcs_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:gcs_edp_simulator_runner_image",
+        repository = _PREFIX + "/loadtest/edp-simulator",
+    ),
 ]
 
 # List of image build rules that are only used locally (e.g. in Kind).
@@ -105,6 +110,10 @@ LOCAL_IMAGES = [
     struct(
         name = "forwarded_storage_frontend_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image",
+    ),
+    struct(
+        name = "forwarded_storage_edp_simulator_runner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image",
     ),
     struct(
         name = "fake_storage_server_image",

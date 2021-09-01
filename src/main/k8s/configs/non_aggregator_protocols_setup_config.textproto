@@ -2,4 +2,5 @@
 # proto-message: ProtocolsSetupConfig
 liquid_legions_v2 {
   role: NON_AGGREGATOR
+  external_aggregator_duchy_id: "aggregator"
 }
