@@ -14,117 +14,171 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-// TODO(@uakyol) : Let CertificateReader be initialized with GetCertificateRequest.ParentCase
-// TODO(@uakyol) : CertificateReader should extend BaseSpannerReader, not use readExternalIdOrNull
-class CertificateReader(private val request: GetCertificateRequest) :
-  SpannerReader<CertificateReader.Result>() {
+class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<Certificate>() {
+  enum class ParentType(private val prefix: String) {
+    DATA_PROVIDER("DataProvider"),
+    MEASUREMENT_CONSUMER("MeasurementConsumer"),
+    DUCHY("Duchy");
 
-  data class Result(val certificate: Certificate, val certificateId: Long)
+    val idColumnName: String = "${prefix}Id"
+    val externalCertificateIdColumnName: String = "External${prefix}CertificateId"
+    val certificatesTableName: String = "${prefix}Certificates"
 
-  private val tableName: String =
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
-    }
-
-  override val externalIdColumn: String =
-    "${tableName}Certificates.External${tableName}CertificateId"
-
-  override suspend fun translate(struct: Struct): Result =
-    Result(buildCertificate(struct), struct.getLong("CertificateId"))
-
-  override val baseSql: String = constructBaseSql(request)
-
-  private fun constructBaseSql(request: GetCertificateRequest): String {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    return when (request.parentCase) {
-      GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> getConfigBaseSql(tableName)
-      GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> getTableBaseSql(tableName)
-      GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-        getTableBaseSql(tableName)
-      GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-        throw IllegalArgumentException("Parent field of GetCertificateRequest is not set")
-    }
-  }
-
-  private fun populateExternalId(
-    certificateBuilder: Certificate.Builder,
-    struct: Struct
-  ): Certificate {
-    val externalResourceIdColumn = "External${tableName}Id"
-    return certificateBuilder
-      .apply {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (request.parentCase) {
-          GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-            externalDataProviderId = struct.getLong(externalResourceIdColumn)
-          GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-            externalMeasurementConsumerId = struct.getLong(externalResourceIdColumn)
-          GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
-            externalDuchyId = DuchyIds.getExternalId(struct.getLong("DuchyId"))
-          GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
-            error("Parent field of GetCertificateRequest is not set")
+    val externalIdColumnName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER -> "External${prefix}Id"
+          DUCHY -> null
         }
-      }
-      .build()
+
+    val tableName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER -> "${prefix}s"
+          DUCHY -> null
+        }
   }
 
-  private fun buildCertificate(struct: Struct): Certificate {
-    val certificateBuilder =
-      Certificate.newBuilder().apply {
-        externalCertificateId = struct.getLong("External${tableName}CertificateId")
-        subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
-        notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
-        notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
-        revocationState =
-          struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
-        details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
+  override val builder: Statement.Builder = Statement.newBuilder(buildBaseSql(parentType))
+
+  /** Fills [builder], returning this [CertificateReader] for chaining. */
+  fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): CertificateReader {
+    builder.fill()
+    return this
+  }
+
+  fun bindWhereClause(parentId: InternalId, externalCertificateId: ExternalId): CertificateReader {
+    return fillStatementBuilder {
+      appendClause(
+        """
+        WHERE
+          ${parentType.idColumnName} = @parentId
+          AND ${parentType.externalCertificateIdColumnName} = @externalCertificateId
+        """.trimIndent()
+      )
+      bind("parentId" to parentId.value)
+      bind("externalCertificateId" to externalCertificateId.value)
+    }
+  }
+
+  fun bindWhereClause(
+    externalParentId: ExternalId,
+    externalCertificateId: ExternalId
+  ): CertificateReader {
+    return fillStatementBuilder {
+      appendClause(
+        """
+        WHERE
+          ${parentType.externalIdColumnName} = @externalParentId
+          AND ${parentType.externalCertificateIdColumnName} = @externalCertificateId
+        """.trimIndent()
+      )
+      bind("externalParentId" to externalParentId.value)
+      bind("externalCertificateId" to externalCertificateId.value)
+    }
+  }
+
+  override suspend fun translate(struct: Struct): Certificate {
+    return when (parentType) {
+      ParentType.DATA_PROVIDER -> buildDataProviderCertificate(struct)
+      ParentType.MEASUREMENT_CONSUMER -> buildMeasurementConsumerCertificate(struct)
+      ParentType.DUCHY -> {
+        val duchyId = struct.getLong("DuchyId")
+        val externalDuchyId =
+          checkNotNull(DuchyIds.getExternalId(duchyId)) {
+            "Duchy with internal ID $duchyId not found"
+          }
+        buildDuchyCertificate(externalDuchyId, struct)
       }
-    return populateExternalId(certificateBuilder, struct)
+    }
   }
 
   companion object {
+    private fun buildBaseSql(parentType: ParentType): String {
+      return when (parentType) {
+        ParentType.DATA_PROVIDER, ParentType.MEASUREMENT_CONSUMER -> buildExternalIdSql(parentType)
+        ParentType.DUCHY -> buildInternalIdSql(parentType)
+      }
+    }
 
-    private fun getTableBaseSql(tableName: String) =
-      """SELECT
-            ${tableName}Certificates.CertificateId,
-            Certificates.SubjectKeyIdentifier,
-            Certificates.NotValidBefore,
-            Certificates.NotValidAfter,
-            Certificates.RevocationState,
-            Certificates.CertificateDetails,
-            ${tableName}Certificates.External${tableName}CertificateId,
-            ${tableName}Certificates.${tableName}Id,
-            ${tableName}s.External${tableName}Id
-          FROM ${tableName}Certificates
-          JOIN ${tableName}s USING (${tableName}Id)
-          JOIN Certificates USING (CertificateId)
-          """.trimIndent()
+    /** Builds base SQL when only external ID of parent is known. */
+    private fun buildExternalIdSql(parentType: ParentType): String =
+      """
+      SELECT
+        CertificateId,
+        SubjectKeyIdentifier,
+        NotValidBefore,
+        NotValidAfter,
+        RevocationState,
+        CertificateDetails,
+        ${parentType.externalCertificateIdColumnName},
+        ${parentType.externalIdColumnName!!}
+      FROM
+        ${parentType.certificatesTableName}
+        JOIN ${parentType.tableName!!} USING (${parentType.idColumnName})
+        JOIN Certificates USING (CertificateId)
+      """.trimIndent()
 
-    private fun getConfigBaseSql(tableName: String) =
-      """SELECT
-              ${tableName}Certificates.CertificateId,
-              Certificates.SubjectKeyIdentifier,
-              Certificates.NotValidBefore,
-              Certificates.NotValidAfter,
-              Certificates.RevocationState,
-              Certificates.CertificateDetails,
-              ${tableName}Certificates.External${tableName}CertificateId,
-              ${tableName}Certificates.${tableName}Id,
-            FROM ${tableName}Certificates
-            JOIN Certificates USING (CertificateId)
-            """.trimIndent()
+    /** Builds base SQL when internal ID of parent is known. */
+    private fun buildInternalIdSql(parentType: ParentType): String =
+      """
+      SELECT
+        CertificateId,
+        SubjectKeyIdentifier,
+        NotValidBefore,
+        NotValidAfter,
+        RevocationState,
+        CertificateDetails,
+        ${parentType.externalCertificateIdColumnName},
+        ${parentType.idColumnName}
+      FROM
+        ${parentType.certificatesTableName}
+        JOIN Certificates USING (CertificateId)
+      """.trimIndent()
+
+    private fun buildDataProviderCertificate(struct: Struct) = certificate {
+      fillCommon(struct)
+
+      val parentType = ParentType.DATA_PROVIDER
+      externalDataProviderId = struct.getLong(parentType.externalIdColumnName)
+      externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
+    }
+
+    private fun buildMeasurementConsumerCertificate(struct: Struct) = certificate {
+      fillCommon(struct)
+
+      val parentType = ParentType.MEASUREMENT_CONSUMER
+      externalMeasurementConsumerId = struct.getLong(parentType.externalIdColumnName)
+      externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
+    }
+
+    fun buildDuchyCertificate(externalDuchyId: String, struct: Struct) = certificate {
+      fillCommon(struct)
+      this.externalDuchyId = externalDuchyId
+      externalCertificateId = struct.getLong("ExternalDuchyCertificateId")
+    }
+
+    private fun CertificateKt.Dsl.fillCommon(struct: Struct) {
+      subjectKeyIdentifier = struct.getBytesAsByteString("SubjectKeyIdentifier")
+      notValidBefore = struct.getTimestamp("NotValidBefore").toProto()
+      notValidAfter = struct.getTimestamp("NotValidAfter").toProto()
+      revocationState =
+        struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
+      details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
+    }
   }
 }

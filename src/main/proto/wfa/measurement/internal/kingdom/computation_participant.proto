@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/certificate.proto";
 import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -29,9 +30,7 @@ message ComputationParticipant {
 
   fixed64 external_computation_id = 4;
 
-  fixed64 external_duchy_certificate_id = 5;
-
-  google.protobuf.Timestamp update_time = 6;
+  google.protobuf.Timestamp update_time = 5;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -52,7 +51,7 @@ message ComputationParticipant {
     // The parent `Measurement` will be in the `FAILED` state.
     FAILED = 4;
   }
-  State state = 7;
+  State state = 6;
 
   message LiquidLegionsV2Details {
     // Serialized `ElGamalPublicKey` message from public API.
@@ -65,12 +64,17 @@ message ComputationParticipant {
       LiquidLegionsV2Details liquid_legions_v2 = 1;
     }
   }
-  Details details = 8;
+  Details details = 7;
 
-  DuchyMeasurementLogEntry failure_log_entry = 9;
+  DuchyMeasurementLogEntry failure_log_entry = 8;
 
   // Version of the public API for serialized message definitions as well as
   // resource names, which is denormalized from the parent Measurement.
   // Output-only.
-  string api_version = 10;
+  string api_version = 9;
+
+  // Denormalized Duchy Certificate. Output-only.
+  //
+  // This is part of the ComputationParticipant's requisition params.
+  Certificate duchy_certificate = 10;
 }

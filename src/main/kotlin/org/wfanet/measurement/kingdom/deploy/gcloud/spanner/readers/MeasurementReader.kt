@@ -129,6 +129,11 @@ class MeasurementReader(private val view: Measurement.View) :
           ComputationParticipants.UpdateTime,
           ComputationParticipants.State,
           ComputationParticipants.ParticipantDetails,
+          Certificates.SubjectKeyIdentifier,
+          Certificates.NotValidBefore,
+          Certificates.NotValidAfter,
+          Certificates.RevocationState,
+          Certificates.CertificateDetails,
           ARRAY(
             SELECT AS STRUCT
               DuchyMeasurementLogEntries.CreateTime,
@@ -143,7 +148,8 @@ class MeasurementReader(private val view: Measurement.View) :
           ) AS DuchyMeasurementLogEntries
         FROM
           ComputationParticipants
-          LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
+          LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
+            USING (DuchyId, CertificateId)
         WHERE
           ComputationParticipants.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND ComputationParticipants.MeasurementId = Measurements.MeasurementId
