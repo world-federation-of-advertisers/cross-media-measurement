@@ -27,6 +27,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
+
 /**
  * Sets participant details for a computationPartcipant in the database.
  *
