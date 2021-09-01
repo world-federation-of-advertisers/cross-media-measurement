@@ -163,12 +163,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains(
-        "MeasurementLogEntries Service only supports TRANSIENT errors, " +
-          "use FailComputationParticipant instead."
-      )
   }
 
   @Test
