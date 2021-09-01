@@ -19,7 +19,9 @@ import java.io.Serializable
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.BucketId
+import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptQueriesResponse
+import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.QueryId
@@ -32,8 +34,22 @@ import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 /** Used for testing CreateQueriesWorkflow (eg reversing some of the operations) */
 interface PrivateMembershipCryptorHelper : Serializable {
 
-  /** Takes a list of pairs of (QueryId, Plaintext) and returns an encrypted list of ByteString */
-  fun makeEncryptedResults(plaintexts: List<Pair<Int, String>>): List<EncryptedQueryResult>
+  /**
+   * Takes a list of pairs of [EncryptedEventData] and returns an encrypted list of
+   * [EncryptedQueryResult]
+   */
+  fun makeEncryptedQueryResults(
+    encryptedEventData: List<EncryptedEventData>
+  ): List<EncryptedQueryResult>
+
+  /**
+   * Takes a list [DecryptedEventData] and a list of pairs of (QueryId, ByteString) and returns an
+   * encrypted list of [EncryptedEventData]
+   */
+  fun makeEncryptedEventData(
+    plaintexts: List<DecryptedEventData>,
+    joinkeys: List<Pair<Int, String>>
+  ): List<EncryptedEventData>
 
   /**
    * Takes an [EncryptQueriesResponse] and reverses the process to yield the underlying decrypted

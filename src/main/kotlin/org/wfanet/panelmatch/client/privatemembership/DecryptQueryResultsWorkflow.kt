@@ -16,7 +16,11 @@ package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.protobuf.ByteString
 import java.io.Serializable
+import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.panelmatch.common.beam.join
+import org.wfanet.panelmatch.common.beam.keyBy
+import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.parDo
 
 /**
@@ -28,7 +32,8 @@ import org.wfanet.panelmatch.common.beam.parDo
  */
 class DecryptQueryResultsWorkflow(
   private val obliviousQueryParameters: Parameters,
-  private val privateMembershipCryptor: PrivateMembershipCryptor
+  private val symmetricPrivateMembershipCryptor: SymmetricPrivateMembershipCryptor,
+  private val hkdfPepper: ByteString,
 ) : Serializable {
 
   /** Tuning knobs for the [CreateQueriesWorkflow]. */
@@ -37,21 +42,37 @@ class DecryptQueryResultsWorkflow(
     val publicKey: ByteString,
     val privateKey: ByteString
   ) : Serializable
-
-  /** Creates [EncryptQueriesResponse] on [data]. TODO remove AES encryption */
+  //
+  /**
+   * Decrypts [EncryptedQueryResult] into [DecryptedEventData]. Currently assumes that each
+   * [QueryId] is unique across each [PCollection] and that each [QueryId] uniquely maps to a single
+   * [JoinKey].
+   */
   fun batchDecryptQueryResults(
-    encryptedQueryResults: PCollection<EncryptedQueryResult>
-  ): PCollection<DecryptedQueryResult> {
-    return encryptedQueryResults.parDo(name = "Decrypt encrypted results") { encryptedQueryResult ->
-      val decryptQueryResultsRequest = decryptQueriesRequest {
-        parameters = obliviousQueryParameters.obliviousQueryParameters
-        publicKey = obliviousQueryParameters.publicKey
-        privateKey = obliviousQueryParameters.privateKey
-        this.encryptedQueryResults += encryptedQueryResult
+    encryptedQueryResults: PCollection<EncryptedQueryResult>,
+    queryIdToJoinKey: PCollection<KV<QueryId, JoinKey>>
+  ): PCollection<DecryptedEventData> {
+    return encryptedQueryResults
+      .keyBy<EncryptedQueryResult, QueryId>("Key by Query Id") { requireNotNull(it.queryId) }
+      .join<QueryId, EncryptedQueryResult, JoinKey, KV<JoinKey, EncryptedQueryResult>>(
+        queryIdToJoinKey
+      ) {
+        _: QueryId,
+        encryptedQueryResultsList: Iterable<EncryptedQueryResult>,
+        joinKeys: Iterable<JoinKey> ->
+        yield(kvOf(joinKeys.single(), encryptedQueryResultsList.single()))
       }
-      val decryptedResults =
-        privateMembershipCryptor.decryptQueryResults(decryptQueryResultsRequest)
-      yieldAll(decryptedResults.decryptedQueryResultsList)
-    }
+      .parDo(name = "Decrypt encrypted results") {
+        val request = symmetricDecryptQueriesRequest {
+          singleBlindedJoinkey = it.key
+          this.encryptedQueryResults += it.value
+          parameters = obliviousQueryParameters.obliviousQueryParameters
+          publicKey = obliviousQueryParameters.publicKey
+          privateKey = obliviousQueryParameters.privateKey
+          this.hkdfPepper = hkdfPepper
+        }
+        val decryptedResults = symmetricPrivateMembershipCryptor.decryptQueryResults(request)
+        yieldAll(decryptedResults.decryptedEventDataList)
+      }
   }
 }

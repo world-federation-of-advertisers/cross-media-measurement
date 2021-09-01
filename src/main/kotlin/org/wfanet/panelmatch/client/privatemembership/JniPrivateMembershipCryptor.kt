@@ -86,7 +86,9 @@ class JniPrivateMembershipCryptor(private val clientParameters: ClientParameters
       metadata = clientResponse.encryptedQueries.prngSeed
       this.ciphertexts += ciphertexts
       this.encryptedQuery +=
-        queryMetadata.map { encryptedQueryOf(shard = it.shardId, query = it.queryId) }
+        queryMetadata.map {
+          encryptedQueryOf(shardId = shardIdOf(it.shardId), queryId = queryIdOf(it.queryId))
+        }
     }
   }
 
@@ -113,10 +115,10 @@ class JniPrivateMembershipCryptor(private val clientParameters: ClientParameters
     }
     val mappedResults =
       clientResponse.resultList.map { result ->
-        plaintextOf(
-          shard = result.queryMetadata.shardId,
-          query = result.queryMetadata.queryId,
-          plaintext = result.result
+        decryptedQueryOf(
+          shardId = shardIdOf(result.queryMetadata.shardId),
+          queryId = queryIdOf(result.queryMetadata.queryId),
+          queryResult = result.result
         )
       }
     return decryptQueriesResponse { decryptedQueryResults += mappedResults }

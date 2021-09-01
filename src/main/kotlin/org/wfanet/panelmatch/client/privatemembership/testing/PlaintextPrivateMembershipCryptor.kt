@@ -65,6 +65,9 @@ object PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
    *
    * We assume that each individual payload's first and last characters are '<' and '>',
    * respectively.
+   *
+   * TODO: This is not currently used but to better mimic the RLWE with FHE we should re-introduce
+   * ciphertext separators.
    */
   private fun splitConcatenatedPayloads(combinedPayloads: String): List<String> {
     return Regex("(<[^>]+>)")
@@ -99,19 +102,19 @@ object PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
     }
   }
 
-  /**
-   * Simple plaintext decrypter that splits up data marked by <...>. Expects the cryptor to only
-   * populates the first ciphertext.
-   */
+  /** Simple plaintext decrypter. Expects the encryptor to only populate the first ciphertext. */
   override fun decryptQueryResults(request: DecryptQueriesRequest): DecryptQueriesResponse {
     val encryptedQueryResults = request.encryptedQueryResultsList
     val decryptedResults: List<DecryptedQueryResult> =
-      encryptedQueryResults
-        .map { result ->
+      encryptedQueryResults.map { result ->
+        val decodedData =
           decodeResultData(Result.parseFrom(result.ciphertextsList.single())).toStringUtf8()
+        decryptedQueryResult {
+          queryId = result.queryId
+          shardId = result.shardId
+          queryResult = decodedData.toByteString()
         }
-        .flatMap { data -> splitConcatenatedPayloads(data) }
-        .map { it -> decryptedQueryResult { plaintext = it.toByteString() } }
+      }
 
     return decryptQueriesResponse { decryptedQueryResults += decryptedResults }
   }

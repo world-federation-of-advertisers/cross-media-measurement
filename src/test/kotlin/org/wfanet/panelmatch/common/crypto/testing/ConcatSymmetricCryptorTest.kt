@@ -12,13 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership.testing
+package org.wfanet.panelmatch.common.crypto.testing
 
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-
-@RunWith(JUnit4::class)
-class PlaintextDecryptQueryResultsWorkflowTest : AbstractDecryptQueryResultsWorkflowTest() {
-  override val symmetricPrivateMembershipCryptor = PlaintextSymmetricPrivateMembershipCryptor()
-  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
+class ConcatSymmetricCryptorTest : AbstractSymmetricCryptorTest() {
+  override val symmetricCryptor = ConcatSymmetricCryptor()
 }

@@ -16,19 +16,37 @@ syntax = "proto3";
 
 package wfa.panelmatch.client.privatemembership;
 
+import "wfa/panelmatch/client/privatemembership/query.proto";
+import "wfa/panelmatch/client/privatemembership/oblivious_query.proto";
+
 option java_package = "org.wfanet.panelmatch.client.privatemembership";
 option java_multiple_files = true;
 
 // Removes the final layer of encryption for event data using the joinkey and
 // pepper.
-// TODO Combine this with removing RLWE encryption in a single call
 message DecryptEventDataRequest {
   repeated bytes encrypted_event_data = 1;
-  bytes single_blinded_joinkey = 2;
+  JoinKey single_blinded_joinkey = 2;
   bytes hkdf_pepper = 3;
 }
 
-// Response of DecryptEventData
+// Response of DecryptEventDataRequest
 message DecryptEventDataResponse {
   repeated bytes decrypted_event_data = 1;
+}
+
+// Removes in one step both the private membership encryption as well as the
+// symmetric encryption that ensures the data is computationally symmetric.
+message SymmetricDecryptQueriesRequest {
+  ObliviousQueryParameters parameters = 1;
+  bytes public_key = 2;
+  bytes private_key = 3;
+  repeated EncryptedQueryResult encrypted_query_results = 4;
+  JoinKey single_blinded_joinkey = 5;
+  bytes hkdf_pepper = 6;
+}
+
+// Response of SymmetricDecryptEventData
+message SymmetricDecryptQueriesResponse {
+  repeated DecryptedEventData decrypted_event_data = 1;
 }

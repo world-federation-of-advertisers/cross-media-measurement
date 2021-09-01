@@ -63,26 +63,12 @@ message EncryptQueriesResponse {
   bytes metadata = 3;
 }
 
-// Generic message type holding an encrypted query result
-message EncryptedQueryResult {
-  ShardId shard_id = 1;
-  QueryId query_id = 2;
-  repeated bytes ciphertexts = 3;
-}
-
 // A request to remove RLWE-encryption from a set of results.
 message DecryptQueriesRequest {
   ObliviousQueryParameters parameters = 1;
   bytes public_key = 2;
   bytes private_key = 3;
   repeated EncryptedQueryResult encrypted_query_results = 4;
-}
-
-// Generic message type holding an decrypted query result
-message DecryptedQueryResult {
-  ShardId shard_id = 1;
-  QueryId query_id = 2;
-  bytes plaintext = 3;
 }
 
 // This response contains queries with RLWE-encryption removed. The query

@@ -156,6 +156,10 @@ proto_library(
     name = "decrypt_event_data_proto",
     srcs = ["decrypt_event_data.proto"],
     strip_import_prefix = "/src/main/proto",
+    deps = [
+        "oblivious_query_proto",
+        "query_proto",
+    ],
 )
 
 cc_proto_library(

@@ -12,13 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership.testing
+package org.wfanet.panelmatch.common.crypto
 
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
+import com.google.protobuf.ByteString
+import java.io.Serializable
 
-@RunWith(JUnit4::class)
-class PlaintextDecryptQueryResultsWorkflowTest : AbstractDecryptQueryResultsWorkflowTest() {
-  override val symmetricPrivateMembershipCryptor = PlaintextSymmetricPrivateMembershipCryptor()
-  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
+/** Performs symmetric encryption using a private key. */
+interface SymmetricCryptor : Serializable {
+
+  abstract fun encrypt(privateKey: ByteString, data: ByteString): ByteString
+
+  abstract fun decrypt(privateKey: ByteString, data: ByteString): ByteString
 }
