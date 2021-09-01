@@ -21,12 +21,14 @@ import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
 import org.wfanet.panelmatch.client.privatemembership.decryptQueriesRequest
+import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.encryptQueriesRequest
-import org.wfanet.panelmatch.client.privatemembership.plaintextOf
+import org.wfanet.panelmatch.client.privatemembership.encryptedEventDataOf
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.unencryptedQueryOf
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class PlaintextPrivateMembershipCryptorTest {
@@ -54,28 +56,28 @@ class PlaintextPrivateMembershipCryptorTest {
 
   @Test
   fun `decryptQueries`() {
-    val plaintexts =
+    val encryptedEventData =
       listOf(
-        Pair(1, "<some data a>"),
-        Pair(2, "<some data b>"),
-        Pair(3, "<some data c>"),
-        Pair(4, "<some data d>"),
-        Pair(5, "<some data e>"),
+        encryptedEventDataOf("<some encrypted data a>".toByteString(), 1, 6),
+        encryptedEventDataOf("<some encrypted data b>".toByteString(), 2, 7),
+        encryptedEventDataOf("<some encrypted data c>".toByteString(), 3, 8),
+        encryptedEventDataOf("<some encrypted data d>".toByteString(), 4, 9),
+        encryptedEventDataOf("<some encrypted data e>".toByteString(), 5, 10)
       )
-    val queriedEncryptedResults = privateMembershipCryptorHelper.makeEncryptedResults(plaintexts)
+    val queriedEncryptedResults =
+      privateMembershipCryptorHelper.makeEncryptedQueryResults(encryptedEventData)
     val decryptQueriesRequest = decryptQueriesRequest {
       encryptedQueryResults += queriedEncryptedResults
     }
 
-    // TODO make sure the query ids line up with the correct data
     val decryptedQueries = privateMembershipCryptor.decryptQueryResults(decryptQueriesRequest)
     assertThat(decryptedQueries.decryptedQueryResultsList)
       .containsExactly(
-        plaintextOf("<some data a>"),
-        plaintextOf("<some data b>"),
-        plaintextOf("<some data c>"),
-        plaintextOf("<some data d>"),
-        plaintextOf("<some data e>")
+        decryptedQueryOf("<some encrypted data a>".toByteString(), 1, 6),
+        decryptedQueryOf("<some encrypted data b>".toByteString(), 2, 7),
+        decryptedQueryOf("<some encrypted data c>".toByteString(), 3, 8),
+        decryptedQueryOf("<some encrypted data d>".toByteString(), 4, 9),
+        decryptedQueryOf("<some encrypted data e>".toByteString(), 5, 10)
       )
   }
 }

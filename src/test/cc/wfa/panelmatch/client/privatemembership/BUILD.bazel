@@ -41,6 +41,7 @@ cc_test(
         "//src/main/cc/wfa/panelmatch/client/privatemembership:event_data_decryptor_wrapper",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_cc_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:query_cc_proto",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

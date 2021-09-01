@@ -10,3 +10,9 @@ kt_jvm_library(
     srcs = ["Hashing.kt"],
     deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
 )
+
+kt_jvm_library(
+    name = "symmetriccryptor",
+    srcs = ["SymmetricCryptor.kt"],
+    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+)

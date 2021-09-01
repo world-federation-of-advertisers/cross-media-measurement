@@ -21,6 +21,8 @@ import com.google.privatemembership.batch.parameters as clientParameters
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.privatemembership.testing.encryptedQueryOf
+import org.wfanet.panelmatch.client.privatemembership.testing.unencryptedQueryOf
 
 @OptIn(kotlin.ExperimentalUnsignedTypes::class)
 @RunWith(JUnit4::class)
