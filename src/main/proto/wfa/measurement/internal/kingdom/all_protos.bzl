@@ -46,7 +46,6 @@ KINGDOM_INTERNAL_SERVICE_PROTOS = [
 ]
 
 KINGDOM_INTERNAL_ENTITY_PROTOS = [
-    "//src/main/proto/google/type:date_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:certificate_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:computation_participant_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:crypto_kt_jvm_proto",
