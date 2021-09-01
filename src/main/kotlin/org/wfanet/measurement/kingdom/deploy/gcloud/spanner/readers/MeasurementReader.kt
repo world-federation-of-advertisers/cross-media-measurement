@@ -60,12 +60,12 @@ class MeasurementReader(private val view: Measurement.View) :
       struct.getLong("MeasurementConsumerId")
     )
 
-  suspend fun readByExternalIdsOrNull(
+  suspend fun readByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
     externalMeasurementConsumerId: ExternalId,
     externalMeasurementId: ExternalId
   ): Result? {
-    return this.withBuilder {
+    return withBuilder {
         appendClause(
           """
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId

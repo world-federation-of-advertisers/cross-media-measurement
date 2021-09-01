@@ -63,7 +63,7 @@ class SpannerMeasurementsService(
       "getMeasurement only supports DEFAULT View"
     }
     return MeasurementReader(request.measurementView)
-      .readByExternalIdsOrNull(
+      .readByExternalIds(
         client.singleUse(),
         ExternalId(request.externalMeasurementConsumerId),
         ExternalId(request.externalMeasurementId)
