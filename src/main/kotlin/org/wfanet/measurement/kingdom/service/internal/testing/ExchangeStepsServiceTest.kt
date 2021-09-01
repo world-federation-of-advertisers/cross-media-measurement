@@ -41,7 +41,6 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
-import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -54,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.exchangeStep
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.provider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
@@ -89,6 +89,7 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
     }
 }
 
+// TODO(yunyeng): Import DateKt.Dsl from common-jvm instead.
 private val DATE = date {
   year = 2021
   month = 8
@@ -173,7 +174,7 @@ abstract class ExchangeStepsServiceTest {
     val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
     runBlocking {
       dataProvidersService.createDataProvider(DATA_PROVIDER)
-      modelProvidersService.createModelProvider(ModelProvider.getDefaultInstance())
+      modelProvidersService.createModelProvider(modelProvider {})
     }
   }
 
