@@ -352,7 +352,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertThat(measurement)
         .ignoringFields(
           Measurement.REQUISITIONS_FIELD_NUMBER,
-          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
+          Measurement.CREATE_TIME_FIELD_NUMBER,
+          Measurement.UPDATE_TIME_FIELD_NUMBER
         )
         .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
     }
