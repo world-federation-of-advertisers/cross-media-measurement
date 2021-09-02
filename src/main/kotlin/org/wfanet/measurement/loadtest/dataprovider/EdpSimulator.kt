@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import java.io.File
 import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -29,10 +31,22 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.config.PublicApiProtocolConfigs
+import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import picocli.CommandLine
+
+data class MeasurementConsumerData(
+  // The MC's public API resource name
+  val name: String,
+  // The id of the MC's consent signaling private key in keyStore
+  val consentSignalingPrivateKeyId: String,
+  // The id of the MC's encryption private key in keyStore
+  val encryptionPrivateKeyId: String
+)
 
 /** [EdpSimulator] runs the [RequisitionFulfillmentWorkflow] that does the actual work */
 abstract class EdpSimulator : Runnable {
@@ -82,19 +96,52 @@ abstract class EdpSimulator : Runnable {
           .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
       )
 
+    val measurementConsumersStub =
+      MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(
+        buildMutualTlsChannel(
+          flags.kingdomPublicApiFlags.target,
+          clientCerts,
+          flags.kingdomPublicApiFlags.certHost
+        )
+      )
+
+    val inMemoryKeyStore = InMemoryKeyStore()
+    val mcName = flags.mcResourceName
+    val mcConsentSignalingKeyId = "$mcName-cs-private-key"
+    val mcEncryptionKeyId = "$mcName-enc-private-key"
+
+    val measurementConsumerData =
+      MeasurementConsumerData(mcName, mcConsentSignalingKeyId, mcEncryptionKeyId)
+
     val workflow =
       RequisitionFulfillmentWorkflow(
         flags.dataProviderResourceName,
         requisitionsStub,
         requisitionFulfillmentStub,
         sketchStore,
+        inMemoryKeyStore,
+        measurementConsumerData,
+        measurementConsumersStub
       )
 
     runBlocking {
+      inMemoryKeyStore.storePrivateKeyDer(
+        mcConsentSignalingKeyId,
+        flags.mcCsPrivateKeyDerFile.readBytes().toByteString()
+      )
+      inMemoryKeyStore.storePrivateKeyDer(
+        mcEncryptionKeyId,
+        flags.mcEncPrivateKeyDerFile.readBytes().toByteString()
+      )
+      inMemoryKeyStore.storePrivateKeyDer(
+        mcEncryptionKeyId,
+        flags.edpPrivateKeyDerFile.readBytes().toByteString()
+      )
+
       eventGroupStub.createEventGroup(
         createEventGroupRequest {
           parent = flags.dataProviderResourceName
-          eventGroup = eventGroup { measurementConsumer = flags.measurementConsumerResourceName }
+          eventGroup = eventGroup { measurementConsumer = flags.mcResourceName }
         }
       )
 
@@ -125,11 +172,35 @@ abstract class EdpSimulator : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--measurement-consumer-resource-name"],
+      names = ["--data-provider-consent-signaling-key-der-file"],
+      description = ["The EDP's consent signaling private key (DER format) file."],
+      required = true
+    )
+    lateinit var edpPrivateKeyDerFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--mc-resource-name"],
       description = ["The public API resource name of the Measurement Consumer."],
       required = true
     )
-    lateinit var measurementConsumerResourceName: String
+    lateinit var mcResourceName: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--mc-consent-signaling-key-der-file"],
+      description = ["The MC's consent signaling private key (DER format) file."],
+      required = true
+    )
+    lateinit var mcCsPrivateKeyDerFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--mc-encryption-private-key-der-file"],
+      description = ["The MC's encryption private key (DER format) file."],
+      required = true
+    )
+    lateinit var mcEncPrivateKeyDerFile: File
       private set
 
     @CommandLine.Option(

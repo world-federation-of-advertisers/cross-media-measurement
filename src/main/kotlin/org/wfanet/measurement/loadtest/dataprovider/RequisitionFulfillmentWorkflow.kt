@@ -38,13 +38,29 @@ import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
+import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
+import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
+import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
+
+val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
@@ -52,6 +68,9 @@ class RequisitionFulfillmentWorkflow(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
+  private val keyStore: KeyStore,
+  private val measurementConsumerData: MeasurementConsumerData,
+  private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
 ) {
 
   fun generateSketch(sketchConfig: SketchConfig): Sketch {
@@ -84,6 +103,7 @@ class RequisitionFulfillmentWorkflow(
         .build()
     val response =
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
+
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
@@ -118,13 +138,61 @@ class RequisitionFulfillmentWorkflow(
     return response.requisitionsList.firstOrNull()
   }
 
+  /** Always returns [ReversingHybridCryptor] regardless of input [HybridCipherSuite]. */
+  fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
+    return ReversingHybridCryptor()
+  }
+
+  private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
+    val request = GetMeasurementConsumerRequest.newBuilder().also { it.name = name }.build()
+    return measurementConsumersClient.getMeasurementConsumer(request)
+  }
+
   /** execute runs the individual steps of the workflow */
   suspend fun execute() {
     val requisition: Requisition = getRequisition() ?: return
 
-    // todo(@ohardt): needs checking of signed data on
-    //                measurementSpec and reqSpec of the requisition
-    //                and then sign the uplaoded sketch
+    val hybridCipherSuite = HybridCipherSuite.getDefaultInstance()
+
+    val privateKeyHandle = keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)
+    checkNotNull(privateKeyHandle)
+
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val mcCert = readCertificate(measurementConsumer.certificateDer)
+
+    // todo(ohardt): do we need to decrypt the measurement spec? I think yes but
+    //               couldn't find decryptMeasurementSpec() in consent-signaling
+    val mSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+
+    if (!verifyMeasurementSpec(
+        measurementSpecSignature = requisition.measurementSpec.signature,
+        measurementSpec = mSpec,
+        measurementConsumerCertificate = mcCert,
+      )
+    ) {
+      return
+    }
+
+    val decryptedSignedDataRequisitionSpec =
+      decryptRequisitionSpec(
+        requisition.encryptedRequisitionSpec,
+        privateKeyHandle,
+        hybridCipherSuite,
+        ::fakeGetHybridCryptorForCipherSuite
+      )
+
+    val decryptedRequisitionSpec =
+      RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
+
+    if (!verifyRequisitionSpec(
+        requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
+        requisitionSpec = decryptedRequisitionSpec,
+        measurementConsumerCertificate = mcCert,
+        measurementSpec = mSpec,
+      )
+    ) {
+      return
+    }
 
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
@@ -137,6 +205,8 @@ class RequisitionFulfillmentWorkflow(
     sketchStore.write(blobKey, sketch.toByteString().asBufferedFlow(1024))
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
+
+    // todo(ohardt): still got to sign the sketch before uploading it
 
     fulfillRequisition(requisition.name, sketchChunks)
   }
