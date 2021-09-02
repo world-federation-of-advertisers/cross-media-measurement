@@ -37,6 +37,10 @@ service ExchangeStepAttempts {
   // Updates the state of an ExchangeStepAttempt to a terminal state.
   rpc FinishExchangeStepAttempt(FinishExchangeStepAttemptRequest)
       returns (ExchangeStepAttempt);
+
+  // Gets an existing `ExchangeStepAttempt`.
+  rpc GetExchangeStepAttempt(GetExchangeStepAttemptRequest)
+      returns (ExchangeStepAttempt);
 }
 
 // Request message for "/ExchangeStepAttempts.CreateExchangeStepAttempt".
@@ -91,4 +95,15 @@ message FinishExchangeStepAttemptRequest {
 
   // Denormalized party that executes this ExchangeStepAttempt.
   Provider provider = 7;
+}
+
+message GetExchangeStepAttemptRequest {
+  // Primary key of the `ExchangeStepAttempt`.
+  fixed64 external_recurring_exchange_id = 1;
+  google.type.Date date = 2;
+  int32 step_index = 3;
+  int32 attempt_number = 4;
+
+  // Denormalized party that executes this ExchangeStepAttempt.
+  Provider provider = 5;
 }
