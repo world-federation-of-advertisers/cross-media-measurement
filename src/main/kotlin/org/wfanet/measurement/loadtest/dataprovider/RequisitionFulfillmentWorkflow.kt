@@ -37,7 +37,7 @@ import org.wfanet.anysketch.exponentialDistribution
 import org.wfanet.anysketch.oracleDistribution
 import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
@@ -61,6 +61,7 @@ import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingH
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
+/* Key handle of the EDP's private consent signaling key */
 const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
@@ -72,7 +73,7 @@ class RequisitionFulfillmentWorkflow(
   private val keyStore: KeyStore,
   private val mcResourceName: String,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val certificateServiceStub: CertificatesGrpcKt.CertificatesCoroutineStub
+  private val certificateServiceStub: CertificatesCoroutineStub
 ) {
 
   fun generateSketch(sketchConfig: SketchConfig): Sketch {
