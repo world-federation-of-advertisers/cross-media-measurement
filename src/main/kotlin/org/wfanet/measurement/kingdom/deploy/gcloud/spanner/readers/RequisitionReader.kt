@@ -203,8 +203,8 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
         struct.getLong("ExternalMeasurementConsumerCertificateId")
       measurementSpec = measurementDetails.measurementSpec
       measurementSpecSignature = measurementDetails.measurementSpecSignature
+      protocolConfig = measurementDetails.protocolConfig
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
-      // TODO(@uakyol): Fill external protocol config ID once we have a config mapping.
     }
   }
 }

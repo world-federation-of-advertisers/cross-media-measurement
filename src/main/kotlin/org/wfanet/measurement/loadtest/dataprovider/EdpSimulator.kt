@@ -28,9 +28,7 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -87,11 +85,6 @@ abstract class EdpSimulator : Runnable {
     val workflow =
       RequisitionFulfillmentWorkflow(
         flags.dataProviderResourceName,
-        flags
-          .publicApiProtocolConfigs
-          .reader()
-          .use { parseTextProto(it, PublicApiProtocolConfigs.getDefaultInstance()) }
-          .configsMap,
         requisitionsStub,
         requisitionFulfillmentStub,
         sketchStore,

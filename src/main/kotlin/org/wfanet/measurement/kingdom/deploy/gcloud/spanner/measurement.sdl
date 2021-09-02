@@ -205,7 +205,6 @@ CREATE TABLE Measurements (
   ProvidedMeasurementId                  STRING(MAX),
 
   CertificateId                      INT64 NOT NULL,
-  ProtocolConfigId                   INT64 NOT NULL,
 
   CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),

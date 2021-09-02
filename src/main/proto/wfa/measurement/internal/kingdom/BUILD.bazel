@@ -133,14 +133,6 @@ proto_and_java_proto_library(
     ],
 )
 
-proto_and_java_proto_library(
-    name = "protocol_metadata",
-    deps = [
-        ":crypto_proto",
-        ":differential_privacy_proto",
-    ],
-)
-
 proto_library(
     name = "duchy_id_config_proto",
     srcs = ["duchy_id_config.proto"],
@@ -155,6 +147,26 @@ kt_jvm_proto_library(
     name = "duchy_id_config_kt_jvm_proto",
     srcs = [":duchy_id_config_proto"],
     deps = [":duchy_id_config_java_proto"],
+)
+
+proto_library(
+    name = "llv2_protocol_config_config_proto",
+    srcs = ["llv2_protocol_config_config.proto"],
+    deps = [
+        ":duchy_protocol_config_proto",
+        ":protocol_config_proto",
+    ],
+)
+
+java_proto_library(
+    name = "llv2_protocol_config_config_java_proto",
+    deps = [":llv2_protocol_config_config_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "llv2_protocol_config_config_kt_jvm_proto",
+    srcs = [":llv2_protocol_config_config_proto"],
+    deps = [":llv2_protocol_config_config_java_proto"],
 )
 
 proto_and_java_proto_library(
@@ -291,6 +303,7 @@ proto_and_java_proto_library(
     deps = [
         ":computation_participant_proto",
         ":duchy_protocol_config_proto",
+        ":protocol_config_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

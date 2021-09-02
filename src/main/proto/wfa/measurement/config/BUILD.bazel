@@ -5,25 +5,6 @@ load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "public_api_protocol_configs_proto",
-    srcs = ["public_api_protocol_configs.proto"],
-    deps = [
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_proto",
-    ],
-)
-
-java_proto_library(
-    name = "public_api_protocol_configs_java_proto",
-    deps = [":public_api_protocol_configs_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "public_api_protocol_configs_kt_jvm_proto",
-    srcs = [":public_api_protocol_configs_proto"],
-    deps = [":public_api_protocol_configs_java_proto"],
-)
-
-proto_library(
     name = "duchy_rpc_config_proto",
     srcs = ["duchy_rpc_config.proto"],
 )

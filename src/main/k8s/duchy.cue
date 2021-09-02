@@ -39,7 +39,6 @@ import ("strings")
 	_computations_service_cert_host_flag:               "--computations-service-cert-host=localhost"
 	_duchy_name_flag:                                   "--duchy-name=duchy-\(_name)"
 	_duchy_info_config_flag:                            "--duchy-info-config=" + #DuchyInfoConfig
-	_public_api_protocol_configs:                       "--public-api-protocol-configs=" + #PublicApiProtocolConfigs
 	_duchy_protocols_setup_config_flag:                 "--protocols-setup-config=\(_protocols_setup_config)"
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
@@ -80,7 +79,6 @@ import ("strings")
 				_duchy_tls_cert_file_flag,
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
-				_public_api_protocol_configs,
 				_duchy_protocols_setup_config_flag,
 				_system_api_target_flag,
 				_system_api_cert_host_flag,

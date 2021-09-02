@@ -1,0 +1,27 @@
+# proto-file: src/main/proto/wfa/measurement/internal/kingdom/llv2_protocol_config_config.proto
+# proto-message: Llv2ProtocolConfigConfig
+protocol_config {
+  sketch_params {
+    decay_rate: 12.0
+    max_size: 100000
+    sampling_indicator_size: 10000000
+  }
+  data_provider_noise {
+    epsilon: 1.0
+    delta: 1.0
+  }
+  elliptic_curve_id: 415
+  maximum_frequency: 10
+}
+duchy_protocol_config {
+  mpc_noise {
+    blinded_histogram_noise {
+      epsilon: 1.0
+      delta: 1.0
+    }
+    noise_for_publisher_noise {
+      epsilon: 1.0
+      delta: 1.0
+    }
+  }
+}

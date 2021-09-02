@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
@@ -51,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -62,6 +64,7 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
@@ -74,6 +77,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
@@ -109,7 +113,15 @@ private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
           elGamalPublicKeySignature = UPDATE_TIME.toByteString()
         }
     }
-  parentMeasurement = parentMeasurement { apiVersion = Version.V2_ALPHA.string }
+  parentMeasurement =
+    parentMeasurement {
+      apiVersion = Version.V2_ALPHA.string
+      protocolConfig =
+        internalProtocolConfig {
+          externalProtocolConfigId = "llv2"
+          liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+    }
 }
 
 private val REQUISITION: Requisition = requisition {
@@ -138,6 +150,11 @@ private val REQUISITION: Requisition = requisition {
     signedData {
       data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
       signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
+    }
+  protocolConfig =
+    protocolConfig {
+      name = "protocolConfigs/llv2"
+      liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
     }
   dataProviderCertificate =
     DataProviderCertificateKey(

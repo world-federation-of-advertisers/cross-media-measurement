@@ -24,6 +24,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,26 +41,27 @@ import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.hybridCipherSuite
+import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -67,19 +69,28 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.liquidLegionsV2 as internalLiquidLegionsV2
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
+private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_NAME = "dataProviders/AAAAAAAAAHs"
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
@@ -87,10 +98,137 @@ private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measureme
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
-private const val PROTOCOL_CONFIGS_NAME = "protocolConfigs/AAAAAAAAAHs"
-
-private const val DEFAULT_LIMIT = 50
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+  externalProtocolConfigId = "llv2"
+  measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+  liquidLegionsV2 =
+    internalLiquidLegionsV2 {
+      sketchParams =
+        internalLiquidLegionsSketchParams {
+          decayRate = 1.1
+          maxSize = 100
+          samplingIndicatorSize = 1000
+        }
+      dataProviderNoise =
+        internalDifferentialPrivacyParams {
+          epsilon = 2.1
+          delta = 3.3
+        }
+    }
+}
+private val PUBLIC_PROTOCOL_CONFIG = protocolConfig {
+  name = "protocolConfigs/llv2"
+  measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+  liquidLegionsV2 =
+    liquidLegionsV2 {
+      sketchParams =
+        liquidLegionsSketchParams {
+          decayRate = 1.1
+          maxSize = 100
+          samplingIndicatorSize = 1000
+        }
+      dataProviderNoise =
+        differentialPrivacyParams {
+          epsilon = 2.1
+          delta = 3.3
+        }
+    }
+}
+private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
+  liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+}
+private val MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = UPDATE_TIME.toByteString()
+  cipherSuite =
+    hybridCipherSuite {
+      kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
+      dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+    }
+  reachAndFrequency =
+    reachAndFrequency {
+      reachPrivacyParams =
+        differentialPrivacyParams {
+          epsilon = 1.0
+          delta = 1.0
+        }
+      frequencyPrivacyParams =
+        differentialPrivacyParams {
+          epsilon = 1.0
+          delta = 1.0
+        }
+    }
+}
+private val MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+  measurementSpec =
+    signedData {
+      data = MEASUREMENT_SPEC.toByteString()
+      signature = UPDATE_TIME.toByteString()
+    }
+  serializedDataProviderList = UPDATE_TIME.toByteString()
+  dataProviderListSalt = UPDATE_TIME.toByteString()
+  dataProviders +=
+    dataProviderEntry {
+      key = DATA_PROVIDERS_NAME
+      value =
+        value {
+          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
+          dataProviderPublicKey =
+            signedData {
+              data = UPDATE_TIME.toByteString()
+              signature = UPDATE_TIME.toByteString()
+            }
+          encryptedRequisitionSpec = UPDATE_TIME.toByteString()
+        }
+    }
+  protocolConfig = PUBLIC_PROTOCOL_CONFIG
+  measurementReferenceId = "ref_id"
+}
+
+private val INTERNAL_MEASUREMENT = internalMeasurement {
+  externalMeasurementConsumerId =
+    apiIdToExternalId(
+      MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
+        .measurementConsumerId
+    )
+  externalMeasurementId =
+    apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT.name)!!.measurementId)
+  providedMeasurementId = MEASUREMENT.measurementReferenceId
+  externalMeasurementConsumerCertificateId =
+    apiIdToExternalId(
+      MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
+        .certificateId
+    )
+  updateTime = UPDATE_TIME
+  dataProviders.putAll(
+    MEASUREMENT.dataProvidersList.associateBy(
+      { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
+      {
+        dataProviderValue {
+          externalDataProviderCertificateId =
+            apiIdToExternalId(
+              DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!.certificateId
+            )
+          dataProviderPublicKey = it.value.dataProviderPublicKey.data
+          dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
+          encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
+        }
+      }
+    )
+  )
+  details =
+    details {
+      apiVersion = Version.V2_ALPHA.string
+      measurementSpec = MEASUREMENT.measurementSpec.data
+      measurementSpecSignature = MEASUREMENT.measurementSpec.signature
+      dataProviderList = MEASUREMENT.serializedDataProviderList
+      dataProviderListSalt = MEASUREMENT.dataProviderListSalt
+      protocolConfig = INTERNAL_PROTOCOL_CONFIG
+      duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
+    }
+}
 
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
@@ -163,7 +301,6 @@ class MeasurementsServiceTest {
       .isEqualTo(
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
-          clearExternalProtocolConfigId()
           clearExternalMeasurementId()
         }
       )
@@ -609,97 +746,15 @@ class MeasurementsServiceTest {
     assertThat(exception.status.description)
       .isEqualTo("Resource name is either unspecified or invalid")
   }
-}
 
-private val MEASUREMENT_SPEC: MeasurementSpec = measurementSpec {
-  measurementPublicKey = UPDATE_TIME.toByteString()
-  cipherSuite =
-    hybridCipherSuite {
-      kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-      dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
+        DUCHY_PROTOCOL_CONFIG.liquidLegionsV2
+      )
     }
-  reachAndFrequency =
-    reachAndFrequency {
-      reachPrivacyParams =
-        differentialPrivacyParams {
-          epsilon = 1.0
-          delta = 1.0
-        }
-      frequencyPrivacyParams =
-        differentialPrivacyParams {
-          epsilon = 1.0
-          delta = 1.0
-        }
-    }
-}
-
-private val MEASUREMENT: Measurement = measurement {
-  name = MEASUREMENT_NAME
-  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  measurementSpec =
-    signedData {
-      data = MEASUREMENT_SPEC.toByteString()
-      signature = UPDATE_TIME.toByteString()
-    }
-  serializedDataProviderList = UPDATE_TIME.toByteString()
-  dataProviderListSalt = UPDATE_TIME.toByteString()
-  dataProviders +=
-    dataProviderEntry {
-      key = DATA_PROVIDERS_NAME
-      value =
-        value {
-          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-          dataProviderPublicKey =
-            signedData {
-              data = UPDATE_TIME.toByteString()
-              signature = UPDATE_TIME.toByteString()
-            }
-          encryptedRequisitionSpec = UPDATE_TIME.toByteString()
-        }
-    }
-  protocolConfig = PROTOCOL_CONFIGS_NAME
-  measurementReferenceId = "ref_id"
-}
-
-private val INTERNAL_MEASUREMENT: InternalMeasurement = internalMeasurement {
-  externalMeasurementConsumerId =
-    apiIdToExternalId(
-      MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
-        .measurementConsumerId
-    )
-  externalMeasurementId =
-    apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT.name)!!.measurementId)
-  providedMeasurementId = MEASUREMENT.measurementReferenceId
-  externalMeasurementConsumerCertificateId =
-    apiIdToExternalId(
-      MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
-        .certificateId
-    )
-  externalProtocolConfigId =
-    ProtocolConfigKey.fromName(MEASUREMENT.protocolConfig)!!.protocolConfigId
-  updateTime = UPDATE_TIME
-  dataProviders.putAll(
-    MEASUREMENT.dataProvidersList.associateBy(
-      { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
-      {
-        dataProviderValue {
-          externalDataProviderCertificateId =
-            apiIdToExternalId(
-              DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!.certificateId
-            )
-          dataProviderPublicKey = it.value.dataProviderPublicKey.data
-          dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
-          encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
-        }
-      }
-    )
-  )
-  details =
-    details {
-      apiVersion = Version.V2_ALPHA.string
-      measurementSpec = MEASUREMENT.measurementSpec.data
-      measurementSpecSignature = MEASUREMENT.measurementSpec.signature
-      dataProviderList = MEASUREMENT.serializedDataProviderList
-      dataProviderListSalt = MEASUREMENT.dataProviderListSalt
-    }
+  }
 }
