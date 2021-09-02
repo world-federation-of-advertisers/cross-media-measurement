@@ -284,7 +284,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         GetMeasurementByComputationIdRequest.newBuilder()
           .apply {
             externalComputationId = measurement.externalComputationId
-            measurementView = Measurement.View.COMPUTATION
           }
           .build()
       )
@@ -357,7 +356,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         GetMeasurementByComputationIdRequest.newBuilder()
           .apply {
             externalComputationId = measurement.externalComputationId
-            measurementView = Measurement.View.COMPUTATION
           }
           .build()
       )

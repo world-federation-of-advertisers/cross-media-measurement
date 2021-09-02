@@ -138,31 +138,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `getMeasurementByComputationId fails for DEFAULT VIEW`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        measurementsService.getMeasurementByComputationId(
-          getMeasurementByComputationIdRequest {
-            externalComputationId = 1L
-            measurementView = Measurement.View.DEFAULT
-          }
-        )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("getMeasurementByComputationId can only be with COMPUTATION View")
-  }
-
-  @Test
   fun `getMeasurementByComputationId fails for missing Measurement`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.getMeasurementByComputationId(
           getMeasurementByComputationIdRequest {
             externalComputationId = 1L
-            measurementView = Measurement.View.COMPUTATION
           }
         )
       }
@@ -299,25 +280,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `getMeasurement COMPUTATION View fails`() =
-    runBlocking<Unit> {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          measurementsService.getMeasurement(
-            getMeasurementRequest {
-              externalMeasurementConsumerId = 1L
-              externalMeasurementId = 1L
-              measurementView = Measurement.View.COMPUTATION
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("getMeasurement only supports DEFAULT View")
-    }
-
-  @Test
-  fun `getMeasurement DEFAULT View succeeds`() =
+  fun `getMeasurement succeeds`() =
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -345,22 +308,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           getMeasurementRequest {
             this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
             externalMeasurementId = createdMeasurement.externalMeasurementId
-            measurementView = Measurement.View.DEFAULT
           }
         )
-
-      assertThat(measurement)
-        .ignoringFields(
-          Measurement.REQUISITIONS_FIELD_NUMBER,
-          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
-          Measurement.CREATE_TIME_FIELD_NUMBER,
-          Measurement.UPDATE_TIME_FIELD_NUMBER
-        )
-        .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
+      // TODO(@uakyol) : assert dataPoviders field once it is populated in the Measurement Reader.
+      assertThat(measurement).isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
     }
 
   @Test
-  fun `getMeasurementByComputationId COMPUTATION View succeeds`() =
+  fun `getMeasurementByComputationId succeeds`() =
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -387,7 +342,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.getMeasurementByComputationId(
           getMeasurementByComputationIdRequest {
             externalComputationId = createdMeasurement.externalComputationId
-            measurementView = Measurement.View.COMPUTATION
           }
         )
 
