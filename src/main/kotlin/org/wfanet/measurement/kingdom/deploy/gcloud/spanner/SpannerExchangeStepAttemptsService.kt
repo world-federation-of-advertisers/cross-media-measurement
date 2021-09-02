@@ -47,11 +47,11 @@ class SpannerExchangeStepAttemptsService(
         .withBuilder {
           appendClause(
             """
-              WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+            WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
               AND ExchangeStepAttempts.Date = @date
               AND ExchangeStepAttempts.StepIndex = @step_index
               AND ExchangeStepAttempts.AttemptIndex = @attempt_index
-              """.trimIndent()
+            """.trimIndent()
           )
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.provider.type) {
