@@ -38,7 +38,6 @@ import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
@@ -50,6 +49,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
@@ -143,9 +144,10 @@ class RequisitionFulfillmentWorkflow(
     return ReversingHybridCryptor()
   }
 
-  private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
-    val request = GetMeasurementConsumerRequest.newBuilder().also { it.name = name }.build()
-    return measurementConsumersClient.getMeasurementConsumer(request)
+  private suspend fun getMeasurementConsumer(mcName: String): MeasurementConsumer {
+    return measurementConsumersClient.getMeasurementConsumer(
+      getMeasurementConsumerRequest { name = mcName }
+    )
   }
 
   /** execute runs the individual steps of the workflow */
@@ -213,12 +215,10 @@ class RequisitionFulfillmentWorkflow(
 }
 
 private fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
-  return ElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = generator
-      it.element = element
-    }
-    .build()
+  return elGamalPublicKey {
+    generator = generator
+    element = element
+  }
 }
 
 private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
