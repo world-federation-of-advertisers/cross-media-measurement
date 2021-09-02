@@ -134,7 +134,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
-  fun `getCertificate fails due to missing parent field`() = runBlocking {
+  fun `getCertificate throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
@@ -144,13 +144,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("INVALID_ARGUMENT: GetCertificateRequest is missing parent field")
   }
 
   @Test
-  fun `createCertificate fails due to missing parent field`() = runBlocking {
+  fun `createCertificate throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -164,7 +161,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Certificate is missing parent field")
   }
 
   @Test
