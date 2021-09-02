@@ -61,7 +61,7 @@ import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingH
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
+private const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
