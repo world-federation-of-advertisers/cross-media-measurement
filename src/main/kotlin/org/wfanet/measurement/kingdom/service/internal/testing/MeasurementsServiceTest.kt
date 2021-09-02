@@ -310,7 +310,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
 
-    assertThat(measurement).isEqualTo(createdMeasurement)
+    assertThat(measurement)
+      .ignoringFields(
+        Measurement.DATA_PROVIDERS_FIELD_NUMBER,
+        Measurement.REQUISITIONS_FIELD_NUMBER,
+        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+      )
+      .isEqualTo(createdMeasurement)
   }
 
   @Test
@@ -471,10 +477,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .isGreaterThan(createdMeasurement.updateTime.nanos)
 
       assertThat(measurementWithResult)
-        .ignoringFields(
-          Measurement.UPDATE_TIME_FIELD_NUMBER,
-          Measurement.DATA_PROVIDERS_FIELD_NUMBER,
-        )
+        .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
         .isEqualTo(
           createdMeasurement.copy {
             state = Measurement.State.SUCCEEDED
