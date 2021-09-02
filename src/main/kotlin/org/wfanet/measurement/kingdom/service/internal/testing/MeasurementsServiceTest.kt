@@ -376,7 +376,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementId = createdMeasurement.externalMeasurementId
           }
         )
-      // TODO(@uakyol) : assert dataPoviders field once it is populated in the Measurement Reader.
+      // TODO(@uakyol) : Assert dataPoviders field once it is populated in the MeasurementReader.
       assertThat(measurement).isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
     }
 >>>>>>> 14c762a6 (done)
