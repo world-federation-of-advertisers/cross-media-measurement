@@ -51,7 +51,6 @@ class SpannerExchangeStepAttemptsService(
               AND ExchangeStepAttempts.Date = @date
               AND ExchangeStepAttempts.StepIndex = @step_index
               AND ExchangeStepAttempts.AttemptIndex = @attempt_index
-              )
               """.trimIndent()
           )
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
