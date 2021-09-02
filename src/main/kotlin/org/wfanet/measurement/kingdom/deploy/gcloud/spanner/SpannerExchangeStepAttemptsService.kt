@@ -58,22 +58,22 @@ class SpannerExchangeStepAttemptsService(
             Provider.Type.DATA_PROVIDER ->
               appendClause(
                 """
-              AND ExchangeSteps.DataProviderId = (
-                SELECT DataProviderId
-                FROM DataProviders
-                WHERE ExternalDataProviderId = @external_provider_id
-              )
-              """.trimIndent()
+                  AND ExchangeSteps.DataProviderId = (
+                    SELECT DataProviderId
+                    FROM DataProviders
+                    WHERE ExternalDataProviderId = @external_provider_id
+                  )
+                  """.trimIndent()
               )
             Provider.Type.MODEL_PROVIDER ->
               appendClause(
                 """
-              AND ExchangeSteps.ModelProviderId = (
-                SELECT ModelProviderId
-                FROM ModelProviders
-                WHERE ExternalModelProviderId = @external_provider_id
-              )
-              """.trimIndent()
+                  AND ExchangeSteps.ModelProviderId = (
+                    SELECT ModelProviderId
+                    FROM ModelProviders
+                    WHERE ExternalModelProviderId = @external_provider_id
+                  )
+                  """.trimIndent()
               )
             Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
               failGrpc(Status.INVALID_ARGUMENT) {
