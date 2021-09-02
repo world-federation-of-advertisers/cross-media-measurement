@@ -73,6 +73,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
@@ -96,7 +97,6 @@ private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
   externalRequisitionId = 3
   externalComputationId = 4
   externalDataProviderId = 5
-  externalDataProviderCertificateId = 6
   updateTime = UPDATE_TIME
   state = InternalState.FULFILLED
   externalFulfillingDuchyId = "9"
@@ -108,6 +108,11 @@ private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
           elGamalPublicKey = UPDATE_TIME.toByteString()
           elGamalPublicKeySignature = UPDATE_TIME.toByteString()
         }
+    }
+  dataProviderCertificate =
+    internalCertificate {
+      externalDataProviderId = this@internalRequisition.externalDataProviderId
+      externalCertificateId = 6L
     }
   parentMeasurement = parentMeasurement { apiVersion = Version.V2_ALPHA.string }
 }
@@ -142,7 +147,7 @@ private val REQUISITION: Requisition = requisition {
   dataProviderCertificate =
     DataProviderCertificateKey(
         externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderCertificateId)
+        externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
       )
       .toName()
   dataProviderPublicKey =
