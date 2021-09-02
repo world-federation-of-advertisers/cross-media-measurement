@@ -34,19 +34,11 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import picocli.CommandLine
-
-data class MeasurementConsumerData(
-  // The MC's public API resource name
-  val name: String,
-  // The id of the MC's consent signaling private key in keyStore
-  val consentSignalingPrivateKeyId: String,
-  // The id of the MC's encryption private key in keyStore
-  val encryptionPrivateKeyId: String
-)
 
 /** [EdpSimulator] runs the [RequisitionFulfillmentWorkflow] that does the actual work */
 abstract class EdpSimulator : Runnable {
@@ -105,13 +97,16 @@ abstract class EdpSimulator : Runnable {
         )
       )
 
-    val inMemoryKeyStore = InMemoryKeyStore()
-    val mcName = flags.mcResourceName
-    val mcConsentSignalingKeyId = "$mcName-cs-private-key"
-    val mcEncryptionKeyId = "$mcName-enc-private-key"
+    val certificateServiceStub =
+      CertificatesGrpcKt.CertificatesCoroutineStub(
+        buildMutualTlsChannel(
+          flags.kingdomPublicApiFlags.target,
+          clientCerts,
+          flags.kingdomPublicApiFlags.certHost
+        )
+      )
 
-    val measurementConsumerData =
-      MeasurementConsumerData(mcName, mcConsentSignalingKeyId, mcEncryptionKeyId)
+    val inMemoryKeyStore = InMemoryKeyStore()
 
     val workflow =
       RequisitionFulfillmentWorkflow(
@@ -120,21 +115,14 @@ abstract class EdpSimulator : Runnable {
         requisitionFulfillmentStub,
         sketchStore,
         inMemoryKeyStore,
-        measurementConsumerData,
-        measurementConsumersStub
+        flags.mcResourceName,
+        measurementConsumersStub,
+        certificateServiceStub
       )
 
     runBlocking {
       inMemoryKeyStore.storePrivateKeyDer(
-        mcConsentSignalingKeyId,
-        flags.mcCsPrivateKeyDerFile.readBytes().toByteString()
-      )
-      inMemoryKeyStore.storePrivateKeyDer(
-        mcEncryptionKeyId,
-        flags.mcEncPrivateKeyDerFile.readBytes().toByteString()
-      )
-      inMemoryKeyStore.storePrivateKeyDer(
-        mcEncryptionKeyId,
+        EDP_PRIVATE_KEY_HANDLE_KEY,
         flags.edpPrivateKeyDerFile.readBytes().toByteString()
       )
 
@@ -185,22 +173,6 @@ abstract class EdpSimulator : Runnable {
       required = true
     )
     lateinit var mcResourceName: String
-      private set
-
-    @CommandLine.Option(
-      names = ["--mc-consent-signaling-key-der-file"],
-      description = ["The MC's consent signaling private key (DER format) file."],
-      required = true
-    )
-    lateinit var mcCsPrivateKeyDerFile: File
-      private set
-
-    @CommandLine.Option(
-      names = ["--mc-encryption-private-key-der-file"],
-      description = ["The MC's encryption private key (DER format) file."],
-      required = true
-    )
-    lateinit var mcEncPrivateKeyDerFile: File
       private set
 
     @CommandLine.Option(

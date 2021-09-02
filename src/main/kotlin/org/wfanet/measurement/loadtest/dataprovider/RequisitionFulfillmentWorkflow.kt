@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -36,6 +37,7 @@ import org.wfanet.anysketch.exponentialDistribution
 import org.wfanet.anysketch.oracleDistribution
 import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
@@ -50,9 +52,9 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -70,8 +72,9 @@ class RequisitionFulfillmentWorkflow(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val keyStore: KeyStore,
-  private val measurementConsumerData: MeasurementConsumerData,
+  private val mcResourceName: String,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val certificateServiceStub: CertificatesGrpcKt.CertificatesCoroutineStub
 ) {
 
   fun generateSketch(sketchConfig: SketchConfig): Sketch {
@@ -159,11 +162,7 @@ class RequisitionFulfillmentWorkflow(
     val privateKeyHandle = keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)
     checkNotNull(privateKeyHandle)
 
-    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val mcCert = readCertificate(measurementConsumer.certificateDer)
-
-    // todo(ohardt): do we need to decrypt the measurement spec? I think yes but
-    //               couldn't find decryptMeasurementSpec() in consent-signaling
+    val measurementConsumer = getMeasurementConsumer(mcResourceName)
     val mSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
 
     if (!verifyMeasurementSpec(
@@ -172,6 +171,7 @@ class RequisitionFulfillmentWorkflow(
         measurementConsumerCertificate = mcCert,
       )
     ) {
+      logger.info("invalid measurementSpec ")
       return
     }
 
@@ -186,6 +186,11 @@ class RequisitionFulfillmentWorkflow(
     val decryptedRequisitionSpec =
       RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
 
+    val mcCert =
+      certificateServiceStub.getCertificate(
+        getCertificateRequest { name = decryptedRequisitionSpec.measurementPublicKey.toString() }
+      )
+
     if (!verifyRequisitionSpec(
         requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
         requisitionSpec = decryptedRequisitionSpec,
@@ -193,6 +198,7 @@ class RequisitionFulfillmentWorkflow(
         measurementSpec = mSpec,
       )
     ) {
+      logger.info("invalid requisitionSpec ")
       return
     }
 
@@ -208,9 +214,10 @@ class RequisitionFulfillmentWorkflow(
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
 
-    // todo(ohardt): still got to sign the sketch before uploading it
-
     fulfillRequisition(requisition.name, sketchChunks)
+  }
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 

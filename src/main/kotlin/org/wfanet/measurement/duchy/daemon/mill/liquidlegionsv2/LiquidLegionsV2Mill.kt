@@ -25,13 +25,13 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.Computation as ConsentSignalingComputation
 import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
+import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
