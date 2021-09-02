@@ -19,6 +19,7 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
@@ -34,7 +35,6 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.config.PublicApiProtocolConfigs
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -98,7 +98,7 @@ abstract class EdpSimulator : Runnable {
       )
 
     val certificateServiceStub =
-      CertificatesGrpcKt.CertificatesCoroutineStub(
+      CertificatesCoroutineStub(
         buildMutualTlsChannel(
           flags.kingdomPublicApiFlags.target,
           clientCerts,

@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -53,8 +52,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
-import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -147,12 +146,6 @@ class RequisitionFulfillmentWorkflow(
     return ReversingHybridCryptor()
   }
 
-  private suspend fun getMeasurementConsumer(mcName: String): MeasurementConsumer {
-    return measurementConsumersClient.getMeasurementConsumer(
-      getMeasurementConsumerRequest { name = mcName }
-    )
-  }
-
   /** execute runs the individual steps of the workflow */
   suspend fun execute() {
     val requisition: Requisition = getRequisition() ?: return
@@ -162,18 +155,7 @@ class RequisitionFulfillmentWorkflow(
     val privateKeyHandle = keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)
     checkNotNull(privateKeyHandle)
 
-    val measurementConsumer = getMeasurementConsumer(mcResourceName)
     val mSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
-
-    if (!verifyMeasurementSpec(
-        measurementSpecSignature = requisition.measurementSpec.signature,
-        measurementSpec = mSpec,
-        measurementConsumerCertificate = mcCert,
-      )
-    ) {
-      logger.info("invalid measurementSpec ")
-      return
-    }
 
     val decryptedSignedDataRequisitionSpec =
       decryptRequisitionSpec(
@@ -191,10 +173,20 @@ class RequisitionFulfillmentWorkflow(
         getCertificateRequest { name = decryptedRequisitionSpec.measurementPublicKey.toString() }
       )
 
+    if (!verifyMeasurementSpec(
+        measurementSpecSignature = requisition.measurementSpec.signature,
+        measurementSpec = mSpec,
+        measurementConsumerCertificate = readCertificate(mcCert.x509Der),
+      )
+    ) {
+      logger.info("invalid measurementSpec ")
+      return
+    }
+
     if (!verifyRequisitionSpec(
         requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
         requisitionSpec = decryptedRequisitionSpec,
-        measurementConsumerCertificate = mcCert,
+        measurementConsumerCertificate = readCertificate(mcCert.x509Der),
         measurementSpec = mSpec,
       )
     ) {
