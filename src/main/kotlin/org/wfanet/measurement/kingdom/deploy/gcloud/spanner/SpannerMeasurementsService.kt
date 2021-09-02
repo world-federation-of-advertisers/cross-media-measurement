@@ -36,6 +36,7 @@ class SpannerMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
+
   override suspend fun createMeasurement(request: Measurement): Measurement {
     try {
       return CreateMeasurement(request).execute(client, idGenerator, clock)
@@ -56,16 +57,18 @@ class SpannerMeasurementsService(
       }
     }
   }
+
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     TODO("Not implemented yet.")
   }
+
   override suspend fun getMeasurementByComputationId(
     request: GetMeasurementByComputationIdRequest
   ): Measurement {
-    grpcRequire(request.measurementView == Measurement.View.COMPUTATION){
-        "getMeasurementByComputationId can only be with COMPUTATION View"
-      }
-    return MeasurementReader(request.measurementView)
+    grpcRequire(request.measurementView == Measurement.View.COMPUTATION) {
+      "getMeasurementByComputationId can only be with COMPUTATION View"
+    }
+    return MeasurementReader(Measurement.View.COMPUTATION)
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalComputationId))
       ?.measurement
       ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
