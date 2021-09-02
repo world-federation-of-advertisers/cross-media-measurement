@@ -46,11 +46,14 @@ class SpannerExchangeStepAttemptsService(
       ExchangeStepAttemptReader()
         .withBuilder {
           appendClause(
-            "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
+            """
+              WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+              AND ExchangeStepAttempts.Date = @date
+              AND ExchangeStepAttempts.StepIndex = @step_index
+              AND ExchangeStepAttempts.AttemptIndex = @attempt_index
+              )
+              """.trimIndent()
           )
-          appendClause("AND ExchangeStepAttempts.Date = @date")
-          appendClause("AND ExchangeStepAttempts.StepIndex = @step_index")
-          appendClause("AND ExchangeStepAttempts.AttemptIndex = @attempt_index")
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.provider.type) {
             Provider.Type.DATA_PROVIDER ->
