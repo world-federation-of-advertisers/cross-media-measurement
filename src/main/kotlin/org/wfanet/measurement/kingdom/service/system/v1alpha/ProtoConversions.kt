@@ -92,14 +92,21 @@ fun InternalComputationParticipant.toSystemComputationParticipant(): Computation
       it.state = state.toSystemRequisitionState()
       it.updateTime = updateTime
       it.requisitionParamsBuilder.apply {
-        duchyCertificate =
-          when (Version.fromString(apiVersion)) {
-            Version.V2_ALPHA ->
-              DuchyCertificateKey(externalDuchyId, externalIdToApiId(externalDuchyCertificateId))
-                .toName()
-            Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-          }
-        // TODO: set duchy_certificate_der
+        if (hasDuchyCertificate()) {
+          val duchyCertificate = this@toSystemComputationParticipant.duchyCertificate
+
+          this.duchyCertificate =
+            when (Version.fromString(apiVersion)) {
+              Version.V2_ALPHA ->
+                DuchyCertificateKey(
+                    externalDuchyId,
+                    externalIdToApiId(duchyCertificate.externalCertificateId)
+                  )
+                  .toName()
+              Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+            }
+          duchyCertificateDer = duchyCertificate.details.x509Der
+        }
         if (details.hasLiquidLegionsV2()) {
           liquidLegionsV2Builder.apply {
             elGamalPublicKey = details.liquidLegionsV2.elGamalPublicKey
