@@ -26,37 +26,59 @@ _repository_prefix:         string @tag("repository_prefix")
 _container_registry_prefix: _container_registry + "/" + _repository_prefix
 
 objectSets: [
+		frontend_simulator,
+		resource_setup_job,
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
-] + [ for d in duchies for v in d {v}]
+] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
+
+#Edps: [
+	{
+		display_name:  "edp1"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp2"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp3"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp4"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp5"
+		resource_name: "dataProviders/TBD"
+	},
+	{
+		display_name:  "edp6"
+		resource_name: "dataProviders/TBD"
+	},
+]
 
 #Duchies: [
 	{
 		name:                   "aggregator"
 		protocols_setup_config: #AggregatorProtocolsSetupConfig
-		tls_cert_file:          "/var/run/secrets/files/aggregator.pem"
-		tls_key_file:           "/var/run/secrets/files/aggregator.key"
-		cert_collection_file:   "/var/run/secrets/files/all_root_certs.pem"
+		cs_cert_resource_name:  "duchies/aggregator/certificates/TBD"
 	},
 	{
 		name:                   "worker-1"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
-		tls_cert_file:          "/var/run/secrets/files/worker_1.pem"
-		tls_key_file:           "/var/run/secrets/files/worker_1.key"
-		cert_collection_file:   "/var/run/secrets/files/all_root_certs.pem"
+		cs_cert_resource_name:  "duchies/worker-1/certificates/TBD"
 	},
 	{
 		name:                   "worker-2"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
-		tls_cert_file:          "/var/run/secrets/files/worker_2.pem"
-		tls_key_file:           "/var/run/secrets/files/worker_2.key"
-		cert_collection_file:   "/var/run/secrets/files/all_root_certs.pem"
+		cs_cert_resource_name:  "duchies/worker-2/certificates/TBD"
 	},
 ]
 
 #GkeDuchy: #Duchy & {
-	_aggregator_name: "duchy-aggregator"
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
 		"--instance-name=\(_spanner_instance)",
@@ -101,7 +123,41 @@ kingdom: #Kingdom & {
 		"push-spanner-schema-container": "\(_container_registry_prefix)/setup/push-spanner-schema"
 		"gcp-kingdom-data-server":       "\(_container_registry_prefix)/kingdom/data-server"
 		"system-api-server":             "\(_container_registry_prefix)/kingdom/system-api"
+		"v2alpha-public-api-server":     "\(_container_registry_prefix)/kingdom/v2alpha-public-api"
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"
+}
+
+frontend_simulator: "frontend_simulator": #FrontendSimulator & {
+	_mc_resource_name: "measurementConsumers/TBD"
+	_image:            "\(_container_registry_prefix)/loadtest/frontend-simulator"
+	_imagePullPolicy:  "Always"
+	_blob_storage_flags: [
+		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
+		"--google-cloud-storage-project=\(_cloud_storage_project)",
+	]
+	_dependencies: ["v2alpha-public-api-server"]
+}
+
+resource_setup_job: "resource_setup_job": #ResourceSetup & {
+	_edp_display_names: [ for d in #Edps {d.display_name}]
+	_duchy_ids: [ for d in #Duchies {d.name}]
+	_image:           "\(_container_registry_prefix)/loadtest/resource-setup"
+	_imagePullPolicy: "Always"
+	_dependencies: ["v2alpha-public-api-server"]
+}
+
+edp_simulators: {
+	for d in #Edps {
+		"\(d.display_name)": #EdpSimulator & {
+			_edp: d
+			_blob_storage_flags: [
+				"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
+				"--google-cloud-storage-project=\(_cloud_storage_project)",
+			]
+			_image:           "\(_container_registry_prefix)/loadtest/edp-simulator"
+			_imagePullPolicy: "Always"
+		}
+	}
 }

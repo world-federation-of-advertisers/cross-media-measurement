@@ -16,14 +16,21 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey.Type.EC_P256
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.createCertificateRequest
+import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.consent.client.dataprovider.signEncryptionPublicKey as signEdpEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey as signMcEncryptionPublicKey
@@ -34,6 +41,7 @@ import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
 class ResourceSetup(
   private val keyStore: KeyStore,
   private val dataProvidersClient: DataProvidersCoroutineStub,
+  private val certificatesClient: CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String
 ) {
@@ -41,7 +49,8 @@ class ResourceSetup(
   /** Process to create resources. */
   suspend fun process(
     dataProviderContents: List<EntityContent>,
-    measurementConsumerContent: EntityContent
+    measurementConsumerContent: EntityContent,
+    duchyCerts: List<DuchyCert>
   ) {
     logger.info("Starting with RunID: $runId ...")
 
@@ -60,63 +69,68 @@ class ResourceSetup(
       "Successfully created measurement consumer: ${measurementConsumer.name} " +
         "with certificate ${measurementConsumer.certificate} ..."
     )
+
+    // Step 3: Create certificate for each duchy.
+    duchyCerts.forEach {
+      val certificate = createDuchyCertificate(it)
+      logger.info("Successfully created certificate ${certificate.name}")
+    }
   }
 
   suspend fun createDataProvider(dataProviderContent: EntityContent): DataProvider {
-    val encryptionPublicKey =
-      EncryptionPublicKey.newBuilder()
-        .apply {
-          type = EC_P256
-          publicKeyInfo = dataProviderContent.encryptionPublicKeyDer
-        }
-        .build()
+    val encryptionPublicKey = encryptionPublicKey {
+      type = EC_P256
+      publicKeyInfo = dataProviderContent.encryptionPublicKeyDer
+    }
+
     val privateKeyHandle = PrivateKeyHandle(dataProviderContent.displayName, keyStore)
-    val request =
-      CreateDataProviderRequest.newBuilder()
-        .apply {
-          dataProviderBuilder.apply {
-            certificateDer = dataProviderContent.consentSignalCertificateDer
-            publicKey =
-              signEdpEncryptionPublicKey(
-                encryptionPublicKey,
-                privateKeyHandle,
-                readCertificate(dataProviderContent.consentSignalCertificateDer)
-              )
-            displayName = dataProviderContent.displayName
-          }
+    val request = createDataProviderRequest {
+      dataProvider =
+        dataProvider {
+          certificateDer = dataProviderContent.consentSignalCertificateDer
+          publicKey =
+            signEdpEncryptionPublicKey(
+              encryptionPublicKey,
+              privateKeyHandle,
+              readCertificate(dataProviderContent.consentSignalCertificateDer)
+            )
+          displayName = dataProviderContent.displayName
         }
-        .build()
+    }
     return dataProvidersClient.createDataProvider(request)
   }
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent
   ): MeasurementConsumer {
-    val encryptionPublicKey =
-      EncryptionPublicKey.newBuilder()
-        .apply {
-          // TODO: Get the type using the consent-signaling-client lib.
-          type = EC_P256
-          publicKeyInfo = measurementConsumerContent.encryptionPublicKeyDer
-        }
-        .build()
+    val encryptionPublicKey = encryptionPublicKey {
+      // TODO: Get the type using the consent-signaling-client lib.
+      type = EC_P256
+      publicKeyInfo = measurementConsumerContent.encryptionPublicKeyDer
+    }
     val privateKeyHandle = PrivateKeyHandle(measurementConsumerContent.displayName, keyStore)
-    val request =
-      CreateMeasurementConsumerRequest.newBuilder()
-        .apply {
-          measurementConsumerBuilder.apply {
-            certificateDer = measurementConsumerContent.consentSignalCertificateDer
-            publicKey =
-              signMcEncryptionPublicKey(
-                encryptionPublicKey,
-                privateKeyHandle,
-                readCertificate(measurementConsumerContent.consentSignalCertificateDer)
-              )
-            displayName = measurementConsumerContent.displayName
-          }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer =
+        measurementConsumer {
+          certificateDer = measurementConsumerContent.consentSignalCertificateDer
+          publicKey =
+            signMcEncryptionPublicKey(
+              encryptionPublicKey,
+              privateKeyHandle,
+              readCertificate(measurementConsumerContent.consentSignalCertificateDer)
+            )
+          displayName = measurementConsumerContent.displayName
         }
-        .build()
+    }
     return measurementConsumersClient.createMeasurementConsumer(request)
+  }
+
+  private suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
+    val request = createCertificateRequest {
+      parent = DuchyKey(duchyCert.duchyId).toName()
+      certificate = certificate { x509Der = duchyCert.consentSignalCertificateDer }
+    }
+    return certificatesClient.createCertificate(request)
   }
 
   companion object {
@@ -126,9 +140,19 @@ class ResourceSetup(
 
 /** Relevant data required to create entity like EDP or MC. */
 data class EntityContent(
+  /** The display name of the entity. */
   val displayName: String,
+  /** The private key mapping the consent signaling certificate in DER format. */
   val consentSignalPrivateKeyDer: ByteString,
+  /** The consent signaling certificate in DER format. */
   val consentSignalCertificateDer: ByteString,
-  // The ASN.1 SubjectPublicKeyInfo in DER format
+  /** The ASN.1 SubjectPublicKeyInfo in DER format */
   val encryptionPublicKeyDer: ByteString
+)
+
+data class DuchyCert(
+  /** The external duchy Id. */
+  val duchyId: String,
+  /** The consent signaling certificate in DER format. */
+  val consentSignalCertificateDer: ByteString
 )

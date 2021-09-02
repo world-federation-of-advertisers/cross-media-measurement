@@ -44,6 +44,7 @@ import ("strings")
 	kingdom_service: {
 		"gcp-kingdom-data-server": {}
 		"system-api-server": {}
+		"v2alpha-public-api-server": {}
 	}
 
 	kingdom_job: "kingdom-push-spanner-schema-job": {
@@ -88,6 +89,21 @@ import ("strings")
 		}
 
 		"system-api-server-pod": #ServerPod & {
+			_args: [
+				_debug_verbose_grpc_client_logging_flag,
+				_debug_verbose_grpc_server_logging_flag,
+				_duchy_info_config_flag,
+				_kingdom_tls_cert_file_flag,
+				_kingdom_tls_key_file_flag,
+				_kingdom_cert_collection_file_flag,
+				_internal_api_target_flag,
+				_internal_api_cert_host_flag,
+				"--port=8080",
+			]
+			_dependencies: ["gcp-kingdom-data-server"]
+		}
+
+		"v2alpha-public-api-server-pod": #ServerPod & {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,

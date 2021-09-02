@@ -34,11 +34,14 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -46,10 +49,15 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 
 /**
  * Path to `testdata` directory containing certs and keys.
@@ -94,37 +102,39 @@ class DataProvidersServiceTest {
 
   @Test
   fun `create fills created resource names`() {
-    val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply {
-        certificateDer = SERVER_CERTIFICATE_DER
-        publicKey = SIGNED_PUBLIC_KEY
-      }
+    val request = createDataProviderRequest {
+      dataProvider =
+        dataProvider {
+          certificateDer = SERVER_CERTIFICATE_DER
+          publicKey = SIGNED_PUBLIC_KEY
+        }
     }
 
     val createdDataProvider = runBlocking { service.createDataProvider(request) }
 
     val expectedDataProvider =
-      request.dataProvider.rebuild {
+      request.dataProvider.copy {
         name = DATA_PROVIDER_NAME
         certificate = CERTIFICATE_NAME
       }
     assertThat(createdDataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::createDataProvider)
       .isEqualTo(
-        INTERNAL_DATA_PROVIDER.rebuild {
+        INTERNAL_DATA_PROVIDER.copy {
           clearExternalDataProviderId()
-          certificate {
-            clearExternalDataProviderId()
-            clearExternalCertificateId()
-          }
+          certificate =
+            certificate.copy {
+              clearExternalDataProviderId()
+              clearExternalCertificateId()
+            }
         }
       )
   }
 
   @Test
   fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
-    val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply { publicKey = SIGNED_PUBLIC_KEY }
+    val request = createDataProviderRequest {
+      dataProvider = dataProvider { publicKey = SIGNED_PUBLIC_KEY }
     }
 
     val exception =
@@ -137,8 +147,8 @@ class DataProvidersServiceTest {
 
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
-    val request = buildCreateDataProviderRequest {
-      dataProviderBuilder.apply { certificateDer = SERVER_CERTIFICATE_DER }
+    val request = createDataProviderRequest {
+      dataProvider = dataProvider { certificateDer = SERVER_CERTIFICATE_DER }
     }
 
     val exception =
@@ -152,10 +162,10 @@ class DataProvidersServiceTest {
   @Test
   fun `get returns resource`() {
     val dataProvider = runBlocking {
-      service.getDataProvider(buildGetDataProviderRequest { name = DATA_PROVIDER_NAME })
+      service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
     }
 
-    val expectedDataProvider = buildDataProvider {
+    val expectedDataProvider = dataProvider {
       name = DATA_PROVIDER_NAME
       certificate = CERTIFICATE_NAME
       certificateDer = SERVER_CERTIFICATE_DER
@@ -163,7 +173,7 @@ class DataProvidersServiceTest {
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
     verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
-      .isEqualTo(buildInternalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
+      .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
   }
 
   @Test
@@ -180,7 +190,7 @@ class DataProvidersServiceTest {
   fun `get throws INVALID_ARGUMENT when name is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.getDataProvider(buildGetDataProviderRequest { name = "foo" }) }
+        runBlocking { service.getDataProvider(getDataProviderRequest { name = "foo" }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
@@ -206,57 +216,33 @@ class DataProvidersServiceTest {
       PUBLIC_KEY_DER = publicKeyPath.toFile().inputStream().use { ByteString.readFrom(it) }
     }
 
-    private val PUBLIC_KEY = buildEncryptionPublicKey {
+    private val PUBLIC_KEY = encryptionPublicKey {
       type = EncryptionPublicKey.Type.EC_P256
       publicKeyInfo = PUBLIC_KEY_DER
     }
 
-    private val SIGNED_PUBLIC_KEY = buildSignedData {
+    private val SIGNED_PUBLIC_KEY = signedData {
       data = PUBLIC_KEY.toByteString()
       signature = ByteString.copyFromUtf8("Fake signature of public key")
     }
 
-    private val INTERNAL_DATA_PROVIDER: InternalDataProvider = buildInternalDataProvider {
+    private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
-      details {
-        apiVersion = Version.V2_ALPHA.string
-        publicKey = SIGNED_PUBLIC_KEY.data
-        publicKeySignature = SIGNED_PUBLIC_KEY.signature
-      }
-      certificate {
-        externalDataProviderId = DATA_PROVIDER_ID
-        externalCertificateId = CERTIFICATE_ID
-        subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier
-        notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
-        notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
-        detailsBuilder.x509Der = SERVER_CERTIFICATE_DER
-      }
+      details =
+        details {
+          apiVersion = Version.V2_ALPHA.string
+          publicKey = SIGNED_PUBLIC_KEY.data
+          publicKeySignature = SIGNED_PUBLIC_KEY.signature
+        }
+      certificate =
+        internalCertificate {
+          externalDataProviderId = DATA_PROVIDER_ID
+          externalCertificateId = CERTIFICATE_ID
+          subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
+          notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
+          notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
+          details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
+        }
     }
   }
 }
-
-private inline fun buildCreateDataProviderRequest(
-  fill: (@Builder CreateDataProviderRequest.Builder).() -> Unit
-) = CreateDataProviderRequest.newBuilder().apply(fill).build()
-
-private inline fun buildGetDataProviderRequest(
-  fill: (@Builder GetDataProviderRequest.Builder).() -> Unit
-) = GetDataProviderRequest.newBuilder().apply(fill).build()
-
-private inline fun buildEncryptionPublicKey(
-  fill: (@Builder EncryptionPublicKey.Builder).() -> Unit
-) = EncryptionPublicKey.newBuilder().apply(fill).build()
-
-private inline fun buildSignedData(fill: (@Builder SignedData.Builder).() -> Unit) =
-  SignedData.newBuilder().apply(fill).build()
-
-private inline fun DataProvider.rebuild(fill: (@Builder DataProvider.Builder).() -> Unit) =
-  toBuilder().apply(fill).build()
-
-private inline fun InternalDataProvider.rebuild(
-  fill: (@Builder InternalDataProvider.Builder).() -> Unit
-) = toBuilder().apply(fill).build()
-
-private inline fun InternalDataProvider.Builder.certificate(
-  fill: (@Builder InternalCertificate.Builder).() -> Unit
-) = certificateBuilder.apply(fill).build()

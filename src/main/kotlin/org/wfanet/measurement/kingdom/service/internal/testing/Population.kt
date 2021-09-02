@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
@@ -40,19 +41,23 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 
-class Population(val clock: Clock, val idGenerator: IdGenerator) {
+private const val API_VERSION = "v2alpha"
 
-  fun buildRequestCertificate(
+class Population(val clock: Clock, val idGenerator: IdGenerator) {
+  fun buildRequestCertificate(derUtf8: String, skidUtf8: String, notValidBefore: Instant) =
+      certificate {
+    fillRequestCertificate(derUtf8, skidUtf8, notValidBefore)
+  }
+
+  private fun CertificateKt.Dsl.fillRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
     notValidBefore: Instant
-  ): Certificate {
-    return certificate {
-      this.notValidBefore = notValidBefore.toProtoTime()
-      notValidAfter = notValidBefore.plus(365L, ChronoUnit.DAYS).toProtoTime()
-      subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
-      details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
-    }
+  ) {
+    this.notValidBefore = notValidBefore.toProtoTime()
+    notValidAfter = notValidBefore.plus(365L, ChronoUnit.DAYS).toProtoTime()
+    subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
+    details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
   }
 
   suspend fun createMeasurementConsumer(
@@ -136,7 +141,16 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       }
     )
   }
-  companion object {
-    private const val API_VERSION = "v2alpha"
+
+  suspend fun createDuchyCertificate(
+    certificatesService: CertificatesCoroutineImplBase,
+    externalDuchyId: String
+  ): Certificate {
+    return certificatesService.createCertificate(
+      certificate {
+        this.externalDuchyId = externalDuchyId
+        fillRequestCertificate("Duchy cert", "Duchy $externalDuchyId SKID", clock.instant())
+      }
+    )
   }
 }

@@ -21,14 +21,17 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest as InternalGetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -42,13 +45,14 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 
     val internalResponse: InternalDataProvider =
       internalClient.createDataProvider(
-        buildInternalDataProvider {
+        internalDataProvider {
           certificate = parseCertificateDer(dataProvider.certificateDer)
-          details {
-            apiVersion = API_VERSION.string
-            publicKey = dataProvider.publicKey.data
-            publicKeySignature = dataProvider.publicKey.signature
-          }
+          details =
+            details {
+              apiVersion = API_VERSION.string
+              publicKey = dataProvider.publicKey.data
+              publicKeySignature = dataProvider.publicKey.signature
+            }
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
         // as owner.
@@ -65,34 +69,11 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
     // ownership check.
     val internalResponse: InternalDataProvider =
       internalClient.getDataProvider(
-        buildInternalGetDataProviderRequest {
-          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        }
+        getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
       )
     return internalResponse.toDataProvider()
   }
 }
-
-internal inline fun buildDataProvider(fill: (@Builder DataProvider.Builder).() -> Unit) =
-  DataProvider.newBuilder().apply(fill).build()
-
-internal inline fun DataProvider.Builder.publicKey(fill: (@Builder SignedData.Builder).() -> Unit) {
-  publicKeyBuilder.apply(fill)
-}
-
-internal inline fun buildInternalDataProvider(
-  fill: (@Builder InternalDataProvider.Builder).() -> Unit
-) = InternalDataProvider.newBuilder().apply(fill).build()
-
-internal inline fun InternalDataProvider.Builder.details(
-  fill: (@Builder InternalDataProvider.Details.Builder).() -> Unit
-) {
-  detailsBuilder.apply(fill)
-}
-
-internal inline fun buildInternalGetDataProviderRequest(
-  fill: (@Builder InternalGetDataProviderRequest.Builder).() -> Unit
-) = InternalGetDataProviderRequest.newBuilder().apply(fill).build()
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {
   check(Version.fromString(details.apiVersion) == API_VERSION) {
@@ -102,13 +83,14 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
   val dataProviderId: String = externalIdToApiId(externalDataProviderId)
   val certificateId: String = externalIdToApiId(certificate.externalCertificateId)
 
-  return buildDataProvider {
+  return dataProvider {
     name = DataProviderKey(dataProviderId).toName()
     certificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
     certificateDer = internalDataProvider.certificate.details.x509Der
-    publicKey {
-      data = internalDataProvider.details.publicKey
-      signature = internalDataProvider.details.publicKeySignature
-    }
+    publicKey =
+      signedData {
+        data = internalDataProvider.details.publicKey
+        signature = internalDataProvider.details.publicKeySignature
+      }
   }
 }
