@@ -14,7 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -22,13 +26,11 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -40,29 +42,30 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  */
 class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurementLogEntryRequest) :
   SpannerWriter<DuchyMeasurementLogEntry, DuchyMeasurementLogEntry>() {
+  data class MeasurementIds(
+    val measurementId: InternalId,
+    val measurementConsumerId: InternalId,
+    val externalMeasurementId: ExternalId,
+    val externalMeasurementConsumerId: ExternalId
+  )
 
   override suspend fun TransactionScope.runTransaction(): DuchyMeasurementLogEntry {
 
-    val measurementResult =
-      MeasurementReader(Measurement.View.DEFAULT)
-        .readExternalIdOrNull(transactionContext, ExternalId(request.externalComputationId))
+    val measurementIds =
+      readMeasurementIds()
         ?: throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_NOT_FOUND) {
           "Measurement for external computation ID ${request.externalComputationId} not found"
         }
-
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
 
-    val measurement = measurementResult.measurement
-    val measurementId = measurementResult.measurementId
-    val measurementConsumerId = measurementResult.measurementConsumerId
-    insertMeasurementLogEntry(InternalId(measurementId), InternalId(measurementConsumerId))
+    insertMeasurementLogEntry(measurementIds.measurementId, measurementIds.measurementConsumerId)
 
     val externalComputationLogEntryId =
       insertDuchyMeasurementLogEntry(
-        InternalId(measurementId),
-        InternalId(measurementConsumerId),
+        measurementIds.measurementId,
+        measurementIds.measurementConsumerId,
         InternalId(duchyId)
       )
     return duchyMeasurementLogEntry {
@@ -72,8 +75,8 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       logEntry =
         measurementLogEntry {
           details = request.measurementLogEntryDetails
-          externalMeasurementId = measurement.externalMeasurementId
-          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurementIds.externalMeasurementId.value
+          externalMeasurementConsumerId = measurementIds.externalMeasurementConsumerId.value
         }
     }
   }
@@ -112,21 +115,37 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     return externalComputationLogEntryId
   }
 
-  // private suspend fun TransactionScope.readMeasurementIds(
-  //   externalComputationId: ExternalId
-  // ): InternalId {
-  //   val column = listOf("MeasurementId", "MeasurementConsumerId",)
-  //   return transactionContext.readRowUsingIndex(
-  //       "Measurements",
-  //       "MeasurementsByExternalComputationId",
-  //       Key.of(externalDataProviderId.value),
-  //       column
-  //     )
-  //     ?.let { struct -> InternalId(struct.getLong(column)) }
-  //     ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND) {
-  //       "DataProvider with external ID $externalDataProviderId not found"
-  //     }
-  // }
+  suspend fun translateToInternalIds(struct: Struct): MeasurementIds =
+    MeasurementIds(
+      InternalId(struct.getLong("MeasurementId")),
+      InternalId(struct.getLong("MeasurementConsumerId")),
+      ExternalId(struct.getLong("ExternalMeasurementId")),
+      ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+    )
+
+  private suspend fun TransactionScope.readMeasurementIds(): MeasurementIds? {
+
+    return transactionContext
+      .executeQuery(
+        Statement.newBuilder(
+            """
+          SELECT
+            Measurements.MeasurementId,
+            Measurements.MeasurementConsumerId,
+            Measurements.ExternalMeasurementId,
+            Measurements.ExternalComputationId,
+            MeasurementConsumers.ExternalMeasurementConsumerId,
+          FROM Measurements
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+          WHERE ExternalComputationId = ${request.externalComputationId}
+          LIMIT 1
+        """.trimIndent()
+          )
+          .build()
+      )
+      .map(::translateToInternalIds)
+      .singleOrNull()
+  }
 
   override fun ResultScope<DuchyMeasurementLogEntry>.buildResult(): DuchyMeasurementLogEntry {
     val duchMeasurementLogEntry = checkNotNull(transactionResult)
