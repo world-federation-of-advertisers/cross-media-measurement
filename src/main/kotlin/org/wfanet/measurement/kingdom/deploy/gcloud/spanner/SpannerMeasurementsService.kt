@@ -65,9 +65,6 @@ class SpannerMeasurementsService(
   override suspend fun getMeasurementByComputationId(
     request: GetMeasurementByComputationIdRequest
   ): Measurement {
-    grpcRequire(request.measurementView == Measurement.View.COMPUTATION) {
-      "getMeasurementByComputationId can only be with COMPUTATION View"
-    }
     return MeasurementReader(Measurement.View.COMPUTATION)
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalComputationId))
       ?.measurement
