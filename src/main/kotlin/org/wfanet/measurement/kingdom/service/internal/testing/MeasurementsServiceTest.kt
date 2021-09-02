@@ -147,7 +147,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.getMeasurementByComputationId(
           getMeasurementByComputationIdRequest {
             externalComputationId = 1L
-            measurementView = Measurement.View.COMPUTATION
           }
         )
       }
@@ -285,6 +284,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val dataProvider = insertDataProvider()
@@ -344,6 +344,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `getMeasurement DEFAULT View succeeds`() =
 >>>>>>> 4e998728 (addressed comments)
+=======
+  fun `getMeasurement succeeds`() =
+>>>>>>> 91a3393e (addressed comments)
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -371,23 +374,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           getMeasurementRequest {
             this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
             externalMeasurementId = createdMeasurement.externalMeasurementId
-            measurementView = Measurement.View.DEFAULT
           }
         )
-
-      assertThat(measurement)
-        .ignoringFields(
-          Measurement.REQUISITIONS_FIELD_NUMBER,
-          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
-          Measurement.CREATE_TIME_FIELD_NUMBER,
-          Measurement.UPDATE_TIME_FIELD_NUMBER
-        )
-        .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
+      // TODO(@uakyol) : assert dataPoviders field once it is populated in the Measurement Reader.
+      assertThat(measurement).isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
     }
 >>>>>>> 14c762a6 (done)
 
   @Test
-  fun `getMeasurementByComputationId COMPUTATION View succeeds`() =
+  fun `getMeasurementByComputationId succeeds`() =
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -421,7 +416,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.getMeasurementByComputationId(
           getMeasurementByComputationIdRequest {
             externalComputationId = createdMeasurement.externalComputationId
-            measurementView = Measurement.View.COMPUTATION
           }
         )
 

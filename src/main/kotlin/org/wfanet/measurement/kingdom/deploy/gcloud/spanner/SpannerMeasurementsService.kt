@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -59,10 +58,7 @@ class SpannerMeasurementsService(
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    grpcRequire(request.measurementView == Measurement.View.DEFAULT) {
-      "getMeasurement only supports DEFAULT View"
-    }
-    return MeasurementReader(request.measurementView)
+    return MeasurementReader(Measurement.View.DEFAULT)
       .readByExternalIds(
         client.singleUse(),
         ExternalId(request.externalMeasurementConsumerId),
