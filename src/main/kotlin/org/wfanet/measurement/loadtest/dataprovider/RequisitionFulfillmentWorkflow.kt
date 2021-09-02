@@ -61,7 +61,7 @@ import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingH
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-private const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
+const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
@@ -169,7 +169,7 @@ class RequisitionFulfillmentWorkflow(
 
     val mcCert =
       certificateServiceStub.getCertificate(
-        getCertificateRequest { name = decryptedRequisitionSpec.measurementPublicKey.toString() }
+        getCertificateRequest { name = requisition.measurementConsumerCertificate }
       )
 
     if (!verifyMeasurementSpec(
@@ -178,7 +178,7 @@ class RequisitionFulfillmentWorkflow(
         measurementConsumerCertificate = readCertificate(mcCert.x509Der),
       )
     ) {
-      logger.info("invalid measurementSpec ")
+      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec ")
       return
     }
 
@@ -189,7 +189,7 @@ class RequisitionFulfillmentWorkflow(
         measurementSpec = mSpec,
       )
     ) {
-      logger.info("invalid requisitionSpec ")
+      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec ")
       return
     }
 
@@ -200,8 +200,7 @@ class RequisitionFulfillmentWorkflow(
 
     val sketch = generateSketch(sketchConfig)
 
-    val blobKey = "sketch/for-req-${requisition.name}"
-    sketchStore.write(blobKey, sketch.toByteString().asBufferedFlow(1024))
+    sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(1024))
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
 
