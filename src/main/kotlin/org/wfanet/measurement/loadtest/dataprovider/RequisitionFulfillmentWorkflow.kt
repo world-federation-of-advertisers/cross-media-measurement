@@ -15,6 +15,8 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
+import java.util.logging.Logger
+import kotlin.random.Random
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -36,15 +38,31 @@ import org.wfanet.anysketch.exponentialDistribution
 import org.wfanet.anysketch.oracleDistribution
 import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
+import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
+import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
+import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
+
+/* Key handle of the EDP's private consent signaling key */
+const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
@@ -52,18 +70,23 @@ class RequisitionFulfillmentWorkflow(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
+  private val keyStore: KeyStore,
+  private val certificateServiceStub: CertificatesCoroutineStub,
+  private val sketchGenerationParams: SketchGenerationParams,
 ) {
 
-  fun generateSketch(sketchConfig: SketchConfig): Sketch {
-
+  private fun generateSketch(
+    sketchConfig: SketchConfig,
+    sketchGenerationParams: SketchGenerationParams
+  ): Sketch {
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    // todo(@ohardt): make random
-    anySketch.insert(123, mapOf("frequency" to 1L))
-    anySketch.insert(122, mapOf("frequency" to 1L))
-    anySketch.insert(332, mapOf("frequency" to 1L))
-    anySketch.insert(111, mapOf("frequency" to 1L))
-
+    for (i in 1..sketchGenerationParams.reach) {
+      anySketch.insert(
+        Random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong(),
+        mapOf("frequency" to 1L)
+      )
+    }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
@@ -84,6 +107,7 @@ class RequisitionFulfillmentWorkflow(
         .build()
     val response =
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
+
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
@@ -118,37 +142,83 @@ class RequisitionFulfillmentWorkflow(
     return response.requisitionsList.firstOrNull()
   }
 
+  /** Always returns [ReversingHybridCryptor] regardless of input [HybridCipherSuite]. */
+  private fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
+    return ReversingHybridCryptor()
+  }
+
   /** execute runs the individual steps of the workflow */
   suspend fun execute() {
     val requisition: Requisition = getRequisition() ?: return
 
-    // todo(@ohardt): needs checking of signed data on
-    //                measurementSpec and reqSpec of the requisition
-    //                and then sign the uplaoded sketch
+    val hybridCipherSuite = HybridCipherSuite.getDefaultInstance()
+
+    val privateKeyHandle = keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)
+    checkNotNull(privateKeyHandle)
+
+    val mSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+
+    val decryptedSignedDataRequisitionSpec =
+      decryptRequisitionSpec(
+        requisition.encryptedRequisitionSpec,
+        privateKeyHandle,
+        hybridCipherSuite,
+        ::fakeGetHybridCryptorForCipherSuite
+      )
+
+    val decryptedRequisitionSpec =
+      RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
+
+    val mcCert =
+      certificateServiceStub.getCertificate(
+        getCertificateRequest { name = requisition.measurementConsumerCertificate }
+      )
+
+    if (!verifyMeasurementSpec(
+        measurementSpecSignature = requisition.measurementSpec.signature,
+        measurementSpec = mSpec,
+        measurementConsumerCertificate = readCertificate(mcCert.x509Der),
+      )
+    ) {
+      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec ")
+      return
+    }
+
+    if (!verifyRequisitionSpec(
+        requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
+        requisitionSpec = decryptedRequisitionSpec,
+        measurementConsumerCertificate = readCertificate(mcCert.x509Der),
+        measurementSpec = mSpec,
+      )
+    ) {
+      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec ")
+      return
+    }
 
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
 
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
 
-    val sketch = generateSketch(sketchConfig)
+    val sketch = generateSketch(sketchConfig, sketchGenerationParams)
 
-    val blobKey = "sketch/for-req-${requisition.name}"
-    sketchStore.write(blobKey, sketch.toByteString().asBufferedFlow(1024))
+    sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(1024))
 
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
 
     fulfillRequisition(requisition.name, sketchChunks)
   }
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }
 
 private fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
-  return ElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = generator
-      it.element = element
-    }
-    .build()
+  val that = this
+  return elGamalPublicKey {
+    generator = that.generator
+    element = that.element
+  }
 }
 
 private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
@@ -164,8 +234,6 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
 private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
 
   // todo(@ohardt): this needs to verify the duchy keys before using them
-
-  // val curveId = 415L // todo: fetch this from the ProtoConfig svc using `req.protocolConfig` ?
 
   val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
 
