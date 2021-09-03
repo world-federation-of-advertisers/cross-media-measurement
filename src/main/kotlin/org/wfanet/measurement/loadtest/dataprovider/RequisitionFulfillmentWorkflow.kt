@@ -235,8 +235,6 @@ private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
 
   // todo(@ohardt): this needs to verify the duchy keys before using them
 
-  // val curveId = 415L // todo: fetch this from the ProtoConfig svc using `req.protocolConfig` ?
-
   val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
 
   val request =
