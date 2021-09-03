@@ -214,9 +214,10 @@ class RequisitionFulfillmentWorkflow(
 }
 
 private fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
+  val that = this
   return elGamalPublicKey {
-    generator = generator
-    element = element
+    generator = that.generator
+    element = that.element
   }
 }
 
