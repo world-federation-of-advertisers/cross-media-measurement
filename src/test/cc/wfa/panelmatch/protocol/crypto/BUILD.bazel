@@ -11,7 +11,7 @@ cc_test(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
-        "@googletest//:gtest_main",
+        "@com_google_googletest//:gtest_main",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -25,7 +25,7 @@ cc_test(
         "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
-        "@googletest//:gtest_main",
+        "@com_google_googletest//:gtest_main",
         "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",

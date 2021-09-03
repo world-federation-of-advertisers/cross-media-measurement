@@ -48,7 +48,7 @@ cc_library(
         "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "//src/main/cc/wfa/panelmatch/common/crypto:peppered_fingerprinter",
-        "@com_github_glog_glog//:glog",
+        "@com_github_google_glog//:glog",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
