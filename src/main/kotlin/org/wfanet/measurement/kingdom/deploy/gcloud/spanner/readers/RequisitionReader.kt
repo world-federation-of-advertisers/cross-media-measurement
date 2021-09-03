@@ -44,6 +44,11 @@ private val BASE_SQL =
     ExternalComputationId,
     ExternalDataProviderId,
     ExternalDataProviderCertificateId,
+    SubjectKeyIdentifier,
+    NotValidBefore,
+    NotValidAfter,
+    RevocationState,
+    CertificateDetails,
     Measurements.State AS MeasurementState,
     MeasurementDetails,
     ARRAY(
@@ -66,6 +71,7 @@ private val BASE_SQL =
     JOIN DataProviders USING (DataProviderId)
     JOIN DataProviderCertificates
       ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
+    JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
   """.trimIndent()
 
 class RequisitionReader : BaseSpannerReader<Requisition>() {
@@ -154,8 +160,6 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
       externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
       externalComputationId = measurementStruct.getLong("ExternalComputationId")
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
-      externalDataProviderCertificateId =
-        requisitionStruct.getLong("ExternalDataProviderCertificateId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
       if (state == Requisition.State.FULFILLED) {
@@ -170,6 +174,7 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
       for ((externalDuchyId, participantStruct) in participantStructs) {
         duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
+      dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
       parentMeasurement = buildParentMeasurement(measurementStruct)
     }
 
