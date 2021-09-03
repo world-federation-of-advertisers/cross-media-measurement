@@ -71,7 +71,6 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val internalGetMeasurementRequest = getMeasurementRequest {
       externalMeasurementId = apiIdToExternalId(key.measurementId)
       externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-      measurementView = InternalMeasurementView.DEFAULT
     }
 
     val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
