@@ -146,9 +146,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.getMeasurementByComputationId(
-          getMeasurementByComputationIdRequest {
-            externalComputationId = 1L
-          }
+          getMeasurementByComputationIdRequest { externalComputationId = 1L }
         )
       }
 

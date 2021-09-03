@@ -251,15 +251,13 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val nonUpdatedMeasurement =
       measurementsService.getMeasurementByComputationId(
         GetMeasurementByComputationIdRequest.newBuilder()
-          .apply {
-            externalComputationId = measurement.externalComputationId
-          }
+          .apply { externalComputationId = measurement.externalComputationId }
           .build()
       )
     assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
   }
 
-@Test
+  @Test
   fun `setParticipantRequisitionParams for final Duchy updates Measurement state`() {
     runBlocking {
       val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
