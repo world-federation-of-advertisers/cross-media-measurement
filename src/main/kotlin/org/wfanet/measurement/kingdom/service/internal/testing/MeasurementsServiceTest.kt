@@ -319,22 +319,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       .isEqualTo(createdMeasurement)
   }
 
-  fun `getMeasurement COMPUTATION View fails`() =
-    runBlocking<Unit> {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          measurementsService.getMeasurement(
-            getMeasurementRequest {
-              externalMeasurementConsumerId = 1L
-              externalMeasurementId = 1L
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("getMeasurement only supports DEFAULT View")
-    }
-
   @Test
   fun `getMeasurement succeeds`() =
     runBlocking<Unit> {
@@ -366,7 +350,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementId = createdMeasurement.externalMeasurementId
           }
         )
-      // TODO(@uakyol) : Assert dataPoviders field once it is populated in the MeasurementReader.
       assertThat(measurement).isEqualTo(createdMeasurement)
     }
 
