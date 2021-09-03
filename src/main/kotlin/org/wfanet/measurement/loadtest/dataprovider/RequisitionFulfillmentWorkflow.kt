@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
 import java.util.logging.Logger
+import kotlin.random.Random
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -80,13 +81,12 @@ class RequisitionFulfillmentWorkflow(
   ): Sketch {
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    for (i in 1..sketchGenerationParams.universeSize) {
+    for (i in 1..sketchGenerationParams.reach) {
       anySketch.insert(
-        123,
-        mapOf("frequency" to (1..sketchGenerationParams.reach).random().toLong())
+        Random.nextInt(1, sketchGenerationParams.universeSize+1).toLong(),
+        mapOf("frequency" to 1L)
       )
     }
-
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
@@ -214,10 +214,9 @@ class RequisitionFulfillmentWorkflow(
 }
 
 private fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
-  val that = this
   return elGamalPublicKey {
-    generator = that.generator
-    element = that.element
+    generator = generator
+    element = element
   }
 }
 
