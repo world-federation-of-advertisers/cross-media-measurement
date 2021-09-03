@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
@@ -71,20 +70,22 @@ class RequisitionFulfillmentWorkflow(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val keyStore: KeyStore,
-  private val mcResourceName: String,
-  private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val certificateServiceStub: CertificatesCoroutineStub
+  private val certificateServiceStub: CertificatesCoroutineStub,
+  private val sketchGenerationParams: SketchGenerationParams,
 ) {
 
-  fun generateSketch(sketchConfig: SketchConfig): Sketch {
-
+  private fun generateSketch(
+    sketchConfig: SketchConfig,
+    sketchGenerationParams: SketchGenerationParams
+  ): Sketch {
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    // todo(@ohardt): make random
-    anySketch.insert(123, mapOf("frequency" to 1L))
-    anySketch.insert(122, mapOf("frequency" to 1L))
-    anySketch.insert(332, mapOf("frequency" to 1L))
-    anySketch.insert(111, mapOf("frequency" to 1L))
+    for (i in 1..sketchGenerationParams.universeSize) {
+      anySketch.insert(
+        123,
+        mapOf("frequency" to (1..sketchGenerationParams.reach).random().toLong())
+      )
+    }
 
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
@@ -142,7 +143,7 @@ class RequisitionFulfillmentWorkflow(
   }
 
   /** Always returns [ReversingHybridCryptor] regardless of input [HybridCipherSuite]. */
-  fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
+  private fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
     return ReversingHybridCryptor()
   }
 
@@ -199,7 +200,7 @@ class RequisitionFulfillmentWorkflow(
 
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
 
-    val sketch = generateSketch(sketchConfig)
+    val sketch = generateSketch(sketchConfig, sketchGenerationParams)
 
     sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(1024))
 
@@ -213,9 +214,10 @@ class RequisitionFulfillmentWorkflow(
 }
 
 private fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
+  val that = this
   return elGamalPublicKey {
-    generator = generator
-    element = element
+    generator = that.generator
+    element = that.element
   }
 }
 
