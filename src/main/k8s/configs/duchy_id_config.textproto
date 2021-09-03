@@ -5,10 +5,10 @@ duchies {
   internal_duchy_id: 1234
 }
 duchies {
-  duchy_id: "worker-1"
+  external_duchy_id: "worker1"
   internal_duchy_id: 2345
 }
 duchies {
-  duchy_id: "worker-2"
+  external_duchy_id: "worker2"
   internal_duchy_id: 3456
 }

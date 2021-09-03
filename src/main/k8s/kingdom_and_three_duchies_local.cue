@@ -116,12 +116,12 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		cs_cert_resource_name:  "duchies/aggregator/certificates/TBD"
 	},
 	{
-		name:                   "worker-1"
+		name:                   "worker1"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 		cs_cert_resource_name:  "duchies/worker-1/certificates/TBD"
 	},
 	{
-		name:                   "worker-2"
+		name:                   "worker2"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
 		cs_cert_resource_name:  "duchies/worker-2/certificates/TBD"
 	},

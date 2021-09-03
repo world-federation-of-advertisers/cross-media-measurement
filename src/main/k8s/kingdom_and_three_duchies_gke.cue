@@ -25,56 +25,66 @@ _container_registry:        string @tag("container_registry")
 _repository_prefix:         string @tag("repository_prefix")
 _container_registry_prefix: _container_registry + "/" + _repository_prefix
 
+// Group 1
 objectSets: [
-		frontend_simulator,
-		resource_setup_job,
-		kingdom.kingdom_service,
-		kingdom.kingdom_pod,
-		kingdom.kingdom_job,
-] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
+	resource_setup_job,
+	kingdom.kingdom_service,
+	kingdom.kingdom_pod,
+	kingdom.kingdom_job,
+]
+
+// Group 2
+//objectSets: [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
+
+// Group 3
+//objectSets: [
+// frontend_simulator,
+//]
 
 #Edps: [
 	{
 		display_name:  "edp1"
-		resource_name: "dataProviders/TBD"
+		resource_name: "TBD"
 	},
 	{
 		display_name:  "edp2"
-		resource_name: "dataProviders/TBD"
+		resource_name: "TBD"
 	},
 	{
 		display_name:  "edp3"
-		resource_name: "dataProviders/TBD"
+		resource_name: "TBD"
 	},
 	{
 		display_name:  "edp4"
-		resource_name: "dataProviders/TBD"
+		resource_name: "TBD"
 	},
 	{
 		display_name:  "edp5"
-		resource_name: "dataProviders/TBD"
+		resource_name: "TBD"
 	},
 	{
 		display_name:  "edp6"
-		resource_name: "dataProviders/TBD"
+		resource_name: "TBD"
 	},
 ]
+
+#McResourcename: "TBD"
 
 #Duchies: [
 	{
 		name:                   "aggregator"
 		protocols_setup_config: #AggregatorProtocolsSetupConfig
-		cs_cert_resource_name:  "duchies/aggregator/certificates/TBD"
+		cs_cert_resource_name:  "TBD"
 	},
 	{
-		name:                   "worker-1"
+		name:                   "worker1"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
-		cs_cert_resource_name:  "duchies/worker-1/certificates/TBD"
+		cs_cert_resource_name:  "TBD"
 	},
 	{
-		name:                   "worker-2"
+		name:                   "worker2"
 		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
-		cs_cert_resource_name:  "duchies/worker-2/certificates/TBD"
+		cs_cert_resource_name:  "TBD"
 	},
 ]
 
@@ -130,7 +140,7 @@ kingdom: #Kingdom & {
 }
 
 frontend_simulator: "frontend_simulator": #FrontendSimulator & {
-	_mc_resource_name: "measurementConsumers/TBD"
+	_mc_resource_name: #McResourcename
 	_image:            "\(_container_registry_prefix)/loadtest/frontend-simulator"
 	_imagePullPolicy:  "Always"
 	_blob_storage_flags: [

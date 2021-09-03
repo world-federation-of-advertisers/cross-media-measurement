@@ -15,8 +15,10 @@
 package k8s
 
 #ResourceSetup: {
+	_name: "resource-setup-job"
 	_edp_display_names: [...string]
 	_duchy_ids: [...string]
+	_foooo: string
 
 	_edp_cert_key_files_flags:
 		[
@@ -25,7 +27,7 @@ package k8s
 			},
 		] + [
 			for d in _edp_display_names {
-				"--edp-consent-signaling-key-der-files=\(d)=/var/run/secrets/files/\(d)_cs_key.der"
+				"--edp-consent-signaling-key-der-files=\(d)=/var/run/secrets/files/\(d)_cs_private.der"
 			},
 		] + [
 			for d in _edp_display_names {
@@ -34,7 +36,7 @@ package k8s
 		]
 	_mc_cert_key_files_flags: [
 		"--mc-consent-signaling-cert-der-files=/var/run/secrets/files/mc_cs_cert.der",
-		"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_key.der",
+		"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
 		"--mc-encryption-public-key-der-file=/var/run/secrets/files/mc_enc_public.der",
 	]
 	_tls_cert_key_files_flags: [
@@ -48,18 +50,17 @@ package k8s
 		},
 	]
 	_kingdom_public_api_flags: [
-		"--kingdom-public-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+		"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
 		"--kingdom-public-api-cert-host=localhost",
 	]
 
 	_image:           string
 	_imagePullPolicy: string
-	_args: [...string]
 
 	apiVersion: "batch/v1"
 	kind:       "Job"
 	metadata: {
-		name: "resource_setup_job"
+		name: "resource-setup-job"
 		labels: "app.kubernetes.io/name": #AppName
 	}
 	spec: template: spec: {
@@ -67,23 +68,27 @@ package k8s
 			name:            "resource-setup-container"
 			image:           _image
 			imagePullPolicy: _imagePullPolicy
-			args:            [
-						_edp_cert_key_files_flags,
-						_mc_cert_key_files_flags,
-						_tls_cert_key_files_flags,
-						_duchy_cs_cert_files_flags,
-						_kingdom_public_api_flags,
+			args:
+				_edp_cert_key_files_flags +
+				_mc_cert_key_files_flags +
+				_tls_cert_key_files_flags +
+				_duchy_cs_cert_files_flags +
+				_kingdom_public_api_flags
+			volumeMounts: [
+				{
+					name:      _name + "-files"
+					mountPath: "/var/run/secrets/files"
+					readOnly:  true
+				}]
 
-			] + _args
-			volumeMounts: [{
-				name:      "cache-volume"
-				mountPath: "/cache"
-			}]
 		}]
 		restartPolicy: "OnFailure"
-		volumes: [{
-			name: "cache-volume"
-			emptyDir: {}
-		}]
+		volumes: [
+			{
+				name: _name + "-files"
+				secret: {
+					secretName: #SecretName
+				}
+			}]
 	}
 }
