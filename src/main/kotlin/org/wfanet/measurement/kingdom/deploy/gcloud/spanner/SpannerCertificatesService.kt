@@ -61,6 +61,7 @@ class SpannerCertificatesService(
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
       }
