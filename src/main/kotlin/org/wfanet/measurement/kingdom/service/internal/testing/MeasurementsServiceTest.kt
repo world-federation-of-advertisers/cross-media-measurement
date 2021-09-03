@@ -308,6 +308,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.getMeasurementByComputationId(
         getMeasurementByComputationIdRequest {
           externalComputationId = createdMeasurement.externalComputationId
+          measurementView = Measurement.View.COMPUTATION
         }
       )
 
@@ -316,7 +317,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         Measurement.REQUISITIONS_FIELD_NUMBER,
         Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
       )
-      .isEqualTo(createdMeasurement)
+      .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
   }
 
   @Test
