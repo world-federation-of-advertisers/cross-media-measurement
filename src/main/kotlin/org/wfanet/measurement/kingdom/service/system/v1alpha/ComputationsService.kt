@@ -56,10 +56,7 @@ class ComputationsService(
       }
     val internalRequest =
       GetMeasurementByComputationIdRequest.newBuilder()
-        .apply {
-          externalComputationId = apiIdToExternalId(computationKey.computationId)
-          measurementView = Measurement.View.COMPUTATION
-        }
+        .apply { externalComputationId = apiIdToExternalId(computationKey.computationId) }
         .build()
     return measurementsClient.getMeasurementByComputationId(internalRequest).toSystemComputation()
   }

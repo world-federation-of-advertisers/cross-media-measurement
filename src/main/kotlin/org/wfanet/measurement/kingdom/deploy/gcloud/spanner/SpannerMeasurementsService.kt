@@ -56,7 +56,14 @@ class SpannerMeasurementsService(
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    TODO("Not implemented yet.")
+    return MeasurementReader(Measurement.View.DEFAULT)
+      .readByExternalIds(
+        client.singleUse(),
+        ExternalId(request.externalMeasurementConsumerId),
+        ExternalId(request.externalMeasurementId)
+      )
+      ?.measurement
+      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
 
   override suspend fun getMeasurementByComputationId(

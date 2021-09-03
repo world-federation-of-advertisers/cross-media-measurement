@@ -47,6 +47,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
@@ -145,10 +146,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.getMeasurementByComputationId(
-          getMeasurementByComputationIdRequest {
-            externalComputationId = 1L
-            measurementView = Measurement.View.COMPUTATION
-          }
+          getMeasurementByComputationIdRequest { externalComputationId = 1L }
         )
       }
 
@@ -308,7 +306,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.getMeasurementByComputationId(
         getMeasurementByComputationIdRequest {
           externalComputationId = createdMeasurement.externalComputationId
-          measurementView = Measurement.View.COMPUTATION
         }
       )
 
@@ -321,7 +318,41 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `getMeasurementByComputationId COMPUTATION View succeeds`() =
+  fun `getMeasurement succeeds`() =
+    runBlocking<Unit> {
+      val measurementConsumer = insertMeasurementConsumer()
+      val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      val externalMeasurementConsumerCertificateId =
+        measurementConsumer.certificate.externalCertificateId
+      val dataProvider = insertDataProvider()
+      val externalDataProviderId = dataProvider.externalDataProviderId
+      val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          measurement {
+            details = MeasurementKt.details { apiVersion = "v2alpha" }
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+            dataProviders[externalDataProviderId] =
+              MeasurementKt.dataProviderValue {
+                this.externalDataProviderCertificateId = externalDataProviderCertificateId
+              }
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          }
+        )
+
+      val measurement =
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+            externalMeasurementId = createdMeasurement.externalMeasurementId
+          }
+        )
+      assertThat(measurement).isEqualTo(createdMeasurement)
+    }
+
+  @Test
+  fun `getMeasurementByComputationId succeeds`() =
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -355,7 +386,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.getMeasurementByComputationId(
           getMeasurementByComputationIdRequest {
             externalComputationId = createdMeasurement.externalComputationId
-            measurementView = Measurement.View.COMPUTATION
           }
         )
 

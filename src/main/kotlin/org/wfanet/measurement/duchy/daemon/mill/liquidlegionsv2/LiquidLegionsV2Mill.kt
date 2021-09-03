@@ -31,7 +31,7 @@ import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
-import org.wfanet.measurement.consent.client.duchy.verifyElgamalPublicKey
+import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
@@ -303,7 +303,7 @@ class LiquidLegionsV2Mill(
     when (publicApiVersion) {
       Version.V2_ALPHA -> {
         val publicApiElgamalKey = V2alphaElGamalPublicKey.parseFrom(duchy.elGamalPublicKey)
-        if (!verifyElgamalPublicKey(
+        if (!verifyElGamalPublicKey(
             duchy.elGamalPublicKeySignature,
             publicApiElgamalKey,
             readCertificate(duchy.duchyCertificateDer)
