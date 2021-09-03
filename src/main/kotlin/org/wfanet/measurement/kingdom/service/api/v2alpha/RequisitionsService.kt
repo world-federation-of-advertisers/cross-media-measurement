@@ -182,7 +182,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     dataProviderCertificate =
       DataProviderCertificateKey(
           externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
+          externalIdToApiId(this@toRequisition.externalDataProviderCertificateId)
         )
         .toName()
     dataProviderPublicKey =
