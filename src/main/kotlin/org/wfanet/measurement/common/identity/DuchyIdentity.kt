@@ -29,6 +29,7 @@ import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSession
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 
 /**
  * Details about an authenticated Duchy.
@@ -74,7 +75,7 @@ class DuchyTlsIdentityInterceptor() : ServerInterceptor {
     val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
     if (sslSession == null) {
       call.close(
-        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing sslSession"),
+        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing sslSession."),
         Metadata()
       )
       return object : ServerCall.Listener<ReqT>() {}
@@ -85,11 +86,16 @@ class DuchyTlsIdentityInterceptor() : ServerInterceptor {
         continue
       }
 
-      val duchyInfo =
-        DuchyInfo.getByRootCertificateSkid(
-          String(cert.getExtensionValue("X509v3 Authority Key Identifier"))
+      val authorityKeyIdentifier = cert.authorityKeyIdentifier
+      if (authorityKeyIdentifier == null) {
+        call.close(
+          Status.UNAUTHENTICATED.withDescription("certificate missing authorityKeyIdentifier."),
+          Metadata()
         )
-          ?: continue
+        return object : ServerCall.Listener<ReqT>() {}
+      }
+
+      val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
 
       val context =
         Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
