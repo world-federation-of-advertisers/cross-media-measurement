@@ -31,10 +31,10 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -98,6 +99,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     dataProvidersService = services.dataProvidersService
   }
 
+  // TODO(@uakyol) : delete these helper functions and use Population.kt
   private suspend fun insertDataProvider(): DataProvider {
     return dataProvidersService.createDataProvider(
       DataProvider.newBuilder()
@@ -143,7 +145,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.getMeasurementByComputationId(
-          GetMeasurementByComputationIdRequest.newBuilder().setExternalComputationId(1L).build()
+          getMeasurementByComputationIdRequest {
+            externalComputationId = 1L
+            measurementView = Measurement.View.COMPUTATION
+          }
         )
       }
 
@@ -303,10 +308,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.getMeasurementByComputationId(
         getMeasurementByComputationIdRequest {
           externalComputationId = createdMeasurement.externalComputationId
+          measurementView = Measurement.View.COMPUTATION
         }
       )
 
-    assertThat(measurement).isEqualTo(createdMeasurement)
+    assertThat(measurement)
+      .ignoringFields(
+        Measurement.REQUISITIONS_FIELD_NUMBER,
+        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+      )
+      .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
   }
 
   @Test
@@ -401,6 +412,78 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           templateParticipant.copy { externalDuchyId = "Buck" },
           templateParticipant.copy { externalDuchyId = "Rippon" },
           templateParticipant.copy { externalDuchyId = "Shoaks" }
+        )
+    }
+
+  @Test
+  fun `setMeasurementResult fails for wrong externalComputationId`() =
+    runBlocking<Unit> {
+      val request = setMeasurementResultRequest {
+        externalComputationId = 1234L // externalComputationId for Measurement that doesn't exist
+        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.setMeasurementResult(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("Measurement not found")
+    }
+
+  @Test
+  fun `setMeasurementResult succeeds`() =
+    runBlocking<Unit> {
+      val measurementConsumer = insertMeasurementConsumer()
+      val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      val externalMeasurementConsumerCertificateId =
+        measurementConsumer.certificate.externalCertificateId
+      val dataProvider = insertDataProvider()
+      val externalDataProviderId = dataProvider.externalDataProviderId
+      val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          measurement {
+            details = MeasurementKt.details { apiVersion = "v2alpha" }
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+            dataProviders[externalDataProviderId] =
+              MeasurementKt.dataProviderValue {
+                this.externalDataProviderCertificateId = externalDataProviderCertificateId
+              }
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          }
+        )
+
+      val request = setMeasurementResultRequest {
+        externalComputationId = createdMeasurement.externalComputationId
+        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      }
+
+      val measurementWithResult = measurementsService.setMeasurementResult(request)
+
+      val expectedMeasurementDetails =
+        createdMeasurement.details.copy {
+          this.aggregatorCertificate = request.aggregatorCertificate
+          this.resultPublicKey = request.resultPublicKey
+          this.encryptedResult = request.encryptedResult
+        }
+      assertThat(measurementWithResult.updateTime.toInstant())
+        .isGreaterThan(createdMeasurement.updateTime.toInstant())
+
+      assertThat(measurementWithResult)
+        .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
+        .isEqualTo(
+          createdMeasurement.copy {
+            state = Measurement.State.SUCCEEDED
+            details = expectedMeasurementDetails
+          }
         )
     }
 }
