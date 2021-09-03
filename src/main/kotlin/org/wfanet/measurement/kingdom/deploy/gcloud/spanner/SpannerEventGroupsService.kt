@@ -47,7 +47,9 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
   }

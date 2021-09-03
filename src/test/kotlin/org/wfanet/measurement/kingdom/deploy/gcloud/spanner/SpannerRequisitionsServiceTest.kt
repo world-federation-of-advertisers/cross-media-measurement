@@ -28,15 +28,16 @@ class SpannerRequisitionsServiceTest : RequisitionsServiceTest<SpannerRequisitio
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
   override fun newTestDataServices(clock: Clock, idGenerator: IdGenerator): TestDataServices {
+    val databaseClient = spannerDatabase.databaseClient
     return TestDataServices(
-      SpannerMeasurementConsumersService(clock, idGenerator, spannerDatabase.databaseClient),
-      SpannerDataProvidersService(clock, idGenerator, spannerDatabase.databaseClient),
-      SpannerMeasurementsService(clock, idGenerator, spannerDatabase.databaseClient),
-      SpannerComputationParticipantsService(clock, idGenerator, spannerDatabase.databaseClient)
+      SpannerMeasurementConsumersService(clock, idGenerator, databaseClient),
+      SpannerDataProvidersService(clock, idGenerator, databaseClient),
+      SpannerMeasurementsService(clock, idGenerator, databaseClient),
+      SpannerComputationParticipantsService(clock, idGenerator, databaseClient)
     )
   }
 
   override fun newService(): SpannerRequisitionsService {
-    return SpannerRequisitionsService(spannerDatabase.databaseClient)
+    return SpannerRequisitionsService(idGenerator, spannerDatabase.databaseClient)
   }
 }
