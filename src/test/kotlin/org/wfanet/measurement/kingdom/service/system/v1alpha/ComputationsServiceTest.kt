@@ -303,10 +303,7 @@ class ComputationsServiceTest {
       )
       .isEqualTo(
         GetMeasurementByComputationIdRequest.newBuilder()
-          .apply {
-            externalComputationId = EXTERNAL_COMPUTATION_ID
-            measurementView = InternalMeasurement.View.COMPUTATION
-          }
+          .apply { externalComputationId = EXTERNAL_COMPUTATION_ID }
           .build()
       )
   }

@@ -251,10 +251,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val nonUpdatedMeasurement =
       measurementsService.getMeasurementByComputationId(
         GetMeasurementByComputationIdRequest.newBuilder()
-          .apply {
-            externalComputationId = measurement.externalComputationId
-            measurementView = Measurement.View.COMPUTATION
-          }
+          .apply { externalComputationId = measurement.externalComputationId }
           .build()
       )
     assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)

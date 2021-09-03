@@ -26,7 +26,11 @@ option java_multiple_files = true;
 service Measurements {
   rpc CreateMeasurement(Measurement) returns (Measurement);
 
+  // Returns the Measurement for the specified external ID and parent.
   rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
+
+  // Returns the Measurement for the specified external computation ID, using
+  // the COMPUTATION view.
   rpc GetMeasurementByComputationId(GetMeasurementByComputationIdRequest)
       returns (Measurement);
 
@@ -43,14 +47,10 @@ service Measurements {
 message GetMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
-
-  Measurement.View measurement_view = 3;
 }
 
 message GetMeasurementByComputationIdRequest {
   fixed64 external_computation_id = 1;
-
-  Measurement.View measurement_view = 2;
 }
 
 message StreamMeasurementsRequest {
