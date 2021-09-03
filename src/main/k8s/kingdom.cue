@@ -28,8 +28,8 @@ import ("strings")
 	_duchy_info_config_flag:                 "--duchy-info-config=" + #DuchyInfoConfig
 	_duchy_id_config_flag:                   "--duchy-id-config=" + #DuchyIdConfig
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=" + #Llv2ProtocolConfigConfig
-	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom.pem"
-	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom.key"
+	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
+	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
@@ -108,7 +108,6 @@ import ("strings")
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
-				_duchy_info_config_flag,
 				_llv2_protocol_config_config,
 				_kingdom_tls_cert_file_flag,
 				_kingdom_tls_key_file_flag,
