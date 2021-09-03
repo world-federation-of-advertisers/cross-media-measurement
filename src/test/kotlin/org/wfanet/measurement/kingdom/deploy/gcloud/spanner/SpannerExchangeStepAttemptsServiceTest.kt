@@ -36,9 +36,10 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
   private val clock = Clock.systemUTC()
 
   override fun newExchangeStepAttemptsService(
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
+    serverClock: Clock
   ): ExchangeStepAttemptsCoroutineImplBase {
-    return makeKingdomDataServices(idGenerator).exchangeStepAttemptsService
+    return makeKingdomDataServices(idGenerator, serverClock).exchangeStepAttemptsService
   }
 
   override fun newExchangeStepsService(idGenerator: IdGenerator): ExchangeStepsCoroutineImplBase {
@@ -59,8 +60,11 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
     return makeKingdomDataServices(idGenerator).modelProvidersService
   }
 
-  private fun makeKingdomDataServices(idGenerator: IdGenerator): KingdomDataServices {
-    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
+  private fun makeKingdomDataServices(
+    idGenerator: IdGenerator,
+    serverClock: Clock = clock
+  ): KingdomDataServices {
+    return SpannerDataServices(serverClock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
   }
 }

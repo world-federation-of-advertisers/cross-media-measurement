@@ -21,6 +21,7 @@ import com.google.type.Date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.lang.IllegalArgumentException
+import java.time.Clock
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -138,6 +139,8 @@ private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_
 @RunWith(JUnit4::class)
 abstract class ExchangeStepAttemptsServiceTest {
 
+  private val serverClock = Clock.systemUTC()
+
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator
@@ -160,7 +163,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   /** Creates a /ExchangeStepAttempts service implementation using [idGenerator]. */
   protected abstract fun newExchangeStepAttemptsService(
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
+    serverClock: Clock,
   ): ExchangeStepAttemptsCoroutineImplBase
 
   private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
@@ -168,7 +172,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Before
   fun initServices() {
-    exchangeStepAttemptsService = newExchangeStepAttemptsService(idGenerator)
+    exchangeStepAttemptsService = newExchangeStepAttemptsService(idGenerator, serverClock)
     exchangeStepsService = newExchangeStepsService(idGenerator)
     val dataProvidersService = newDataProvidersService(DATA_PROVIDER_ID_GENERATOR)
     val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
@@ -411,6 +415,7 @@ abstract class ExchangeStepAttemptsServiceTest {
       )
     assertThat(response.attemptNumber).isEqualTo(2L)
 
+
     val expected =
       makeExchangeStepAttempt(
         ExchangeStepAttempt.State.SUCCEEDED,
@@ -426,20 +431,20 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
-    attemptNo: Int? = null
+    attemptNo: Int = 1
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = DATE
       stepIndex = STEP_INDEX
-      attemptNumber = attemptNo ?: 1
+      attemptNumber = attemptNo
       state = attemptState
     }
   }
 
   private fun makeExchangeStepAttempt(
     attemptState: ExchangeStepAttempt.State,
-    attemptNo: Int? = null
+    attemptNo: Int = 1
   ): ExchangeStepAttempt {
     val debugLogMessage =
       when (attemptState) {
@@ -450,7 +455,7 @@ abstract class ExchangeStepAttemptsServiceTest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = DATE
       stepIndex = STEP_INDEX
-      attemptNumber = attemptNo ?: 1
+      attemptNumber = attemptNo
       state = attemptState
       details =
         exchangeStepAttemptDetails { debugLogEntries += debugLog { message = debugLogMessage } }
