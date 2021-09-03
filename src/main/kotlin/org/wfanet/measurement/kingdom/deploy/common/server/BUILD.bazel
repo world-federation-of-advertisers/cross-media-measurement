@@ -38,10 +38,12 @@ kt_jvm_library(
         ":utils",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchanges_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurement_consumers_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:recurring_exchanges_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -53,14 +55,14 @@ kt_jvm_library(
 
 java_binary(
     name = "V2alphaPublicApiServer",
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServer",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServerKt",
     runtime_deps = [":v2alpha_public_api_server"],
 )
 
 java_image(
     name = "v2alpha_public_api_server_image",
     data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServer",
+    main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":v2alpha_public_api_server"],
 )
