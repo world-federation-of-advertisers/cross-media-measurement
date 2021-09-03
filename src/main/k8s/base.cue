@@ -26,7 +26,8 @@ listObject: {
 
 objects: [ for objectSet in objectSets for object in objectSet {object}]
 
-#AppName: "measurement-system"
+#AppName:    "measurement-system"
+#SecretName: "all-test-certs-m64b868cg4"
 
 #Target: {
 	name:   string
@@ -108,7 +109,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		volumes: [{
 			name: _name + "-files"
 			secret: {
-				secretName: "all-test-certs-cfc2f5h25g"
+				secretName: #SecretName
 			}
 		}]
 		initContainers: [ for ds in _dependencies {
@@ -129,8 +130,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				"--addr=:8080",
 				"--tls=true",
 				"--tls-ca-cert=/var/run/secrets/files/all_root_certs.pem",
-				"--tls-client-cert=/var/run/secrets/files/aggregator.pem",
-				"--tls-client-key=/var/run/secrets/files/aggregator.key",
+				"--tls-client-cert=/var/run/secrets/files/aggregator_tls.pem",
+				"--tls-client-key=/var/run/secrets/files/aggregator_tls.key",
 			]
 			periodSeconds: 60
 		}}]

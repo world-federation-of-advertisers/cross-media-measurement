@@ -46,8 +46,8 @@ import ("strings")
 	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
 	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
 	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
-	_system_api_target_flag:                            "--system-api-target=" + (#Target & {name: "system-api-server"}).target
-	_system_api_cert_host_flag:                         "--system-api-cert-host=localhost"
+	_system_api_target_flag:                            "--kingdom-system-api-target=" + (#Target & {name: "system-api-server"}).target
+	_system_api_cert_host_flag:                         "--kingdom-system-api-cert-host=localhost"
 	_debug_verbose_grpc_client_logging_flag:            "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag:            "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
