@@ -60,7 +60,7 @@ class SpannerExchangeStepsService(
         externalModelProviderId = externalModelProviderId,
         externalDataProviderId = externalDataProviderId
       )
-      .execute(client, idGenerator, clock)
+      .execute(client, idGenerator)
 
     ExchangeStepAttemptReader.forExpiredAttempts(
         externalModelProviderId = externalModelProviderId,

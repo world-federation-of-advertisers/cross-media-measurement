@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -31,14 +30,13 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasur
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
 
 class SpannerMeasurementsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun createMeasurement(request: Measurement): Measurement {
     try {
-      return CreateMeasurement(request).execute(client, idGenerator, clock)
+      return CreateMeasurement(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
@@ -72,7 +70,7 @@ class SpannerMeasurementsService(
 
   override suspend fun setMeasurementResult(request: SetMeasurementResultRequest): Measurement {
     try {
-      return SetMeasurementResult(request).execute(client, idGenerator, clock)
+      return SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND ->

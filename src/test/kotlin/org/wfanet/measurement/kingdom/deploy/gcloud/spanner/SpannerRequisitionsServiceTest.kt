@@ -29,10 +29,10 @@ class SpannerRequisitionsServiceTest : RequisitionsServiceTest<SpannerRequisitio
 
   override fun newTestDataServices(clock: Clock, idGenerator: IdGenerator): TestDataServices {
     return TestDataServices(
-      SpannerMeasurementConsumersService(clock, idGenerator, spannerDatabase.databaseClient),
-      SpannerDataProvidersService(clock, idGenerator, spannerDatabase.databaseClient),
-      SpannerMeasurementsService(clock, idGenerator, spannerDatabase.databaseClient),
-      SpannerComputationParticipantsService(clock, idGenerator, spannerDatabase.databaseClient)
+      SpannerMeasurementConsumersService(idGenerator, spannerDatabase.databaseClient),
+      SpannerDataProvidersService(idGenerator, spannerDatabase.databaseClient),
+      SpannerMeasurementsService(idGenerator, spannerDatabase.databaseClient),
+      SpannerComputationParticipantsService(idGenerator, spannerDatabase.databaseClient)
     )
   }
 
