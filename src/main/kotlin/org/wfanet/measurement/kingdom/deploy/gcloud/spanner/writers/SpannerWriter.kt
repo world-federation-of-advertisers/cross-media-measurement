@@ -21,7 +21,6 @@ import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
@@ -82,10 +81,7 @@ abstract class SpannerWriter<T, R> {
    *
    * @return the output of [buildResult]
    */
-  suspend fun execute(
-    databaseClient: AsyncDatabaseClient,
-    idGenerator: IdGenerator = RandomIdGenerator()
-  ): R {
+  suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
     logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()

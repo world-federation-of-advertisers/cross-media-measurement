@@ -84,7 +84,7 @@ class SpannerExchangeStepsService(
           // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
         }
       }
-      .collect { FinishExchangeStepAttempt(it).execute(client) }
+      .collect { FinishExchangeStepAttempt(it).execute(client, idGenerator) }
 
     val result =
       ClaimReadyExchangeStep(

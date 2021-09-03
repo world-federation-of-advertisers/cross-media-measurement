@@ -74,17 +74,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     private set
 
   /** Constructs services used to populate test data. */
-  protected abstract fun newTestDataServices(
-    clock: Clock,
-    idGenerator: IdGenerator
-  ): TestDataServices
+  protected abstract fun newTestDataServices(idGenerator: IdGenerator): TestDataServices
 
   /** Constructs the service being tested. */
   protected abstract fun newService(): T
 
   @Before
   fun initDataServices() {
-    dataServices = newTestDataServices(clock, idGenerator)
+    dataServices = newTestDataServices(idGenerator)
   }
 
   @Before

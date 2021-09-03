@@ -43,7 +43,7 @@ private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 class ClaimReadyExchangeStep(
   externalModelProviderId: Long?,
   externalDataProviderId: Long?,
-  val clock: Clock = Clock.systemUTC()
+  private val clock: Clock,
 ) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
