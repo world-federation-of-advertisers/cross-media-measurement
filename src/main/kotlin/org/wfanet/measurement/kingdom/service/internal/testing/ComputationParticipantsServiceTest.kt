@@ -259,7 +259,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     assertThat(nonUpdatedMeasurement.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
   }
 
-  @Test
+@Test
   fun `setParticipantRequisitionParams for final Duchy updates Measurement state`() {
     runBlocking {
       val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
@@ -287,35 +287,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
               elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
             }
         }
-<<<<<<< HEAD
-=======
-    }
-
-    val lastExpectedComputationParticipant = computationParticipant {
-      this.state = ComputationParticipant.State.REQUISITION_PARAMS_SET
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      this.externalMeasurementId = measurement.externalMeasurementId
-      this.externalComputationId = measurement.externalComputationId
-      this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-      this.externalDuchyCertificateId = lastCertificate.externalCertificateId
-      this.details = details { liquidLegionsV2 = lastRequest.liquidLegionsV2 }
-    }
-
-    val lastComputationParticipant =
-      computationParticipantsService.setParticipantRequisitionParams(lastRequest)
-
-    assertThat(lastComputationParticipant)
-      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(lastExpectedComputationParticipant)
-
-    val updatedMeasurement =
-      measurementsService.getMeasurementByComputationId(
-        GetMeasurementByComputationIdRequest.newBuilder()
-          .apply {
-            externalComputationId = measurement.externalComputationId
-          }
-          .build()
->>>>>>> 91a3393e (addressed comments)
       )
 
       val lastCertificate =

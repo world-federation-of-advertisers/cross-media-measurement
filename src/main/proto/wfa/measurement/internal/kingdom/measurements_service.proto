@@ -26,10 +26,11 @@ option java_multiple_files = true;
 service Measurements {
   rpc CreateMeasurement(Measurement) returns (Measurement);
 
-  // Returns the DEFAULT View for the measurement.
+  // Returns the Measurement for the specified external ID and parent.
   rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
 
-  // Returns the COMPUTATION View for the measurement.
+  // Returns the Measurement for the specified external computation ID, using
+  // the COMPUTATION view.
   rpc GetMeasurementByComputationId(GetMeasurementByComputationIdRequest)
       returns (Measurement);
 

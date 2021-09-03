@@ -282,9 +282,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val dataProvider = insertDataProvider()
@@ -321,9 +318,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
       .isEqualTo(createdMeasurement)
   }
-=======
-  fun `getMeasurement COMPUTATION View succeeds`() =
-=======
+
   fun `getMeasurement COMPUTATION View fails`() =
     runBlocking<Unit> {
       val exception =
@@ -332,7 +327,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             getMeasurementRequest {
               externalMeasurementConsumerId = 1L
               externalMeasurementId = 1L
-              measurementView = Measurement.View.COMPUTATION
             }
           )
         }
@@ -342,11 +336,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
 
   @Test
-  fun `getMeasurement DEFAULT View succeeds`() =
->>>>>>> 4e998728 (addressed comments)
-=======
   fun `getMeasurement succeeds`() =
->>>>>>> 91a3393e (addressed comments)
     runBlocking<Unit> {
       val measurementConsumer = insertMeasurementConsumer()
       val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -377,9 +367,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
       // TODO(@uakyol) : Assert dataPoviders field once it is populated in the MeasurementReader.
-      assertThat(measurement).isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
+      assertThat(measurement).isEqualTo(createdMeasurement)
     }
->>>>>>> 14c762a6 (done)
 
   @Test
   fun `getMeasurementByComputationId succeeds`() =
