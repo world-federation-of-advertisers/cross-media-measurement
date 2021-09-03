@@ -31,6 +31,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -312,7 +313,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     assertThat(measurement)
       .ignoringFields(
-        Measurement.DATA_PROVIDERS_FIELD_NUMBER,
         Measurement.REQUISITIONS_FIELD_NUMBER,
         Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
       )
@@ -473,8 +473,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           this.resultPublicKey = request.resultPublicKey
           this.encryptedResult = request.encryptedResult
         }
-      assertThat(measurementWithResult.updateTime.nanos)
-        .isGreaterThan(createdMeasurement.updateTime.nanos)
+      assertThat(measurementWithResult.updateTime.toInstant())
+        .isGreaterThan(createdMeasurement.updateTime.toInstant())
 
       assertThat(measurementWithResult)
         .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
