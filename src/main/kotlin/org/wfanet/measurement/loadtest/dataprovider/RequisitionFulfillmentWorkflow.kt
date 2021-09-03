@@ -83,7 +83,7 @@ class RequisitionFulfillmentWorkflow(
 
     for (i in 1..sketchGenerationParams.reach) {
       anySketch.insert(
-        Random.nextInt(1, sketchGenerationParams.universeSize+1).toLong(),
+        Random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong(),
         mapOf("frequency" to 1L)
       )
     }
