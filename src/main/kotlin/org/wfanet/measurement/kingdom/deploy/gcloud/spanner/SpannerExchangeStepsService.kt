@@ -89,9 +89,10 @@ class SpannerExchangeStepsService(
     val result =
       ClaimReadyExchangeStep(
           externalModelProviderId = externalModelProviderId,
-          externalDataProviderId = externalDataProviderId
+          externalDataProviderId = externalDataProviderId,
+          clock = clock
         )
-        .execute(client, idGenerator, clock)
+        .execute(client, idGenerator)
 
     if (result.isPresent) {
       return result.get().toClaimReadyExchangeStepResponse()

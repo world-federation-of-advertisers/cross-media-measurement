@@ -23,12 +23,9 @@ import java.time.Duration
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
@@ -43,8 +40,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
-class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProviderId: Long?) :
-  SpannerWriter<Optional<Result>, Optional<Result>>() {
+class ClaimReadyExchangeStep(
+  externalModelProviderId: Long?,
+  externalDataProviderId: Long?,
+  val clock: Clock = Clock.systemUTC()
+) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   private val externalModelProviderIds =
@@ -52,7 +52,6 @@ class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProvide
     else listOf(ExternalId(externalModelProviderId))
   private val externalDataProviderIds =
     if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
-  private lateinit var clock: Clock
 
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
     // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
@@ -158,22 +157,5 @@ class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProvide
     val row: Struct = transactionContext.executeQuery(statement).single()
 
     return row.getLong("MaxAttemptIndex") + 1L
-  }
-
-  suspend fun execute(
-    databaseClient: AsyncDatabaseClient,
-    idGenerator: IdGenerator = RandomIdGenerator(),
-    clock: Clock = Clock.systemUTC()
-  ): Optional<Result> {
-    this.clock = clock
-    return super.execute(databaseClient, idGenerator)
-  }
-
-  override suspend fun execute(
-    databaseClient: AsyncDatabaseClient,
-    idGenerator: IdGenerator
-  ): Optional<Result> {
-    this.clock = Clock.systemUTC()
-    return super.execute(databaseClient, idGenerator)
   }
 }

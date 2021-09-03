@@ -82,7 +82,7 @@ abstract class SpannerWriter<T, R> {
    *
    * @return the output of [buildResult]
    */
-  open suspend fun execute(
+  suspend fun execute(
     databaseClient: AsyncDatabaseClient,
     idGenerator: IdGenerator = RandomIdGenerator()
   ): R {
