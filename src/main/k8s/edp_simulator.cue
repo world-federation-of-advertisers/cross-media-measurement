@@ -42,7 +42,7 @@ package k8s
 						"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 						"--data-provider-resource-name=\(_edp_resource_name)",
 						"--measurement-consumer-resource-name=\(_mc_resource_name)",
-						"--kingdom-public-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+						"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
 						"--kingdom-public-api-cert-host=localhost",
 						"--requisition-fulfillment-service-target=" + (#Target & {name: "worker-1-requisition-fulfillment-server"}).target,
 						"--requisition-fulfillment-service-cert-host=localhost",

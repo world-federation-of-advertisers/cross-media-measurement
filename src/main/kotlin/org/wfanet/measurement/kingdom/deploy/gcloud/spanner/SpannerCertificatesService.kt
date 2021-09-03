@@ -16,17 +16,22 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import java.time.Clock
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
 
@@ -63,13 +68,34 @@ class SpannerCertificatesService(
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
-    grpcRequire(request.parentCase != GetCertificateRequest.ParentCase.PARENT_NOT_SET) {
-      "GetCertificateRequest is missing parent field"
-    }
+    val externalCertificateId = ExternalId(request.externalCertificateId)
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    val reader: BaseSpannerReader<Certificate> =
+      when (request.parentCase) {
+        GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+          CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+            .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
+        GetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+          CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+            .bindWhereClause(
+              ExternalId(request.externalMeasurementConsumerId),
+              externalCertificateId
+            )
+        GetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
+          val duchyId =
+            InternalId(
+              grpcRequireNotNull(DuchyIds.getInternalId(request.externalDuchyId)) {
+                "Duchy with external ID ${request.externalDuchyId} not found"
+              }
+            )
+          CertificateReader(CertificateReader.ParentType.DUCHY)
+            .bindWhereClause(duchyId, externalCertificateId)
+        }
+        GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
+          throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
+      }
 
-    return CertificateReader(request)
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalCertificateId))
-      ?.certificate
+    return reader.execute(client.singleUse()).singleOrNull()
       ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
   }
 

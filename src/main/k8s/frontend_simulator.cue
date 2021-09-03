@@ -15,6 +15,7 @@
 package k8s
 
 #FrontendSimulator: {
+	_name:             "frontend-simulator"
 	_mc_resource_name: string
 
 	_image:           string
@@ -36,7 +37,7 @@ package k8s
 						"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
 						"--tls-key-file=/var/run/secrets/files/mc_tls.key",
 						"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-						"--kingdom-public-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+						"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
 						"--kingdom-public-api-cert-host=localhost",
 						"--mc-resource-name=\(_mc_resource_name)",
 						"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
@@ -44,15 +45,21 @@ package k8s
 						"--output-differential-privacy-epsilon=1.0",
 						"--output-differential-privacy-delta=1.0",
 			] + _blob_storage_flags
-			volumeMounts: [{
-				name:      "cache-volume"
-				mountPath: "/cache"
-			}]
+			volumeMounts: [
+				{
+					name:      _name + "-files"
+					mountPath: "/var/run/secrets/files"
+					readOnly:  true
+				}]
+
 		}]
 		restartPolicy: "OnFailure"
-		volumes: [{
-			name: "cache-volume"
-			emptyDir: {}
-		}]
+		volumes: [
+			{
+				name: _name + "-files"
+				secret: {
+					secretName: #SecretName
+				}
+			}]
 	}
 }

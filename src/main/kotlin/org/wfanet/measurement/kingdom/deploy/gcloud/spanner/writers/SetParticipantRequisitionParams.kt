@@ -16,8 +16,11 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
@@ -27,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRe
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
 
@@ -95,7 +99,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val otherDuchyIds: List<InternalId> =
       DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
-
     if (computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
@@ -111,10 +114,20 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
 
+    val certificate =
+      CertificateReader(CertificateReader.ParentType.DUCHY)
+        .fillStatementBuilder {
+          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
+          bind("duchyId" to duchyId)
+          bind("certificateId" to duchyCertificateId.value)
+        }
+        .execute(transactionContext)
+        .single()
+
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
-      externalDuchyCertificateId = request.externalDuchyCertificateId
       details = participantDetails
+      duchyCertificate = certificate
     }
   }
 

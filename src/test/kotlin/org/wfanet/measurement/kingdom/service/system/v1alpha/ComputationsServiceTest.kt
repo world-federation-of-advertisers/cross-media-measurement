@@ -110,7 +110,6 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
   InternalComputationParticipant.newBuilder()
     .apply {
       externalDuchyId = DUCHY_ID
-      externalDuchyCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
       externalComputationId = EXTERNAL_COMPUTATION_ID
       state = InternalComputationParticipant.State.FAILED
       updateTimeBuilder.apply {
@@ -124,6 +123,7 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
         }
       }
       apiVersion = PUBLIC_API_VERSION
+      duchyCertificateBuilder.apply { externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID }
       failureLogEntryBuilder.apply {
         externalDuchyId = DUCHY_ID
         detailsBuilder.apply {

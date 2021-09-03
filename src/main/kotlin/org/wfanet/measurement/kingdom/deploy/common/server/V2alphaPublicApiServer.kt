@@ -15,19 +15,27 @@
 package org.wfanet.measurement.kingdom.deploy.common.server
 
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.identity.DuchyInfoFlags
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
+import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import picocli.CommandLine
 
@@ -41,23 +49,38 @@ private const val SERVER_NAME = "V2alphaPublicApiServer"
 )
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
-  @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
 
-  runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
-    channel ->
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = commonServerFlags.tlsFlags.certFile,
+      privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
+    )
+  val channel =
+    buildMutualTlsChannel(
+        kingdomApiServerFlags.internalApiFlags.target,
+        clientCerts,
+        kingdomApiServerFlags.internalApiFlags.certHost
+      )
+      .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+
+  // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
+  val service =
     listOf(
+      CertificatesService(InternalCertificatesCoroutineStub(channel)),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)),
+      EventGroupsService(InternalEventGroupsCoroutineStub(channel)),
       ExchangeStepAttemptsService(InternalExchangeStepAttemptsCoroutineStub(channel)),
       ExchangeStepsService(InternalExchangeStepsCoroutineStub(channel)),
+      MeasurementsService(InternalMeasurementsCoroutineStub(channel)),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel)),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel))
-      // TODO: add missing services, e.g. CertificatesService, etc.
-      )
-  }
+    )
+  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, service).start().blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

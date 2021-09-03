@@ -53,6 +53,11 @@ private val BASE_SQL =
     Measurements.MeasurementDetails,
     MeasurementConsumers.ExternalMeasurementConsumerId,
     DuchyCertificates.ExternalDuchyCertificateId,
+    Certificates.SubjectKeyIdentifier,
+    Certificates.NotValidBefore,
+    Certificates.NotValidAfter,
+    Certificates.RevocationState,
+    Certificates.CertificateDetails,
     ARRAY(
       SELECT AS STRUCT
         DuchyMeasurementLogEntries.CreateTime,
@@ -67,7 +72,8 @@ private val BASE_SQL =
     ) AS DuchyMeasurementLogEntries
   FROM
     ComputationParticipants
-    LEFT JOIN DuchyCertificates USING (DuchyId, CertificateId)
+    LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
+      USING (DuchyId, CertificateId)
     JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
   """.trimIndent()
@@ -149,8 +155,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       this.externalDuchyId = externalDuchyId
       this.externalComputationId = externalComputationId.value
       if (!struct.isNull("ExternalDuchyCertificateId")) {
-        externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
-        // TODO(@SanjayVas): Include denormalized Certificate.
+        duchyCertificate = CertificateReader.buildDuchyCertificate(externalDuchyId, struct)
       }
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
