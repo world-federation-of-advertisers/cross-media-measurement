@@ -45,6 +45,12 @@ class KingdomInternalException : Exception {
     COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
 
     /** Computation Participant resource queried could not be found. */
-    COMPUTATION_PARTICIPANT_NOT_FOUND
+    COMPUTATION_PARTICIPANT_NOT_FOUND,
+
+    /** Requisition entity could not be found. */
+    REQUISITION_NOT_FOUND,
+
+    /** Requisition is in an illegal state for the operation. */
+    REQUISITION_STATE_ILLEGAL
   }
 }

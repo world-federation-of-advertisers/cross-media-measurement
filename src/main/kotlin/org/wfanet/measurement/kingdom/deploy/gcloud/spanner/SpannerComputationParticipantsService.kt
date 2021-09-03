@@ -51,7 +51,9 @@ class SpannerComputationParticipantsService(
           }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
   }
