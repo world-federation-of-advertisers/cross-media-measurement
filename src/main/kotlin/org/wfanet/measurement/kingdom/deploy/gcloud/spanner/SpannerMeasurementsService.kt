@@ -64,7 +64,7 @@ class SpannerMeasurementsService(
   override suspend fun getMeasurementByComputationId(
     request: GetMeasurementByComputationIdRequest
   ): Measurement {
-    return MeasurementReader(request.measurementView)
+    return MeasurementReader(Measurement.View.COMPUTATION)
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalComputationId))
       ?.measurement
       ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
