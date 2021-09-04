@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -28,7 +27,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 
 class SpannerComputationParticipantsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ComputationParticipantsCoroutineImplBase() {
@@ -36,7 +34,7 @@ class SpannerComputationParticipantsService(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
     try {
-      return SetParticipantRequisitionParams(request).execute(client, idGenerator, clock)
+      return SetParticipantRequisitionParams(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->

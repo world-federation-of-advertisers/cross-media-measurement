@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -28,14 +27,13 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExc
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateRecurringExchange
 
 class SpannerRecurringExchangesService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : RecurringExchangesCoroutineImplBase() {
   override suspend fun createRecurringExchange(
     request: CreateRecurringExchangeRequest
   ): RecurringExchange {
-    return CreateRecurringExchange(request.recurringExchange).execute(client, idGenerator, clock)
+    return CreateRecurringExchange(request.recurringExchange).execute(client, idGenerator)
   }
 
   override suspend fun getRecurringExchange(

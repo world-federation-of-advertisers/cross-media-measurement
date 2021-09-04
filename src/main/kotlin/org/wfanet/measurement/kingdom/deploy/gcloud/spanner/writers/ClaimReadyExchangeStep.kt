@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.common.base.Optional
 import com.google.type.Date
+import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
@@ -39,8 +40,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
-class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProviderId: Long?) :
-  SpannerWriter<Optional<Result>, Optional<Result>>() {
+class ClaimReadyExchangeStep(
+  externalModelProviderId: Long?,
+  externalDataProviderId: Long?,
+  private val clock: Clock,
+) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   private val externalModelProviderIds =

@@ -60,7 +60,7 @@ class SpannerExchangeStepsService(
         externalModelProviderId = externalModelProviderId,
         externalDataProviderId = externalDataProviderId
       )
-      .execute(client, idGenerator, clock)
+      .execute(client, idGenerator)
 
     ExchangeStepAttemptReader.forExpiredAttempts(
         externalModelProviderId = externalModelProviderId,
@@ -84,14 +84,15 @@ class SpannerExchangeStepsService(
           // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
         }
       }
-      .collect { FinishExchangeStepAttempt(it).execute(client) }
+      .collect { FinishExchangeStepAttempt(it).execute(client, idGenerator) }
 
     val result =
       ClaimReadyExchangeStep(
           externalModelProviderId = externalModelProviderId,
-          externalDataProviderId = externalDataProviderId
+          externalDataProviderId = externalDataProviderId,
+          clock = clock
         )
-        .execute(client, idGenerator, clock)
+        .execute(client, idGenerator)
 
     if (result.isPresent) {
       return result.get().toClaimReadyExchangeStepResponse()
