@@ -33,7 +33,7 @@ message DuchyRpcConfig {
     string computation_control_service_cert_host = 3;
 
     // The SKID of the Duchy's root certificate
-    string root_certificate_skid = 4;
+    bytes root_certificate_skid = 4;
   }
 
   // The list of all the Duchy RPC information in this config message

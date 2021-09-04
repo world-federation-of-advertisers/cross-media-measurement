@@ -43,31 +43,31 @@ generate_user_certificate(
 )
 
 generate_root_certificate(
-  name = "worker_1_root",
+  name = "worker1_root",
   common_name = "worker-1-ca.com",
   org = "Worker 1",
 )
 
 generate_user_certificate(
-  name = "worker_1",
-  common_name = "worker-1.com",
+  name = "worker1",
+  common_name = "worker1.com",
   org = "Worker 1",
-  root_certificate = ":worker_1_root.pem",
-  root_key = ":worker_1_root.key",
+  root_certificate = ":worker1_root.pem",
+  root_key = ":worker1_root.key",
 )
 
 generate_root_certificate(
-  name = "worker_2_root",
-  common_name = "worker-2-ca.com",
+  name = "worker2_root",
+  common_name = "worker2-ca.com",
   org = "Worker 2",
 )
 
 generate_user_certificate(
-  name = "worker_2",
-  common_name = "worker-2.com",
+  name = "worker2",
+  common_name = "worker2.com",
   org = "Worker 2",
-  root_certificate = ":worker_2_root.pem",
-  root_key = ":worker_2_root.key",
+  root_certificate = ":worker2_root.pem",
+  root_key = ":worker2_root.key",
 )
 
 genrule(
@@ -75,8 +75,8 @@ genrule(
   srcs = [
     "kingdom_root.pem",
    "aggregator_root.pem",
-    "worker_1_root.pem",
-    "worker_2_root.pem",
+    "worker1_root.pem",
+    "worker2_root.pem",
   ],
   outs = ["all_root_certs.pem"],
   cmd = "cat $(SRCS) > $@",
