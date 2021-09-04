@@ -20,7 +20,6 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.TimestampBound
 import com.google.common.truth.Truth.assertThat
-import java.time.Clock
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -47,7 +46,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
           return requireNotNull(transactionResult).toString()
         }
       }
-    val result = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
+    val result = transaction.execute(databaseClient, idGenerator)
     assertThat(result).isEqualTo(idGenerator.externalId.value.toString())
   }
 
@@ -83,7 +82,7 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         }
       }
 
-    val commitTimestamp = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
+    val commitTimestamp = transaction.execute(databaseClient, idGenerator)
 
     // Verify the transaction committed.
     val bound = TimestampBound.ofReadTimestamp(commitTimestamp)
@@ -108,10 +107,10 @@ class SpannerWriterTest : KingdomDatabaseTestBase() {
         }
 
       // First execution should succeed
-      val result = transaction.execute(databaseClient, idGenerator, Clock.systemUTC())
+      val result = transaction.execute(databaseClient, idGenerator)
       assertThat(result).isEqualTo("the-result")
 
       // Second execution should fail
-      assertFails { transaction.execute(databaseClient, idGenerator, Clock.systemUTC()) }
+      assertFails { transaction.execute(databaseClient, idGenerator) }
     }
 }

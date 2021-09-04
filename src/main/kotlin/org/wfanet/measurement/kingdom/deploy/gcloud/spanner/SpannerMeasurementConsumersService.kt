@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
@@ -28,7 +27,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
 
 class SpannerMeasurementConsumersService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : MeasurementConsumersCoroutineImplBase() {
@@ -37,10 +35,10 @@ class SpannerMeasurementConsumersService(
   ): MeasurementConsumer {
     grpcRequire(
       !request.details.apiVersion.isEmpty() &&
-        !request.details.publicKey.isEmpty() &&
-        !request.details.publicKeySignature.isEmpty()
+        !request.details.publicKey.isEmpty &&
+        !request.details.publicKeySignature.isEmpty
     ) { "Details field of MeasurementConsumer is missing fields." }
-    return CreateMeasurementConsumer(request).execute(client, idGenerator, clock)
+    return CreateMeasurementConsumer(request).execute(client, idGenerator)
   }
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest

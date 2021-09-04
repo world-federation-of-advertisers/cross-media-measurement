@@ -27,19 +27,19 @@ class SpannerDataServices(
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(
-      SpannerCertificatesService(clock, idGenerator, client),
-      SpannerDataProvidersService(clock, idGenerator, client),
-      SpannerModelProvidersService(clock, idGenerator, client),
-      SpannerEventGroupsService(clock, idGenerator, client),
-      SpannerMeasurementConsumersService(clock, idGenerator, client),
-      SpannerMeasurementsService(clock, idGenerator, client),
+      SpannerCertificatesService(idGenerator, client),
+      SpannerDataProvidersService(idGenerator, client),
+      SpannerModelProvidersService(idGenerator, client),
+      SpannerEventGroupsService(idGenerator, client),
+      SpannerMeasurementConsumersService(idGenerator, client),
+      SpannerMeasurementsService(idGenerator, client),
       SpannerRequisitionsService(client),
-      SpannerComputationParticipantsService(clock, idGenerator, client),
-      SpannerMeasurementLogEntriesService(clock, idGenerator, client),
-      SpannerRecurringExchangesService(clock, idGenerator, client),
-      SpannerExchangesService(clock, idGenerator, client),
+      SpannerComputationParticipantsService(idGenerator, client),
+      SpannerMeasurementLogEntriesService(idGenerator, client),
+      SpannerRecurringExchangesService(idGenerator, client),
+      SpannerExchangesService(idGenerator, client),
       SpannerExchangeStepsService(clock, idGenerator, client),
-      SpannerExchangeStepAttemptsService(clock, idGenerator, client)
+      SpannerExchangeStepAttemptsService(idGenerator, client)
     )
   }
 }

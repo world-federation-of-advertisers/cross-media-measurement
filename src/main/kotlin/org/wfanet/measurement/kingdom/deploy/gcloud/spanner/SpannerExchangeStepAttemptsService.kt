@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -34,7 +33,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
 
 class SpannerExchangeStepAttemptsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ExchangeStepAttemptsCoroutineImplBase() {
@@ -97,6 +95,6 @@ class SpannerExchangeStepAttemptsService(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
     grpcRequire(request.hasDate()) { "Date must be provided in the request." }
-    return FinishExchangeStepAttempt(request).execute(client, idGenerator, clock)
+    return FinishExchangeStepAttempt(request).execute(client, idGenerator)
   }
 }
