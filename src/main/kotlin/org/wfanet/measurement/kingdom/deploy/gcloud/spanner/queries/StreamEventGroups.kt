@@ -35,7 +35,7 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
   override val reader =
     EventGroupReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY EventGroup.CreateTime ASC")
+      appendClause("ORDER BY EventGroups.CreateTime ASC")
       if (limit > 0) {
         appendClause("LIMIT @${StreamEventGroupParams.LIMIT}")
         bind(StreamEventGroupParams.LIMIT to limit.toLong())
@@ -47,7 +47,7 @@ private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest
   val conjuncts = mutableListOf<String>()
   if (filter.externalMeasurementConsumerIdsList.isNotEmpty()) {
     conjuncts.add(
-      "ExternalMeasurementConsumerId IN @${StreamEventGroupParams.EXTERNAL_MEASUREMENT_CONSUMER_IDS}"
+      "ExternalMeasurementConsumerId IN UNNEST(@${StreamEventGroupParams.EXTERNAL_MEASUREMENT_CONSUMER_IDS})"
     )
     bind(StreamEventGroupParams.EXTERNAL_MEASUREMENT_CONSUMER_IDS)
       .toInt64Array(filter.externalMeasurementConsumerIdsList.map { it.toLong() })
@@ -57,7 +57,7 @@ private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest
     bind(StreamEventGroupParams.EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
   }
   if (filter.hasCreatedAfter()) {
-    conjuncts.add("EventGroup.CreateTime > @${StreamEventGroupParams.CREATED_AFTER}")
+    conjuncts.add("EventGroups.CreateTime > @${StreamEventGroupParams.CREATED_AFTER}")
     bind(StreamEventGroupParams.CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
   }
 
