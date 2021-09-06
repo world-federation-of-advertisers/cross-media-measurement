@@ -52,8 +52,18 @@ class SpannerEventGroupsService(
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
-      ?.eventGroup
+      .readByExternalId(client.singleUse(), request.externalEventGroupId)
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }
+
+//   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
+//     val requestFilter = request.filter
+//     // if (requestFilter.externalMeasurementId != 0L) {
+//     //   grpcRequire(requestFilter.externalMeasurementConsumerId != 0L) {
+//     //     "external_measurement_consumer_id must be specified if external_measurement_id is specified"
+//     //   }
+//     // }
+
+//     return StreamEventGroups(requestFilter, request.limit).execute(client.singleUse())
+//   }
 }

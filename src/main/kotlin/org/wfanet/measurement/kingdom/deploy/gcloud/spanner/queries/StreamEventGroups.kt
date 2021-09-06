@@ -18,60 +18,47 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
+import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
-private object Params {
+private object StreamEventGroupParams {
   const val LIMIT = "limit"
-  const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
-  const val EXTERNAL_MEASUREMENT_ID = "externalMeasurementId"
+  const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
   const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
-  const val STATES = "states"
-  const val MEASUREMENT_STATES = "measurementStates"
-  const val UPDATED_AFTER = "updatedAfter"
+  const val CREATED_AFTER = "createdAfter"
 }
 
-class StreamEventGroups(requestFilter: StreamEventGroups.Filter, limit: Int = 0) :
+class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: Int = 0) :
   SimpleSpannerQuery<EventGroup>() {
 
   override val reader =
-    Reader().fillStatementBuilder {
+    EventGroupReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY EventGroup.UpdateTime ASC")
+      appendClause("ORDER BY EventGroup.CreateTime ASC")
       if (limit > 0) {
-        appendClause("LIMIT @${Params.LIMIT}")
-        bind(Params.LIMIT to limit.toLong())
+        appendClause("LIMIT @${StreamEventGroupParams.LIMIT}")
+        bind(StreamEventGroupParams.LIMIT to limit.toLong())
       }
     }
 }
 
-private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupRequest.Filter) {
+private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest.Filter) {
   val conjuncts = mutableListOf<String>()
-  if (filter.externalMeasurementConsumerId != 0L) {
-    conjuncts.add("ExternalMeasurementConsumerId = @${Params.EXTERNAL_MEASUREMENT_CONSUMER_ID}")
-    bind(Params.EXTERNAL_MEASUREMENT_CONSUMER_ID to filter.externalMeasurementConsumerId)
-  }
-  if (filter.externalMeasurementId != 0L) {
-    conjuncts.add("ExternalMeasurementId = @${Params.EXTERNAL_MEASUREMENT_ID}")
-    bind(Params.EXTERNAL_MEASUREMENT_ID to filter.externalMeasurementId)
+  if (filter.externalMeasurementConsumerIdsList.isNotEmpty()) {
+    conjuncts.add(
+      "ExternalMeasurementConsumerId IN @${StreamEventGroupParams.EXTERNAL_MEASUREMENT_CONSUMER_IDS}"
+    )
+    bind(StreamEventGroupParams.EXTERNAL_MEASUREMENT_CONSUMER_IDS)
+      .toInt64Array(filter.externalMeasurementConsumerIdsList.map { it.toLong() })
   }
   if (filter.externalDataProviderId != 0L) {
-    conjuncts.add("ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}")
-    bind(Params.EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
+    conjuncts.add("ExternalDataProviderId = @${StreamEventGroupParams.EXTERNAL_DATA_PROVIDER_ID}")
+    bind(StreamEventGroupParams.EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
   }
-  if (filter.statesValueList.isNotEmpty()) {
-    conjuncts.add("EventGroup.State IN UNNEST(@${Params.STATES})")
-    bind(Params.STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
-  }
-  if (filter.measurementStatesValueList.isNotEmpty()) {
-    conjuncts.add("Measurements.State IN UNNEST(@${Params.MEASUREMENT_STATES})")
-    bind(Params.MEASUREMENT_STATES)
-      .toInt64Array(filter.measurementStatesValueList.map { it.toLong() })
-  }
-  if (filter.hasUpdatedAfter()) {
-    conjuncts.add("EventGroup.UpdateTime > @${Params.UPDATED_AFTER}")
-    bind(Params.UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+  if (filter.hasCreatedAfter()) {
+    conjuncts.add("EventGroup.CreateTime > @${StreamEventGroupParams.CREATED_AFTER}")
+    bind(StreamEventGroupParams.CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
   }
 
   if (conjuncts.isEmpty()) {

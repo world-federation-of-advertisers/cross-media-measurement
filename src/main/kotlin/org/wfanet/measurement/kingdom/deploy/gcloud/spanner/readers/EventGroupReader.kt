@@ -14,14 +14,16 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.EventGroup
 
-class EventGroupReader : SpannerReader<EventGroupReader.Result>() {
-  data class Result(val eventGroup: EventGroup, val eventGroupId: Long)
-
-  override val baseSql: String =
-    """
+private val BASE_SQL =
+  """
     SELECT
       EventGroups.EventGroupId,
       EventGroups.ExternalEventGroupId,
@@ -36,10 +38,52 @@ class EventGroupReader : SpannerReader<EventGroupReader.Result>() {
     JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "EventGroups.ExternalEventGroupId"
+class EventGroupReader : BaseSpannerReader<EventGroup>() {
+  override val builder = Statement.newBuilder(BASE_SQL)
+  data class Result(val eventGroup: EventGroup, val eventGroupId: Long)
 
-  override suspend fun translate(struct: Struct): Result =
-    Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
+  /** Fills [builder], returning this [RequisitionReader] for chaining. */
+  fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupReader {
+    builder.fill()
+    return this
+  }
+
+  fun bindWhereClause(dataProviderId: Long, providedEventGroupId: String): EventGroupReader {
+    return fillStatementBuilder {
+      appendClause(
+        """
+        WHERE EventGroups.DataProviderId = @data_provider_id
+        AND EventGroups.ProvidedEventGroupId = @provided_event_group_id
+        """.trimIndent()
+      )
+      bind("data_provider_id" to dataProviderId)
+      bind("provided_event_group_id" to providedEventGroupId)
+    }
+  }
+
+  suspend fun readByExternalId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalEventGroupId: Long,
+  ): EventGroup? {
+    val externalEventGroupIdParam = "externalEventGroupId"
+
+    return fillStatementBuilder {
+        appendClause(
+          """
+          WHERE
+            ExternalEventGroupId = @$externalEventGroupIdParam
+          """.trimIndent()
+        )
+        bind(externalEventGroupIdParam to externalEventGroupId)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  //   override suspend fun translate(struct: Struct): Result =
+  //     Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
+  override suspend fun translate(struct: Struct): EventGroup = buildEventGroup(struct)
 
   private fun buildEventGroup(struct: Struct): EventGroup =
     EventGroup.newBuilder()
