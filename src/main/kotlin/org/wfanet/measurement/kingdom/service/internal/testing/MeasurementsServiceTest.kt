@@ -403,9 +403,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
             externalComputationId = measurement.externalComputationId
             this.externalDataProviderId = externalDataProviderId
-            this.externalDataProviderCertificateId = externalDataProviderCertificateId
             updateTime = createdMeasurement.createTime
             state = Requisition.State.UNFULFILLED
+            dataProviderCertificate = dataProvider.certificate
             parentMeasurement =
               parentMeasurement {
                 apiVersion = createdMeasurement.details.apiVersion
