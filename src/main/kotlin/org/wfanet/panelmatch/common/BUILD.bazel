@@ -11,7 +11,6 @@ kt_jvm_library(
     deps = [
         "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
