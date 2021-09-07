@@ -40,7 +40,6 @@ private val BASE_SQL =
 
 class EventGroupReader : BaseSpannerReader<EventGroup>() {
   override val builder = Statement.newBuilder(BASE_SQL)
-  data class Result(val eventGroup: EventGroup, val eventGroupId: Long)
 
   /** Fills [builder], returning this [RequisitionReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupReader {
@@ -81,8 +80,6 @@ class EventGroupReader : BaseSpannerReader<EventGroup>() {
       .singleOrNull()
   }
 
-  //   override suspend fun translate(struct: Struct): Result =
-  //     Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
   override suspend fun translate(struct: Struct): EventGroup = buildEventGroup(struct)
 
   private fun buildEventGroup(struct: Struct): EventGroup =

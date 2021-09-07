@@ -56,6 +56,8 @@ private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest
     conjuncts.add("ExternalDataProviderId = @${StreamEventGroupParams.EXTERNAL_DATA_PROVIDER_ID}")
     bind(StreamEventGroupParams.EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
   }
+  // TODO(world-federation-of-advertisers/cross-media-measurement#255) : stop using CREATED_AFTER as
+  // a filter.
   if (filter.hasCreatedAfter()) {
     conjuncts.add("EventGroups.CreateTime > @${StreamEventGroupParams.CREATED_AFTER}")
     bind(StreamEventGroupParams.CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())

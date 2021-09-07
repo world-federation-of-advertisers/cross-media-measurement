@@ -58,14 +58,6 @@ class SpannerEventGroupsService(
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
-    val requestFilter = request.filter
-    // if (requestFilter.externalMeasurementId != 0L) {
-    //   grpcRequire(requestFilter.externalMeasurementConsumerId != 0L) {
-    //     "external_measurement_consumer_id must be specified if external_measurement_id is
-    // specified"
-    //   }
-    // }
-
-    return StreamEventGroups(requestFilter, request.limit).execute(client.singleUse())
+    return StreamEventGroups(request.filter, request.limit).execute(client.singleUse())
   }
 }

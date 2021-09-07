@@ -99,7 +99,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .externalMeasurementConsumerId
 
     val eventGroup = eventGroup {
-      this.externalDataProviderId = FIXED_EXTERNAL_ID
+      externalDataProviderId = FIXED_EXTERNAL_ID
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       providedEventGroupId = PROVIDED_EVENT_GROUP_ID
     }
@@ -118,7 +118,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     val eventGroup = eventGroup {
       this.externalDataProviderId = externalDataProviderId
-      this.externalMeasurementConsumerId = FIXED_EXTERNAL_ID
+      externalMeasurementConsumerId = FIXED_EXTERNAL_ID
       providedEventGroupId = PROVIDED_EVENT_GROUP_ID
     }
 
