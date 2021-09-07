@@ -1,6 +1,30 @@
 load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
+    name = "aes_test",
+    srcs = ["aes_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
+        "@tink_cc//subtle",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "aes_with_hkdf_test",
+    srcs = ["aes_with_hkdf_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
     name = "deterministic_commutative_cipher_test",
     srcs = ["deterministic_commutative_cipher_test.cc"],
     deps = [
@@ -19,14 +43,14 @@ cc_test(
 )
 
 cc_test(
-    name = "aes_test",
-    srcs = ["aes_test.cc"],
+    name = "ec_commutative_cipher_key_generator",
+    srcs = ["ec_commutative_cipher_key_generator_test.cc"],
     deps = [
-        "//src/main/cc/wfa/panelmatch/common/crypto:aes",
-        "@com_google_absl//absl/strings",
+        "//src/main/cc/wfa/panelmatch/common/crypto:ec_commutative_cipher_key_generator",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
+        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@tink_base//cc/util:secret_data",
-        "@tink_cc//subtle",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -47,12 +71,30 @@ cc_test(
 )
 
 cc_test(
-    name = "aes_with_hkdf_test",
-    srcs = ["aes_with_hkdf_test.cc"],
+    name = "key_loader_test",
+    srcs = ["key_loader_test.cc"],
     deps = [
-        "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
+        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
+    ],
+)
+
+cc_test(
+    name = "identity_key_loader_test",
+    srcs = ["identity_key_loader_test.cc"],
+    deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest_main",
+        "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -65,19 +107,6 @@ cc_test(
         "@com_google_googletest//:gtest_main",
         "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
-    ],
-)
-
-cc_test(
-    name = "ec_commutative_cipher_key_generator",
-    srcs = ["ec_commutative_cipher_key_generator_test.cc"],
-    deps = [
-        "//src/main/cc/wfa/panelmatch/common/crypto:ec_commutative_cipher_key_generator",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_googletest//:gtest_main",
-        "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
-        "@tink_base//cc/util:secret_data",
-        "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
 

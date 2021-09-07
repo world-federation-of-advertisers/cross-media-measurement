@@ -12,5 +12,9 @@ java_wrap_cc(
     package = "org.wfanet.panelmatch.client.eventpreprocessing",
     deps = [
         "//src/main/cc/wfa/panelmatch/client/eventpreprocessing:preprocess_events_wrapper",
+
+        # To change the KeyLoader in use, replace this with a cc_library that
+        # statically registers a different KeyLoader.
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
     ],
 )

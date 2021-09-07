@@ -106,3 +106,40 @@ cc_library(
         "@tink_base//cc/util:secret_data",
     ],
 )
+
+cc_library(
+    name = "key_loader",
+    srcs = ["key_loader.cc"],
+    hdrs = ["key_loader.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_github_google_glog//:glog",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@tink_base//cc/util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "identity_key_loader",
+    srcs = ["identity_key_loader.cc"],
+    hdrs = ["identity_key_loader.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":key_loader",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@tink_base//cc/util:secret_data",
+    ],
+)
+
+cc_library(
+    name = "register_identity_key_loader",
+    srcs = ["register_identity_key_loader.cc"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":identity_key_loader",
+    ],
+    alwayslink = True,
+)
