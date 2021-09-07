@@ -401,7 +401,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       this.externalDataProviderId = externalDataProviderId
       this.externalRequisitionId = externalRequisitionId
       externalComputationId = measurement.externalComputationId
-      externalDataProviderCertificateId = dataProviderValue.externalDataProviderCertificateId
       state = Requisition.State.UNFULFILLED
       details =
         RequisitionKt.details {
@@ -409,6 +408,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
         }
+      dataProviderCertificate = dataProvider.certificate
       parentMeasurement =
         parentMeasurement {
           apiVersion = measurement.details.apiVersion
