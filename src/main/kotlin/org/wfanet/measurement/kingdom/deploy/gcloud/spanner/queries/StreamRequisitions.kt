@@ -18,7 +18,6 @@ import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
@@ -33,7 +32,7 @@ private object Params {
 }
 
 class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit: Int = 0) :
-  SimpleSpannerQuery<Requisition>() {
+  SimpleSpannerQuery<RequisitionReader.Result>() {
 
   override val reader =
     RequisitionReader().fillStatementBuilder {

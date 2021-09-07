@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -33,6 +34,9 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 private val BASE_SQL =
   """
   SELECT
+    Requisitions.MeasurementConsumerId,
+    Requisitions.MeasurementId,
+    Requisitions.RequisitionId,
     Requisitions.UpdateTime,
     Requisitions.ExternalRequisitionId,
     Requisitions.State AS RequisitionState,
@@ -68,10 +72,32 @@ private val BASE_SQL =
       ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
   """.trimIndent()
 
-class RequisitionReader : BaseSpannerReader<Requisition>() {
-  override val builder = Statement.newBuilder(BASE_SQL)
+private object Params {
+  const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
+  const val EXTERNAL_MEASUREMENT_ID = "externalMeasurementId"
+  const val EXTERNAL_COMPUTATION_ID = "externalComputationId"
+  const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
+  const val EXTERNAL_REQUISITION_ID = "externalRequisitionId"
+}
 
-  override suspend fun translate(struct: Struct): Requisition = buildRequisition(struct)
+class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
+  data class Result(
+    val measurementConsumerId: InternalId,
+    val measurementId: InternalId,
+    val requisitionId: InternalId,
+    val requisition: Requisition
+  )
+
+  override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
+
+  override suspend fun translate(struct: Struct): Result {
+    return Result(
+      InternalId(struct.getLong("MeasurementConsumerId")),
+      InternalId(struct.getLong("MeasurementId")),
+      InternalId(struct.getLong("RequisitionId")),
+      buildRequisition(struct)
+    )
+  }
 
   /** Fills [builder], returning this [RequisitionReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): RequisitionReader {
@@ -84,23 +110,19 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
     externalMeasurementConsumerId: Long,
     externalMeasurementId: Long,
     externalRequisitionId: Long,
-  ): Requisition? {
-    val externalRequisitionIdParam = "externalRequisitionId"
-    val externalMeasurementIdParam = "externalMeasurementId"
-    val externalMeasurementConsumerIdParam = "externalMeasurementConsumerId"
-
+  ): Result? {
     return fillStatementBuilder {
         appendClause(
           """
           WHERE
-            ExternalRequisitionId = @$externalRequisitionIdParam
-            AND ExternalMeasurementId = @$externalMeasurementIdParam
-            AND ExternalMeasurementConsumerId = @$externalMeasurementConsumerIdParam
+            ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+            AND ExternalMeasurementId = @${Params.EXTERNAL_MEASUREMENT_ID}
+            AND ExternalMeasurementConsumerId = @${Params.EXTERNAL_MEASUREMENT_CONSUMER_ID}
           """.trimIndent()
         )
-        bind(externalMeasurementConsumerIdParam to externalMeasurementConsumerId)
-        bind(externalMeasurementIdParam to externalMeasurementId)
-        bind(externalRequisitionIdParam to externalRequisitionId)
+        bind(Params.EXTERNAL_MEASUREMENT_CONSUMER_ID to externalMeasurementConsumerId)
+        bind(Params.EXTERNAL_MEASUREMENT_ID to externalMeasurementId)
+        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
@@ -111,20 +133,37 @@ class RequisitionReader : BaseSpannerReader<Requisition>() {
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: Long,
     externalRequisitionId: Long,
-  ): Requisition? {
-    val externalRequisitionIdParam = "externalRequisitionId"
-    val externalDataProviderIdParam = "externalDataProviderId"
-
+  ): Result? {
     return fillStatementBuilder {
         appendClause(
           """
           WHERE
-            ExternalRequisitionId = @$externalRequisitionIdParam
-            AND ExternalDataProviderId = @$externalDataProviderIdParam
+            ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+            AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
           """.trimIndent()
         )
-        bind(externalDataProviderIdParam to externalDataProviderId)
-        bind(externalRequisitionIdParam to externalRequisitionId)
+        bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  suspend fun readByExternalComputationId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalComputationId: Long,
+    externalRequisitionId: Long
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause(
+          """
+          WHERE
+            ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
+            AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
+          """.trimIndent()
+        )
+        bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
+        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
       }
       .execute(readContext)
       .singleOrNull()
