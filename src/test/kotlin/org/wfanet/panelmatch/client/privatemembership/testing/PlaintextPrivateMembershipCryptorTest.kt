@@ -20,10 +20,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.decryptQueriesRequest
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
-import org.wfanet.panelmatch.client.privatemembership.encryptQueriesRequest
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventDataOf
+import org.wfanet.panelmatch.client.privatemembership.privateMembershipDecryptRequest
+import org.wfanet.panelmatch.client.privatemembership.privateMembershipEncryptRequest
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
@@ -37,7 +37,7 @@ class PlaintextPrivateMembershipCryptorTest {
 
   @Test
   fun `encryptQueries with multiple shards`() {
-    val encryptQueriesRequest = encryptQueriesRequest {
+    val privateMembershipEncryptRequest = privateMembershipEncryptRequest {
       unencryptedQueries +=
         listOf(
           unencryptedQueryOf(100, 1, 1),
@@ -46,7 +46,7 @@ class PlaintextPrivateMembershipCryptorTest {
           unencryptedQueryOf(101, 4, 5)
         )
     }
-    val encryptedQueries = privateMembershipCryptor.encryptQueries(encryptQueriesRequest)
+    val encryptedQueries = privateMembershipCryptor.encryptQueries(privateMembershipEncryptRequest)
     assertThat(encryptedQueries.ciphertextsList.map { it -> QueryBundle.parseFrom(it) })
       .containsExactly(
         queryBundleOf(shard = 100, listOf(1 to 1, 2 to 2)),
@@ -66,11 +66,11 @@ class PlaintextPrivateMembershipCryptorTest {
       )
     val queriedEncryptedResults =
       privateMembershipCryptorHelper.makeEncryptedQueryResults(encryptedEventData)
-    val decryptQueriesRequest = decryptQueriesRequest {
+    val decryptRequest = privateMembershipDecryptRequest {
       encryptedQueryResults += queriedEncryptedResults
     }
 
-    val decryptedQueries = privateMembershipCryptor.decryptQueryResults(decryptQueriesRequest)
+    val decryptedQueries = privateMembershipCryptor.decryptQueryResults(decryptRequest)
     assertThat(decryptedQueries.decryptedQueryResultsList)
       .containsExactly(
         decryptedQueryOf("<some encrypted data a>".toByteString(), 1, 6),

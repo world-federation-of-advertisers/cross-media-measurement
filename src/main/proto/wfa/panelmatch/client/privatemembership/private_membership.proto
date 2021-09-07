@@ -21,18 +21,14 @@ import "wfa/panelmatch/client/privatemembership/query.proto";
 option java_package = "org.wfanet.panelmatch.client.privatemembership";
 option java_multiple_files = true;
 
-// An argument in every Request proto. It contains various knobs for tuning the
-// system.
-message ObliviousQueryParameters {}
-
 // A request to get a public/private key pair
 message GenerateKeysRequest {
-  ObliviousQueryParameters parameters = 1;
+  bytes serialized_parameters = 1;
 }
 
 message GenerateKeysResponse {
-  bytes public_key = 1;
-  bytes private_key = 2;
+  bytes serialized_public_key = 1;
+  bytes serialized_private_key = 2;
 }
 
 // Used in the request to encrypt a set of queries
@@ -43,10 +39,10 @@ message UnencryptedQuery {
 }
 
 // A request to encrypt a set of queries
-message EncryptQueriesRequest {
-  ObliviousQueryParameters parameters = 1;
-  bytes public_key = 2;
-  bytes private_key = 3;
+message PrivateMembershipEncryptRequest {
+  bytes serialized_parameters = 1;
+  bytes serialized_public_key = 2;
+  bytes serialized_private_key = 3;
   repeated UnencryptedQuery unencrypted_queries = 4;
 }
 
@@ -57,23 +53,23 @@ message EncryptedQuery {
 }
 
 // A set of queries compressed and prepared for oblivious expansion
-message EncryptQueriesResponse {
+message PrivateMembershipEncryptResponse {
   repeated bytes ciphertexts = 1;
   repeated EncryptedQuery encrypted_query = 2;
   bytes metadata = 3;
 }
 
 // A request to remove RLWE-encryption from a set of results.
-message DecryptQueriesRequest {
-  ObliviousQueryParameters parameters = 1;
-  bytes public_key = 2;
-  bytes private_key = 3;
+message PrivateMembershipDecryptRequest {
+  bytes serialized_parameters = 1;
+  bytes serialized_public_key = 2;
+  bytes serialized_private_key = 3;
   repeated EncryptedQueryResult encrypted_query_results = 4;
 }
 
 // This response contains queries with RLWE-encryption removed. The query
 // results are encrypted with another encryption scheme separately which is not
 // removed during this step.
-message DecryptQueriesResponse {
+message PrivateMembershipDecryptResponse {
   repeated DecryptedQueryResult decrypted_query_results = 1;
 }

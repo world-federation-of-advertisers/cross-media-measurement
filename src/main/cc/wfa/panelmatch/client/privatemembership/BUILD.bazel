@@ -5,12 +5,12 @@ package(default_visibility = ["//visibility:public"])
 _INCLUDE_PREFIX = "/src/main/cc"
 
 cc_library(
-    name = "oblivious_query_wrapper",
-    srcs = ["oblivious_query_wrapper.cc"],
-    hdrs = ["oblivious_query_wrapper.h"],
+    name = "private_membership_wrapper",
+    srcs = ["private_membership_wrapper.cc"],
+    hdrs = ["private_membership_wrapper.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
-        "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_cc_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:google_client_private_membership_cc_proto",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
@@ -109,6 +109,35 @@ cc_library(
     deps = [
         ":event_data_decryptor",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
+    ],
+)
+
+cc_library(
+    name = "decrypt_query_results",
+    srcs = ["decrypt_query_results.cc"],
+    hdrs = ["decrypt_query_results.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":event_data_decryptor",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_cc_proto",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@private_membership//private_membership/rlwe/batch/cpp/client",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
+    ],
+)
+
+cc_library(
+    name = "decrypt_query_results_wrapper",
+    srcs = ["decrypt_query_results_wrapper.cc"],
+    hdrs = ["decrypt_query_results_wrapper.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":decrypt_query_results",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

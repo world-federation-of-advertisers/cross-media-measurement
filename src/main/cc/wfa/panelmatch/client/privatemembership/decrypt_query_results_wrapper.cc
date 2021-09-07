@@ -12,23 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_OBLIVIOUS_QUERY_WRAPPER_H_
-#define SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_OBLIVIOUS_QUERY_WRAPPER_H_
+#include "wfa/panelmatch/client/privatemembership/decrypt_query_results_wrapper.h"
 
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "common_cpp/jni/jni_wrap.h"
+#include "wfa/panelmatch/client/privatemembership/decrypt_query_results.h"
 
 namespace wfa::panelmatch::client::privatemembership {
 
-absl::StatusOr<std::string> GenerateKeysWrapper(
-    const std::string& serialized_request);
-
-absl::StatusOr<std::string> EncryptQueriesWrapper(
-    const std::string& serialized_request);
-
-absl::StatusOr<std::string> DecryptQueriesWrapper(
-    const std::string& serialized_request);
+absl::StatusOr<std::string> DecryptQueryResultsWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, DecryptQueryResults);
+}
 
 }  // namespace wfa::panelmatch::client::privatemembership
-#endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_OBLIVIOUS_QUERY_WRAPPER_H_

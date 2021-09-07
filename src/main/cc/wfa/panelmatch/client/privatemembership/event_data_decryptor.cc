@@ -49,15 +49,22 @@ absl::StatusOr<DecryptEventDataResponse> DecryptEventData(
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   const AesWithHkdf aes_hkdf = AesWithHkdf(std::move(hkdf), std::move(aes));
-  DecryptEventDataResponse decrypted_event_data;
-  for (const std::string& encrypted_event : request.encrypted_event_data()) {
+  DecryptEventDataResponse response;
+  for (const std::string& encrypted_event :
+       request.encrypted_event_data().ciphertexts()) {
+    DecryptedEventData* decrypted_event_data =
+        response.add_decrypted_event_data();
     ASSIGN_OR_RETURN(
-        *decrypted_event_data.add_decrypted_event_data(),
+        *decrypted_event_data->mutable_plaintext(),
         aes_hkdf.Decrypt(
             encrypted_event,
             SecretDataFromStringView(request.single_blinded_joinkey().key()),
             SecretDataFromStringView(request.hkdf_pepper())));
+    decrypted_event_data->mutable_query_id()->CopyFrom(
+        request.encrypted_event_data().query_id());
+    decrypted_event_data->mutable_shard_id()->CopyFrom(
+        request.encrypted_event_data().shard_id());
   }
-  return decrypted_event_data;
+  return response;
 }
 }  // namespace wfa::panelmatch::client::privatemembership

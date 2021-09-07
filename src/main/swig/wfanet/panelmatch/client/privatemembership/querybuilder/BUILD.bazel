@@ -6,11 +6,11 @@ package(default_visibility = [
 ])
 
 java_wrap_cc(
-    name = "oblivious_query",
-    src = "oblivious_query.swig",
-    module = "ObliviousQueryWrapper",
+    name = "private_membership",
+    src = "private_membership.swig",
+    module = "PrivateMembershipWrapper",
     package = "org.wfanet.panelmatch.protocol.privatemembership",
     deps = [
-        "//src/main/cc/wfa/panelmatch/client/privatemembership:oblivious_query_wrapper",
+        "//src/main/cc/wfa/panelmatch/client/privatemembership:private_membership_wrapper",
     ],
 )

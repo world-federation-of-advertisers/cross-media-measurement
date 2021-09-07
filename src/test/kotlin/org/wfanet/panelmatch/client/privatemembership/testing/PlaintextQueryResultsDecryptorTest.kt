@@ -19,9 +19,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
 import org.wfanet.panelmatch.client.privatemembership.plaintextOf
-import org.wfanet.panelmatch.client.privatemembership.symmetricDecryptQueriesRequest
 import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS =
@@ -45,8 +45,8 @@ private val PUBLIC_KEY = "some public key".toByteString()
 private val PRIVATE_KEY = "some public key".toByteString()
 
 @RunWith(JUnit4::class)
-class PlaintextSymmetricPrivateMembershipCryptorTest {
-  val symmetricPrivateMembershipCryptor = PlaintextSymmetricPrivateMembershipCryptor()
+class PlaintextQueryResultsDecryptorTest {
+  val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
   val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
 
   @Test
@@ -58,17 +58,14 @@ class PlaintextSymmetricPrivateMembershipCryptorTest {
 
     val decryptedQueries =
       encryptedQueryResults.zip(JOINKEYS).map { (encryptedQueryResult, joinkeyList) ->
-        val request = symmetricDecryptQueriesRequest {
+        val request = decryptQueryResultsRequest {
           singleBlindedJoinkey = joinKeyOf(joinkeyList.second.toByteString())
           this.encryptedQueryResults += encryptedQueryResult
-          publicKey = PUBLIC_KEY
-          privateKey = PRIVATE_KEY
+          serializedPublicKey = PUBLIC_KEY
+          serializedPrivateKey = PRIVATE_KEY
           hkdfPepper = HKDF_PEPPER
         }
-        symmetricPrivateMembershipCryptor
-          .decryptQueryResults(request)
-          .decryptedEventDataList
-          .single()
+        queryResultsDecryptor.decryptQueryResults(request).decryptedEventDataList.single()
       }
     assertThat(decryptedQueries).containsExactlyElementsIn(PLAINTEXTS)
   }

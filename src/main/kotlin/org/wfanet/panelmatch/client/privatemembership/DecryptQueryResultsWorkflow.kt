@@ -24,23 +24,23 @@ import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.parDo
 
 /**
- * Implements a query decryption engine in Apache Beam that decrypts a query result
+ * Implements a query result decryption engine in Apache Beam that decrypts a query result
  *
  * @param parameters tuning knobs for the workflow
- * @param privateMembershipCryptor implementation of lower-level oblivious query expansion and
- * result decryption
+ * @param symmetricPrivateMembershipCryptor implementation of lower-level query result decryption
+ * and encrypted event decryption
  */
 class DecryptQueryResultsWorkflow(
-  private val obliviousQueryParameters: Parameters,
-  private val symmetricPrivateMembershipCryptor: SymmetricPrivateMembershipCryptor,
+  private val parameters: Parameters,
+  private val queryResultsDecryptor: QueryResultsDecryptor,
   private val hkdfPepper: ByteString,
 ) : Serializable {
 
   /** Tuning knobs for the [CreateQueriesWorkflow]. */
   data class Parameters(
-    val obliviousQueryParameters: ObliviousQueryParameters,
-    val publicKey: ByteString,
-    val privateKey: ByteString
+    val serializedParameters: ByteString,
+    val serializedPublicKey: ByteString,
+    val serializedPrivateKey: ByteString
   ) : Serializable
   //
   /**
@@ -63,15 +63,15 @@ class DecryptQueryResultsWorkflow(
         yield(kvOf(joinKeys.single(), encryptedQueryResultsList.single()))
       }
       .parDo(name = "Decrypt encrypted results") {
-        val request = symmetricDecryptQueriesRequest {
+        val request = decryptQueryResultsRequest {
           singleBlindedJoinkey = it.key
           this.encryptedQueryResults += it.value
-          parameters = obliviousQueryParameters.obliviousQueryParameters
-          publicKey = obliviousQueryParameters.publicKey
-          privateKey = obliviousQueryParameters.privateKey
+          serializedParameters = parameters.serializedParameters
+          serializedPublicKey = parameters.serializedPublicKey
+          serializedPrivateKey = parameters.serializedPrivateKey
           this.hkdfPepper = hkdfPepper
         }
-        val decryptedResults = symmetricPrivateMembershipCryptor.decryptQueryResults(request)
+        val decryptedResults = queryResultsDecryptor.decryptQueryResults(request)
         yieldAll(decryptedResults.decryptedEventDataList)
       }
   }

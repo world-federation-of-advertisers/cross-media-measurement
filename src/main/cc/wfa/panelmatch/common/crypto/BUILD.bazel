@@ -90,6 +90,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@tink_base//cc/util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
+        "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )
 

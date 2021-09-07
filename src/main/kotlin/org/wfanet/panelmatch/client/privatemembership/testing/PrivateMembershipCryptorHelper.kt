@@ -20,10 +20,10 @@ import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
-import org.wfanet.panelmatch.client.privatemembership.EncryptQueriesResponse
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
@@ -52,11 +52,11 @@ interface PrivateMembershipCryptorHelper : Serializable {
   ): List<EncryptedEventData>
 
   /**
-   * Takes an [EncryptQueriesResponse] and reverses the process to yield the underlying decrypted
-   * [ShardedQuery] for each [QueryId]
+   * Takes an [PrivateMembershipEncryptResponse] and reverses the process to yield the underlying
+   * decrypted [ShardedQuery] for each [QueryId]
    */
   fun decodeEncryptedQuery(
-    data: PCollection<EncryptQueriesResponse>
+    data: PCollection<PrivateMembershipEncryptResponse>
   ): PCollection<KV<QueryId, ShardedQuery>>
 }
 
