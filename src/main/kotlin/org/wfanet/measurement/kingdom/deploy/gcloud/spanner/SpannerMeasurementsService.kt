@@ -49,8 +49,11 @@ class SpannerMeasurementsService(
           failGrpc(Status.INVALID_ARGUMENT) { "Certificate not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
   }
@@ -85,10 +88,13 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
   }

@@ -14,9 +14,14 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -25,9 +30,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -39,13 +46,12 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.measurement
-import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -58,7 +64,8 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumersService: MeasurementConsumersCoroutineService,
     val dataProvidersService: DataProvidersCoroutineService,
     val measurementsService: MeasurementsCoroutineService,
-    val computationParticipantsService: ComputationParticipantsCoroutineService
+    val computationParticipantsService: ComputationParticipantsCoroutineService,
+    val certificatesService: CertificatesCoroutineService
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -67,6 +74,9 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected lateinit var dataServices: TestDataServices
+    private set
+
+  protected lateinit var duchyCertificates: Map<String, Certificate>
     private set
 
   /** Subject under test (SUT). */
@@ -82,6 +92,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   @Before
   fun initDataServices() {
     dataServices = newTestDataServices(idGenerator)
+
+    duchyCertificates =
+      EXTERNAL_DUCHY_IDS.associateWith { externalDuchyId ->
+        runBlocking {
+          population.createDuchyCertificate(dataServices.certificatesService, externalDuchyId)
+        }
+      }
   }
 
   @Before
@@ -453,7 +470,233 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     assertThat(requisition).isEqualTo(listedRequisition)
   }
 
-  companion object {
-    protected val API_VERSION = Version.V2_ALPHA
+  @Test
+  fun `fulfillRequisition transitions Requisition state`() = runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val participationSignature = ByteString.copyFromUtf8("Participation signature")
+    val response =
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalComputationId = measurement.externalComputationId
+          externalRequisitionId = requisition.externalRequisitionId
+          externalFulfillingDuchyId = "Buck"
+          dataProviderParticipationSignature = participationSignature
+        }
+      )
+
+    assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
+    assertThat(response.externalFulfillingDuchyId).isEqualTo("Buck")
+    assertThat(response.details.dataProviderParticipationSignature)
+      .isEqualTo(participationSignature)
+    assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisition(
+          getRequisitionRequest {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalRequisitionId = requisition.externalRequisitionId
+          }
+        )
+      )
+  }
+
+  @Test
+  fun `fulfillRequisition transitions Measurement state when all others fulfilled`() = runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+    val requisitions =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+    val participationSignature = ByteString.copyFromUtf8("Participation signature")
+    service.fulfillRequisition(
+      fulfillRequisitionRequest {
+        externalComputationId = measurement.externalComputationId
+        externalRequisitionId = requisitions[0].externalRequisitionId
+        externalFulfillingDuchyId = "Buck"
+        dataProviderParticipationSignature = participationSignature
+      }
+    )
+
+    val response =
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalComputationId = measurement.externalComputationId
+          externalRequisitionId = requisitions[1].externalRequisitionId
+          externalFulfillingDuchyId = "Rippon"
+          dataProviderParticipationSignature = participationSignature
+        }
+      )
+
+    assertThat(response.parentMeasurement.state)
+      .isEqualTo(Measurement.State.PENDING_PARTICIPANT_CONFIRMATION)
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisition(
+          getRequisitionRequest {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalRequisitionId = requisitions[1].externalRequisitionId
+          }
+        )
+      )
+  }
+
+  @Test
+  fun `fulfillRequisition throws NOT_FOUND if Requisition not found`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        dataProvider
+      )
+
+    val nonExistantExternalRequisitionId = idGenerator.generateExternalId()
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalComputationId = measurement.externalComputationId
+            externalRequisitionId = nonExistantExternalRequisitionId.value
+            externalFulfillingDuchyId = "Buck"
+            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `fulfillRequisition throws FAILED_PRECONDITION if Duchy not found`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        dataProvider
+      )
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val nonExistantExternalDuchyId = "Chalced"
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalComputationId = measurement.externalComputationId
+            externalRequisitionId = requisition.externalRequisitionId
+            externalFulfillingDuchyId = nonExistantExternalDuchyId
+            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `fulfillRequisition throws FAILED_PRECONDITION if Measurement in illegal state`() =
+      runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalComputationId = measurement.externalComputationId
+            externalRequisitionId = requisition.externalRequisitionId
+            externalFulfillingDuchyId = "Buck"
+            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 }
