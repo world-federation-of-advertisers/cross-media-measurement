@@ -31,6 +31,7 @@
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
 #include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 #include "wfa/panelmatch/common/crypto/hkdf.h"
+#include "wfa/panelmatch/common/crypto/key_loader.h"
 #include "wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
 
 namespace wfa::panelmatch::client {
@@ -43,13 +44,28 @@ using ::wfa::panelmatch::common::crypto::DeterministicCommutativeCipher;
 using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
 using ::wfa::panelmatch::common::crypto::GetSha256Hkdf;
 using ::wfa::panelmatch::common::crypto::Hkdf;
+using ::wfa::panelmatch::common::crypto::LoadKey;
 using ::wfa::panelmatch::common::crypto::NewDeterministicCommutativeCipher;
 using ::wfa::panelmatch::protocol::crypto::EventDataPreprocessor;
 using ::wfa::panelmatch::protocol::crypto::ProcessedData;
 
 absl::StatusOr<PreprocessEventsResponse> PreprocessEvents(
     const PreprocessEventsRequest& request) {
-  SecretData key = SecretDataFromStringView(request.crypto_key());
+  if (request.crypto_key().empty()) {
+    return absl::InvalidArgumentError("Empty Crypto Key");
+  }
+  if (request.identifier_hash_pepper().empty()) {
+    return absl::InvalidArgumentError("Empty Identifier Hash Pepper");
+  }
+  if (request.hkdf_pepper().empty()) {
+    return absl::InvalidArgumentError("Empty HKDF Pepper");
+  }
+
+  ASSIGN_OR_RETURN(SecretData key, LoadKey(request.crypto_key()));
+  ASSIGN_OR_RETURN(SecretData identifier_hash_pepper,
+                   LoadKey(request.identifier_hash_pepper()));
+  ASSIGN_OR_RETURN(SecretData hkdf_pepper, LoadKey(request.hkdf_pepper()));
+
   ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
 
   const Fingerprinter& fingerprinter = GetSha256Fingerprinter();
@@ -58,17 +74,8 @@ absl::StatusOr<PreprocessEventsResponse> PreprocessEvents(
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   const AesWithHkdf aes_hkdf = AesWithHkdf(std::move(hkdf), std::move(aes));
 
-  if (request.identifier_hash_pepper().empty()) {
-    return absl::InvalidArgumentError("Empty Identifier Hash Pepper");
-  }
-  if (request.hkdf_pepper().empty()) {
-    return absl::InvalidArgumentError("Empty HKDF Pepper");
-  }
-  EventDataPreprocessor preprocessor(
-      std::move(cipher),
-      SecretDataFromStringView(request.identifier_hash_pepper()),
-      SecretDataFromStringView(request.hkdf_pepper()), &fingerprinter,
-      &aes_hkdf);
+  EventDataPreprocessor preprocessor(std::move(cipher), identifier_hash_pepper,
+                                     hkdf_pepper, &fingerprinter, &aes_hkdf);
   PreprocessEventsResponse processed;
   for (const PreprocessEventsRequest::UnprocessedEvent& u :
        request.unprocessed_events()) {

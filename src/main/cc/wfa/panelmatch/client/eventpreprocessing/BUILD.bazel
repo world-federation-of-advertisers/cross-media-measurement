@@ -12,6 +12,7 @@ cc_library(
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
         "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
         "@com_google_absl//absl/algorithm:container",

@@ -4,6 +4,7 @@ cc_test(
     name = "deterministic_commutative_encryption_utility_test",
     srcs = ["deterministic_commutative_encryption_utility_test.cc"],
     deps = [
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility",
         "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
         "@com_google_absl//absl/base:core_headers",
@@ -25,6 +26,7 @@ cc_test(
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
         "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
         "@com_google_googletest//:gtest_main",
         "@tink_base//cc/util:secret_data",

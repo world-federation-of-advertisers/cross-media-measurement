@@ -12,5 +12,9 @@ java_wrap_cc(
     package = "org.wfanet.panelmatch.protocol.crypto",
     deps = [
         "//src/main/cc/wfa/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility_wrapper",
+
+        # To change the KeyLoader in use, replace this with a cc_library that
+        # statically registers a different KeyLoader.
+        "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
     ],
 )
