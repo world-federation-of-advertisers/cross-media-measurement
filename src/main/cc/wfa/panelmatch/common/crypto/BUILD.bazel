@@ -45,8 +45,11 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/types:span",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
         "@com_google_private_join_and_compute//private_join_and_compute/util:status_includes",
+        "@com_google_protobuf//:protobuf",
         "@tink_base//cc/util:secret_data",
     ],
 )

@@ -26,6 +26,7 @@ kt_jvm_library(
         ":swig_resources",
     ],
     deps = [
+        "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
         "//imports/java/org/apache/beam/runners:core",

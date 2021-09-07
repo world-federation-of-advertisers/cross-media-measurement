@@ -26,6 +26,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/client/privatemembership:rlwe_kt_jvm_proto",
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/querybuilder:oblivious_query",
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/queryevaluator:query_evaluator",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )

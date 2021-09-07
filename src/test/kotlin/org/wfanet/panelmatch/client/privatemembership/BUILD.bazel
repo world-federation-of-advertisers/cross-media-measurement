@@ -6,6 +6,7 @@ kt_jvm_test(
     test_class = "org.wfanet.panelmatch.client.privatemembership.BucketingTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
@@ -21,13 +22,17 @@ kt_jvm_test(
         "//imports/java/org/apache/beam/extensions:protobuf",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:database_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_evaluator_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:query_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
 
@@ -38,6 +43,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:oblivious_query_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_shared_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -52,6 +58,7 @@ kt_jvm_test(
     test_class = "org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluatorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
