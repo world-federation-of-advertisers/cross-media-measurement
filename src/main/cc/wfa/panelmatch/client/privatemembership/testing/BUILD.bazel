@@ -1,0 +1,21 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/cc/wfa/panelmatch:__subpackages__",
+    ],
+)
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "private_membership_helper",
+    srcs = ["private_membership_helper.cc"],
+    hdrs = ["private_membership_helper.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@private_membership//private_membership/rlwe/batch/cpp:shared_cc_proto",
+        "@private_membership//private_membership/rlwe/batch/cpp/client",
+    ],
+)

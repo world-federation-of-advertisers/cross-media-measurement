@@ -19,9 +19,9 @@ import com.google.protobuf.ListValue
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
-import org.wfanet.panelmatch.client.privatemembership.EncryptQueriesResponse
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryMetadata
@@ -88,7 +88,7 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
   }
 
   override fun decodeEncryptedQuery(
-    data: PCollection<EncryptQueriesResponse>
+    data: PCollection<PrivateMembershipEncryptResponse>
   ): PCollection<KV<QueryId, ShardedQuery>> {
     return data.parDo("Map to ShardedQuery") {
       yieldAll(

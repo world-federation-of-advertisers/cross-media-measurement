@@ -14,7 +14,7 @@
 
 %include "exception.i"
 %{
-#include "wfa/panelmatch/client/privatemembership/oblivious_query_wrapper.h"
+#include "wfa/panelmatch/client/privatemembership/decrypt_query_results_wrapper.h"
 %}
 
 // Convert C++ ::absl::StatusOr<std::string> to a Java byte
@@ -64,4 +64,4 @@
 // Follow Java style for function names.
 %rename("%(lowercamelcase)s",%$isfunction) "";
 
-%include "wfa/panelmatch/client/privatemembership/oblivious_query_wrapper.h"
+%include "wfa/panelmatch/client/privatemembership/decrypt_query_results_wrapper.h"

@@ -22,10 +22,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow.Parameters
-import org.wfanet.panelmatch.client.privatemembership.EncryptQueriesResponse
 import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
 import org.wfanet.panelmatch.client.privatemembership.panelistKeyOf
@@ -48,7 +48,7 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
   private fun runWorkflow(
     privateMembershipCryptor: PrivateMembershipCryptor,
     parameters: Parameters
-  ): Pair<PCollection<KV<QueryId, PanelistKey>>, PCollection<EncryptQueriesResponse>> {
+  ): Pair<PCollection<KV<QueryId, PanelistKey>>, PCollection<PrivateMembershipEncryptResponse>> {
     return CreateQueriesWorkflow(
         parameters = parameters,
         privateMembershipCryptor = privateMembershipCryptor

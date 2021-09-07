@@ -22,11 +22,8 @@ import java.io.Serializable
  * able to access information for queries outside of their scope while still preventing the database
  * from knowing what was queried.
  */
-interface SymmetricPrivateMembershipCryptor : Serializable {
+interface QueryResultsDecryptor : Serializable {
 
-  /** Generates a public and private key for query compression and expansion */
-  fun generatePrivateMembershipKeys(request: GenerateKeysRequest): GenerateKeysResponse
-
-  /** Decrypts a set of encrypted queries */
-  fun decryptQueryResults(request: SymmetricDecryptQueriesRequest): SymmetricDecryptQueriesResponse
+  /** Decrypts a set of encrypted query results */
+  fun decryptQueryResults(request: DecryptQueryResultsRequest): DecryptQueryResultsResponse
 }

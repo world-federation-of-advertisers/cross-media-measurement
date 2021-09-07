@@ -18,6 +18,7 @@
 
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
+#include "gtest/gtest.h"
 #include "wfa/panelmatch/client/privatemembership/prepare_query.pb.h"
 #include "wfa/panelmatch/client/privatemembership/query_preparer.h"
 #include "wfa/panelmatch/client/privatemembership/query_preparer_wrapper.h"

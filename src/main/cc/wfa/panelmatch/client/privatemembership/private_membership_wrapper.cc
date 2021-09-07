@@ -12,18 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/panelmatch/client/privatemembership/event_data_decryptor_wrapper.h"
+#include "wfa/panelmatch/client/privatemembership/private_membership_wrapper.h"
 
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
-#include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
+#include "private_membership/rlwe/batch/cpp/client/client.h"
+#include "private_membership/rlwe/batch/cpp/client/client.pb.h"
 
 namespace wfa::panelmatch::client::privatemembership {
-absl::StatusOr<std::string> DecryptEventDataWrapper(
+using ::private_membership::batch::DecryptQueries;
+using ::private_membership::batch::EncryptQueries;
+using ::private_membership::batch::GenerateKeys;
+
+absl::StatusOr<std::string> GenerateKeysWrapper(
     const std::string& serialized_request) {
-  return JniWrap(serialized_request, DecryptEventData);
+  return JniWrap(serialized_request, GenerateKeys);
+}
+
+absl::StatusOr<std::string> EncryptQueriesWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, EncryptQueries);
+}
+
+absl::StatusOr<std::string> DecryptQueryResultsWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, DecryptQueries);
 }
 
 }  // namespace wfa::panelmatch::client::privatemembership

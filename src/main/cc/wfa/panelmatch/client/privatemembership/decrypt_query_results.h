@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_EVENT_DATA_DECRYPTOR_WRAPPER_H_
-#define SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_EVENT_DATA_DECRYPTOR_WRAPPER_H_
+#ifndef SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_DECRYPT_QUERY_RESULTS_H_
+#define SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_DECRYPT_QUERY_RESULTS_H_
 
 #include <string>
 
 #include "absl/status/statusor.h"
+#include "wfa/panelmatch/client/privatemembership/decrypt_event_data.pb.h"
 
 namespace wfa::panelmatch::client::privatemembership {
-absl::StatusOr<std::string> DecryptEventDataWrapper(
-    const std::string& serialized_request);
-
+absl::StatusOr<DecryptQueryResultsResponse> DecryptQueryResults(
+    const DecryptQueryResultsRequest& request);
 }  // namespace wfa::panelmatch::client::privatemembership
-#endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_EVENT_DATA_DECRYPTOR_WRAPPER_H_
+#endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_DECRYPT_QUERY_RESULTS_H_

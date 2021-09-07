@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
@@ -25,11 +26,11 @@ import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflo
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.GenerateKeysRequest
 import org.wfanet.panelmatch.client.privatemembership.JoinKey
-import org.wfanet.panelmatch.client.privatemembership.ObliviousQueryParameters
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.SymmetricPrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
+import org.wfanet.panelmatch.client.privatemembership.generateKeysRequest
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
 import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
@@ -58,11 +59,13 @@ private val HKDF_PEPPER = "some-pepper".toByteString()
 
 @RunWith(JUnit4::class)
 abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
-  abstract val symmetricPrivateMembershipCryptor: SymmetricPrivateMembershipCryptor
+  abstract val queryResultsDecryptor: QueryResultsDecryptor
+  abstract val privateMembershipCryptor: PrivateMembershipCryptor
   abstract val privateMembershipCryptorHelper: PrivateMembershipCryptorHelper
+  abstract val serializedParameters: ByteString
 
   private fun runWorkflow(
-    symmetricPrivateMembershipCryptor: SymmetricPrivateMembershipCryptor,
+    queryResultsDecryptor: QueryResultsDecryptor,
     parameters: Parameters
   ): PCollection<DecryptedEventData> {
     val encryptedEventData: List<EncryptedEventData> =
@@ -73,8 +76,8 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
       )
     val joinkeyCollection = joinkeyCollectionOf(JOINKEYS)
     return DecryptQueryResultsWorkflow(
-        obliviousQueryParameters = parameters,
-        symmetricPrivateMembershipCryptor = symmetricPrivateMembershipCryptor,
+        parameters = parameters,
+        queryResultsDecryptor = queryResultsDecryptor,
         hkdfPepper = HKDF_PEPPER,
       )
       .batchDecryptQueryResults(
@@ -85,18 +88,17 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
 
   @Test
   fun `Decrypt simple set of results`() {
-    val obliviousQueryParameters = ObliviousQueryParameters.getDefaultInstance()
-    val generateKeysRequest =
-      GenerateKeysRequest.newBuilder().setParameters(obliviousQueryParameters).build()
-    val generateKeysResponse =
-      symmetricPrivateMembershipCryptor.generatePrivateMembershipKeys(generateKeysRequest)
+    val generateKeysRequest = generateKeysRequest {
+      this.serializedParameters = serializedParameters
+    }
+    val generateKeysResponse = privateMembershipCryptor.generateKeys(generateKeysRequest)
     val parameters =
       Parameters(
-        obliviousQueryParameters = obliviousQueryParameters,
-        privateKey = generateKeysResponse.privateKey,
-        publicKey = generateKeysResponse.publicKey
+        serializedParameters = serializedParameters,
+        serializedPrivateKey = generateKeysResponse.serializedPrivateKey,
+        serializedPublicKey = generateKeysResponse.serializedPublicKey
       )
-    val decryptedResults = runWorkflow(symmetricPrivateMembershipCryptor, parameters)
+    val decryptedResults = runWorkflow(queryResultsDecryptor, parameters)
     assertThat(decryptedResults).containsInAnyOrder(PLAINTEXTS)
   }
 
