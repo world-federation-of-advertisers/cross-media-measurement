@@ -32,6 +32,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
@@ -82,6 +83,10 @@ private val SYSTEM_REQUISITION_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/requisitions/$EXTERNAL_REQUISITION_ID_STRING"
 private val DATA_PROVIDER_PARTICIPATION_SIGNATURE =
   ByteString.copyFromUtf8("a data provider signature")
+private val ENCRYPTED_REQUISITION_SPEC = ByteString.copyFromUtf8("foo")
+/** The hash of the above ENCRYPTED_REQUISITION_SPEC. */
+private val ENCRYPTED_REQUISITION_SPEC_HASH =
+  "2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE".hexAsByteString()
 
 private val MEASUREMENT_SPEC = ByteString.copyFromUtf8("a measurement spec.")
 private val DATA_PROVIDER_LIST = ByteString.copyFromUtf8("a data provide list.")
@@ -101,6 +106,7 @@ private val INTERNAL_REQUISITION =
       externalFulfillingDuchyId = DUCHY_ID
       state = InternalRequisition.State.FULFILLED
       detailsBuilder.apply {
+        encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
         dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
       }
     }
@@ -256,6 +262,7 @@ class ComputationsServiceTest {
                 name = SYSTEM_REQUISITION_NAME
                 dataProvider = DATA_PROVIDER_PUBLIC_API_NAME
                 state = Requisition.State.FULFILLED
+                requisitionSpecHash = ENCRYPTED_REQUISITION_SPEC_HASH
                 dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
                 fulfillingComputationParticipant = SYSTEM_COMPUTATION_PARTICIPATE_NAME
               }
