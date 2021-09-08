@@ -34,9 +34,9 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("MeasurementConsumers") {
-      set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
-      set("PublicKeyCertificateId" to internalCertificateId.value)
-      set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId.value)
+      set("MeasurementConsumerId" to internalMeasurementConsumerId)
+      set("PublicKeyCertificateId" to internalCertificateId)
+      set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId)
       set("MeasurementConsumerDetails" to measurementConsumer.details)
       setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
     }
@@ -44,8 +44,8 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
     val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("MeasurementConsumerCertificates") {
-      set("MeasurementConsumerId" to internalMeasurementConsumerId.value)
-      set("CertificateId" to internalCertificateId.value)
+      set("MeasurementConsumerId" to internalMeasurementConsumerId)
+      set("CertificateId" to internalCertificateId)
       set(
         "ExternalMeasurementConsumerCertificateId" to externalMeasurementConsumerCertificateId.value
       )
