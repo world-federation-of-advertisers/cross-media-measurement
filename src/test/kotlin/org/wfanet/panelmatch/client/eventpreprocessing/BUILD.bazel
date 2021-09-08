@@ -1,22 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "JniPreprocessEventsTest",
-    srcs = ["JniPreprocessEventsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniPreprocessEventsTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
-)
-
-kt_jvm_test(
     name = "BatchingDoFnTest",
     srcs = ["BatchingDoFnTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.BatchingDoFnTest",
@@ -47,22 +31,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "EncryptEventsTest",
-    srcs = ["EncryptEventsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsTest",
-    deps = [
-        "//imports/java/com/google/common:guava",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
-)
-
-kt_jvm_test(
     name = "EncryptEventsDoFnTest",
     srcs = ["EncryptEventsDoFnTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsDoFnTest",
@@ -81,6 +49,57 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "EncryptEventsTest",
+    srcs = ["EncryptEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsTest",
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "EventAggregatorsTest",
+    srcs = ["EventAggregatorsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EventAggregatorsTest",
+    deps = [
+        "//imports/java/com/google/common:guava",
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniPreprocessEventsTest",
+    srcs = ["JniPreprocessEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniPreprocessEventsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "PreprocessEventsInPipelineTest",
     srcs = ["PreprocessEventsInPipelineTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEventsInPipelineTest",
@@ -89,6 +108,7 @@ kt_jvm_test(
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
