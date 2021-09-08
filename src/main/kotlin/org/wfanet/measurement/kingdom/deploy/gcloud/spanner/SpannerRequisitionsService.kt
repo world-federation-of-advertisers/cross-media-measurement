@@ -76,6 +76,17 @@ class SpannerRequisitionsService(
   }
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
+    with(request) {
+      grpcRequire(externalComputationId != 0L) { "external_computation_id not specified" }
+      grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
+      grpcRequire(externalFulfillingDuchyId.isNotEmpty()) {
+        "external_fulfilling_duchy_id not specified"
+      }
+      grpcRequire(!dataProviderParticipationSignature.isEmpty) {
+        "data_provider_participation_signature not specified"
+      }
+    }
+
     try {
       return FulfillRequisition(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
