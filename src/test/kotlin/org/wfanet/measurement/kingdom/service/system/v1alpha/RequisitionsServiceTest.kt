@@ -30,6 +30,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
@@ -70,6 +71,7 @@ private val INTERNAL_REQUISITION = internalRequisition {
   details =
     InternalRequisitionKt.details {
       dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+      encryptedRequisitionSpec = ByteString.copyFromUtf8("foo")
     }
   dataProviderCertificate =
     internalCertificate {
@@ -122,6 +124,8 @@ class RequisitionsServiceTest {
             dataProviderCertificateDer = DATA_PROVIDER_CERTIFICATE_DER
             state = Requisition.State.FULFILLED
             dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+            requisitionSpecHash =
+              "2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE".hexAsByteString()
             fulfillingComputationParticipant =
               "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
           }
