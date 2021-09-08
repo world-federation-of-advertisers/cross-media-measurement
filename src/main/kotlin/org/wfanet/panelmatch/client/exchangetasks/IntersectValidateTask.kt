@@ -18,8 +18,8 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.read
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.client.storage.toByteString
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
@@ -30,11 +30,11 @@ import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
  */
 class IntersectValidateTask(val maxSize: Int, val minimumOverlap: Float) : ExchangeTask {
 
-  override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
+  override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
 
     // Flatten the Blob's underlying Flow and record the buffer size for output creation.
     val currentData: ByteString = requireNotNull(input["current-data"]).read().flatten()
-    val bufferSize: Int = requireNotNull(input["current-data"]).storageClient.defaultBufferSizeBytes
+    val bufferSize: Int = requireNotNull(input["current-data"]).defaultBufferSizeBytes
     val currentSetData: Set<ByteString> = parseSerializedSharedInputs(currentData).toSet()
     val currentDataSize: Int = currentSetData.size
 

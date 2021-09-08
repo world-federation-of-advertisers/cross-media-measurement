@@ -16,10 +16,9 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
-import org.wfanet.panelmatch.client.storage.toByteString
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
@@ -34,14 +33,14 @@ internal constructor(
   private val inputKeyLabel: String = DEFAULT_INPUT_KEY_LABEL
 ) : ExchangeTask {
 
-  override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
+  override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
     logger.addToTaskLog("Executing operation: $operation")
 
     // TODO See if it is worth updating this to not collect the inputs entirely at this step.
     //  It should be possible to process batches of them to balance memory usage and execution
     //  efficiency. If the inputs turn out to be small enough this shouldn't be an issue.
     val key = requireNotNull(input[inputKeyLabel]).toByteString()
-    val outBufferSize = requireNotNull(input[inputDataLabel]).storageClient.defaultBufferSizeBytes
+    val outBufferSize = requireNotNull(input[inputDataLabel]).defaultBufferSizeBytes
     val serializedInputs = requireNotNull(input[inputDataLabel]).toByteString()
 
     val inputs = parseSerializedSharedInputs(serializedInputs)

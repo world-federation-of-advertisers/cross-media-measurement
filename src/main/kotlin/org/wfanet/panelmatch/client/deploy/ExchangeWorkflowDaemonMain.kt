@@ -15,7 +15,7 @@
 package org.wfanet.panelmatch.client.deploy
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -25,15 +25,15 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemon() {
-  override val sharedStorage: StorageClient
+  override val sharedStorage: VerifiedStorageClient
     get() = TODO("Not yet implemented")
-  override val privateStorage: StorageClient
+  override val privateStorage: VerifiedStorageClient
     get() = TODO("Not yet implemented")
 }
 
 /**
  * Reference implementation of a daemon for executing Exchange Workflows.
  *
- * TODO(@jonmolle): implement the proper [StorageClient]s and any flags to support them.
+ * TODO(@jonmolle): implement the proper [VerifiedStorageClient]s and any flags to support them.
  */
 fun main(args: Array<String>) = commandLineMain(UnimplementedExchangeWorkflowDaemon, args)

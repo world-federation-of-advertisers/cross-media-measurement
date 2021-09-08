@@ -23,7 +23,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
@@ -31,6 +30,7 @@ import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.launcher.Identity
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCipher
 import picocli.CommandLine
@@ -41,11 +41,11 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   protected lateinit var flags: ExchangeWorkflowFlags
     private set
 
-  /** [StorageClient] for payloads to be shared with the other party. */
-  abstract val sharedStorage: StorageClient
+  /** [VerifiedStorageClient] for payloads to be shared with the other party. */
+  abstract val sharedStorage: VerifiedStorageClient
 
-  /** [StorageClient] for payloads that should NOT shared with the other party. */
-  abstract val privateStorage: StorageClient
+  /** [VerifiedStorageClient] for payloads that should NOT shared with the other party. */
+  abstract val privateStorage: VerifiedStorageClient
 
   override fun run() {
     val clientCerts =

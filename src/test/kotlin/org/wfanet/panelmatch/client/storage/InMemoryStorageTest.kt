@@ -14,9 +14,26 @@
 
 package org.wfanet.panelmatch.client.storage
 
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
+import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.panelmatch.client.storage.testing.AbstractStorageTest
 
 class InMemoryStorageTest : AbstractStorageTest() {
-  override val privateStorage = InMemoryStorageClient(keyPrefix = "private")
-  override val sharedStorage = InMemoryStorageClient(keyPrefix = "shared")
+  override val privateStorage =
+    VerifiedStorageClient(
+      InMemoryStorageClient(keyPrefix = "private"),
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+    )
+  override val sharedStorage =
+    VerifiedStorageClient(
+      InMemoryStorageClient(keyPrefix = "shared"),
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+    )
 }

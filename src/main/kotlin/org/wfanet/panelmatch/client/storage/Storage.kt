@@ -17,13 +17,9 @@ package org.wfanet.panelmatch.client.storage
 import com.google.common.collect.ImmutableMap
 import com.google.protobuf.ByteString
 import java.lang.Exception
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
@@ -31,88 +27,117 @@ import org.wfanet.measurement.storage.read
 
 class StorageNotFoundException(inputKey: String) : Exception("$inputKey not found")
 
-/**
- * Stub for verified read function. Intended to be used in combination with a the other party's
- * provided [X509Certificate], this validates that the data in the blob has been generated (or at
- * least signed as valid) by the other party.
- *
- * Note that the validation happens in a separate thread and is non-blocking, but will throw a
- * terminal error if it fails.
- */
-@Throws(StorageNotFoundException::class)
-suspend fun StorageClient.verifiedRead(blobKey: String): Blob {
-  // TODO: downstream PR to implement signature validation
-  //  Downstream reads the file as well as a signature file derived from blobKey and starts a
-  //  validation process using a provided [X509Certificate]. Right now it just runs [getBlob].
-  //  This function assumes that StorageClient will handle tracking the [X509Certificate].
-  return this.getBlob(blobKey) ?: throw StorageNotFoundException(blobKey)
-}
-
-/**
- * Stub for verified write function. Intended to be used in combination with a provided [PrivateKey]
- * , this creates a signature in shared storage for the written blob that can be verified by the
- * other party using a pre-provided [X509Certificate].
- */
-suspend fun StorageClient.verifiedWrite(blobKey: String, content: Flow<ByteString>): Blob {
-  // TODO: downstream PR to implement signing
-  //  This is intended to actually write two files (by creating two Blobs). One being the normal
-  //  write, the other writing a signature file created with our [PrivateKey]. We still only return
-  //  the Blob created from the passed [content] val, but a failure to sign the file will still
-  //  throw an exception (causing the task step to fail).
-  //  This function assumes that StorageClient will handle tracking the [PrivateKey].
-  return this.createBlob(blobKey = blobKey, content = content)
-}
-
-/**
- * Transforms values of [inputLabels] into the underlying blobs.
- *
- * If any blob can't be found, it throws [NotFoundException].
- *
- * All files read are verified against the appropriate [X509Certificate] to validate that the files
- * came from the expected source.
- */
-@Throws(StorageNotFoundException::class)
-suspend fun StorageClient.verifiedBatchRead(inputLabels: Map<String, String>): Map<String, Blob> {
-  // create an immutable copy of inputLabels to avoid race conditions if the underlying label map
-  // is changed during execution.
-  val immutableInputs: ImmutableMap<String, String> = ImmutableMap.copyOf(inputLabels)
-
-  return withContext(Dispatchers.IO) {
-    coroutineScope {
-      immutableInputs
-        .mapValues { entry ->
-          async(start = CoroutineStart.DEFAULT) {
-            this@verifiedBatchRead.verifiedRead(blobKey = entry.value)
-          }
-        }
-        .mapValues { entry -> entry.value.await() }
-    }
-  }
-}
-
-/**
- * Writes output [data] based on [outputLabels].
- *
- * All outputs written by this function are signed by the user's PrivateKey, which is also written
- * as a separate file.
- */
-suspend fun StorageClient.verifiedBatchWrite(
-  outputLabels: Map<String, String>,
-  data: Map<String, Flow<ByteString>>
+class VerifiedStorageClient(
+  private val storageClient: StorageClient,
+  private val readCert: X509Certificate,
+  private val writeCert: X509Certificate,
+  private val privateKey: PrivateKey
 ) {
-  // create an immutable copy of outputLabels to avoid race conditions if the underlying label map
-  // is changed during execution.
-  val immutableOutputs: ImmutableMap<String, String> = ImmutableMap.copyOf(outputLabels)
-  require(immutableOutputs.values.toSet().size == immutableOutputs.size) {
-    "Cannot write to the same output location twice"
+
+  val defaultBufferSizeBytes: Int = storageClient.defaultBufferSizeBytes
+
+  /**
+   * Transforms values of [inputLabels] into the underlying blobs.
+   *
+   * If any blob can't be found, it throws [NotFoundException].
+   *
+   * All files read are verified against the appropriate [X509Certificate] to validate that the
+   * files came from the expected source.
+   */
+  @Throws(StorageNotFoundException::class)
+  suspend fun verifiedBatchRead(inputLabels: Map<String, String>): Map<String, VerifiedBlob> {
+    return inputLabels.mapValues { entry -> getBlob(blobKey = entry.value) }
   }
-  withContext(Dispatchers.IO) {
-    coroutineScope {
-      for ((key, value) in immutableOutputs) {
-        val payload = requireNotNull(data[key]) { "Key $key not found in ${data.keys}" }
-        launch { this@verifiedBatchWrite.verifiedWrite(blobKey = value, content = payload) }
-      }
+
+  /**
+   * Writes output [data] based on [outputLabels].
+   *
+   * All outputs written by this function are signed by the user's PrivateKey, which is also written
+   * as a separate file.
+   */
+  suspend fun verifiedBatchWrite(
+    outputLabels: Map<String, String>,
+    data: Map<String, Flow<ByteString>>
+  ) {
+    // create an immutable copy of outputLabels to avoid race conditions if the underlying label map
+    // is changed during execution.
+    val immutableOutputs: ImmutableMap<String, String> = ImmutableMap.copyOf(outputLabels)
+    require(immutableOutputs.values.toSet().size == immutableOutputs.size) {
+      "Cannot write to the same output location twice"
     }
+    for ((key, value) in immutableOutputs) {
+      val payload = requireNotNull(data[key]) { "Key $key not found in ${data.keys}" }
+      createBlob(blobKey = value, content = payload)
+    }
+  }
+
+  /**
+   * Replacement for StorageClient.getBlob(). Intended to be used in combination with another
+   * party's provided [X509Certificate], this creates a [VerifiedBlob] that will check that the data
+   * in the blob has been generated (or at least signed as valid) by the other party.
+   *
+   * Notes:
+   * - The validation happens is non-blocking, but will throw a terminal error if it fails.
+   * - The final validation does not happen until the Flow the underlying Blob reads is collected.
+   */
+  @Throws(StorageNotFoundException::class)
+  suspend fun getBlob(blobKey: String): VerifiedBlob {
+    val sourceBlob: Blob = storageClient.getBlob(blobKey) ?: throw StorageNotFoundException(blobKey)
+    return VerifiedBlob(sourceBlob, blobKey, readCert)
+  }
+
+  /**
+   * Stub for verified write function. Intended to be used in combination with a provided
+   * [PrivateKey] , this creates a signature in shared storage for the written blob that can be
+   * verified by the other party using a pre-provided [X509Certificate].
+   */
+  suspend fun createBlob(blobKey: String, content: Flow<ByteString>): VerifiedBlob {
+    // TODO: downstream PR to implement signing
+    //  This is intended to actually write two files (by creating two Blobs). One being the normal
+    //  write, the other writing a signature file created with our [PrivateKey]. We still only
+    //  return the Blob created from the passed [content] val, but a failure to sign the file will
+    //  still throw an exception (causing the task step to fail).
+    //  This function assumes VerifiedStorageClient will handle tracking the [PrivateKey].
+    return VerifiedBlob(
+      storageClient.createBlob(blobKey = blobKey, content = content),
+      blobKey,
+      writeCert
+    )
+  }
+
+  class VerifiedBlob(
+    private val sourceBlob: Blob,
+    val blobKey: String,
+    private val cert: X509Certificate
+  ) {
+
+    val size: Long
+      get() = sourceBlob.size
+
+    val defaultBufferSizeBytes: Int
+      get() = sourceBlob.storageClient.defaultBufferSizeBytes
+
+    /**
+     * Stub for verified read function. Intended to be used in combination with a the other party's
+     * provided [X509Certificate], this validates that the data in the blob has been generated (or
+     * at least signed as valid) by the other party.
+     *
+     * Note that the validation happens in a separate thread and is non-blocking, but will throw a
+     * terminal error if it fails.
+     */
+    private fun verifiedRead(bufferSize: Int): Flow<ByteString> {
+      // TODO: downstream PR to implement signature validation
+      //  Downstream reads the file as well as a signature file derived from blobKey and starts a
+      //  validation process using a provided [X509Certificate]. Right now it just runs [read].
+      //  This function assumes that VerifiedStorageClient handles tracking the [X509Certificate].
+      return sourceBlob.read(bufferSize)
+    }
+
+    fun read(bufferSize: Int = this.defaultBufferSizeBytes): Flow<ByteString> {
+      return verifiedRead(bufferSize)
+    }
+
+    suspend fun toByteString(): ByteString = this.read().flatten()
   }
 }
 

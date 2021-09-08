@@ -19,11 +19,8 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.reduce
 import org.junit.Test
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageNotFoundException
-import org.wfanet.panelmatch.client.storage.verifiedBatchWrite
-import org.wfanet.panelmatch.client.storage.verifiedRead
-import org.wfanet.panelmatch.client.storage.verifiedWrite
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 import org.wfanet.panelmatch.common.toByteString
 
@@ -31,19 +28,19 @@ private const val KEY = "some arbitrary key"
 private val VALUE = "some arbitrary value".toByteString()
 
 abstract class AbstractStorageTest {
-  abstract val privateStorage: StorageClient
-  abstract val sharedStorage: StorageClient
+  abstract val privateStorage: VerifiedStorageClient
+  abstract val sharedStorage: VerifiedStorageClient
 
   @Test
   fun `write and read Storage`() = runBlockingTest {
-    privateStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
-    assertThat(privateStorage.verifiedRead(KEY).read(1024).reduce { a, b -> a.concat(b) })
+    privateStorage.createBlob(KEY, VALUE.asBufferedFlow(1024))
+    assertThat(privateStorage.getBlob(KEY).read(1024).reduce { a, b -> a.concat(b) })
       .isEqualTo(VALUE)
   }
 
   @Test
   fun `get error for invalid key from Storage`() = runBlockingTest {
-    assertFailsWith<StorageNotFoundException> { privateStorage.verifiedRead(KEY) }
+    assertFailsWith<StorageNotFoundException> { privateStorage.getBlob(KEY) }
   }
 
   @Test
@@ -58,21 +55,21 @@ abstract class AbstractStorageTest {
 
   @Test
   fun `shared storage cannot read from private storage`() = runBlockingTest {
-    privateStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
-    privateStorage.verifiedRead(KEY).read(1024).reduce { a, b -> a.concat(b) } // Does not throw.
-    assertFailsWith<StorageNotFoundException> { sharedStorage.verifiedRead(KEY) }
+    privateStorage.createBlob(KEY, VALUE.asBufferedFlow(1024))
+    privateStorage.getBlob(KEY).read(1024).reduce { a, b -> a.concat(b) } // Does not throw.
+    assertFailsWith<StorageNotFoundException> { sharedStorage.getBlob(KEY) }
   }
 
   @Test
   fun `private storage cannot read from shared storage`() = runBlockingTest {
-    sharedStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
-    sharedStorage.verifiedRead(KEY).read(1024).reduce { a, b -> a.concat(b) } // Does not throw.
-    assertFailsWith<StorageNotFoundException> { privateStorage.verifiedRead(KEY) }
+    sharedStorage.createBlob(KEY, VALUE.asBufferedFlow(1024))
+    sharedStorage.getBlob(KEY).read(1024).reduce { a, b -> a.concat(b) } // Does not throw.
+    assertFailsWith<StorageNotFoundException> { privateStorage.getBlob(KEY) }
   }
 
   @Test
   fun `same key can be written to private storage and shared storage`() = runBlockingTest {
-    sharedStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024))
-    privateStorage.verifiedWrite(KEY, VALUE.asBufferedFlow(1024)) // Does not throw.
+    sharedStorage.createBlob(KEY, VALUE.asBufferedFlow(1024))
+    privateStorage.createBlob(KEY, VALUE.asBufferedFlow(1024)) // Does not throw.
   }
 }
