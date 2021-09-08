@@ -18,9 +18,8 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageNotFoundException
-import org.wfanet.panelmatch.client.storage.verifiedBatchRead
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 
 /**
  * Input task waits for output labels to be present. Clients should not pass in the actual required
@@ -30,8 +29,8 @@ import org.wfanet.panelmatch.client.storage.verifiedBatchRead
 class InputTask(
   private val step: ExchangeWorkflow.Step,
   private val throttler: Throttler,
-  private val sharedStorage: StorageClient,
-  private val privateStorage: StorageClient
+  private val sharedStorage: VerifiedStorageClient,
+  private val privateStorage: VerifiedStorageClient
 ) : ExchangeTask {
 
   init {
@@ -62,7 +61,7 @@ class InputTask(
   }
 
   override suspend fun execute(
-    input: Map<String, StorageClient.Blob>
+    input: Map<String, VerifiedStorageClient.VerifiedBlob>
   ): Map<String, Flow<ByteString>> {
     while (true) {
       if (throttler.onReady { isReady() }) {

@@ -17,6 +17,11 @@ package org.wfanet.panelmatch.client.storage
 import java.io.File
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE as SERVER_CERT_PEM_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE as SERVER_KEY_FILE
+import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.storage.testing.AbstractStorageTest
 
@@ -24,10 +29,20 @@ class FileSystemStorageTest : AbstractStorageTest() {
   @get:Rule val temporaryFolder = TemporaryFolder()
 
   override val privateStorage by lazy {
-    FileSystemStorageClient(directory = File(temporaryFolder.newFolder("private").absolutePath))
+    VerifiedStorageClient(
+      FileSystemStorageClient(directory = File(temporaryFolder.newFolder("private").absolutePath)),
+      readCertificate(SERVER_CERT_PEM_FILE),
+      readCertificate(SERVER_CERT_PEM_FILE),
+      readPrivateKey(SERVER_KEY_FILE, KEY_ALGORITHM)
+    )
   }
 
   override val sharedStorage by lazy {
-    FileSystemStorageClient(directory = File(temporaryFolder.newFolder("shared").absolutePath))
+    VerifiedStorageClient(
+      FileSystemStorageClient(directory = File(temporaryFolder.newFolder("shared").absolutePath)),
+      readCertificate(SERVER_CERT_PEM_FILE),
+      readCertificate(SERVER_CERT_PEM_FILE),
+      readPrivateKey(SERVER_KEY_FILE, KEY_ALGORITHM)
+    )
   }
 }

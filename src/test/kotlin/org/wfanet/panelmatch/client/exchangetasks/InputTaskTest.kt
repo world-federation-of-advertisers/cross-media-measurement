@@ -32,20 +32,41 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.INPUT_STEP
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
+import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class InputTaskTest {
-  private val privateStorage = mock<StorageClient>()
-  private val sharedStorage = mock<StorageClient>()
-  private val secretKeyBlob =
+  private val underlyingPrivateStorage = mock<StorageClient>()
+  private val underlyingSharedStorage = mock<StorageClient>()
+  private val privateStorage =
+    VerifiedStorageClient(
+      underlyingPrivateStorage,
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+    )
+  private val sharedStorage =
+    VerifiedStorageClient(
+      underlyingSharedStorage,
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
+      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+    )
+  private val secretKeySourceBlob =
     mock<StorageClient.Blob> {
       on { read(any()) } doReturn MP_0_SECRET_KEY.asBufferedFlow(1024)
     } // MP_0_SECRET_KEY
+
   private val throttler =
     object : Throttler {
       override suspend fun <T> onReady(block: suspend () -> T): T {
@@ -59,20 +80,21 @@ class InputTaskTest {
     val step = buildStep(INPUT_STEP, privateOutputLabels = labels)
     val task = InputTask(step, throttler, sharedStorage, privateStorage)
 
-    whenever(privateStorage.getBlob("mp-crypto-key"))
+    whenever(underlyingPrivateStorage.getBlob("mp-crypto-key"))
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(null)
-      .thenReturn(secretKeyBlob)
+      .thenReturn(secretKeySourceBlob)
 
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
-    verify(privateStorage, times(5)).getBlob("mp-crypto-key")
-
-    verifyNoMoreInteractions(sharedStorage, privateStorage)
+    verify(underlyingPrivateStorage, times(5)).getBlob("mp-crypto-key")
+    verify(underlyingPrivateStorage, times(1)).defaultBufferSizeBytes
+    verify(underlyingSharedStorage, times(1)).defaultBufferSizeBytes
+    verifyNoMoreInteractions(underlyingSharedStorage, underlyingPrivateStorage)
   }
 
   @Test
@@ -81,20 +103,22 @@ class InputTaskTest {
     val step = buildStep(INPUT_STEP, sharedOutputLabels = labels)
     val task = InputTask(step, throttler, sharedStorage, privateStorage)
 
-    whenever(sharedStorage.getBlob("mp-crypto-key"))
+    whenever(underlyingSharedStorage.getBlob("mp-crypto-key"))
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(null)
-      .thenReturn(secretKeyBlob)
+      .thenReturn(secretKeySourceBlob)
 
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
-    verify(sharedStorage, times(5)).getBlob("mp-crypto-key")
+    verify(underlyingSharedStorage, times(5)).getBlob("mp-crypto-key")
+    verify(underlyingPrivateStorage, times(1)).defaultBufferSizeBytes
+    verify(underlyingSharedStorage, times(1)).defaultBufferSizeBytes
 
-    verifyNoMoreInteractions(sharedStorage, privateStorage)
+    verifyNoMoreInteractions(underlyingSharedStorage, underlyingPrivateStorage)
   }
 
   @Test
