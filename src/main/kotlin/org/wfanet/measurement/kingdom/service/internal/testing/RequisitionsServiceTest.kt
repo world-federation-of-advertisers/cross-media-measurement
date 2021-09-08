@@ -699,4 +699,50 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
+
+  @Test
+  fun `fulfillRequisition throws INVALID_ARGUMENT when signature not specified`() = runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalComputationId = measurement.externalComputationId
+            externalRequisitionId = requisition.externalRequisitionId
+            externalFulfillingDuchyId = "Buck"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 }
