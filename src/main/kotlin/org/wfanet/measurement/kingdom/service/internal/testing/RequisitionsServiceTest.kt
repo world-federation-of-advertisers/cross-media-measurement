@@ -44,12 +44,14 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
+import org.wfanet.measurement.internal.kingdom.RequisitionKt.refusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
@@ -57,6 +59,11 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1L
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+
+private val REFUSAL = refusal {
+  justification = Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
+  message = "MC wrote check that EDP couldn't cash"
+}
 
 @RunWith(JUnit4::class)
 abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
@@ -739,6 +746,173 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
             externalFulfillingDuchyId = "Buck"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `refuseRequisition transitions Requisition and Measurement states`() = runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val response =
+      service.refuseRequisition(
+        refuseRequisitionRequest {
+          externalDataProviderId = requisition.externalDataProviderId
+          externalRequisitionId = requisition.externalRequisitionId
+          refusal = REFUSAL
+        }
+      )
+
+    assertThat(response.state).isEqualTo(Requisition.State.REFUSED)
+    assertThat(response.details.refusal).isEqualTo(REFUSAL)
+    assertThat(response.parentMeasurement.state).isEqualTo(Measurement.State.FAILED)
+    assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisition(
+          getRequisitionRequest {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalRequisitionId = requisition.externalRequisitionId
+          }
+        )
+      )
+  }
+
+  @Test
+  fun `refuseRequisition throws FAILED_PRECONDITION if Measurement in illegal state`() =
+      runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.refuseRequisition(
+          refuseRequisitionRequest {
+            externalDataProviderId = requisition.externalDataProviderId
+            externalRequisitionId = requisition.externalRequisitionId
+            refusal = REFUSAL
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `refuseRequisition throws NOT_FOUND if Requisition not found`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    population.createMeasurement(
+      dataServices.measurementsService,
+      population.createMeasurementConsumer(dataServices.measurementConsumersService),
+      "measurement",
+      dataProvider
+    )
+
+    val nonExistantExternalRequisitionId = idGenerator.generateExternalId()
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.refuseRequisition(
+          refuseRequisitionRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalRequisitionId = nonExistantExternalRequisitionId.value
+            refusal = REFUSAL
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `refuseRequisition throws INVALID_ARGUMENT when refusal justification not specified`() =
+      runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.refuseRequisition(
+          refuseRequisitionRequest {
+            externalDataProviderId = requisition.externalDataProviderId
+            externalRequisitionId = requisition.externalRequisitionId
+            refusal = refusal { message = "Refusal without justification" }
           }
         )
       }

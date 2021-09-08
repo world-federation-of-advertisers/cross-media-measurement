@@ -14,15 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.makeStatement
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -82,7 +79,12 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         null
       }
 
-    updateRequisition(readResult, getFulfillingDuchyId(), updatedDetails)
+    updateRequisition(
+      readResult,
+      Requisition.State.FULFILLED,
+      updatedDetails,
+      getFulfillingDuchyId()
+    )
 
     return requisition.copy {
       externalFulfillingDuchyId = request.externalFulfillingDuchyId
@@ -125,22 +127,6 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   companion object {
-    private fun TransactionScope.updateRequisition(
-      readResult: RequisitionReader.Result,
-      fulfillingDuchyId: InternalId,
-      updatedDetails: Requisition.Details
-    ) {
-      transactionContext.bufferUpdateMutation("Requisitions") {
-        set("MeasurementId" to readResult.measurementId.value)
-        set("MeasurementConsumerId" to readResult.measurementConsumerId.value)
-        set("RequisitionId" to readResult.requisitionId.value)
-        set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-        set("State" to Requisition.State.FULFILLED)
-        set("FulfillingDuchyId" to fulfillingDuchyId.value)
-        set("RequisitionDetails" to updatedDetails)
-      }
-    }
-
     private fun TransactionScope.readRequisitionsNotInState(
       measurementConsumerId: InternalId,
       measurementId: InternalId,
