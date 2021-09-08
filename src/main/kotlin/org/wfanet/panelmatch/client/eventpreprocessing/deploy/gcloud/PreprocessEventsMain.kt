@@ -33,7 +33,7 @@ import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
-import org.wfanet.panelmatch.client.eventpreprocessing.UncompressedEventAggregator
+import org.wfanet.panelmatch.client.eventpreprocessing.UncompressedEventAggregatorTrainer
 import org.wfanet.panelmatch.client.eventpreprocessing.preprocessEventsInPipeline
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
@@ -91,7 +91,7 @@ fun main(args: Array<String>) {
       HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteString()),
       HardCodedHkdfPepperProvider(options.hkdfPepper.toByteString()),
       HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteString()),
-      UncompressedEventAggregator()
+      UncompressedEventAggregatorTrainer()
     )
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)

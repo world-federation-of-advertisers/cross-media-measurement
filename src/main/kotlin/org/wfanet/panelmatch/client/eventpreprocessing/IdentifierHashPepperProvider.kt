@@ -18,21 +18,6 @@ import com.google.protobuf.ByteString
 import java.io.Serializable
 
 /** Type-safe provider for the identifier hash pepper. */
-fun interface IdentifierHashPepperProvider : Serializable {
+interface IdentifierHashPepperProvider : Serializable {
   fun get(): ByteString
-}
-
-/** Type-safe provider for the HKDF pepper. */
-fun interface HkdfPepperProvider : Serializable {
-  fun get(): ByteString
-}
-
-/** Type-safe provider for the deterministic, commutative cipher key. */
-fun interface DeterministicCommutativeCipherKeyProvider : Serializable {
-  fun get(): ByteString
-}
-
-/** Type-safe interface for combining event data. */
-fun interface EventAggregator : Serializable {
-  fun combine(events: Iterable<ByteString>): ByteString
 }

@@ -16,22 +16,26 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import org.apache.beam.sdk.coders.Coder
-import org.apache.beam.sdk.coders.KvCoder
-import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
 import org.apache.beam.sdk.values.KV
-import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.client.eventpreprocessing.testing.eventsOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.toByteString
 
+private const val MAX_BYTE_SIZE = 8
+private val IDENTIFIER_HASH_PEPPER_PROVIDER =
+  HardCodedIdentifierHashPepperProvider("identifier-hash-pepper".toByteString())
+private val HKDF_PEPPER_PROVIDER = HardCodedHkdfPepperProvider("hkdf-pepper".toByteString())
+private val CRYPTO_KEY_PROVIDER =
+  HardCodedDeterministicCommutativeCipherKeyProvider("crypto-key".toByteString())
+
 /** Unit tests for [preprocessEventsInPipeline]. */
 @RunWith(JUnit4::class)
 class PreprocessEventsInPipelineTest : BeamTestBase() {
+
   @Test
   fun hardCodedProviders() {
     val events = eventsOf("A" to "B", "C" to "D")
@@ -39,11 +43,11 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
     val encrypted =
       preprocessEventsInPipeline(
         events,
-        8,
-        HardCodedIdentifierHashPepperProvider("identifier-hash-pepper".toByteString()),
-        HardCodedHkdfPepperProvider("hkdf-pepper".toByteString()),
-        HardCodedDeterministicCommutativeCipherKeyProvider("crypto-key".toByteString()),
-        UncompressedEventAggregator()
+        MAX_BYTE_SIZE,
+        IDENTIFIER_HASH_PEPPER_PROVIDER,
+        HKDF_PEPPER_PROVIDER,
+        CRYPTO_KEY_PROVIDER,
+        UncompressedEventAggregatorTrainer()
       )
 
     assertThat(encrypted).satisfies { encryptedEvents ->
@@ -53,19 +57,4 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
       null
     }
   }
-
-  private fun eventsOf(
-    vararg pairs: Pair<String, String>
-  ): PCollection<KV<ByteString, ByteString>> {
-    @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
-    val coder: Coder<KV<ByteString, ByteString>> =
-      KvCoder.of(ByteStringCoder.of(), ByteStringCoder.of())
-    return pcollectionOf(
-      "Create Events",
-      *pairs.map { kvOf(it.first.toByteString(), it.second.toByteString()) }.toTypedArray(),
-      coder = coder
-    )
-  }
 }
-
-object FakeCombine

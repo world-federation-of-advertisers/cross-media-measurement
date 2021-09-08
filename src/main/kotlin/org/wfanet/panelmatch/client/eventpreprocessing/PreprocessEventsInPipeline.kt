@@ -17,8 +17,6 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.panelmatch.common.beam.groupByKey
-import org.wfanet.panelmatch.common.beam.mapValues
 import org.wfanet.panelmatch.common.beam.parDo
 
 /**
@@ -26,7 +24,7 @@ import org.wfanet.panelmatch.common.beam.parDo
  *
  * The basic steps are:
  *
- * 1. Aggregate values per key using [eventAggregator].
+ * 1. Aggregate values per key using an [EventAggregator] produced by [eventAggregatorTrainer].
  * 2. Batch these into collections of at most [maxByteSize] bytes.
  * 3. Encrypt the keys and values.
  */
@@ -36,11 +34,12 @@ fun preprocessEventsInPipeline(
   identifierHashPepperProvider: IdentifierHashPepperProvider,
   hkdfPepperProvider: HkdfPepperProvider,
   cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
-  eventAggregator: EventAggregator,
+  eventAggregatorTrainer: EventAggregatorTrainer
 ): PCollection<KV<Long, ByteString>> {
-  return events
-    .groupByKey()
-    .mapValues { eventAggregator.combine(it) }
+  // TODO(@efoxepstein): also return the dictionary for aggregation
+  return eventAggregatorTrainer
+    .aggregateByKey(events)
+    .events
     .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
     .parDo(
       EncryptEventsDoFn(
