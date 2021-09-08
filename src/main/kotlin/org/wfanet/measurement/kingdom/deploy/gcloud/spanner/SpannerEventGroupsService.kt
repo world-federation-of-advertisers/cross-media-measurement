@@ -15,14 +15,16 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
@@ -54,9 +56,11 @@ class SpannerEventGroupsService(
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    return EventGroupReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
-      ?.eventGroup
+    return EventGroupReader().readByExternalId(client.singleUse(), request.externalEventGroupId)
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+  }
+
+  override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
+    return StreamEventGroups(request.filter, request.limit).execute(client.singleUse())
   }
 }
