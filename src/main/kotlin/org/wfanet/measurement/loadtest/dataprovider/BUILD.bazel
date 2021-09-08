@@ -95,7 +95,7 @@ java_binary(
 
 java_image(
     name = "gcs_edp_simulator_runner_image",
-    main_class = "org.wfanet.measurement.loadtest.frontend.GcsEdpSimulatorRunnerKt",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.GcsEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":gcs_edp_simulator_runner"],
