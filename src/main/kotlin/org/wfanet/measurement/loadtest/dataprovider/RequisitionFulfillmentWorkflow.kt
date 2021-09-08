@@ -79,6 +79,7 @@ class RequisitionFulfillmentWorkflow(
     sketchConfig: SketchConfig,
     sketchGenerationParams: SketchGenerationParams
   ): Sketch {
+    logger.info("Generating Sketch...")
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
     for (i in 1..sketchGenerationParams.reach) {
@@ -91,6 +92,7 @@ class RequisitionFulfillmentWorkflow(
   }
 
   private fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): Flow<ByteString> {
+    logger.info("Encrypting Sketch...")
     val request: EncryptSketchRequest =
       EncryptSketchRequest.newBuilder()
         .apply {
@@ -112,6 +114,7 @@ class RequisitionFulfillmentWorkflow(
   }
 
   private suspend fun fulfillRequisition(name: String, data: Flow<ByteString>) {
+    logger.info("Fulfilling requisition $name...")
     requisitionFulfillmentStub.fulfillRequisition(
       flow {
         emit(makeFulfillRequisitionHeader(name))
@@ -128,8 +131,26 @@ class RequisitionFulfillmentWorkflow(
     return FulfillRequisitionRequest.newBuilder().apply { bodyChunkBuilder.data = bytes }.build()
   }
 
+  private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
+    logger.info("Getting combined public key...")
+    val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
+    val request =
+      CombineElGamalPublicKeysRequest.newBuilder()
+        .also {
+          it.curveId = curveId.toLong()
+          it.addAllElGamalKeys(listOfKeys)
+        }
+        .build()
+
+    return CombineElGamalPublicKeysResponse.parseFrom(
+        SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
+      )
+      .elGamalKeys
+      .toV2ElGamalPublicKey()
+  }
+
   private suspend fun getRequisition(): Requisition? {
-    val req =
+    val request =
       ListRequisitionsRequest.newBuilder()
         .apply {
           parent = externalDataProviderId
@@ -137,9 +158,7 @@ class RequisitionFulfillmentWorkflow(
         }
         .build()
 
-    val response = requisitionsStub.listRequisitions(req)
-
-    return response.requisitionsList.firstOrNull()
+    return requisitionsStub.listRequisitions(request).requisitionsList.firstOrNull()
   }
 
   /** Always returns [ReversingHybridCryptor] regardless of input [HybridCipherSuite]. */
@@ -149,63 +168,60 @@ class RequisitionFulfillmentWorkflow(
 
   /** execute runs the individual steps of the workflow */
   suspend fun execute() {
-    val requisition: Requisition = getRequisition() ?: return
+    logger.info("Executing requisitionFulfillingWorkflow...")
+    val requisition = getRequisition()
+    if (requisition == null) {
+      logger.info("No unfulfilled requisition. Polling again later...")
+      return
+    }
+    logger.info("Processing requisition ${requisition.name}...")
 
-    val hybridCipherSuite = HybridCipherSuite.getDefaultInstance()
-
-    val privateKeyHandle = keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)
-    checkNotNull(privateKeyHandle)
-
-    val mSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+    val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
 
     val decryptedSignedDataRequisitionSpec =
       decryptRequisitionSpec(
         requisition.encryptedRequisitionSpec,
-        privateKeyHandle,
-        hybridCipherSuite,
+        checkNotNull(keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)),
+        HybridCipherSuite.getDefaultInstance(),
         ::fakeGetHybridCryptorForCipherSuite
       )
 
     val decryptedRequisitionSpec =
       RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
 
-    val mcCert =
+    val measurementConsumerCertificate =
       certificateServiceStub.getCertificate(
         getCertificateRequest { name = requisition.measurementConsumerCertificate }
       )
 
     if (!verifyMeasurementSpec(
         measurementSpecSignature = requisition.measurementSpec.signature,
-        measurementSpec = mSpec,
-        measurementConsumerCertificate = readCertificate(mcCert.x509Der),
+        measurementSpec = measurementSpec,
+        measurementConsumerCertificate = readCertificate(measurementConsumerCertificate.x509Der),
       )
     ) {
-      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec ")
+      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec.")
       return
     }
 
     if (!verifyRequisitionSpec(
         requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
         requisitionSpec = decryptedRequisitionSpec,
-        measurementConsumerCertificate = readCertificate(mcCert.x509Der),
-        measurementSpec = mSpec,
+        measurementConsumerCertificate = readCertificate(measurementConsumerCertificate.x509Der),
+        measurementSpec = measurementSpec,
       )
     ) {
-      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec ")
+      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec.")
       return
     }
 
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
-
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-
     val sketch = generateSketch(sketchConfig, sketchGenerationParams)
 
     sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(1024))
-
     val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
-
     fulfillRequisition(requisition.name, sketchChunks)
   }
   companion object {
@@ -229,28 +245,6 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
       it.element = key.element
     }
     .build()
-}
-
-private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
-
-  // todo(@ohardt): this needs to verify the duchy keys before using them
-
-  val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
-
-  val request =
-    CombineElGamalPublicKeysRequest.newBuilder()
-      .also {
-        it.curveId = curveId.toLong()
-        it.addAllElGamalKeys(listOfKeys)
-      }
-      .build()
-
-  val response =
-    CombineElGamalPublicKeysResponse.parseFrom(
-      SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
-    )
-
-  return response.elGamalKeys.toV2ElGamalPublicKey()
 }
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
