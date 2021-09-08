@@ -37,9 +37,7 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
   private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
     if (filter.externalMeasurementConsumerIdsList.isNotEmpty()) {
-      conjuncts.add(
-        "ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)"
-      )
+      conjuncts.add("ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)")
       bind(EXTERNAL_MEASUREMENT_CONSUMER_IDS)
         .toInt64Array(filter.externalMeasurementConsumerIdsList.map { it.toLong() })
     }
