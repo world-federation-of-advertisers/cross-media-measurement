@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.common.identity
 
+import com.google.protobuf.ByteString
 import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
-import io.grpc.Grpc
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -27,9 +27,6 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import java.security.cert.X509Certificate
-import javax.net.ssl.SSLSession
-import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 
 /**
  * Details about an authenticated Duchy.
@@ -72,29 +69,16 @@ class DuchyTlsIdentityInterceptor() : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
-    if (sslSession == null) {
+    val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
+    if (authorityKeyIdentifiers.isEmpty()) {
       call.close(
-        Status.UNAUTHENTICATED.withDescription("gRPC metadata missing sslSession."),
+        Status.UNAUTHENTICATED.withDescription("No authorityKeyIdentifiers found"),
         Metadata()
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
 
-    for (cert in sslSession.peerCertificates) {
-      if (cert !is X509Certificate) {
-        continue
-      }
-
-      val authorityKeyIdentifier = cert.authorityKeyIdentifier
-      if (authorityKeyIdentifier == null) {
-        call.close(
-          Status.UNAUTHENTICATED.withDescription("certificate missing authorityKeyIdentifier."),
-          Metadata()
-        )
-        return object : ServerCall.Listener<ReqT>() {}
-      }
-
+    for (authorityKeyIdentifier in authorityKeyIdentifiers) {
       val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
 
       val context =
@@ -102,13 +86,18 @@ class DuchyTlsIdentityInterceptor() : ServerInterceptor {
       return Contexts.interceptCall(context, call, headers, next)
     }
 
-    return Contexts.interceptCall(Context.current(), call, headers, next)
+    call.close(Status.UNAUTHENTICATED.withDescription("No Duchy identity found"), Metadata())
+    return object : ServerCall.Listener<ReqT>() {}
   }
 }
 
 /** Convenience helper for [DuchyTlsIdentityInterceptor]. */
 fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, DuchyTlsIdentityInterceptor())
+  ServerInterceptors.interceptForward(
+    this,
+    AuthorityKeyServerInterceptor(),
+    DuchyTlsIdentityInterceptor()
+  )
 
 /**
  * Sets metadata key "duchy_id" on all outgoing requests.
