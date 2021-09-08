@@ -27,9 +27,9 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
-import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -148,7 +148,7 @@ class ClaimReadyExchangeStep(
       """.trimIndent()
 
     val statement: Statement =
-      makeStatement(sql) {
+      statement(sql) {
         bind("recurring_exchange_id").to(recurringExchangeId)
         bind("date").to(date.toCloudDate())
         bind("step_index").to(stepIndex)

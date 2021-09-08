@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -136,7 +136,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         set("RequisitionId" to readResult.requisitionId.value)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
         set("State" to Requisition.State.FULFILLED)
-        set("FulfillingDuchyId" to fulfillingDuchyId.value)
+        set("FulfillingDuchyId" to fulfillingDuchyId)
         set("RequisitionDetails" to updatedDetails)
       }
     }
@@ -156,9 +156,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           AND State != @${Params.REQUISITION_STATE}
         """.trimIndent()
       val query =
-        makeStatement(sql) {
-          bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId.value)
-          bind(Params.MEASUREMENT_ID to measurementId.value)
+        statement(sql) {
+          bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
+          bind(Params.MEASUREMENT_ID to measurementId)
           bind(Params.REQUISITION_STATE to state)
         }
       return transactionContext.executeQuery(query).map { struct ->

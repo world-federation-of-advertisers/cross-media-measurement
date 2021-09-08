@@ -70,8 +70,8 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
           AND ${parentType.externalCertificateIdColumnName} = @externalCertificateId
         """.trimIndent()
       )
-      bind("parentId" to parentId.value)
-      bind("externalCertificateId" to externalCertificateId.value)
+      bind("parentId" to parentId)
+      bind("externalCertificateId" to externalCertificateId)
     }
   }
 
@@ -87,8 +87,8 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
           AND ${parentType.externalCertificateIdColumnName} = @externalCertificateId
         """.trimIndent()
       )
-      bind("externalParentId" to externalParentId.value)
-      bind("externalCertificateId" to externalCertificateId.value)
+      bind("externalParentId" to externalParentId)
+      bind("externalCertificateId" to externalCertificateId)
     }
   }
 
