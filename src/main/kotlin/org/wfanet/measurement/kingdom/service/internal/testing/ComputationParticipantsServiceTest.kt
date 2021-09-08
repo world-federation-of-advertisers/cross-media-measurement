@@ -102,7 +102,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
-  fun `confirmComputationParticipant fails for wrong externalDuchyId`() = runBlocking {
+  fun `setParticipantRequisitionParams fails for wrong externalDuchyId`() = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
@@ -136,7 +136,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
-  fun `confirmComputationParticipant fails for wrong externalComputationId`() = runBlocking {
+  fun `setParticipantRequisitionParams fails for wrong externalComputationId`() = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     measurementConsumer.certificate.externalCertificateId
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -170,7 +170,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   }
 
   @Test
-  fun `confirmComputationParticipant fails for wrong certificate for computationParticipant`() =
+  fun `setParticipantRequisitionParams fails for wrong certificate for computationParticipant`() =
       runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val dataProvider = population.createDataProvider(dataProvidersService)
