@@ -190,12 +190,11 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup =
-      eventGroup {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId
-          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-        }
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+    }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
