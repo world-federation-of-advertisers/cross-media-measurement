@@ -64,6 +64,7 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -76,6 +77,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
@@ -94,24 +96,38 @@ private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAA
 private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 
+private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
+  setOf(
+    InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT,
+    InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+    InternalMeasurement.State.PENDING_COMPUTATION,
+    InternalMeasurement.State.SUCCEEDED,
+    InternalMeasurement.State.FAILED,
+    InternalMeasurement.State.CANCELLED
+  )
+
 private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
-  externalMeasurementConsumerId = 1
-  externalMeasurementId = 2
-  externalRequisitionId = 3
-  externalComputationId = 4
-  externalDataProviderId = 5
-  externalDataProviderCertificateId = 6
+  externalMeasurementConsumerId = 1L
+  externalMeasurementId = 2L
+  externalRequisitionId = 3L
+  externalComputationId = 4L
+  externalDataProviderId = 5L
   updateTime = UPDATE_TIME
   state = InternalState.FULFILLED
   externalFulfillingDuchyId = "9"
   duchies[DUCHIES_MAP_KEY] =
     duchyValue {
-      externalDuchyCertificateId = 1
+      externalDuchyCertificateId = 6L
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = UPDATE_TIME.toByteString()
           elGamalPublicKeySignature = UPDATE_TIME.toByteString()
         }
+    }
+  dataProviderCertificate =
+    internalCertificate {
+      externalDataProviderId = this@internalRequisition.externalDataProviderId
+      externalCertificateId = 7L
     }
   parentMeasurement =
     parentMeasurement {
@@ -159,7 +175,7 @@ private val REQUISITION: Requisition = requisition {
   dataProviderCertificate =
     DataProviderCertificateKey(
         externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderCertificateId)
+        externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
       )
       .toName()
   dataProviderPublicKey =
@@ -233,6 +249,7 @@ class RequisitionsServiceTest {
             StreamRequisitionsRequestKt.filter {
               externalDataProviderId =
                 apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+              measurementStates += VISIBLE_MEASUREMENT_STATES
             }
         }
       )
@@ -276,6 +293,7 @@ class RequisitionsServiceTest {
                 apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
               updatedAfter = UPDATE_TIME
               states += InternalState.UNFULFILLED
+              measurementStates += VISIBLE_MEASUREMENT_STATES
             }
         }
       )
@@ -317,6 +335,7 @@ class RequisitionsServiceTest {
                 apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
               externalDataProviderId =
                 apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+              measurementStates += VISIBLE_MEASUREMENT_STATES
             }
         }
       )

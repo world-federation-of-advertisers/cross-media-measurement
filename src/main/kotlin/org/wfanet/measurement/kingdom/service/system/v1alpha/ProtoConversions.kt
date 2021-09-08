@@ -57,7 +57,7 @@ fun InternalRequisition.toSystemRequisition(publicApiVersion: Version): Requisit
           Version.V2_ALPHA -> DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
           Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
         }
-      // TODO: get dataProviderCertificate from the external_data_provider_certificate_id
+      it.dataProviderCertificateDer = dataProviderCertificate.details.x509Der
       // TODO: set the requisition_spec_hash
       it.state = state.toSystemRequisitionState()
       it.dataProviderParticipationSignature = details.dataProviderParticipationSignature

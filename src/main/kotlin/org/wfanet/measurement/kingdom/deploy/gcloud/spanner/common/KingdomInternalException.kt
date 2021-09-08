@@ -38,6 +38,9 @@ class KingdomInternalException : Exception {
     /** Measurement resource queried could not be found. */
     MEASUREMENT_NOT_FOUND,
 
+    /** Measurement is in an illegal state for the operation. */
+    MEASUREMENT_STATE_ILLEGAL,
+
     /** Certificate with the same subject key identifier (SKID) already exists. */
     CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
 
@@ -48,6 +51,12 @@ class KingdomInternalException : Exception {
     COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
 
     /** Computation Participant resource queried could not be found. */
-    COMPUTATION_PARTICIPANT_NOT_FOUND
+    COMPUTATION_PARTICIPANT_NOT_FOUND,
+
+    /** Requisition entity could not be found. */
+    REQUISITION_NOT_FOUND,
+
+    /** Requisition is in an illegal state for the operation. */
+    REQUISITION_STATE_ILLEGAL
   }
 }

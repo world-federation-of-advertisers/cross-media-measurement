@@ -150,7 +150,7 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
         JOIN Certificates USING (CertificateId)
       """.trimIndent()
 
-    private fun buildDataProviderCertificate(struct: Struct) = certificate {
+    fun buildDataProviderCertificate(struct: Struct) = certificate {
       fillCommon(struct)
 
       val parentType = ParentType.DATA_PROVIDER

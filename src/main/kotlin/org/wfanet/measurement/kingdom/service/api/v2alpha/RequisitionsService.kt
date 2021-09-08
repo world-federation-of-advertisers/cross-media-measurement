@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -57,6 +58,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
+private val VISIBLE_MEASUREMENT_STATES: List<InternalMeasurement.State> =
+  InternalMeasurement.State.values().filter { it.visible }
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
   RequisitionsCoroutineImplBase() {
@@ -104,6 +107,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
                 grpcRequire(internalState != InternalState.STATE_UNSPECIFIED) { "State is invalid" }
               }
             }
+          measurementStates += VISIBLE_MEASUREMENT_STATES
         }
     }
 
@@ -145,6 +149,20 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
   }
 }
 
+private val InternalMeasurement.State.visible: Boolean
+  get() =
+    when (this) {
+      InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT,
+      InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+      InternalMeasurement.State.PENDING_COMPUTATION,
+      InternalMeasurement.State.SUCCEEDED,
+      InternalMeasurement.State.FAILED,
+      InternalMeasurement.State.CANCELLED -> true
+      InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+      InternalMeasurement.State.STATE_UNSPECIFIED,
+      InternalMeasurement.State.UNRECOGNIZED -> false
+    }
+
 /** Converts an internal [Requisition] to a public [Requisition]. */
 private fun InternalRequisition.toRequisition(): Requisition {
   check(Version.fromString(parentMeasurement.apiVersion) == Version.V2_ALPHA) {
@@ -182,7 +200,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
     dataProviderCertificate =
       DataProviderCertificateKey(
           externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(this@toRequisition.externalDataProviderCertificateId)
+          externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
         )
         .toName()
     dataProviderPublicKey =

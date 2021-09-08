@@ -140,17 +140,23 @@ class MeasurementReader(private val view: Measurement.View) :
       ARRAY(
         SELECT AS STRUCT
           ExternalDataProviderId,
-          ExternalDataProviderCertificateId,
           Requisitions.UpdateTime,
           Requisitions.ExternalRequisitionId,
           Requisitions.State AS RequisitionState,
           Requisitions.FulfillingDuchyId,
-          Requisitions.RequisitionDetails
+          Requisitions.RequisitionDetails,
+          ExternalDataProviderCertificateId,
+          SubjectKeyIdentifier,
+          NotValidBefore,
+          NotValidAfter,
+          RevocationState,
+          CertificateDetails,
         FROM
           Requisitions
           JOIN DataProviders USING (DataProviderId)
           JOIN DataProviderCertificates
             ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
+          JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
         WHERE
           Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND Requisitions.MeasurementId = Measurements.MeasurementId
