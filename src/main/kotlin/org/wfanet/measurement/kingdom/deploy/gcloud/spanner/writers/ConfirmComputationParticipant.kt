@@ -49,7 +49,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readWithIdsOrNull(
+        .readWithIds(
           transactionContext,
           ExternalId(request.externalComputationId),
           InternalId(duchyId)

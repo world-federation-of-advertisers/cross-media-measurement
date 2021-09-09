@@ -47,7 +47,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readWithIdsOrNull(
+        .readWithIds(
           transactionContext,
           ExternalId(request.externalComputationId),
           InternalId(duchyId)

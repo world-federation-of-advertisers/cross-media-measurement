@@ -369,9 +369,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val failedMeasurement =
       measurementsService.getMeasurementByComputationId(
         GetMeasurementByComputationIdRequest.newBuilder()
-          .apply {
-            externalComputationId = measurement.externalComputationId
-          }
+          .apply { externalComputationId = measurement.externalComputationId }
           .build()
       )
     assertThat(failedMeasurement.state).isEqualTo(Measurement.State.FAILED)

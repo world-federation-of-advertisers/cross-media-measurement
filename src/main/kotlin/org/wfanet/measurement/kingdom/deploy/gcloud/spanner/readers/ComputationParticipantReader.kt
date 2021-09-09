@@ -84,7 +84,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
     val measurementConsumerId: Long,
-    val measurementState : Measurement.State
+    val measurementState: Measurement.State
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -115,7 +115,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     return execute(readContext).singleOrNull()
   }
 
-  suspend fun readWithIdsOrNull(
+  suspend fun readWithIds(
     readContext: AsyncDatabaseClient.ReadContext,
     externalComputationId: ExternalId,
     duchyId: InternalId
