@@ -616,10 +616,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService
         .streamMeasurements(
           streamMeasurementsRequest {
-            filter =
-              filter {
-                this.updatedAfter = measurement1.updateTime
-              }
+            filter = filter { this.updatedAfter = measurement1.updateTime }
           }
         )
         .toList()
@@ -665,13 +662,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     )
 
     val measurements: List<Measurement> =
-      measurementsService
-        .streamMeasurements(
-          streamMeasurementsRequest {
-            limit = 1
-          }
-        )
-        .toList()
+      measurementsService.streamMeasurements(streamMeasurementsRequest { limit = 1 }).toList()
 
     assertThat(measurements).comparingExpectedFieldsOnly().containsExactly(measurement1)
   }

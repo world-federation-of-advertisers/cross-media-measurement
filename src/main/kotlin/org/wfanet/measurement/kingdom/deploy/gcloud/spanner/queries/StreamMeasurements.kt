@@ -32,25 +32,25 @@ class StreamMeasurements(
       appendWhereClause(requestFilter)
       appendClause("ORDER BY Measurements.CreateTime ASC")
       if (limit > 0) {
-        appendClause("LIMIT @$LIMIT")
-        bind(LIMIT to limit.toLong())
+        appendClause("LIMIT @$LIMIT_PARAMgi")
+        bind(LIMIT_PARAM to limit.toLong())
       }
     }
 
   private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
     if (filter.externalMeasurementConsumerId != 0L) {
-      conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
-      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID to filter.externalMeasurementConsumerId)
+      conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM")
+      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM to filter.externalMeasurementConsumerId)
     }
 
     if (filter.statesValueList.isNotEmpty()) {
-      conjuncts.add("Measurements.State IN UNNEST(@$STATES)")
-      bind(STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
+      conjuncts.add("Measurements.State IN UNNEST(@$STATES_PARAM)")
+      bind(STATES_PARAM).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
     if (filter.hasUpdatedAfter()) {
-      conjuncts.add("Measurements.UpdateTime > @$UPDATED_AFTER")
-      bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+      conjuncts.add("Measurements.UpdateTime > @$UPDATED_AFTER_PARAM")
+      bind(UPDATED_AFTER_PARAM to filter.updatedAfter.toGcloudTimestamp())
     }
 
     if (conjuncts.isEmpty()) {
@@ -62,9 +62,9 @@ class StreamMeasurements(
   }
 
   companion object {
-    const val LIMIT = "limit"
-    const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
-    const val UPDATED_AFTER = "updatedAfter"
-    const val STATES = "states"
+    const val LIMIT_PARAM = "limit"
+    const val EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM = "externalMeasurementConsumerId"
+    const val UPDATED_AFTER_PARAM = "updatedAfter"
+    const val STATES_PARAM = "states"
   }
 }
