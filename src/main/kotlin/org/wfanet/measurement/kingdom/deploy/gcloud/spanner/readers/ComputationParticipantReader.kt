@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
@@ -38,12 +39,13 @@ private val SELECT_EXPRESSIONS =
     "ComputationParticipants.MeasurementId",
     "ComputationParticipants.DuchyId",
     "ComputationParticipants.CertificateId",
-    "ComputationParticipants.State",
+    "ComputationParticipants.State as ComputationParticipantState",
     "ComputationParticipants.ParticipantDetails",
     "ComputationParticipants.ParticipantDetailsJson",
     "ComputationParticipants.UpdateTime",
     "Measurements.ExternalMeasurementId",
     "Measurements.ExternalComputationId",
+    "Measurements.State as MeasurementState",
     "MeasurementConsumers.ExternalMeasurementConsumerId",
     "DuchyCertificates.ExternalDuchyCertificateId"
   )
@@ -62,7 +64,8 @@ class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantR
   data class Result(
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
-    val measurementConsumerId: Long
+    val measurementConsumerId: Long,
+    val measurementState : Measurement.State
   )
   override val builder: Statement.Builder = initBuilder()
 
@@ -92,7 +95,8 @@ class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantR
     Result(
       buildComputationParticipant(struct),
       struct.getLong("MeasurementId"),
-      struct.getLong("MeasurementConsumerId")
+      struct.getLong("MeasurementConsumerId"),
+      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant =
@@ -106,7 +110,7 @@ class ComputationParticipantReader() : BaseSpannerReader<ComputationParticipantR
       externalDuchyCertificateId = struct.getLong("ExternalDuchyCertificateId")
     }
     updateTime = struct.getTimestamp("UpdateTime").toProto()
-    state = struct.getProtoEnum("State", ComputationParticipant.State::forNumber)
+    state = struct.getProtoEnum("ComputationParticipantState", ComputationParticipant.State::forNumber)
     details = struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
   }
   private fun initBuilder(): Statement.Builder {

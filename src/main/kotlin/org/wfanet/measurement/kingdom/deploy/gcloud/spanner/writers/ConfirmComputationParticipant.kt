@@ -64,7 +64,16 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     val computationParticipant = computationParticipantResult.computationParticipant
     val measurementId = computationParticipantResult.measurementId
     val measurementConsumerId = computationParticipantResult.measurementConsumerId
-
+    val measurementState = computationParticipantResult.measurementState
+    if (measurementState != Measurement.State.PENDING_PARTICIPANT_CONFIRMATION) {
+      throw KingdomInternalException(
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL
+      ) {
+        "ComputationParticipant for external computation Id ${request.externalComputationId} " +
+          "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
+          "It should have been in state CREATED but was in state ${computationParticipant.state}"
+      }
+    }
     if (computationParticipant.state != ComputationParticipant.State.REQUISITION_PARAMS_SET) {
       throw KingdomInternalException(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL
