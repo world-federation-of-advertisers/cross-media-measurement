@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -52,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequ
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -370,23 +370,16 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     // Step 2 - FulfillRequisitions for all Requisitions. This transitions the measurement state to
     // PENDING_PARTICIPANT_CONFIRMATION.
     val participationSignature = ByteString.copyFromUtf8("Participation signature")
-    requisitionsService.fulfillRequisition(
-      fulfillRequisitionRequest {
-        externalComputationId = measurement.externalComputationId
-        externalRequisitionId = requisitions[0].externalRequisitionId
-        externalFulfillingDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-        dataProviderParticipationSignature = participationSignature
-      }
-    )
-
-    requisitionsService.fulfillRequisition(
-      fulfillRequisitionRequest {
-        externalComputationId = measurement.externalComputationId
-        externalRequisitionId = requisitions[1].externalRequisitionId
-        externalFulfillingDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-        dataProviderParticipationSignature = participationSignature
-      }
-    )
+    for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
+      requisitionsService.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalComputationId = measurement.externalComputationId
+          externalRequisitionId = requisition.externalRequisitionId
+          externalFulfillingDuchyId = duchyId
+          dataProviderParticipationSignature = participationSignature
+        }
+      )
+    }
 
     // Step 3 - ConfirmComputationParticipant for just 1 ComputationParticipant. This should NOT
     // transitions the measurement state.
@@ -456,31 +449,25 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     // Step 2 - FulfillRequisitions for all Requisitions. This transitions the measurement state to
     // PENDING_PARTICIPANT_CONFIRMATION.
     val participationSignature = ByteString.copyFromUtf8("Participation signature")
-    requisitionsService.fulfillRequisition(
-      fulfillRequisitionRequest {
-        externalComputationId = measurement.externalComputationId
-        externalRequisitionId = requisitions[0].externalRequisitionId
-        externalFulfillingDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-        dataProviderParticipationSignature = participationSignature
-      }
-    )
 
-    requisitionsService.fulfillRequisition(
-      fulfillRequisitionRequest {
-        externalComputationId = measurement.externalComputationId
-        externalRequisitionId = requisitions[1].externalRequisitionId
-        externalFulfillingDuchyId = EXTERNAL_DUCHY_IDS.get(1)
-        dataProviderParticipationSignature = participationSignature
-      }
-    )
+    for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
+      requisitionsService.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalComputationId = measurement.externalComputationId
+          externalRequisitionId = requisition.externalRequisitionId
+          externalFulfillingDuchyId = duchyId
+          dataProviderParticipationSignature = participationSignature
+        }
+      )
+    }
 
     // Step 3 - ConfirmComputationParticipant for all ComputationParticipants. This transitions
     // the measurement state to PENDING_COMPUTATION.
-    for (duchyCertificate in duchyCertificates.values) {
+    for (externalDuchyId in EXTERNAL_DUCHY_IDS) {
       computationParticipantsService.confirmComputationParticipant(
         confirmComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = duchyCertificate.externalDuchyId
+          this.externalDuchyId = externalDuchyId
         }
       )
     }
@@ -521,14 +508,14 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     computationParticipantsService.setParticipantRequisitionParams(request)
 
-      measurementsService.setMeasurementResult(
-        setMeasurementResultRequest {
-          externalComputationId = measurement.externalComputationId
-          aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
-          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
-          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
-        }
-      )
+    measurementsService.setMeasurementResult(
+      setMeasurementResultRequest {
+        externalComputationId = measurement.externalComputationId
+        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      }
+    )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {

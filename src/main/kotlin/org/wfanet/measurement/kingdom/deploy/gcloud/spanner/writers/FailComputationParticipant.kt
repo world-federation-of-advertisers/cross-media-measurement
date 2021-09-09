@@ -30,7 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationP
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FAILED
 
 /**
- * Sets participant details for a computationPartcipant in the database.
+ * Sets participant details for a ComputationParticipant in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
@@ -48,7 +48,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readWithIds(
+        .readByExternalComputationId(
           transactionContext,
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
@@ -60,11 +60,10 @@ class FailComputationParticipant(private val request: FailComputationParticipant
             "and external duchy ID ${request.externalDuchyId} not found"
         }
 
-    val computationParticipant = computationParticipantResult.computationParticipant
-    val measurementId = computationParticipantResult.measurementId
-    val measurementConsumerId = computationParticipantResult.measurementConsumerId
+    val (computationParticipant, measurementId, measurementConsumerId, measurementState) =
+      computationParticipantResult
 
-    when (val state = computationParticipantResult.measurementState) {
+    when (val state = measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,

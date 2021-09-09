@@ -49,7 +49,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readWithIds(
+        .readByExternalComputationId(
           transactionContext,
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
@@ -71,7 +71,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state PENDING_PARTICIPANT_CONFIRMATION " +
+          "It should have been in state ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION}  " +
           "but was in state ${computationParticipant.state}"
       }
     }
@@ -81,7 +81,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state REQUISITION_PARAMS_SET " +
+          "It should have been in state ${ComputationParticipant.State.REQUISITION_PARAMS_SET} " +
           "but was in state ${computationParticipant.state}"
       }
     }
