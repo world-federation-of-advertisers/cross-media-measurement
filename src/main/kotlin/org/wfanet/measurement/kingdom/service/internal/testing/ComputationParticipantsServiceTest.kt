@@ -473,7 +473,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       }
     )
 
-    // Step 3 - ConfirmComputationParticipant for just 1 ComputationParticipant. This transitions
+    // Step 3 - ConfirmComputationParticipant for all ComputationParticipants. This transitions
     // the measurement state to PENDING_COMPUTATION.
     for (duchyCertificate in duchyCertificates.values) {
       computationParticipantsService.confirmComputationParticipant(
