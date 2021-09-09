@@ -18,19 +18,27 @@ import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
@@ -41,6 +49,40 @@ class SpannerExchangeStepsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ExchangeStepsCoroutineImplBase() {
+
+  override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
+    val exchangeStepResult =
+      ExchangeStepReader()
+        .withBuilder {
+          appendClause(
+            """
+          WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+            AND ExchangeSteps.Date = @date
+            AND ExchangeSteps.StepIndex = @step_index
+          """.trimIndent()
+          )
+          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+          when (request.provider.type) {
+            Provider.Type.DATA_PROVIDER ->
+              appendClause("AND DataProviders.ExternalDataProviderId = @external_provider_id")
+            Provider.Type.MODEL_PROVIDER ->
+              appendClause("AND ModelProviders.ExternalModelProviderId = @external_provider_id")
+            Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
+              failGrpc(Status.INVALID_ARGUMENT) {
+                "external_data_provider_id or external_model_provider_id must be provided."
+              }
+          }
+          bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
+          bind("date" to request.date.toCloudDate())
+          bind("step_index" to request.stepIndex.toLong())
+          bind("external_provider_id" to request.provider.externalId)
+          appendClause("LIMIT 1")
+        }
+        .execute(client.singleUse())
+        .singleOrNull()
+
+    return grpcRequireNotNull(exchangeStepResult) { "Exchange Step not found." }.exchangeStep
+  }
 
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
