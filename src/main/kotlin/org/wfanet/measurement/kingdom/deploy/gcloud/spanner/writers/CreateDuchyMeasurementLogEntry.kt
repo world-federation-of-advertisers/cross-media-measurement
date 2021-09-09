@@ -87,8 +87,8 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
   ) {
 
     transactionContext.bufferInsertMutation("MeasurementLogEntries") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("MeasurementLogDetails" to request.measurementLogEntryDetails)
       setJson("MeasurementLogDetailsJson" to request.measurementLogEntryDetails)
@@ -103,11 +103,11 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     val externalComputationLogEntryId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("DuchyMeasurementLogEntries") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      set("DuchyId" to duchyId.value)
-      set("ExternalComputationLogEntryId" to externalComputationLogEntryId.value)
+      set("DuchyId" to duchyId)
+      set("ExternalComputationLogEntryId" to externalComputationLogEntryId)
       set("DuchyMeasurementLogDetails" to request.details)
       setJson("DuchyMeasurementLogDetailsJson" to request.details)
     }

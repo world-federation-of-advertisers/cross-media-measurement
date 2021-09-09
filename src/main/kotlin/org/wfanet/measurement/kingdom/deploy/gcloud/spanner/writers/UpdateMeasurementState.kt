@@ -26,8 +26,8 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   state: Measurement.State
 ) {
   updateMutation("Measurements") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
       set("State" to state)
     }
     .bufferTo(transactionContext)
