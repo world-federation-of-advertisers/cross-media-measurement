@@ -39,18 +39,10 @@ class StreamMeasurements(
 
   private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
-    // if (filter.externalMeasurementConsumerIdsList.isNotEmpty()) {
-    //   conjuncts.add("ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)")
-    //   bind(EXTERNAL_MEASUREMENT_CONSUMER_IDS)
-    //     .toInt64Array(filter.externalMeasurementConsumerIdsList.map { it.toLong() })
-    // }
-
-
-      if (filter.externalMeasurementConsumerId != 0L) {
-    conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
-    bind(EXTERNAL_MEASUREMENT_CONSUMER_ID to filter.externalMeasurementConsumerId)
-  }
-
+    if (filter.externalMeasurementConsumerId != 0L) {
+      conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
+      bind(EXTERNAL_MEASUREMENT_CONSUMER_ID to filter.externalMeasurementConsumerId)
+    }
 
     if (filter.statesValueList.isNotEmpty()) {
       conjuncts.add("Measurements.State IN UNNEST(@$STATES)")

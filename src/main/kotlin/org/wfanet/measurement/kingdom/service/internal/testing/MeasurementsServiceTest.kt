@@ -19,9 +19,11 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -30,7 +32,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -44,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
@@ -52,6 +54,7 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -78,8 +81,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val dataProvidersService: DataProvidersCoroutineImplBase
   )
 
-  protected val idGenerator =
-    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
+  protected val testClock: Clock = Clock.systemUTC()
+  protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
+  private val population = Population(testClock, idGenerator)
 
   protected lateinit var measurementsService: T
     private set
@@ -516,4 +520,284 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
     }
+
+  @Test
+  fun `streamMeasuerements returns all measurements in order`(): Unit = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement1"
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement2"
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(measurement1, measurement2)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamEventGroups respects updated_after`(): Unit = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement1"
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement2"
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              filter {
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                this.updatedAfter = measurement1.updateTime
+              }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).comparingExpectedFieldsOnly().containsExactly(measurement2)
+  }
+
+  @Test
+  fun `streamEventGroups respects limit`(): Unit = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement1"
+        }
+      )
+
+    measurementsService.createMeasurement(
+      measurement {
+        details = MeasurementKt.details { apiVersion = "v2alpha" }
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+        dataProviders[externalDataProviderId] =
+          MeasurementKt.dataProviderValue {
+            this.externalDataProviderCertificateId = externalDataProviderCertificateId
+          }
+        providedMeasurementId = "measurement2"
+      }
+    )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(measurements).comparingExpectedFieldsOnly().containsExactly(measurement1)
+  }
+
+  @Test
+  fun `streamEventGroups respects externalMeasurementConsumerId`(): Unit = runBlocking {
+    val measurementConsumer1 = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer2 = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId1 = measurementConsumer1.externalMeasurementConsumerId
+    val externalMeasurementConsumerId2 = measurementConsumer2.externalMeasurementConsumerId
+
+    val externalMeasurementConsumerCertificateId1 =
+      measurementConsumer1.certificate.externalCertificateId
+    val externalMeasurementConsumerCertificateId2 =
+      measurementConsumer2.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    measurementsService.createMeasurement(
+      measurement {
+        details = MeasurementKt.details { apiVersion = "v2alpha" }
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId1
+        this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId1
+        dataProviders[externalDataProviderId] =
+          MeasurementKt.dataProviderValue {
+            this.externalDataProviderCertificateId = externalDataProviderCertificateId
+          }
+        providedMeasurementId = "measurement1"
+      }
+    )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId2
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId2
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement2"
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter { this.externalMeasurementConsumerId = externalMeasurementConsumerId2 }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).comparingExpectedFieldsOnly().containsExactly(measurement2)
+  }
+
+  @Test
+  fun `streamEventGroups respects states`(): Unit = runBlocking {
+    val measurementConsumer1 = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer2 = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId1 = measurementConsumer1.externalMeasurementConsumerId
+    val externalMeasurementConsumerId2 = measurementConsumer2.externalMeasurementConsumerId
+
+    val externalMeasurementConsumerCertificateId1 =
+      measurementConsumer1.certificate.externalCertificateId
+    val externalMeasurementConsumerCertificateId2 =
+      measurementConsumer2.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+
+    measurementsService.createMeasurement(
+      measurement {
+        details = MeasurementKt.details { apiVersion = "v2alpha" }
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId1
+        this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId1
+        dataProviders[externalDataProviderId] =
+          MeasurementKt.dataProviderValue {
+            this.externalDataProviderCertificateId = externalDataProviderCertificateId
+          }
+        providedMeasurementId = "measurement1"
+      }
+    )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        measurement {
+          details = MeasurementKt.details { apiVersion = "v2alpha" }
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId2
+          this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId2
+          dataProviders[externalDataProviderId] =
+            MeasurementKt.dataProviderValue {
+              this.externalDataProviderCertificateId = externalDataProviderCertificateId
+            }
+          providedMeasurementId = "measurement2"
+        }
+      )
+
+    // SUCCEED second measurement.
+    measurementsService.setMeasurementResult(
+      setMeasurementResultRequest {
+        externalComputationId = measurement2.externalComputationId
+        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+      }
+    )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter { this.states += Measurement.State.SUCCEEDED }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .ignoringFields(
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+      )
+      .containsExactly(measurement2.copy { state = Measurement.State.SUCCEEDED })
+  }
 }
