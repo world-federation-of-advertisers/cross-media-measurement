@@ -32,7 +32,7 @@ class StreamMeasurements(
       appendWhereClause(requestFilter)
       appendClause("ORDER BY Measurements.CreateTime ASC")
       if (limit > 0) {
-        appendClause("LIMIT @$LIMIT_PARAMgi")
+        appendClause("LIMIT @$LIMIT_PARAM")
         bind(LIMIT_PARAM to limit.toLong())
       }
     }
