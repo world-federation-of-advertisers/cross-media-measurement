@@ -51,6 +51,7 @@ private val BASE_SQL =
     Measurements.ExternalMeasurementId,
     Measurements.ExternalComputationId,
     Measurements.MeasurementDetails,
+    Measurements.State as MeasurementState,
     MeasurementConsumers.ExternalMeasurementConsumerId,
     DuchyCertificates.ExternalDuchyCertificateId,
     Certificates.SubjectKeyIdentifier,
@@ -82,7 +83,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
   data class Result(
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
-    val measurementConsumerId: Long
+    val measurementConsumerId: Long,
+    val measurementState : Measurement.State
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -113,11 +115,28 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     return execute(readContext).singleOrNull()
   }
 
+  suspend fun readWithIdsOrNull(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalComputationId: ExternalId,
+    duchyId: InternalId
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE Measurements.externalComputationId = @externalComputationId")
+        appendClause("AND ComputationParticipants.duchyId = @duchyId")
+        bind("externalComputationId").to(externalComputationId.value)
+        bind("duchyId").to(duchyId.value)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
   override suspend fun translate(struct: Struct) =
     Result(
       buildComputationParticipant(struct),
       struct.getLong("MeasurementId"),
-      struct.getLong("MeasurementConsumerId")
+      struct.getLong("MeasurementConsumerId"),
+      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant {

@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.computationParticipant
+import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -315,5 +316,64 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Ignore @Test fun `confirmComputationParticipant succeeds for non-last duchy`() = runBlocking {}
   @Ignore @Test fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {}
 
-  @Ignore @Test fun `failComputationParticipant succeeds`() = runBlocking {}
+  @Test
+  fun `failComputationParticipant succeeds`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+    val certificate =
+      population.createDuchyCertificate(certificatesService, EXTERNAL_DUCHY_IDS.get(0))
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyCertificateId = certificate.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
+
+    computationParticipantsService.setParticipantRequisitionParams(request)
+
+    val failedComputationParticipant =
+      computationParticipantsService.failComputationParticipant(
+        failComputationParticipantRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+        }
+      )
+    val expectedComputationParticipant = computationParticipant {
+      this.state = ComputationParticipant.State.FAILED
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementId = measurement.externalMeasurementId
+      this.externalComputationId = measurement.externalComputationId
+      this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      duchyCertificate = certificate
+      apiVersion = measurement.details.apiVersion
+      this.details = details { liquidLegionsV2 = request.liquidLegionsV2 }
+    }
+    assertThat(failedComputationParticipant)
+      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(expectedComputationParticipant)
+
+    val failedMeasurement =
+      measurementsService.getMeasurementByComputationId(
+        GetMeasurementByComputationIdRequest.newBuilder()
+          .apply {
+            externalComputationId = measurement.externalComputationId
+          }
+          .build()
+      )
+    assertThat(failedMeasurement.state).isEqualTo(Measurement.State.FAILED)
+  }
 }
