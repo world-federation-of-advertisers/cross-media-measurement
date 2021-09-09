@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -27,6 +28,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
@@ -81,7 +83,9 @@ class SpannerMeasurementsService(
   }
 
   override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {
-    return TODO("implement")
+    return StreamMeasurements(request.measurementView, request.filter, request.limit)
+      .execute(client.singleUse())
+      .map { it.measurement }
   }
 
   override suspend fun setMeasurementResult(request: SetMeasurementResultRequest): Measurement {
