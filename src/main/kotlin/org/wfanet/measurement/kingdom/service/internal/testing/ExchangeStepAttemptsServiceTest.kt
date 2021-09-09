@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
@@ -40,11 +41,11 @@ import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
-import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -56,6 +57,7 @@ import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.getExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.provider
@@ -86,6 +88,7 @@ private val idGenerator =
   FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 
 private const val STEP_INDEX = 1
+
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   steps +=
     step {
@@ -192,9 +195,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   fun `finishExchangeStepAttempt fails for missing date`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.finishExchangeStepAttempt(
-          FinishExchangeStepAttemptRequest.getDefaultInstance()
-        )
+        exchangeStepAttemptsService.finishExchangeStepAttempt(finishExchangeStepAttemptRequest {})
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -206,14 +207,12 @@ abstract class ExchangeStepAttemptsServiceTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(
-          FinishExchangeStepAttemptRequest.newBuilder()
-            .apply {
-              externalRecurringExchangeId = 1L
-              stepIndex = STEP_INDEX
-              attemptNumber = 1
-              date = DATE
-            }
-            .build()
+          finishExchangeStepAttemptRequest {
+            externalRecurringExchangeId = 1L
+            stepIndex = STEP_INDEX
+            attemptNumber = 1
+            date = DATE
+          }
         )
       }
 
@@ -296,19 +295,133 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
+    exchangeStepsService.claimReadyExchangeStep(
+      claimReadyExchangeStepRequest {
+        provider =
+          provider {
+            externalId = EXTERNAL_MODEL_PROVIDER_ID
+            type = Provider.Type.MODEL_PROVIDER
+          }
+      }
+    )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        finishExchangeStepAttemptRequest {
+          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+          date = DATE
+          stepIndex = STEP_INDEX
+          attemptNumber = 1
+          state = ExchangeStepAttempt.State.SUCCEEDED
+        }
+      )
+
+    val expected = exchangeStepAttempt {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = 1
+      state = ExchangeStepAttempt.State.SUCCEEDED
+      details =
+        exchangeStepAttemptDetails {
+          startTime = response.details.startTime
+          updateTime = Value.COMMIT_TIMESTAMP.toProto()
+          debugLogEntries +=
+            debugLog {
+              message = "Attempt for Step: 1 Succeeded."
+              time = Value.COMMIT_TIMESTAMP.toProto()
+            }
+        }
+    }
+
+    assertThat(response).isEqualTo(expected)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
+    exchangeStepsService.claimReadyExchangeStep(
+      claimReadyExchangeStepRequest {
+        provider =
+          provider {
+            externalId = EXTERNAL_MODEL_PROVIDER_ID
+            type = Provider.Type.MODEL_PROVIDER
+          }
+      }
+    )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        finishExchangeStepAttemptRequest {
+          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+          date = DATE
+          stepIndex = STEP_INDEX
+          attemptNumber = 1
+          state = ExchangeStepAttempt.State.FAILED
+        }
+      )
+
+    val expected = exchangeStepAttempt {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = 1
+      state = ExchangeStepAttempt.State.FAILED
+      details =
+        exchangeStepAttemptDetails {
+          startTime = response.details.startTime
+          updateTime = Value.COMMIT_TIMESTAMP.toProto()
+          debugLogEntries +=
+            debugLog {
+              message = "Attempt for Step: 1 Failed."
+              time = Value.COMMIT_TIMESTAMP.toProto()
+            }
+        }
+    }
+
+    assertThat(response).isEqualTo(expected)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
+    exchangeStepsService.claimReadyExchangeStep(
+      claimReadyExchangeStepRequest {
+        provider =
+          provider {
+            externalId = EXTERNAL_MODEL_PROVIDER_ID
+            type = Provider.Type.MODEL_PROVIDER
+          }
+      }
+    )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        finishExchangeStepAttemptRequest {
+          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+          date = DATE
+          stepIndex = STEP_INDEX
+          attemptNumber = 1
+          state = ExchangeStepAttempt.State.FAILED_STEP
+        }
+      )
+
+    val expected = exchangeStepAttempt {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = 1
+      state = ExchangeStepAttempt.State.FAILED_STEP
+      details =
+        exchangeStepAttemptDetails {
+          startTime = response.details.startTime
+          updateTime = Value.COMMIT_TIMESTAMP.toProto()
+          debugLogEntries +=
+            debugLog {
+              message = "Attempt for Step: 1 Failed."
+              time = Value.COMMIT_TIMESTAMP.toProto()
+            }
+        }
+    }
+
+    assertThat(response).isEqualTo(expected)
   }
 }
