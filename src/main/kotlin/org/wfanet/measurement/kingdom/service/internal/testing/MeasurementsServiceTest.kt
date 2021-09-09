@@ -575,7 +575,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects updated_after`(): Unit = runBlocking {
+  fun `streamMeasurements respects updated_after`(): Unit = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalMeasurementConsumerCertificateId =
@@ -618,7 +618,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           streamMeasurementsRequest {
             filter =
               filter {
-                this.externalMeasurementConsumerId = externalMeasurementConsumerId
                 this.updatedAfter = measurement1.updateTime
               }
           }
@@ -629,7 +628,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects limit`(): Unit = runBlocking {
+  fun `streamMeasurements respects limit`(): Unit = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalMeasurementConsumerCertificateId =
@@ -669,7 +668,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService
         .streamMeasurements(
           streamMeasurementsRequest {
-            filter = filter { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
             limit = 1
           }
         )
@@ -679,7 +677,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects externalMeasurementConsumerId`(): Unit = runBlocking {
+  fun `streamMeasurements respects externalMeasurementConsumerId`(): Unit = runBlocking {
     val measurementConsumer1 = population.createMeasurementConsumer(measurementConsumersService)
     val measurementConsumer2 = population.createMeasurementConsumer(measurementConsumersService)
     val externalMeasurementConsumerId1 = measurementConsumer1.externalMeasurementConsumerId
@@ -733,7 +731,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects states`(): Unit = runBlocking {
+  fun `streamMeasurements respects states`(): Unit = runBlocking {
     val measurementConsumer1 = population.createMeasurementConsumer(measurementConsumersService)
     val measurementConsumer2 = population.createMeasurementConsumer(measurementConsumersService)
     val externalMeasurementConsumerId1 = measurementConsumer1.externalMeasurementConsumerId
