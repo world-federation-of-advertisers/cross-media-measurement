@@ -31,9 +31,9 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     val externalDataProviderId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("DataProviders") {
-      set("DataProviderId" to internalDataProviderId.value)
-      set("PublicKeyCertificateId" to internalCertificateId.value)
-      set("ExternalDataProviderId" to externalDataProviderId.value)
+      set("DataProviderId" to internalDataProviderId)
+      set("PublicKeyCertificateId" to internalCertificateId)
+      set("ExternalDataProviderId" to externalDataProviderId)
       set("DataProviderDetails" to dataProvider.details)
       setJson("DataProviderDetailsJson" to dataProvider.details)
     }
@@ -41,9 +41,9 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     val externalDataProviderCertificateId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("DataProviderCertificates") {
-      set("DataProviderId" to internalDataProviderId.value)
-      set("CertificateId" to internalCertificateId.value)
-      set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId.value)
+      set("DataProviderId" to internalDataProviderId)
+      set("CertificateId" to internalCertificateId)
+      set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId)
     }
 
     return dataProvider

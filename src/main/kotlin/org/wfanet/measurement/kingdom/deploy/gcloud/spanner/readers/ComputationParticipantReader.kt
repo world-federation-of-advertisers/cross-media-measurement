@@ -106,8 +106,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
           AND DuchyId = @duchyId
         """.trimIndent()
       )
-      bind("externalComputationId" to externalComputationId.value)
-      bind("duchyId" to duchyId.value)
+      bind("externalComputationId" to externalComputationId)
+      bind("duchyId" to duchyId)
       appendClause("LIMIT 1")
     }
     return execute(readContext).singleOrNull()
