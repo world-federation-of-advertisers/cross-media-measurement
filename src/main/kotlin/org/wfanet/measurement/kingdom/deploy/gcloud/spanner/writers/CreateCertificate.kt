@@ -124,7 +124,7 @@ class CreateCertificate(private val certificate: Certificate) :
 
 fun Certificate.toInsertMutation(internalId: InternalId): Mutation {
   return insertMutation("Certificates") {
-    set("CertificateId" to internalId.value)
+    set("CertificateId" to internalId)
     set("SubjectKeyIdentifier" to subjectKeyIdentifier.toGcloudByteArray())
     set("NotValidBefore" to notValidBefore.toGcloudTimestamp())
     set("NotValidAfter" to notValidAfter.toGcloudTimestamp())
