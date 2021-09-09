@@ -129,12 +129,12 @@ private val DATA_PROVIDER = dataProvider {
       details =
         CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
     }
-  details =
-    details {
-      apiVersion = "2"
-      publicKey = ByteString.copyFromUtf8("This is a  public key.")
-      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-    }
+//  details =
+//    details {
+//      apiVersion = "2"
+//      publicKey = ByteString.copyFromUtf8("This is a  public key.")
+//      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+//    }
 }
 
 private val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
