@@ -35,6 +35,7 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FA
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
  * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
+ * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
  */
 class FailComputationParticipant(private val request: FailComputationParticipantRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
@@ -68,6 +69,22 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
+    }
+
+    when (val state = computationParticipantResult.measurementState) {
+      Measurement.State.PENDING_REQUISITION_PARAMS,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+      Measurement.State.PENDING_COMPUTATION -> {}
+      Measurement.State.SUCCEEDED,
+      Measurement.State.FAILED,
+      Measurement.State.CANCELLED,
+      Measurement.State.STATE_UNSPECIFIED,
+      Measurement.State.UNRECOGNIZED -> {
+        throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL) {
+          "Unexpected Measurement state $state (${state.number})"
+        }
+      }
     }
 
     updateMeasurementState(

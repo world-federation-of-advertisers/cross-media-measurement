@@ -71,7 +71,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state CREATED but was in state ${computationParticipant.state}"
+          "It should have been in state PENDING_PARTICIPANT_CONFIRMATION " +
+          "but was in state ${computationParticipant.state}"
       }
     }
     if (computationParticipant.state != ComputationParticipant.State.REQUISITION_PARAMS_SET) {
@@ -80,7 +81,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state CREATED but was in state ${computationParticipant.state}"
+          "It should have been in state REQUISITION_PARAMS_SET " +
+          "but was in state ${computationParticipant.state}"
       }
     }
 
