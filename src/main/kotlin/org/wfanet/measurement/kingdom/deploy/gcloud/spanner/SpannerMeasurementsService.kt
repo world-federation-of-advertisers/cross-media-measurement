@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -24,6 +25,7 @@ import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
@@ -76,6 +78,10 @@ class SpannerMeasurementsService(
       .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalComputationId))
       ?.measurement
       ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+  }
+
+  override fun streamMeasurements(request: StreamMeasurementsRequest): Flow<Measurement> {
+    return TODO("implement")
   }
 
   override suspend fun setMeasurementResult(request: SetMeasurementResultRequest): Measurement {
