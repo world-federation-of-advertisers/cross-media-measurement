@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -491,6 +492,55 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
     assertThat(updatedMeasurement.state).isEqualTo(Measurement.State.PENDING_COMPUTATION)
+  }
+
+  @Test
+  fun `failComputationParticipant fails due to illegal  measurement state`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyCertificateId =
+        duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
+
+    computationParticipantsService.setParticipantRequisitionParams(request)
+
+      measurementsService.setMeasurementResult(
+        setMeasurementResultRequest {
+          externalComputationId = measurement.externalComputationId
+          aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.failComputationParticipant(
+          failComputationParticipantRequest {
+            externalComputationId = measurement.externalComputationId
+            externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Measurement State is Illegal")
   }
 
   @Test

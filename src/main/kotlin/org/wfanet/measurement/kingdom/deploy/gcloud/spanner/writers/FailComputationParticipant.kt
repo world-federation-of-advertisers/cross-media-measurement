@@ -64,13 +64,6 @@ class FailComputationParticipant(private val request: FailComputationParticipant
     val measurementId = computationParticipantResult.measurementId
     val measurementConsumerId = computationParticipantResult.measurementConsumerId
 
-    transactionContext.bufferUpdateMutation("ComputationParticipants") {
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("MeasurementId" to measurementId)
-      set("DuchyId" to duchyId)
-      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
-    }
-
     when (val state = computationParticipantResult.measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
@@ -85,6 +78,13 @@ class FailComputationParticipant(private val request: FailComputationParticipant
           "Unexpected Measurement state $state (${state.number})"
         }
       }
+    }
+
+    transactionContext.bufferUpdateMutation("ComputationParticipants") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("DuchyId" to duchyId)
+      set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
     updateMeasurementState(
