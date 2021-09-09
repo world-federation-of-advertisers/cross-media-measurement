@@ -98,12 +98,12 @@ class CreateMeasurement(private val measurement: Measurement) :
         ExternalId(measurement.externalMeasurementConsumerCertificateId)
       )
     transactionContext.bufferInsertMutation("Measurements") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
-      set("ExternalMeasurementId" to externalMeasurementId.value)
-      set("ExternalComputationId" to externalComputationId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("ExternalMeasurementId" to externalMeasurementId)
+      set("ExternalComputationId" to externalComputationId)
       set("ProvidedMeasurementId" to measurement.providedMeasurementId)
-      set("CertificateId" to measurementConsumerCertificateId.value)
+      set("CertificateId" to measurementConsumerCertificateId)
       set("State" to INITIAL_MEASUREMENT_STATE)
       set("MeasurementDetails" to measurement.details)
       setJson("MeasurementDetailsJson" to measurement.details)
@@ -119,9 +119,9 @@ class CreateMeasurement(private val measurement: Measurement) :
   ) {
     val participantDetails = ComputationParticipant.Details.getDefaultInstance()
     transactionContext.bufferInsertMutation("ComputationParticipants") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
-      set("DuchyId" to duchyId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("DuchyId" to duchyId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to ComputationParticipant.State.CREATED)
       set("ParticipantDetails" to participantDetails)
@@ -151,13 +151,13 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
 
     transactionContext.bufferInsertMutation("Requisitions") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
-      set("RequisitionId" to requisitionId.value)
-      set("DataProviderId" to dataProviderId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("RequisitionId" to requisitionId)
+      set("DataProviderId" to dataProviderId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("ExternalRequisitionId" to externalRequisitionId.value)
-      set("DataProviderCertificateId" to dataProviderCertificateId.value)
+      set("ExternalRequisitionId" to externalRequisitionId)
+      set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State" to Requisition.State.UNFULFILLED)
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
@@ -181,7 +181,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     return MeasurementReader(Measurement.View.DEFAULT)
       .withBuilder {
         appendClause(whereClause)
-        bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId.value)
+        bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
         bind(params.PROVIDED_MEASUREMENT_ID to measurement.providedMeasurementId)
       }
       .execute(transactionContext)

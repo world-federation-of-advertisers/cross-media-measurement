@@ -41,7 +41,7 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {
       set("RecurringExchangeId" to idGenerator.generateInternalId().value)
-      set("ExternalRecurringExchangeId" to externalId.value)
+      set("ExternalRecurringExchangeId" to externalId)
       set("ModelProviderId" to modelProviderId)
       set("DataProviderId" to dataProviderId)
       set("State" to INITIAL_STATE)

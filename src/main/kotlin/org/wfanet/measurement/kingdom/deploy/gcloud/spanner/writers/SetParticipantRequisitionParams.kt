@@ -90,7 +90,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
-      set("CertificateId" to duchyCertificateId.value)
+      set("CertificateId" to duchyCertificateId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
       set("ParticipantDetails" to participantDetails)
@@ -119,7 +119,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         .fillStatementBuilder {
           appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
           bind("duchyId" to duchyId)
-          bind("certificateId" to duchyCertificateId.value)
+          bind("certificateId" to duchyCertificateId)
         }
         .execute(transactionContext)
         .single()
