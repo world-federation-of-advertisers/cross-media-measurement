@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <google/protobuf/repeated_field.h>
-
 #include <string>
 
 #include "common_cpp/testing/status_macros.h"
@@ -25,8 +23,6 @@
 
 namespace wfa::panelmatch::client::privatemembership {
 namespace {
-
-using ::google::protobuf::RepeatedPtrField;
 
 TEST(PrepareQuery, PrepareQueryTest) {
   PrepareQueryRequest test_request;

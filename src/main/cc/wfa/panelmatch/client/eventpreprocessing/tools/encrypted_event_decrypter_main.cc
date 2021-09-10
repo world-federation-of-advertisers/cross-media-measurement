@@ -33,12 +33,10 @@
 
 using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataFromStringView;
-using ::wfa::panelmatch::common::crypto::Aes;
 using ::wfa::panelmatch::common::crypto::AesWithHkdf;
 using ::wfa::panelmatch::common::crypto::DeterministicCommutativeCipher;
 using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
 using ::wfa::panelmatch::common::crypto::GetSha256Hkdf;
-using ::wfa::panelmatch::common::crypto::Hkdf;
 using ::wfa::panelmatch::common::crypto::NewDeterministicCommutativeCipher;
 
 ABSL_FLAG(std::string, ciphertext, "",

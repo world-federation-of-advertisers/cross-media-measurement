@@ -31,9 +31,9 @@ kt_jvm_library(
     srcs = ["ExchangeWorkflowDaemonMain.kt"],
     deps = [
         ":deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
 
