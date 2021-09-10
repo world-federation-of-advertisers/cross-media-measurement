@@ -42,7 +42,8 @@ class SpannerComputationParticipantsServiceTest :
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
       spannerServices.measurementsService,
-      spannerServices.certificatesService
+      spannerServices.certificatesService,
+      spannerServices.requisitionsService
     )
   }
 }
