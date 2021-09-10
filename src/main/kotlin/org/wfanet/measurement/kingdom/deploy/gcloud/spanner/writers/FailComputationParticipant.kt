@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -63,7 +64,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
     val (computationParticipant, measurementId, measurementConsumerId, measurementState) =
       computationParticipantResult
 
-    when (val state = measurementState) {
+    when (measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
@@ -74,7 +75,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED -> {
         throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL) {
-          "Unexpected Measurement state $state (${state.number})"
+          "Unexpected Measurement state $measurementState (${measurementState.number})"
         }
       }
     }
@@ -83,6 +84,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 

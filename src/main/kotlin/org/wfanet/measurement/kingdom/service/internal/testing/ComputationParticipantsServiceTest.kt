@@ -338,10 +338,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createDataProvider(dataProvidersService),
         population.createDataProvider(dataProvidersService)
       )
+
     val setParticipantRequisitionParamsDetails = liquidLegionsV2Details {
       elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
       elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
     }
+
     // Step 1 - SetParticipantRequisitionParams for all ComputationParticipants. This transitions
     // the measurement state to PENDING_REQUISITION_FULFILLMENT.
     for (duchyCertificate in duchyCertificates.values) {
@@ -354,6 +356,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
     }
+
     val requisitions =
       requisitionsService
         .streamRequisitions(
@@ -383,7 +386,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     // Step 3 - ConfirmComputationParticipant for just 1 ComputationParticipant. This should NOT
     // transitions the measurement state.
-    val computationParticipant =
+    val updatedComputationParticipant =
       computationParticipantsService.confirmComputationParticipant(
         confirmComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
@@ -391,20 +394,24 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
 
-    val expectedComputationParticipant = computationParticipant {
-      state = ComputationParticipant.State.READY
-      this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-      externalMeasurementId = measurement.externalMeasurementId
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      details = details { liquidLegionsV2 = setParticipantRequisitionParamsDetails }
-      apiVersion = measurement.details.apiVersion
-      duchyCertificate = duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!
-    }
+    assertThat(updatedComputationParticipant.state).isEqualTo(ComputationParticipant.State.READY)
+    assertThat(updatedComputationParticipant.details.liquidLegionsV2)
+      .isEqualTo(setParticipantRequisitionParamsDetails)
 
-    assertThat(computationParticipant)
-      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(expectedComputationParticipant)
+    val relatedMeasurement =
+      measurementsService.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement.externalComputationId
+        }
+      )
+
+    assertThat(
+        relatedMeasurement
+          .computationParticipantsList
+          .filter { it.externalDuchyId == EXTERNAL_DUCHY_IDS.get(0) }
+          .singleOrNull()
+      )
+      .isEqualTo(updatedComputationParticipant)
   }
 
   @Test
@@ -533,7 +540,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `failComputationParticipant succeeds`() = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
-    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -565,26 +571,22 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
         }
       )
-    val expectedComputationParticipant = computationParticipant {
-      this.state = ComputationParticipant.State.FAILED
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      this.externalMeasurementId = measurement.externalMeasurementId
-      this.externalComputationId = measurement.externalComputationId
-      this.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      duchyCertificate = duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!
-      apiVersion = measurement.details.apiVersion
-      this.details = details { liquidLegionsV2 = request.liquidLegionsV2 }
-    }
-    assertThat(failedComputationParticipant)
-      .ignoringFields(ComputationParticipant.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(expectedComputationParticipant)
+    assertThat(failedComputationParticipant.state).isEqualTo(ComputationParticipant.State.FAILED)
 
     val failedMeasurement =
       measurementsService.getMeasurementByComputationId(
-        GetMeasurementByComputationIdRequest.newBuilder()
-          .apply { externalComputationId = measurement.externalComputationId }
-          .build()
+        getMeasurementByComputationIdRequest {
+          externalComputationId = measurement.externalComputationId
+        }
       )
     assertThat(failedMeasurement.state).isEqualTo(Measurement.State.FAILED)
+
+    assertThat(
+        failedMeasurement
+          .computationParticipantsList
+          .filter { it.externalDuchyId == EXTERNAL_DUCHY_IDS.get(0) }
+          .singleOrNull()
+      )
+      .isEqualTo(failedComputationParticipant)
   }
 }

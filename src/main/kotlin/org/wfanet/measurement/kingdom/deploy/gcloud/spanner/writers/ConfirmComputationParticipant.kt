@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -90,6 +91,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
