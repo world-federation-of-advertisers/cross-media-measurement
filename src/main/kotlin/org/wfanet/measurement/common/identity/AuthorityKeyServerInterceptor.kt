@@ -26,6 +26,7 @@ import io.grpc.Status
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSession
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.grpc.failGrpc
 
 private val AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY: Context.Key<List<ByteString>> =
   Context.key("authority-key-identifiers")
@@ -33,8 +34,15 @@ private val AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY: Context.Key<List<ByteString>>
 /** Returns an [X509Certificate] installed in the current [io.grpc.Context]. */
 val authorityKeyIdentifiersFromCurrentContext: List<ByteString>
   get() =
-    requireNotNull(AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY.get()) { "No authority keys available" }
+    AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY.get()
+      ?: failGrpc(Status.UNAUTHENTICATED) { "No authority keys available" }
 
+/**
+ * gRPC [ServerInterceptor] that extracts Authority Key Identifiers from X509 certificates.
+ *
+ * The Authority Key Identifiers can be accessed by using
+ * [authorityKeyIdentifiersFromCurrentContext].
+ */
 class AuthorityKeyServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
