@@ -331,8 +331,10 @@ class RequisitionsServiceTest {
           limit = DEFAULT_LIMIT
           filter =
             StreamRequisitionsRequestKt.filter {
+              val measurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
               externalMeasurementConsumerId =
-                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
+                apiIdToExternalId(measurementKey.measurementConsumerId)
+              externalMeasurementId = apiIdToExternalId(measurementKey.measurementId)
               externalDataProviderId =
                 apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
               measurementStates += VISIBLE_MEASUREMENT_STATES

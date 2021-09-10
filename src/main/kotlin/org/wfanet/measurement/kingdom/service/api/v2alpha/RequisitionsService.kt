@@ -97,6 +97,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
                 "Resource name invalid"
               }
             externalMeasurementConsumerId = apiIdToExternalId(measurementKey.measurementConsumerId)
+            externalMeasurementId = apiIdToExternalId(measurementKey.measurementId)
           }
           if (parentKey.dataProviderId != WILDCARD) {
             externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
