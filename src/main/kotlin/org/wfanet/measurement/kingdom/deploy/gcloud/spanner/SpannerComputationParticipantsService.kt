@@ -92,9 +92,7 @@ class SpannerComputationParticipantsService(
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
-          failGrpc(Status.FAILED_PRECONDITION) {
-            "Computation participant in illegal state."
-          }
+          failGrpc(Status.FAILED_PRECONDITION) { "Computation participant in illegal state." }
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
