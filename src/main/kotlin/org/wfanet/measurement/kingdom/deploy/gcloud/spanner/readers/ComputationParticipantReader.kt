@@ -115,22 +115,6 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     return execute(readContext).singleOrNull()
   }
 
-  suspend fun readWithIds(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalComputationId: ExternalId,
-    duchyId: InternalId
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause("WHERE Measurements.externalComputationId = @externalComputationId")
-        appendClause("AND ComputationParticipants.duchyId = @duchyId")
-        bind("externalComputationId").to(externalComputationId.value)
-        bind("duchyId").to(duchyId.value)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
   override suspend fun translate(struct: Struct) =
     Result(
       buildComputationParticipant(struct),
