@@ -29,7 +29,7 @@ class LiquidLegionsSketchAggregationV2ProtocolEnumStagesTest {
   fun `verify initial stage`() {
     assertTrue {
       LiquidLegionsSketchAggregationV2Protocol.EnumStages.validInitialStage(
-        LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
+        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
       )
     }
     assertFalse {

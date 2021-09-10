@@ -14,13 +14,14 @@
 
 package org.wfanet.measurement.loadtest.frontend
 
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.random.Random
+import kotlin.test.assertEquals
 import kotlinx.coroutines.delay
+import org.junit.Assert
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -124,6 +125,7 @@ class FrontendSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdMeasurement = createMeasurement(measurementConsumer)
+    logger.info("Created measurement ${createdMeasurement.name}.")
 
     // Get the CMMS computed result and compare it with the expected result.
     var mpcResult = getResult(createdMeasurement.name)
@@ -137,8 +139,28 @@ class FrontendSimulator(
     val expectedResult = getExpectedResult(createdMeasurement.name)
     logger.info("Expected result: $expectedResult")
 
-    assertThat(mpcResult).isEqualTo(expectedResult)
+    assertDpResultsEqual(
+      expectedResult,
+      mpcResult,
+      createdMeasurement.protocolConfig.liquidLegionsV2.maximumFrequency.toLong()
+    )
     logger.info("Computed result is equal to the expected result. Correctness Test passes.")
+  }
+
+  /** Compare two [Result]s within the differential privacy error range. */
+  private fun assertDpResultsEqual(
+    expectedResult: Result,
+    actualResult: Result,
+    maximumFrequency: Long
+  ) {
+    val reachRatio = expectedResult.reach.value.toDouble() / actualResult.reach.value.toDouble()
+    // TODO: use Kotlin's assertEquals with absoluteTolerance when Kotlin 1.5 is supported.
+    Assert.assertEquals(1.0, reachRatio, 0.01)
+    (1L..maximumFrequency).forEach {
+      val expected = expectedResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
+      val actual = actualResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
+      Assert.assertEquals(expected, actual, 0.005)
+    }
   }
 
   /** Creates a Measurement on behave of the [MeasurementConsumer]. */

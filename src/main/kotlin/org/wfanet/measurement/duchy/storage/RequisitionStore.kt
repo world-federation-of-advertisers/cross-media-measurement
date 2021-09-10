@@ -44,8 +44,8 @@ private constructor(
    * @return a [Blob] with a generated blob key.
    */
   suspend fun write(content: Flow<ByteString>): Blob {
-    val blobKey = generateBlobKey()
-    val createdBlob = storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
+    val blobKey = generateBlobKey().withBlobKeyPrefix()
+    val createdBlob = storageClient.createBlob(blobKey, content)
     return Blob(blobKey, createdBlob)
   }
 
@@ -54,7 +54,7 @@ private constructor(
    * isn't found.
    */
   fun get(blobKey: String): Blob? {
-    return storageClient.getBlob(blobKey.withBlobKeyPrefix())?.let { Blob(blobKey, it) }
+    return storageClient.getBlob(blobKey)?.let { Blob(blobKey, it) }
   }
 
   /** [StorageClient.Blob] implementation for [RequisitionStore]. */
