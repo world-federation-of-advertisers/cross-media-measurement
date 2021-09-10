@@ -46,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
@@ -520,6 +521,68 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
     }
+
+  @Test
+  fun `cancelMeasurement transitions Measurement state`() = runBlocking {
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        population.createMeasurementConsumer(measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataProvidersService)
+      )
+
+    val response =
+      measurementsService.cancelMeasurement(
+        cancelMeasurementRequest {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+        }
+      )
+
+    assertThat(response.state).isEqualTo(Measurement.State.CANCELLED)
+    assertThat(response.updateTime.toInstant()).isGreaterThan(measurement.updateTime.toInstant())
+    assertThat(response)
+      .isEqualTo(
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
+      )
+  }
+
+  @Test
+  fun `cancelMeasurement throws FAILED_PRECONDITION when Measurement in illegal state`() =
+      runBlocking {
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        population.createMeasurementConsumer(measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataProvidersService)
+      )
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
+
+    // Should fail as Measurement is already in CANCELLED state.
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        measurementsService.cancelMeasurement(
+          cancelMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
 
   @Test
   fun `streamMeasuerements returns all measurements in order`(): Unit = runBlocking {
