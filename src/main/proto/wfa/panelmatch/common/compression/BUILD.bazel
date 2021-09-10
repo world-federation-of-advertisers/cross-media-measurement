@@ -1,0 +1,28 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "compression_proto",
+    srcs = ["compression.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "compression_cc_proto",
+    deps = [":compression_proto"],
+)
+
+java_proto_library(
+    name = "compression_java_proto",
+    deps = [":compression_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "compression_kt_jvm_proto",
+    srcs = [":compression_proto"],
+    deps = [":compression_java_proto"],
+)
