@@ -29,8 +29,8 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.hexAsByteString
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
@@ -61,6 +61,8 @@ private val SYSTEM_REQUISITION_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/requisitions/$EXTERNAL_REQUISITION_ID_STRING"
 private val DATA_PROVIDER_PARTICIPATION_SIGNATURE = ByteString.copyFromUtf8("a signature")
 private val DATA_PROVIDER_CERTIFICATE_DER = ByteString.copyFromUtf8("DataProvider certificate")
+private val REQUISITION_SPEC_HASH =
+  HexString("2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE")
 
 private val INTERNAL_REQUISITION = internalRequisition {
   externalComputationId = EXTERNAL_COMPUTATION_ID
@@ -124,8 +126,7 @@ class RequisitionsServiceTest {
             dataProviderCertificateDer = DATA_PROVIDER_CERTIFICATE_DER
             state = Requisition.State.FULFILLED
             dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
-            requisitionSpecHash =
-              "2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE".hexAsByteString()
+            requisitionSpecHash = REQUISITION_SPEC_HASH.bytes
             fulfillingComputationParticipant =
               "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
           }
