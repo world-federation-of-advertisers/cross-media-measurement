@@ -19,15 +19,21 @@ import com.google.protobuf.ListValue
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptRequest
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptResponse
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryMetadata
+import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
+import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.privateMembershipDecryptResponse
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.queryMetadataOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
@@ -71,6 +77,24 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
             .toByteString()
       }
     }
+  }
+
+  /** Simple plaintext decrypter. Expects the encryptor to only populate the first ciphertext. */
+  override fun decryptQueryResults(
+    request: PrivateMembershipDecryptRequest
+  ): PrivateMembershipDecryptResponse {
+    val encryptedQueryResults = request.encryptedQueryResultsList
+    val decryptedResults: List<DecryptedQueryResult> =
+      encryptedQueryResults.map { result ->
+        val decodedData = Result.parseFrom(result.ciphertextsList.single()).payload.toStringUtf8()
+        decryptedQueryResult {
+          queryId = result.queryId
+          shardId = result.shardId
+          queryResult = decodedData.toByteString()
+        }
+      }
+
+    return privateMembershipDecryptResponse { decryptedQueryResults += decryptedResults }
   }
 
   override fun makeEncryptedEventData(

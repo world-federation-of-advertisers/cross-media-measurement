@@ -70,7 +70,7 @@ class PlaintextPrivateMembershipCryptorTest {
       encryptedQueryResults += queriedEncryptedResults
     }
 
-    val decryptedQueries = privateMembershipCryptor.decryptQueryResults(decryptRequest)
+    val decryptedQueries = privateMembershipCryptorHelper.decryptQueryResults(decryptRequest)
     assertThat(decryptedQueries.decryptedQueryResultsList)
       .containsExactly(
         decryptedQueryOf("<some encrypted data a>".toByteString(), 1, 6),

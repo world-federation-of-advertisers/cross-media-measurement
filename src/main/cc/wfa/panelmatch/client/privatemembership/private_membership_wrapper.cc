@@ -36,9 +36,4 @@ absl::StatusOr<std::string> EncryptQueriesWrapper(
   return JniWrap(serialized_request, EncryptQueries);
 }
 
-absl::StatusOr<std::string> DecryptQueryResultsWrapper(
-    const std::string& serialized_request) {
-  return JniWrap(serialized_request, DecryptQueries);
-}
-
 }  // namespace wfa::panelmatch::client::privatemembership

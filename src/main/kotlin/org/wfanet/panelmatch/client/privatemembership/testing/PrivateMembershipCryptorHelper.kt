@@ -23,6 +23,8 @@ import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptRequest
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptResponse
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
@@ -50,6 +52,11 @@ interface PrivateMembershipCryptorHelper : Serializable {
     plaintexts: List<DecryptedEventData>,
     joinkeys: List<Pair<Int, String>>
   ): List<EncryptedEventData>
+
+  /** Used for testing. Removes a single layer of encryption from encrypted query results. */
+  fun decryptQueryResults(
+    request: PrivateMembershipDecryptRequest
+  ): PrivateMembershipDecryptResponse
 
   /**
    * Takes an [PrivateMembershipEncryptResponse] and reverses the process to yield the underlying

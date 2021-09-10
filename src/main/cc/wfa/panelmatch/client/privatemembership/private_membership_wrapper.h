@@ -27,8 +27,5 @@ absl::StatusOr<std::string> GenerateKeysWrapper(
 absl::StatusOr<std::string> EncryptQueriesWrapper(
     const std::string& serialized_request);
 
-absl::StatusOr<std::string> DecryptQueryResultsWrapper(
-    const std::string& serialized_request);
-
 }  // namespace wfa::panelmatch::client::privatemembership
 #endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_PRIVATE_MEMBERSHIP_WRAPPER_H_

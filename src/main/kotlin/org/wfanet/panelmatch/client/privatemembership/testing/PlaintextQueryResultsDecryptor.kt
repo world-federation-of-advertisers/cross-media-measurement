@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsResponse
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsResponse
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventData
@@ -25,8 +24,8 @@ import org.wfanet.panelmatch.common.crypto.SymmetricCryptor
 import org.wfanet.panelmatch.common.crypto.testing.ConcatSymmetricCryptor
 
 class PlaintextQueryResultsDecryptor(
-  private val privateMembershipCryptor: PrivateMembershipCryptor =
-    PlaintextPrivateMembershipCryptor,
+  private val privateMembershipCryptorHelper: PrivateMembershipCryptorHelper =
+    PlaintextPrivateMembershipCryptorHelper,
   private val symmetricCryptor: SymmetricCryptor = ConcatSymmetricCryptor(),
 ) : QueryResultsDecryptor {
 
@@ -39,7 +38,7 @@ class PlaintextQueryResultsDecryptor(
       serializedPrivateKey = request.serializedPrivateKey
       encryptedQueryResults += request.encryptedQueryResultsList
     }
-    val decryptResponse = privateMembershipCryptor.decryptQueryResults(decryptRequest)
+    val decryptResponse = privateMembershipCryptorHelper.decryptQueryResults(decryptRequest)
     return decryptQueryResultsResponse {
       decryptedEventData +=
         decryptResponse.decryptedQueryResultsList.map {
