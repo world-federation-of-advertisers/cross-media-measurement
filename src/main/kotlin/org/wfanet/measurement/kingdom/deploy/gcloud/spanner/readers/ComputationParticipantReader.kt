@@ -51,6 +51,7 @@ private val BASE_SQL =
     Measurements.ExternalMeasurementId,
     Measurements.ExternalComputationId,
     Measurements.MeasurementDetails,
+    Measurements.State as MeasurementState,
     MeasurementConsumers.ExternalMeasurementConsumerId,
     DuchyCertificates.ExternalDuchyCertificateId,
     Certificates.SubjectKeyIdentifier,
@@ -82,7 +83,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
   data class Result(
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
-    val measurementConsumerId: Long
+    val measurementConsumerId: Long,
+    val measurementState: Measurement.State
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -117,7 +119,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     Result(
       buildComputationParticipant(struct),
       struct.getLong("MeasurementId"),
-      struct.getLong("MeasurementConsumerId")
+      struct.getLong("MeasurementConsumerId"),
+      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant {
