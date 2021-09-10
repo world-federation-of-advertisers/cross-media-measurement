@@ -14,24 +14,19 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
-import com.google.privatemembership.batch.Shared.EncryptedQueryResult as ClientEncryptedQueryResult
 import com.google.privatemembership.batch.Shared.Parameters as ClientParameters
 import com.google.privatemembership.batch.Shared.PublicKey as ClientPublicKey
-import com.google.privatemembership.batch.client.Client.DecryptQueriesResponse as ClientDecryptQueriesResponse
 import com.google.privatemembership.batch.client.Client.EncryptQueriesResponse as ClientEncryptQueriesResponse
 import com.google.privatemembership.batch.client.Client.GenerateKeysResponse as ClientGenerateKeysResponse
 import com.google.privatemembership.batch.client.Client.PrivateKey as ClientPrivateKey
-import com.google.privatemembership.batch.client.decryptQueriesRequest as clientDecryptQueriesRequest
 import com.google.privatemembership.batch.client.encryptQueriesRequest as clientEncryptQueriesRequest
 import com.google.privatemembership.batch.client.generateKeysRequest as clientGenerateKeysRequest
 import com.google.privatemembership.batch.client.plaintextQuery as clientPlaintextQuery
-import com.google.privatemembership.batch.encryptedQueryResult as clientEncryptedQueryResult
 import com.google.privatemembership.batch.queryMetadata as clientQueryMetadata
 import java.nio.file.Paths
 import org.wfanet.panelmatch.common.loadLibrary
 import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapper
-import rlwe.Serialization.SerializedSymmetricRlweCiphertext
 
 /** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipWrapper]. */
 class JniPrivateMembershipCryptor : PrivateMembershipCryptor {
@@ -86,40 +81,6 @@ class JniPrivateMembershipCryptor : PrivateMembershipCryptor {
           encryptedQueryOf(shardId = shardIdOf(it.shardId), queryId = queryIdOf(it.queryId))
         }
     }
-  }
-
-  override fun decryptQueryResults(
-    request: PrivateMembershipDecryptRequest
-  ): PrivateMembershipDecryptResponse {
-    val encryptedQueries: List<ClientEncryptedQueryResult> =
-      request.encryptedQueryResultsList.map { encryptedResult ->
-        clientEncryptedQueryResult {
-          ciphertexts +=
-            encryptedResult.ciphertextsList.map { ciphertext ->
-              SerializedSymmetricRlweCiphertext.parseFrom(ciphertext)
-            }
-        }
-      }
-    val clientRequest = clientDecryptQueriesRequest {
-      parameters = ClientParameters.parseFrom(request.serializedParameters)
-      privateKey = ClientPrivateKey.parseFrom(request.serializedPrivateKey)
-      publicKey = ClientPublicKey.parseFrom(request.serializedPublicKey)
-      this.encryptedQueries += encryptedQueries
-    }
-    val clientResponse = wrapJniException {
-      ClientDecryptQueriesResponse.parseFrom(
-        PrivateMembershipWrapper.decryptQueryResultsWrapper(clientRequest.toByteArray())
-      )
-    }
-    val mappedResults =
-      clientResponse.resultList.map { result ->
-        decryptedQueryOf(
-          shardId = shardIdOf(result.queryMetadata.shardId),
-          queryId = queryIdOf(result.queryMetadata.queryId),
-          queryResult = result.result
-        )
-      }
-    return privateMembershipDecryptResponse { decryptedQueryResults += mappedResults }
   }
 
   companion object {
