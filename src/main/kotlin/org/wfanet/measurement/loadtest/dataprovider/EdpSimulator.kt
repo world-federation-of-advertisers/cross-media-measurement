@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -26,16 +28,15 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import org.wfanet.measurement.loadtest.storage.SketchStore
+import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
 data class SketchGenerationParams(
@@ -49,9 +50,7 @@ abstract class EdpSimulator : Runnable {
   protected lateinit var flags: Flags
     private set
 
-  abstract val sketchStore: SketchStore
-
-  override fun run() {
+  protected fun run(storageClient: StorageClient) {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
 
     val clientCerts =
@@ -61,42 +60,22 @@ abstract class EdpSimulator : Runnable {
         trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
       )
 
-    val requisitionsStub =
-      RequisitionsCoroutineStub(
-        buildMutualTlsChannel(
-            flags.kingdomPublicApiFlags.target,
-            clientCerts,
-            flags.kingdomPublicApiFlags.certHost
-          )
-          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+    val v2alphaPublicApiChannel: ManagedChannel =
+      buildMutualTlsChannel(
+        flags.kingdomPublicApiFlags.target,
+        clientCerts,
+        flags.kingdomPublicApiFlags.certHost
       )
+    val requisitionsStub = RequisitionsCoroutineStub(v2alphaPublicApiChannel)
+    val eventGroupsStub = EventGroupsCoroutineStub(v2alphaPublicApiChannel)
+    val certificatesServiceStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
 
     val requisitionFulfillmentStub =
       RequisitionFulfillmentCoroutineStub(
         buildMutualTlsChannel(
-            flags.requisitionFulfillmentServiceFlags.target,
-            clientCerts,
-            flags.requisitionFulfillmentServiceFlags.certHost,
-          )
-          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
-      )
-
-    val eventGroupStub =
-      EventGroupsCoroutineStub(
-        buildMutualTlsChannel(
-            flags.requisitionFulfillmentServiceFlags.target,
-            clientCerts,
-            flags.requisitionFulfillmentServiceFlags.certHost,
-          )
-          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
-      )
-
-    val certificateServiceStub =
-      CertificatesCoroutineStub(
-        buildMutualTlsChannel(
-          flags.kingdomPublicApiFlags.target,
+          flags.requisitionFulfillmentServiceFlags.target,
           clientCerts,
-          flags.kingdomPublicApiFlags.certHost
+          flags.requisitionFulfillmentServiceFlags.certHost,
         )
       )
 
@@ -107,9 +86,9 @@ abstract class EdpSimulator : Runnable {
         flags.dataProviderResourceName,
         requisitionsStub,
         requisitionFulfillmentStub,
-        sketchStore,
+        SketchStore(storageClient),
         inMemoryKeyStore,
-        certificateServiceStub,
+        certificatesServiceStub,
         SketchGenerationParams(reach = flags.edpSketchReach, universeSize = flags.edpUniverseSize)
       )
 
@@ -119,12 +98,14 @@ abstract class EdpSimulator : Runnable {
         flags.edpPrivateKeyDerFile.readBytes().toByteString()
       )
 
-      eventGroupStub.createEventGroup(
-        createEventGroupRequest {
-          parent = flags.dataProviderResourceName
-          eventGroup = eventGroup { measurementConsumer = flags.mcResourceName }
-        }
-      )
+      val eventGroup =
+        eventGroupsStub.createEventGroup(
+          createEventGroupRequest {
+            parent = flags.dataProviderResourceName
+            eventGroup = eventGroup { measurementConsumer = flags.mcResourceName }
+          }
+        )
+      logger.info("Successfully created eventGroup ${eventGroup.name}...")
 
       throttler.loopOnReady { workflow.execute() }
     }
@@ -163,7 +144,7 @@ abstract class EdpSimulator : Runnable {
     @CommandLine.Option(
       names = ["--throttler-minimum-interval"],
       description = ["Minimum throttle interval"],
-      defaultValue = "1s"
+      defaultValue = "2s"
     )
     lateinit var throttlerMinimumInterval: Duration
       private set
@@ -185,22 +166,16 @@ abstract class EdpSimulator : Runnable {
       private set
 
     @CommandLine.Mixin
-    lateinit var server: CommonServer.Flags
-      private set
-
-    @CommandLine.Mixin
     lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
       private set
 
     @CommandLine.Mixin
     lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
       private set
-
-    var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
-      private set
   }
 
   companion object {
     const val DAEMON_NAME = "EdpSimulator"
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

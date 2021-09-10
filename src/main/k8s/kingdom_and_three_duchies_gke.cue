@@ -34,7 +34,7 @@ objectSets: [
 ]
 
 // Group 2
-//objectSets: [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
+//objectSets: [ for d in duchies for v in d {v}] + [ for d in edp_simulators {d}]
 
 // Group 3
 //objectSets: [
@@ -166,8 +166,9 @@ edp_simulators: {
 				"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
 				"--google-cloud-storage-project=\(_cloud_storage_project)",
 			]
-			_image:           "\(_container_registry_prefix)/loadtest/edp-simulator"
-			_imagePullPolicy: "Always"
+			_mc_resource_name:            #McResourcename
+			_edp_simulator_image:         "\(_container_registry_prefix)/loadtest/edp-simulator"
+			_simulator_image_pull_policy: "Always"
 		}
 	}
 }
