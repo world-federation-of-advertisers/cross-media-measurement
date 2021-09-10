@@ -9,7 +9,6 @@ kt_jvm_library(
     name = "beam",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
     ],
 )

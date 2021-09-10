@@ -24,7 +24,6 @@
 namespace wfa::panelmatch::common::crypto {
 namespace {
 using ::crypto::tink::util::SecretData;
-using ::crypto::tink::util::SecretDataFromStringView;
 
 class KeyLoaderRegistry {
  public:

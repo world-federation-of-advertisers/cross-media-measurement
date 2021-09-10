@@ -29,7 +29,6 @@
 
 namespace wfa::panelmatch::client::privatemembership {
 using ::crypto::tink::util::SecretData;
-using ::crypto::tink::util::SecretDataAsStringView;
 using ::crypto::tink::util::SecretDataFromStringView;
 
 absl::StatusOr<PrepareQueryResponse> PrepareQuery(

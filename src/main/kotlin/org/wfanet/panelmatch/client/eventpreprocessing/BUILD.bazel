@@ -29,7 +29,6 @@ kt_jvm_library(
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
-        "//imports/java/org/apache/beam/runners:core",
         "//imports/java/org/joda",
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
