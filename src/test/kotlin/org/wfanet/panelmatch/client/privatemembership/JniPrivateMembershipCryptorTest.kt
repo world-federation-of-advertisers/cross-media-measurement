@@ -74,7 +74,6 @@ class JniPrivateMembershipCryptorTest {
         encryptedQueryOf(101, 3),
         encryptedQueryOf(101, 4)
       )
-    // TODO need to validate the ciphertexts in some way as well
   }
 
   @Test

@@ -82,6 +82,11 @@ class BeamTest : BeamTestBase() {
   }
 
   @Test
+  fun filter() {
+    assertThat(collection.filter { it.key > 1 }).containsInAnyOrder(kvOf(2, "B"), kvOf(3, "C"))
+  }
+
+  @Test
   fun flatMap() {
     assertThat(collection.flatMap { listOf(it.key + 10, it.key + 100) })
       .containsInAnyOrder(11, 12, 13, 101, 102, 103)

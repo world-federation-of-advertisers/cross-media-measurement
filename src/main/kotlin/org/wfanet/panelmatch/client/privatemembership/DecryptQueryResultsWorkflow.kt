@@ -27,8 +27,9 @@ import org.wfanet.panelmatch.common.beam.parDo
  * Implements a query result decryption engine in Apache Beam that decrypts a query result
  *
  * @param parameters tuning knobs for the workflow
- * @param symmetricPrivateMembershipCryptor implementation of lower-level query result decryption
- * and encrypted event decryption
+ * @param queryResultsDecryptor implementation of lower-level query result decryption and encrypted
+ * event decryption
+ * @param hkdfPepper used with joinkey to generate AES key
  */
 class DecryptQueryResultsWorkflow(
   private val parameters: Parameters,
@@ -36,13 +37,13 @@ class DecryptQueryResultsWorkflow(
   private val hkdfPepper: ByteString,
 ) : Serializable {
 
-  /** Tuning knobs for the [CreateQueriesWorkflow]. */
+  /** Tuning knobs for the [DecryptQueriesWorkflow]. */
   data class Parameters(
     val serializedParameters: ByteString,
     val serializedPublicKey: ByteString,
     val serializedPrivateKey: ByteString
   ) : Serializable
-  //
+
   /**
    * Decrypts [EncryptedQueryResult] into [DecryptedEventData]. Currently assumes that each
    * [QueryId] is unique across each [PCollection] and that each [QueryId] uniquely maps to a single
