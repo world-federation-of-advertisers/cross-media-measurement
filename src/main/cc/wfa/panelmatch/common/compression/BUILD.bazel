@@ -1,0 +1,37 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_INCLUDE_PREFIX = "/src/main/cc"
+
+cc_library(
+    name = "brotli",
+    srcs = ["brotli.cc"],
+    hdrs = ["brotli.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_riegeli//riegeli/base",
+        "@com_google_riegeli//riegeli/base:status",
+        "@com_google_riegeli//riegeli/brotli:brotli_reader",
+        "@com_google_riegeli//riegeli/brotli:brotli_writer",
+        "@com_google_riegeli//riegeli/bytes:string_reader",
+        "@com_google_riegeli//riegeli/bytes:string_writer",
+    ],
+)
+
+cc_library(
+    name = "brotli_wrapper",
+    srcs = ["brotli_wrapper.cc"],
+    hdrs = ["brotli_wrapper.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        ":brotli",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
+    ],
+)
