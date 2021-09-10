@@ -75,6 +75,14 @@ inline fun <InT, reified OutT> PCollection<InT>.parDo(
   )
 }
 
+/** Convenience helper for filtering a [PCollection] */
+inline fun <reified T> PCollection<T>.filter(
+  name: String = "Filter",
+  crossinline predicate: (T) -> Boolean
+): PCollection<T> {
+  return parDo(name) { if (predicate(it)) yield(it) }
+}
+
 /** Kotlin convenience helper for a [ParDo] that has a single output per input. */
 inline fun <InT, reified OutT> PCollection<InT>.map(
   name: String = "Map",

@@ -26,6 +26,7 @@ import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptRe
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
+import org.wfanet.panelmatch.client.privatemembership.encryptedQuery
 import org.wfanet.panelmatch.client.privatemembership.generateKeysResponse
 import org.wfanet.panelmatch.client.privatemembership.privateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
@@ -90,6 +91,13 @@ object PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
         unencryptedQueries.groupBy { it.shardId }.map {
           makeQueryBundle(shard = it.key, queries = it.value.map { Pair(it.queryId, it.bucketId) })
             .toByteString()
+        }
+      this.encryptedQuery +=
+        unencryptedQueries.map {
+          encryptedQuery {
+            shardId = it.shardId
+            queryId = it.queryId
+          }
         }
     }
   }
