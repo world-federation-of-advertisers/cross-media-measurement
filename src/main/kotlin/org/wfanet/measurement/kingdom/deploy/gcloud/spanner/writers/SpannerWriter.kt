@@ -21,7 +21,6 @@ import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 /**
@@ -37,8 +36,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 abstract class SpannerWriter<T, R> {
   data class TransactionScope(
     val transactionContext: AsyncDatabaseClient.TransactionContext,
-    val idGenerator: IdGenerator,
-    val clock: Clock
+    val idGenerator: IdGenerator
   )
 
   data class ResultScope<T>(val transactionResult: T?, val commitTimestamp: Timestamp)
@@ -62,12 +60,11 @@ abstract class SpannerWriter<T, R> {
 
   private suspend fun runTransaction(
     runner: AsyncDatabaseClient.TransactionRunner,
-    idGenerator: IdGenerator,
-    clock: Clock
+    idGenerator: IdGenerator
   ): T? {
     return try {
       runner.execute { transactionContext ->
-        val scope = TransactionScope(transactionContext, idGenerator, clock)
+        val scope = TransactionScope(transactionContext, idGenerator)
         scope.runTransaction()
       }
     } catch (e: SpannerException) {
@@ -84,15 +81,11 @@ abstract class SpannerWriter<T, R> {
    *
    * @return the output of [buildResult]
    */
-  suspend fun execute(
-    databaseClient: AsyncDatabaseClient,
-    idGenerator: IdGenerator = RandomIdGenerator(),
-    clock: Clock = Clock.systemUTC()
-  ): R {
+  suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
     logger.info("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
-    val transactionResult: T? = runTransaction(runner, idGenerator, clock)
+    val transactionResult: T? = runTransaction(runner, idGenerator)
     val resultScope = ResultScope(transactionResult, runner.getCommitTimestamp())
     return resultScope.buildResult()
   }

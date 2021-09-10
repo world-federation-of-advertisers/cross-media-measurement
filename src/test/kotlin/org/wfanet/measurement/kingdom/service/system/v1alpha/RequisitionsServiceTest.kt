@@ -29,15 +29,20 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.internal.kingdom.CertificateKt as InternalCertificateKt
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest as InternalFulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as InternalRequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 
@@ -47,6 +52,7 @@ private const val DUCHY_ID: String = "some-duchy-id"
 private const val EXTERNAL_COMPUTATION_ID = 123L
 private const val EXTERNAL_REQUISITION_ID = 456L
 private const val EXTERNAL_DATA_PROVIDER_ID = 789L
+private const val EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID = 321L
 private val EXTERNAL_COMPUTATION_ID_STRING = externalIdToApiId(EXTERNAL_COMPUTATION_ID)
 private val EXTERNAL_REQUISITION_ID_STRING = externalIdToApiId(EXTERNAL_REQUISITION_ID)
 private val EXTERNAL_DATA_PROVIDER_ID_STRING = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
@@ -54,21 +60,29 @@ private val DATA_PROVIDER_PUBLIC_API_NAME = "dataProviders/$EXTERNAL_DATA_PROVID
 private val SYSTEM_REQUISITION_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/requisitions/$EXTERNAL_REQUISITION_ID_STRING"
 private val DATA_PROVIDER_PARTICIPATION_SIGNATURE = ByteString.copyFromUtf8("a signature")
+private val DATA_PROVIDER_CERTIFICATE_DER = ByteString.copyFromUtf8("DataProvider certificate")
+private val REQUISITION_SPEC_HASH =
+  HexString("2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE")
 
-private val INTERNAL_REQUISITION =
-  InternalRequisition.newBuilder()
-    .apply {
-      externalComputationId = EXTERNAL_COMPUTATION_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalFulfillingDuchyId = DUCHY_ID
-      state = InternalRequisition.State.FULFILLED
-      detailsBuilder.apply {
-        dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
-      }
-      parentMeasurementBuilder.apply { apiVersion = PUBLIC_API_VERSION }
+private val INTERNAL_REQUISITION = internalRequisition {
+  externalComputationId = EXTERNAL_COMPUTATION_ID
+  externalRequisitionId = EXTERNAL_REQUISITION_ID
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalFulfillingDuchyId = DUCHY_ID
+  state = InternalRequisition.State.FULFILLED
+  details =
+    InternalRequisitionKt.details {
+      dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+      encryptedRequisitionSpec = ByteString.copyFromUtf8("foo")
     }
-    .build()
+  dataProviderCertificate =
+    internalCertificate {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID
+      details = InternalCertificateKt.details { x509Der = DATA_PROVIDER_CERTIFICATE_DER }
+    }
+  parentMeasurement = InternalRequisitionKt.parentMeasurement { apiVersion = PUBLIC_API_VERSION }
+}
 
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
@@ -109,8 +123,10 @@ class RequisitionsServiceTest {
           .apply {
             name = SYSTEM_REQUISITION_NAME
             dataProvider = DATA_PROVIDER_PUBLIC_API_NAME
+            dataProviderCertificateDer = DATA_PROVIDER_CERTIFICATE_DER
             state = Requisition.State.FULFILLED
             dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+            requisitionSpecHash = REQUISITION_SPEC_HASH.bytes
             fulfillingComputationParticipant =
               "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
           }

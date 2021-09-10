@@ -15,27 +15,27 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
+import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
 class SpannerEventGroupsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
 
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
     try {
-      return CreateEventGroup(request).execute(client, idGenerator, clock)
+      return CreateEventGroup(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
@@ -46,16 +46,21 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    return EventGroupReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalEventGroupId))
-      ?.eventGroup
+    return EventGroupReader().readByExternalId(client.singleUse(), request.externalEventGroupId)
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+  }
+
+  override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
+    return StreamEventGroups(request.filter, request.limit).execute(client.singleUse())
   }
 }

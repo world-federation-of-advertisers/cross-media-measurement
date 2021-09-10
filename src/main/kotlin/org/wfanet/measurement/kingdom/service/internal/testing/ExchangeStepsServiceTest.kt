@@ -15,9 +15,11 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.FieldScope
+import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -39,7 +41,6 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
-import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
@@ -49,8 +50,31 @@ import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.exchangeStep
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.internal.kingdom.recurringExchange
+import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+
+private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
+private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
+private val RECURRING_EXCHANGE_ID_GENERATOR =
+  FixedIdGenerator(
+    InternalId(INTERNAL_RECURRING_EXCHANGE_ID),
+    ExternalId(EXTERNAL_RECURRING_EXCHANGE_ID)
+  )
+
+private const val INTERNAL_DATA_PROVIDER_ID = 333L
+private const val EXTERNAL_DATA_PROVIDER_ID = 444L
+private val DATA_PROVIDER_ID_GENERATOR =
+  FixedIdGenerator(InternalId(INTERNAL_DATA_PROVIDER_ID), ExternalId(EXTERNAL_DATA_PROVIDER_ID))
+
+private const val INTERNAL_MODEL_PROVIDER_ID = 555L
+private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
+private val MODEL_ID_GENERATOR =
+  FixedIdGenerator(InternalId(INTERNAL_MODEL_PROVIDER_ID), ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -83,43 +107,37 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
     }
 }
 
-private val DATE: Date =
-  Date.newBuilder()
-    .apply {
-      year = 2021
-      month = 8
-      day = 5
-    }
-    .build()
+// TODO(yunyeng): Import DateKt.Dsl from common-jvm instead.
+private val DATE = date {
+  year = 2021
+  month = 8
+  day = 5
+}
 
-private val RECURRING_EXCHANGE: RecurringExchange =
-  RecurringExchange.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-      state = RecurringExchange.State.ACTIVE
-      detailsBuilder.apply {
-        cronSchedule = "@daily"
-        exchangeWorkflow = EXCHANGE_WORKFLOW
-      }
-      nextExchangeDate = DATE
+private val RECURRING_EXCHANGE = recurringExchange {
+  externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+  state = RecurringExchange.State.ACTIVE
+  details =
+    recurringExchangeDetails {
+      cronSchedule = "@daily"
+      exchangeWorkflow = EXCHANGE_WORKFLOW
     }
-    .build()
+  nextExchangeDate = DATE
+}
 
-private val EXCHANGE_STEP =
-  ExchangeStep.newBuilder()
-    .apply {
-      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
-      state = ExchangeStep.State.IN_PROGRESS
-      stepIndex = 1
-      providerBuilder.apply {
-        externalId = EXTERNAL_MODEL_PROVIDER_ID
-        type = Provider.Type.MODEL_PROVIDER
-      }
+private val EXCHANGE_STEP = exchangeStep {
+  externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+  date = DATE
+  state = ExchangeStep.State.IN_PROGRESS
+  stepIndex = 1
+  provider =
+    provider {
+      externalId = EXTERNAL_MODEL_PROVIDER_ID
+      type = Provider.Type.MODEL_PROVIDER
     }
-    .build()
+}
 
 private val DATA_PROVIDER = dataProvider {
   certificate =
@@ -141,24 +159,20 @@ private val DATA_PROVIDER = dataProvider {
 abstract class ExchangeStepsServiceTest {
 
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
-  /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator
   ): RecurringExchangesCoroutineImplBase
 
-  /** Creates a test subject. */
   /** Creates a test subject. */
   protected abstract fun newDataProvidersService(
     idGenerator: IdGenerator
   ): DataProvidersCoroutineImplBase
 
   /** Creates a test subject. */
-  /** Creates a test subject. */
   protected abstract fun newModelProvidersService(
     idGenerator: IdGenerator
   ): ModelProvidersCoroutineImplBase
 
-  /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
   /** Creates a /ExchangeSteps service implementation using [idGenerator]. */
   protected abstract fun newExchangeStepsService(
     idGenerator: IdGenerator
@@ -175,7 +189,7 @@ abstract class ExchangeStepsServiceTest {
     val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
     runBlocking {
       dataProvidersService.createDataProvider(DATA_PROVIDER)
-      modelProvidersService.createModelProvider(ModelProvider.getDefaultInstance())
+      modelProvidersService.createModelProvider(modelProvider {})
     }
   }
 
@@ -238,5 +252,78 @@ abstract class ExchangeStepsServiceTest {
   @Test
   fun `claimReadyExchangeStepRequest fails expired ExchangeStepAttempts`() = runBlocking {
     // TODO(yunyeng): Add test once underlying services complete.
+  }
+
+  @Test
+  fun `getExchangeStepRequest succeeds`() = runBlocking {
+    createRecurringExchange()
+
+    exchangeStepsService.claimReadyExchangeStep(
+      claimReadyExchangeStepRequest {
+        provider =
+          provider {
+            externalId = EXTERNAL_MODEL_PROVIDER_ID
+            type = Provider.Type.MODEL_PROVIDER
+          }
+      }
+    )
+
+    val response =
+      exchangeStepsService.getExchangeStep(
+        getExchangeStepRequest {
+          externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+          date = DATE
+          stepIndex = 1
+          provider =
+            provider {
+              externalId = EXTERNAL_MODEL_PROVIDER_ID
+              type = Provider.Type.MODEL_PROVIDER
+            }
+        }
+      )
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(EXCHANGE_STEP)
+  }
+
+  @Test
+  fun `getExchangeStepRequest fails with wrong provider`() = runBlocking {
+    createRecurringExchange()
+
+    exchangeStepsService.claimReadyExchangeStep(
+      claimReadyExchangeStepRequest {
+        provider =
+          provider {
+            externalId = EXTERNAL_MODEL_PROVIDER_ID
+            type = Provider.Type.MODEL_PROVIDER
+          }
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        exchangeStepsService.getExchangeStep(
+          getExchangeStepRequest {
+            externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+            date = DATE
+            stepIndex = 1
+            provider =
+              provider {
+                externalId = EXTERNAL_DATA_PROVIDER_ID
+                type = Provider.Type.DATA_PROVIDER
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Exchange Step not found.")
+  }
+
+  private suspend fun createRecurringExchange() {
+    recurringExchangesService.createRecurringExchange(
+      createRecurringExchangeRequest { recurringExchange = RECURRING_EXCHANGE }
+    )
   }
 }

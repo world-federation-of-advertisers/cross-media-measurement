@@ -15,7 +15,6 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
@@ -29,8 +28,9 @@ import picocli.CommandLine
 class ForwardStorageEdpSimulatorRunner : EdpSimulator() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
-  override val sketchStore =
-    SketchStore(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
+  override fun run() {
+    run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
+  }
 }
 
 fun main(args: Array<String>) = commandLineMain(ForwardStorageEdpSimulatorRunner(), args)

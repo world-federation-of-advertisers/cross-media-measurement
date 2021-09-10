@@ -8,6 +8,7 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_PROTOS + [
+        "//src/main/proto/google/type:date_kt_jvm_proto",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/testing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

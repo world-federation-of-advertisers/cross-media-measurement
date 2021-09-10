@@ -38,7 +38,7 @@ class SpannerExchangesServiceTest : ExchangesServiceTest() {
 
   override fun createModelProvider(idGenerator: IdGenerator): ModelProvider {
     return runBlocking {
-      CreateModelProvider().execute(spannerDatabase.databaseClient, idGenerator, clock)
+      CreateModelProvider().execute(spannerDatabase.databaseClient, idGenerator)
     }
   }
 

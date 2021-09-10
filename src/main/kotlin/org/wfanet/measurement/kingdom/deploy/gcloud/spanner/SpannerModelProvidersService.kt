@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -27,12 +26,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProvide
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelProvider
 
 class SpannerModelProvidersService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ModelProvidersCoroutineImplBase() {
   override suspend fun createModelProvider(request: ModelProvider): ModelProvider {
-    return CreateModelProvider().execute(client, idGenerator, clock)
+    return CreateModelProvider().execute(client, idGenerator)
   }
   override suspend fun getModelProvider(request: GetModelProviderRequest): ModelProvider {
     return ModelProviderReader()

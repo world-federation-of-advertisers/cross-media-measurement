@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.common.identity
 
+import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyRpcConfig
 import picocli.CommandLine
@@ -21,9 +22,9 @@ import picocli.CommandLine
 object DuchyInfo {
   lateinit var entries: Array<Entry>
   val count: Int
-    get() = DuchyInfo.entries.size
+    get() = entries.size
   val ALL_DUCHY_IDS: Set<String>
-    get() = DuchyInfo.entries.map { it.duchyId }.toSet()
+    get() = entries.map { it.duchyId }.toSet()
 
   fun initializeFromFlags(flags: DuchyInfoFlags) {
     require(!DuchyInfo::entries.isInitialized)
@@ -34,7 +35,7 @@ object DuchyInfo {
   }
 
   /** Returns the [Entry] for the specified root cert key ID. */
-  fun getByRootCertificateSkid(rootCertificateSkid: String): Entry? {
+  fun getByRootCertificateSkid(rootCertificateSkid: ByteString): Entry? {
     return entries.firstOrNull { it.rootCertificateSkid == rootCertificateSkid }
   }
 
@@ -46,7 +47,14 @@ object DuchyInfo {
   fun setForTest(duchyIds: Set<String>) {
     entries =
       duchyIds
-        .map { DuchyInfo.Entry(it, "hostname-$it", "cert-host-$it", "cert-id-$it") }
+        .map {
+          DuchyInfo.Entry(
+            it,
+            "hostname-$it",
+            "cert-host-$it",
+            ByteString.copyFromUtf8("cert-id-$it")
+          )
+        }
         .toTypedArray()
   }
 
@@ -54,7 +62,7 @@ object DuchyInfo {
     val duchyId: String,
     val computationControlServiceTarget: String,
     val computationControlServiceCertHost: String,
-    val rootCertificateSkid: String
+    val rootCertificateSkid: ByteString
   )
 }
 

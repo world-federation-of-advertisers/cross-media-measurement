@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.common.base.Optional
 import com.google.type.Date
+import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
@@ -26,9 +27,9 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
-import org.wfanet.measurement.gcloud.spanner.makeStatement
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -39,8 +40,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
-class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProviderId: Long?) :
-  SpannerWriter<Optional<Result>, Optional<Result>>() {
+class ClaimReadyExchangeStep(
+  externalModelProviderId: Long?,
+  externalDataProviderId: Long?,
+  private val clock: Clock,
+) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   private val externalModelProviderIds =
@@ -144,7 +148,7 @@ class ClaimReadyExchangeStep(externalModelProviderId: Long?, externalDataProvide
       """.trimIndent()
 
     val statement: Statement =
-      makeStatement(sql) {
+      statement(sql) {
         bind("recurring_exchange_id").to(recurringExchangeId)
         bind("date").to(date.toCloudDate())
         bind("step_index").to(stepIndex)

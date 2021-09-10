@@ -2,7 +2,8 @@
 /bazel-*
 
 # Bazel IntelliJ projects.
-.ijwb
+/.ijwb/
+/.clwb/
 
 # IntelliJ projects.
 .idea/

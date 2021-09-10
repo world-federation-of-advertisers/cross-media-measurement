@@ -19,9 +19,11 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -29,14 +31,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.eventGroup
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
@@ -55,9 +57,9 @@ private val DP_SUBJECT_KEY_IDENTIFIER =
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
-  protected val idGenerator =
-    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
-
+  protected val testClock: Clock = Clock.systemUTC()
+  protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
+  private val population = Population(testClock, idGenerator)
   protected lateinit var eventGroupsService: T
     private set
 
@@ -68,48 +70,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
-
-  private suspend fun insertMeasurementConsumer(): Long {
-    return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(MC_CERTIFICATE_DER)
-            }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
-      .externalMeasurementConsumerId
-  }
-
-  private suspend fun insertDataProvider(): Long {
-    return dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.setX509Der(DP_CERTIFICATE_DER)
-            }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
-      .externalDataProviderId
-  }
 
   @Before
   fun initServices() {
@@ -134,16 +94,15 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup fails for missing data provider`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
 
-    val eventGroup =
-      EventGroup.newBuilder()
-        .also {
-          it.externalDataProviderId = FIXED_EXTERNAL_ID
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-        }
-        .build()
+    val eventGroup = eventGroup {
+      externalDataProviderId = FIXED_EXTERNAL_ID
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
@@ -154,16 +113,14 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup fails for missing measurement consumer`() = runBlocking {
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup =
-      EventGroup.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.externalMeasurementConsumerId = FIXED_EXTERNAL_ID
-          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-        }
-        .build()
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      externalMeasurementConsumerId = FIXED_EXTERNAL_ID
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
@@ -176,18 +133,18 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup succeeds`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
 
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup =
-      EventGroup.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-        }
-        .build()
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+    }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
@@ -206,18 +163,18 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `createEventGroup returns already created eventGroup for the same ProvidedEventGroupId`() =
       runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
 
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup =
-      EventGroup.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-        }
-        .build()
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+    }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
     val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(eventGroup)
@@ -226,18 +183,18 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `getEventGroup succeeds`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
 
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup =
-      EventGroup.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-        }
-        .build()
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+    }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
@@ -252,6 +209,172 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       )
 
     assertThat(eventGroupRead).isEqualTo(createdEventGroup)
+  }
+
+  @Test
+  fun `streamEventGroups returns all eventGroups in order`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup1"
+        }
+      )
+
+    val eventGroup2 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup2"
+        }
+      )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(eventGroup1, eventGroup2)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamEventGroups respects created_after`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup1"
+        }
+      )
+
+    val eventGroup2 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup2"
+        }
+      )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter =
+              filter {
+                this.externalDataProviderId = externalDataProviderId
+                createdAfter = eventGroup1.createTime
+              }
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups).comparingExpectedFieldsOnly().containsExactly(eventGroup2)
+  }
+
+  @Test
+  fun `streamEventGroups respects limit`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup1 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup1"
+        }
+      )
+
+    eventGroupsService.createEventGroup(
+      eventGroup {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalMeasurementConsumerId =
+          population.createMeasurementConsumer(measurementConsumersService)
+            .externalMeasurementConsumerId
+        providedEventGroupId = "eventGroup2"
+      }
+    )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups).comparingExpectedFieldsOnly().containsExactly(eventGroup1)
+  }
+
+  @Test
+  fun `streamEventGroups respects externalMeasurementConsumerIds`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    eventGroupsService.createEventGroup(
+      eventGroup {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalMeasurementConsumerId =
+          population.createMeasurementConsumer(measurementConsumersService)
+            .externalMeasurementConsumerId
+        providedEventGroupId = "eventGroup1"
+      }
+    )
+
+    val eventGroup2 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup2"
+        }
+      )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter =
+              filter {
+                this.externalDataProviderId = externalDataProviderId
+                this.externalMeasurementConsumerIds += eventGroup2.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups).comparingExpectedFieldsOnly().containsExactly(eventGroup2)
   }
 }
 

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
@@ -26,9 +27,10 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   state: Measurement.State
 ) {
   updateMutation("Measurements") {
-      set("MeasurementConsumerId" to measurementConsumerId.value)
-      set("MeasurementId" to measurementId.value)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
       set("State" to state)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
     }
     .bufferTo(transactionContext)
 }

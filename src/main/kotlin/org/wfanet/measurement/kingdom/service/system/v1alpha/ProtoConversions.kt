@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
@@ -57,8 +58,8 @@ fun InternalRequisition.toSystemRequisition(publicApiVersion: Version): Requisit
           Version.V2_ALPHA -> DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
           Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
         }
-      // TODO: get dataProviderCertificate from the external_data_provider_certificate_id
-      // TODO: set the requisition_spec_hash
+      it.dataProviderCertificateDer = dataProviderCertificate.details.x509Der
+      it.requisitionSpecHash = hashSha256(details.encryptedRequisitionSpec)
       it.state = state.toSystemRequisitionState()
       it.dataProviderParticipationSignature = details.dataProviderParticipationSignature
       it.fulfillingComputationParticipant =

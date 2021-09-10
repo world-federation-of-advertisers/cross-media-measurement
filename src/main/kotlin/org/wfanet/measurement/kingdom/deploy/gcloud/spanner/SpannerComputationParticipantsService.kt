@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -25,10 +24,11 @@ import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequ
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ConfirmComputationParticipant
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FailComputationParticipant
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetParticipantRequisitionParams
 
 class SpannerComputationParticipantsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ComputationParticipantsCoroutineImplBase() {
@@ -36,7 +36,7 @@ class SpannerComputationParticipantsService(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
     try {
-      return SetParticipantRequisitionParams(request).execute(client, idGenerator, clock)
+      return SetParticipantRequisitionParams(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
@@ -51,19 +51,61 @@ class SpannerComputationParticipantsService(
           }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS -> throw e
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
   }
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
   ): ComputationParticipant {
-    TODO("not implemented yet")
+    try {
+      return FailComputationParticipant(request).execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Measurement State is Illegal" }
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+      }
+    }
   }
+
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
   ): ComputationParticipant {
-    TODO("not implemented yet")
+    try {
+      return ConfirmComputationParticipant(request).execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Computation participant in illegal state." }
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+      }
+    }
   }
 }

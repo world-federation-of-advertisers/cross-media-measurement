@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
@@ -28,7 +27,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 
 class SpannerDataProvidersService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : DataProvidersCoroutineImplBase() {
@@ -38,7 +36,7 @@ class SpannerDataProvidersService(
         !request.details.publicKey.isEmpty() &&
         !request.details.publicKeySignature.isEmpty()
     ) { "Details field of DataProvider is missing fields." }
-    return CreateDataProvider(request).execute(client, idGenerator, clock)
+    return CreateDataProvider(request).execute(client, idGenerator)
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     return DataProviderReader()

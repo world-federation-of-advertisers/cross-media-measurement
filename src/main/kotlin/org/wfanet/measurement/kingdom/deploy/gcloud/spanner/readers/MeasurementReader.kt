@@ -17,8 +17,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -32,9 +34,9 @@ class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
 
   data class Result(
-    val measurement: Measurement,
-    val measurementId: Long,
-    val measurementConsumerId: Long
+    val measurementConsumerId: InternalId,
+    val measurementId: InternalId,
+    val measurement: Measurement
   )
 
   private fun constructBaseSql(view: Measurement.View): String {
@@ -51,9 +53,9 @@ class MeasurementReader(private val view: Measurement.View) :
 
   override suspend fun translate(struct: Struct): Result =
     Result(
-      buildMeasurement(struct),
-      struct.getLong("MeasurementId"),
-      struct.getLong("MeasurementConsumerId")
+      struct.getInternalId("MeasurementConsumerId"),
+      struct.getInternalId("MeasurementId"),
+      buildMeasurement(struct)
     )
 
   suspend fun readByExternalIds(
@@ -140,17 +142,23 @@ class MeasurementReader(private val view: Measurement.View) :
       ARRAY(
         SELECT AS STRUCT
           ExternalDataProviderId,
-          ExternalDataProviderCertificateId,
           Requisitions.UpdateTime,
           Requisitions.ExternalRequisitionId,
           Requisitions.State AS RequisitionState,
           Requisitions.FulfillingDuchyId,
-          Requisitions.RequisitionDetails
+          Requisitions.RequisitionDetails,
+          ExternalDataProviderCertificateId,
+          SubjectKeyIdentifier,
+          NotValidBefore,
+          NotValidAfter,
+          RevocationState,
+          CertificateDetails,
         FROM
           Requisitions
           JOIN DataProviders USING (DataProviderId)
           JOIN DataProviderCertificates
             ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
+          JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
         WHERE
           Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND Requisitions.MeasurementId = Measurements.MeasurementId

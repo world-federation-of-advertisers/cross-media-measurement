@@ -14,27 +14,22 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
 
-private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
+private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.READY
 
 /**
  * Sets participant details for a computationPartcipant in the database.
@@ -42,10 +37,9 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL]
- * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
  * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
  */
-class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
+class ConfirmComputationParticipant(private val request: ConfirmComputationParticipantRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
@@ -53,8 +47,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
-    val duchyCertificateId =
-      readDuchyCertificateId(InternalId(duchyId), ExternalId(request.externalDuchyCertificateId))
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
@@ -73,32 +65,39 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     val computationParticipant = computationParticipantResult.computationParticipant
     val measurementId = computationParticipantResult.measurementId
     val measurementConsumerId = computationParticipantResult.measurementConsumerId
-
-    if (computationParticipant.state != ComputationParticipant.State.CREATED) {
+    val measurementState = computationParticipantResult.measurementState
+    if (measurementState != Measurement.State.PENDING_PARTICIPANT_CONFIRMATION) {
       throw KingdomInternalException(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL
       ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state CREATED but was in state ${computationParticipant.state}"
+          "It should have been in state ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION}  " +
+          "but was in state ${computationParticipant.state}"
+      }
+    }
+    if (computationParticipant.state != ComputationParticipant.State.REQUISITION_PARAMS_SET) {
+      throw KingdomInternalException(
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL
+      ) {
+        "ComputationParticipant for external computation Id ${request.externalComputationId} " +
+          "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
+          "It should have been in state ${ComputationParticipant.State.REQUISITION_PARAMS_SET} " +
+          "but was in state ${computationParticipant.state}"
       }
     }
 
-    val participantDetails =
-      computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
     transactionContext.bufferUpdateMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to duchyId)
-      set("CertificateId" to duchyCertificateId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
-      set("ParticipantDetails" to participantDetails)
-      setJson("ParticipantDetailsJson" to participantDetails)
     }
 
     val otherDuchyIds: List<InternalId> =
       DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
+
     if (computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
@@ -110,46 +109,14 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       updateMeasurementState(
         InternalId(measurementConsumerId),
         InternalId(measurementId),
-        Measurement.State.PENDING_REQUISITION_FULFILLMENT
+        Measurement.State.PENDING_COMPUTATION
       )
     }
 
-    val certificate =
-      CertificateReader(CertificateReader.ParentType.DUCHY)
-        .fillStatementBuilder {
-          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
-          bind("duchyId" to duchyId)
-          bind("certificateId" to duchyCertificateId)
-        }
-        .execute(transactionContext)
-        .single()
-
-    return computationParticipant.copy {
-      state = NEXT_COMPUTATION_PARTICIPANT_STATE
-      details = participantDetails
-      duchyCertificate = certificate
-    }
+    return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
   }
 
   override fun ResultScope<ComputationParticipant>.buildResult(): ComputationParticipant {
     return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
-  }
-
-  private suspend fun TransactionScope.readDuchyCertificateId(
-    duchyId: InternalId,
-    externalCertificateId: ExternalId
-  ): InternalId {
-    val column = "CertificateId"
-    return transactionContext.readRowUsingIndex(
-        "DuchyCertificates",
-        "DuchyCertificatesByExternalId",
-        Key.of(duchyId.value, externalCertificateId.value),
-        column
-      )
-      ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
-        "Certificate for Duchy ${duchyId.value} with external ID " +
-          "$externalCertificateId not found"
-      }
   }
 }

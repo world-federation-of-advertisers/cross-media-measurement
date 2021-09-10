@@ -27,9 +27,9 @@ open class BaseSpannerDatabase(
   protected val idGenerator: IdGenerator,
   protected val client: AsyncDatabaseClient
 ) {
-  /** Executes a [SpannerWriter] with [client], [idGenerator], and [clock]. */
+  /** Executes a [SpannerWriter] with [client] and [idGenerator]. */
   protected suspend fun <R> SpannerWriter<*, R>.execute(): R {
-    return execute(client, idGenerator, clock)
+    return execute(client, idGenerator)
   }
 
   /** Executes a [SpannerQuery] in a single-use ReadContext from [client]. */

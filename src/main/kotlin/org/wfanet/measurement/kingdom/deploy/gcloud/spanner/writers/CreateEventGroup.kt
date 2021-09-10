@@ -15,10 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -63,8 +61,8 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     val externalEventGroupId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("EventGroups") {
-      set("EventGroupId" to internalEventGroupId.value)
-      set("ExternalEventGroupId" to externalEventGroupId.value)
+      set("EventGroupId" to internalEventGroupId)
+      set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
       set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
@@ -75,20 +73,9 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
   }
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
-    val whereClause =
-      """
-      WHERE EventGroups.DataProviderId = @data_provider_id
-        AND EventGroups.ProvidedEventGroupId = @provided_event_group_id
-      """.trimIndent()
-
     return EventGroupReader()
-      .withBuilder {
-        appendClause(whereClause)
-        bind("data_provider_id").to(dataProviderId)
-        bind("provided_event_group_id").to(eventGroup.providedEventGroupId)
-      }
+      .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
       .execute(transactionContext)
-      .map { it.eventGroup }
       .singleOrNull()
   }
 

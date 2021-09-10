@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -30,12 +29,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeRead
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchange
 
 class SpannerExchangesService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ExchangesCoroutineImplBase() {
   override suspend fun createExchange(request: CreateExchangeRequest): Exchange {
-    return CreateExchange(request.exchange).execute(client, idGenerator, clock)
+    return CreateExchange(request.exchange).execute(client, idGenerator)
   }
 
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
