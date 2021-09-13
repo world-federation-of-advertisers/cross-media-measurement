@@ -285,8 +285,7 @@ abstract class ExchangeStepsServiceTest {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Exchange Step not found.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   private suspend fun createRecurringExchange() {

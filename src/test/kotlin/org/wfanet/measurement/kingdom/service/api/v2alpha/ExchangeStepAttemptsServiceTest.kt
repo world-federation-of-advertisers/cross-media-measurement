@@ -14,10 +14,15 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.type.Date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -26,10 +31,12 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
+import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -37,7 +44,12 @@ import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as Internal
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase as InternalExchangeStepAttempts
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest as InternalFinishExchangeStepAttemptRequest
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeSteps
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest as internalFinishExchangeStepAttemptRequest
+import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.provider
 
 private const val RECURRING_EXCHANGE_ID = 1L
 private const val STEP_INDEX = 1
@@ -108,16 +120,26 @@ private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
 @RunWith(JUnit4::class)
 class ExchangeStepAttemptsServiceTest {
 
-  private val internalService: InternalExchangeStepAttempts =
+  private val internalExchangeStepAttempts: InternalExchangeStepAttempts =
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { appendLogEntry(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
       onBlocking { finishExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
+  private val internalExchangeSteps: InternalExchangeSteps =
+    mock(useConstructor = UseConstructor.parameterless())
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalExchangeStepAttempts)
+    addService(internalExchangeSteps)
+  }
 
   private val service =
-    ExchangeStepAttemptsService(ExchangeStepAttemptsCoroutineStub(grpcTestServerRule.channel))
+    ExchangeStepAttemptsService(
+      ExchangeStepAttemptsCoroutineStub(grpcTestServerRule.channel),
+      ExchangeStepsCoroutineStub(grpcTestServerRule.channel)
+    )
 
   @Test
   fun appendLogEntry() {
@@ -131,7 +153,7 @@ class ExchangeStepAttemptsServiceTest {
 
     assertThat(runBlocking { service.appendLogEntry(request) }).isEqualTo(EXCHANGE_STEP_ATTEMPT)
 
-    verifyProtoArgument(internalService, InternalExchangeStepAttempts::appendLogEntry)
+    verifyProtoArgument(internalExchangeStepAttempts, InternalExchangeStepAttempts::appendLogEntry)
       .isEqualTo(
         InternalAppendLogEntryRequest.newBuilder()
           .apply {
@@ -146,33 +168,89 @@ class ExchangeStepAttemptsServiceTest {
   }
 
   @Test
-  fun finishExchangeStepAttempt() {
-    val request =
-      FinishExchangeStepAttemptRequest.newBuilder()
-        .apply {
-          name = EXCHANGE_STEP_ATTEMPT.name
-          finalState = ExchangeStepAttempt.State.FAILED
-          addAllLogEntries(EXCHANGE_STEP_ATTEMPT.debugLogEntriesList)
-        }
-        .build()
+  fun `finishExchangeStepAttempt unauthenticated`() {
+    val request = finishExchangeStepAttemptRequest {
+      name = EXCHANGE_STEP_ATTEMPT.name
+      finalState = ExchangeStepAttempt.State.FAILED
+      logEntries += EXCHANGE_STEP_ATTEMPT.debugLogEntriesList
+    }
 
-    val response = runBlocking { service.finishExchangeStepAttempt(request) }
+    val e =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.finishExchangeStepAttempt(request) }
+      }
+    assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt unauthorized`() {
+    internalExchangeSteps.stub {
+      onBlocking { getExchangeStep(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    val request = finishExchangeStepAttemptRequest {
+      name = EXCHANGE_STEP_ATTEMPT.name
+      finalState = ExchangeStepAttempt.State.FAILED
+      logEntries += EXCHANGE_STEP_ATTEMPT.debugLogEntriesList
+    }
+
+    val dataProviderKey = DataProviderKey(externalIdToApiId(12345))
+    val principal = Principal.DataProvider(dataProviderKey)
+    val e =
+      withPrincipal(principal) {
+        assertFailsWith<StatusRuntimeException> {
+          runBlocking { service.finishExchangeStepAttempt(request) }
+        }
+      }
+    assertWithMessage(e.status.toString())
+      .that(e.status.code)
+      .isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun finishExchangeStepAttempt() {
+    val request = finishExchangeStepAttemptRequest {
+      name = EXCHANGE_STEP_ATTEMPT.name
+      finalState = ExchangeStepAttempt.State.FAILED
+      logEntries += EXCHANGE_STEP_ATTEMPT.debugLogEntriesList
+    }
+
+    val dataProviderKey = DataProviderKey(externalIdToApiId(12345))
+    val principal = Principal.DataProvider(dataProviderKey)
+
+    val response =
+      withPrincipal(principal) { runBlocking { service.finishExchangeStepAttempt(request) } }
 
     assertThat(response).isEqualTo(EXCHANGE_STEP_ATTEMPT)
 
-    verifyProtoArgument(internalService, InternalExchangeStepAttempts::finishExchangeStepAttempt)
+    verifyProtoArgument(internalExchangeSteps, InternalExchangeSteps::getExchangeStep)
+      .isEqualTo(
+        getExchangeStepRequest {
+          externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+          date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
+          stepIndex = STEP_INDEX
+          provider =
+            provider {
+              type = Provider.Type.DATA_PROVIDER
+              externalId = 12345L
+            }
+        }
+      )
+
+    verifyProtoArgument(
+        internalExchangeStepAttempts,
+        InternalExchangeStepAttempts::finishExchangeStepAttempt
+      )
       .ignoringFieldAbsence()
       .isEqualTo(
-        InternalFinishExchangeStepAttemptRequest.newBuilder()
-          .apply {
-            externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-            date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
-            stepIndex = STEP_INDEX
-            attemptNumber = ATTEMPT_NUMBER
-            state = InternalExchangeStepAttempt.State.FAILED
-            addAllDebugLogEntries(INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList)
-          }
-          .build()
+        internalFinishExchangeStepAttemptRequest {
+          externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+          date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
+          stepIndex = STEP_INDEX
+          attemptNumber = ATTEMPT_NUMBER
+          state = InternalExchangeStepAttempt.State.FAILED
+          debugLogEntries += INTERNAL_EXCHANGE_STEP_ATTEMPT.details.debugLogEntriesList
+        }
       )
   }
 }

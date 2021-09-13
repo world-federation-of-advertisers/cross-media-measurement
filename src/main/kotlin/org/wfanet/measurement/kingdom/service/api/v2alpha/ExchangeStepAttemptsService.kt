@@ -19,25 +19,32 @@ import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLog
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsResponse
+import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.internal.kingdom.AppendLogEntryRequest as InternalAppendLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest as InternalFinishExchangeStepAttemptRequest
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.appendLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
+import org.wfanet.measurement.internal.kingdom.getExchangeStepRequest
 
 class ExchangeStepAttemptsService(
-  private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub
+  private val internalExchangeStepAttempts: InternalExchangeStepAttemptsCoroutineStub,
+  private val internalExchangeSteps: InternalExchangeStepsCoroutineStub
 ) : ExchangeStepAttemptsCoroutineImplBase() {
 
   override suspend fun appendLogEntry(request: AppendLogEntryRequest): ExchangeStepAttempt {
@@ -45,21 +52,19 @@ class ExchangeStepAttemptsService(
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    val internalRequest =
-      InternalAppendLogEntryRequest.newBuilder()
-        .apply {
-          externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
-          date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
-          stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
-          attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
-          for (entry in request.logEntriesList) {
-            addDebugLogEntriesBuilder().apply {
-              time = entry.time
-              message = entry.message
-            }
+    val internalRequest = appendLogEntryRequest {
+      externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
+      date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
+      stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
+      attemptNumber = exchangeStepAttempt.exchangeStepAttemptId.toInt()
+      for (entry in request.logEntriesList) {
+        debugLogEntries +=
+          ExchangeStepAttemptDetailsKt.debugLog {
+            time = entry.time
+            message = entry.message
           }
-        }
-        .build()
+      }
+    }
     val response = internalExchangeStepAttempts.appendLogEntry(internalRequest)
     return response.toV2Alpha()
   }
@@ -71,18 +76,41 @@ class ExchangeStepAttemptsService(
       grpcRequireNotNull(ExchangeStepAttemptKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    val internalRequest =
-      InternalFinishExchangeStepAttemptRequest.newBuilder()
-        .also { builder ->
-          builder.externalRecurringExchangeId =
-            apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
-          builder.date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
-          builder.stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
-          builder.attemptNumber = exchangeStepAttempt.attemptNumber
-          builder.state = request.finalState.toInternal()
-          builder.addAllDebugLogEntries(request.logEntriesList.toInternal())
+
+    val externalRecurringExchangeId = apiIdToExternalId(exchangeStepAttempt.recurringExchangeId)
+    val date = LocalDate.parse(exchangeStepAttempt.exchangeId).toProtoDate()
+    val stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
+    val provider = getProviderFromContext()
+
+    // Authorization: ensure that the current gRPC context is authorized to read the ExchangeStep.
+    try {
+      internalExchangeSteps.getExchangeStep(
+        getExchangeStepRequest {
+          this.externalRecurringExchangeId = externalRecurringExchangeId
+          this.date = date
+          this.stepIndex = stepIndex
+          this.provider = provider
         }
-        .build()
+      )
+    } catch (e: Exception) {
+      when (e.grpcStatusCode()) {
+        Status.Code.NOT_FOUND, Status.Code.UNAUTHENTICATED, Status.Code.PERMISSION_DENIED ->
+          failGrpc(Status.PERMISSION_DENIED) {
+            "FinishExchangeStepAttempt failed: access to ExchangeStep denied or ExchangeStep " +
+              "does not exist"
+          }
+        else -> throw Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
+
+    val internalRequest = finishExchangeStepAttemptRequest {
+      this.externalRecurringExchangeId = externalRecurringExchangeId
+      this.date = date
+      this.stepIndex = stepIndex
+      attemptNumber = exchangeStepAttempt.attemptNumber
+      state = request.finalState.toInternal()
+      debugLogEntries += request.logEntriesList.toInternal()
+    }
     val response = internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
     return response.toV2Alpha()
   }
@@ -110,23 +138,21 @@ private val ExchangeStepAttemptKey.attemptNumber: Int
   }
 
 private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
-  return ExchangeStepAttempt.newBuilder()
-    .also { builder ->
-      builder.name =
-        ExchangeStepAttemptKey(
-            recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-            exchangeId = date.toLocalDate().toString(),
-            exchangeStepId = stepIndex.toString(),
-            exchangeStepAttemptId = attemptNumber.toString()
-          )
-          .toName()
-      builder.attemptNumber = attemptNumber
-      builder.state = state.toV2Alpha()
-      builder.addAllDebugLogEntries(details.debugLogEntriesList.map { it.toV2Alpha() })
-      builder.startTime = details.startTime
-      builder.updateTime = details.updateTime
-    }
-    .build()
+  val key =
+    ExchangeStepAttemptKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = stepIndex.toString(),
+      exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString()
+    )
+  return exchangeStepAttempt {
+    name = key.toName()
+    attemptNumber = this@toV2Alpha.attemptNumber
+    state = this@toV2Alpha.state.toV2Alpha()
+    debugLogEntries += details.debugLogEntriesList.map { it.toV2Alpha() }
+    startTime = details.startTime
+    updateTime = details.updateTime
+  }
 }
 
 private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
@@ -153,22 +179,18 @@ private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.
 }
 
 private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
-  return ExchangeStepAttempt.DebugLog.newBuilder()
-    .also {
-      it.time = time
-      it.message = message
-    }
-    .build()
+  return debugLog {
+    time = this@toV2Alpha.time
+    message = this@toV2Alpha.message
+  }
 }
 
 private fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
   Iterable<ExchangeStepAttemptDetails.DebugLog> {
   return map { apiProto ->
-    ExchangeStepAttemptDetails.DebugLog.newBuilder()
-      .apply {
-        time = apiProto.time
-        message = apiProto.message
-      }
-      .build()
+    ExchangeStepAttemptDetailsKt.debugLog {
+      time = apiProto.time
+      message = apiProto.message
+    }
   }
 }

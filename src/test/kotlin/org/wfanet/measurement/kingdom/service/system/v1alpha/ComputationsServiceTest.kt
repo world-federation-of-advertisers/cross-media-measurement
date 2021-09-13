@@ -354,16 +354,15 @@ class ComputationsServiceTest {
     fun expectedStreamMeasurementsRequest(updatedAfterSeconds: Long) =
       StreamMeasurementsRequest.newBuilder()
         .apply {
+          measurementView = InternalMeasurement.View.COMPUTATION
           filterBuilder.apply {
             addAllStates(
               listOf(
-                org.wfanet.measurement.internal.kingdom.Measurement.State
-                  .PENDING_REQUISITION_PARAMS,
-                org.wfanet.measurement.internal.kingdom.Measurement.State
-                  .PENDING_PARTICIPANT_CONFIRMATION,
-                org.wfanet.measurement.internal.kingdom.Measurement.State.PENDING_COMPUTATION,
-                org.wfanet.measurement.internal.kingdom.Measurement.State.FAILED,
-                org.wfanet.measurement.internal.kingdom.Measurement.State.CANCELLED
+                InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+                InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+                InternalMeasurement.State.PENDING_COMPUTATION,
+                InternalMeasurement.State.FAILED,
+                InternalMeasurement.State.CANCELLED
               )
             )
             updatedAfterBuilder.seconds = updatedAfterSeconds
