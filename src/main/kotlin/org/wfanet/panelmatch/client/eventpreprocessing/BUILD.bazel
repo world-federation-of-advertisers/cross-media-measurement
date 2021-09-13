@@ -2,6 +2,9 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(default_visibility = ["//visibility:public"])
 
+# Embed the C++ library into a JAR. This is to ensure Apache Beam copies over
+# the C++ library to its workers.
+#
 # There is a bug in kt_jvm_library that does not allow specifying a .so file in
 # the `resources` parameter, so instead we make a `java_library` containing the
 # .so file.
@@ -33,6 +36,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/compression",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:combined_events_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
         "//src/main/swig/wfanet/panelmatch/client/eventpreprocessing:preprocess_events",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

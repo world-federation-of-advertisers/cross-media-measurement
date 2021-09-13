@@ -47,7 +47,7 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
         IDENTIFIER_HASH_PEPPER_PROVIDER,
         HKDF_PEPPER_PROVIDER,
         CRYPTO_KEY_PROVIDER,
-        UncompressedEventAggregatorTrainer()
+        UncompressedEventCompressorTrainer()
       )
 
     assertThat(encrypted).satisfies { encryptedEvents ->

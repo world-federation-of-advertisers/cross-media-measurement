@@ -15,23 +15,21 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
-import java.io.ByteArrayOutputStream
-import org.apache.beam.sdk.coders.IterableCoder
-import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
-import org.wfanet.measurement.common.toByteString
+import java.io.Serializable
+import org.wfanet.panelmatch.common.compression.Compressor
 
 /**
- * This is a simple [EventAggregator] for testing/debugging purposes.
+ * [Compressor] factory that supports training.
  *
- * This does not attempt to perform any compression, so it is likely not suitable for production
- * environments.
+ * This is to enable dictionary-based compression. The output dictionary should be provided to
+ * whichever library needs to decompress.
  */
-class UncompressedEventAggregator : EventAggregator {
-  private val coder = IterableCoder.of(ByteStringCoder.of())
+interface EventCompressorTrainer : Serializable {
+  data class TrainedEventCompressor(val compressor: Compressor, val dictionary: ByteString)
 
-  override fun combine(events: Iterable<ByteString>): ByteString {
-    val output = ByteArrayOutputStream()
-    coder.encode(events, output)
-    return output.toByteArray().toByteString()
-  }
+  /** Hint suggesting how many elements should be in the sample. */
+  val preferredSampleSize: Int
+
+  /** Builds a dictionary and an [Compressor] that uses it. */
+  fun train(eventsSample: Iterable<ByteString>): TrainedEventCompressor
 }

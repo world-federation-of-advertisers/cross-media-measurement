@@ -24,7 +24,7 @@ import org.wfanet.panelmatch.common.beam.parDo
  *
  * The basic steps are:
  *
- * 1. Aggregate values per key using an [EventAggregator] produced by [eventAggregatorTrainer].
+ * 1. Compress values per key using [eventCompressorTrainer].
  * 2. Batch these into collections of at most [maxByteSize] bytes.
  * 3. Encrypt the keys and values.
  */
@@ -34,11 +34,11 @@ fun preprocessEventsInPipeline(
   identifierHashPepperProvider: IdentifierHashPepperProvider,
   hkdfPepperProvider: HkdfPepperProvider,
   cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
-  eventAggregatorTrainer: EventAggregatorTrainer
+  eventCompressorTrainer: EventCompressorTrainer
 ): PCollection<KV<Long, ByteString>> {
   // TODO(@efoxepstein): also return the dictionary for aggregation
-  return eventAggregatorTrainer
-    .aggregateByKey(events)
+  return eventCompressorTrainer
+    .compressByKey(events)
     .events
     .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
     .parDo(

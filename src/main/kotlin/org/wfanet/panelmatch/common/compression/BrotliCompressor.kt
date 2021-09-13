@@ -12,29 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.common.compression
 
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
-import org.wfanet.panelmatch.client.PreprocessEventsResponse
+import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 
-/** A [PreprocessEvents] implementation using the JNI [PreprocessEvents]. */
-class JniPreprocessEvents : PreprocessEvents {
-
-  override fun preprocess(request: PreprocessEventsRequest): PreprocessEventsResponse {
-    return wrapJniException {
-      PreprocessEventsResponse.parseFrom(
-        EventPreprocessing.preprocessEventsWrapper(request.toByteArray())
-      )
+class BrotliCompressor(private val dictionary: ByteString) : Compressor {
+  override fun compress(events: ByteString): ByteString {
+    val request: CompressRequest = compressRequest {
+      dictionary = this@BrotliCompressor.dictionary
+      uncompressedData += events
     }
+    val serializedResponse = wrapJniException {
+      Brotli.brotliCompressWrapper(request.toByteArray())
+    }
+    val response = CompressResponse.parseFrom(serializedResponse)
+    return response.compressedDataList.single()
   }
 
   companion object {
     init {
       loadLibraryFromResource(
-        libraryName = "preprocess_events",
-        resourcePathPrefix = "/main/swig/wfanet/panelmatch/client/eventpreprocessing"
+        libraryName = "brotli",
+        resourcePathPrefix = "/main/swig/wfanet/panelmatch/common/compression"
       )
     }
   }

@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.common.compression
 
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.client.eventpreprocessing.EventAggregatorTrainer.TrainedEventAggregator
 
 /**
- * Trivial trainer for [UncompressedEventAggregator].
+ * This is a simple [Compressor] for testing/debugging purposes.
  *
- * WARNING: since this does no compression, you likely do not want to use it in production.
+ * This does not attempt to perform any compression, so it is likely not suitable for production
+ * environments.
  */
-class UncompressedEventAggregatorTrainer : EventAggregatorTrainer {
-  override val preferredSampleSize: Int = 0
-
-  override fun train(eventsSample: Iterable<ByteString>): TrainedEventAggregator {
-    return TrainedEventAggregator(UncompressedEventAggregator(), ByteString.EMPTY)
+class NoOpCompressor : Compressor {
+  override fun compress(events: ByteString): ByteString {
+    return events
   }
 }

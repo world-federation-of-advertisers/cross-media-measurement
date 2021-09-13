@@ -15,23 +15,18 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
-import java.io.Serializable
+import org.wfanet.measurement.common.flatten
+import org.wfanet.panelmatch.client.eventpreprocessing.EventCompressorTrainer.TrainedEventCompressor
+import org.wfanet.panelmatch.common.compression.BrotliCompressor
 
-/**
- * [EventAggregator] factory that supports training.
- *
- * This is to enable dictionary-based compression. The output dictionary should be provided to
- * whichever library needs to disaggregate.
- */
-interface EventAggregatorTrainer : Serializable {
-  data class TrainedEventAggregator(
-    val eventAggregator: EventAggregator,
-    val dictionary: ByteString
-  )
+/** [EventCompressorTrainer] that uses Brotli compression (via JNI). */
+class BrotliEventCompressorTrainer : EventCompressorTrainer {
+  // TODO(@efoxepstein): experimentally adjust this value
+  override val preferredSampleSize: Int = 1000
 
-  /** Hint suggesting how many elements should be in the sample. */
-  val preferredSampleSize: Int
+  override fun train(eventsSample: Iterable<ByteString>): TrainedEventCompressor {
+    val dictionary: ByteString = eventsSample.flatten()
 
-  /** Builds a dictionary and an [EventAggregator] that uses it. */
-  fun train(eventsSample: Iterable<ByteString>): TrainedEventAggregator
+    return TrainedEventCompressor(BrotliCompressor(dictionary), dictionary)
+  }
 }

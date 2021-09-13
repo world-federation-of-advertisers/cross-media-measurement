@@ -20,27 +20,28 @@ import org.apache.beam.sdk.coders.AtomicCoder
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.SerializableCoder
 import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
-import org.wfanet.panelmatch.client.eventpreprocessing.EventAggregatorTrainer.TrainedEventAggregator
+import org.wfanet.panelmatch.client.eventpreprocessing.EventCompressorTrainer.TrainedEventCompressor
 import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.common.compression.Compressor
 
-/** Coder for [TrainedEventAggregator]. */
-internal class TrainedEventsAggregatorCoder : AtomicCoder<TrainedEventAggregator>() {
-  private val serializableCoder = SerializableCoder.of(EventAggregator::class.java)
+/** Apache Beam Coder for [TrainedEventCompressor]. */
+internal class TrainedEventCompressorCoder : AtomicCoder<TrainedEventCompressor>() {
+  private val serializableCoder = SerializableCoder.of(Compressor::class.java)
   private val byteStringCoder = ByteStringCoder.of()
   private val kvCoder = KvCoder.of(serializableCoder, byteStringCoder)
 
-  override fun encode(value: TrainedEventAggregator, outStream: OutputStream) {
-    kvCoder.encode(kvOf(value.eventAggregator, value.dictionary), outStream)
+  override fun encode(value: TrainedEventCompressor, outStream: OutputStream) {
+    kvCoder.encode(kvOf(value.compressor, value.dictionary), outStream)
   }
 
-  override fun decode(inStream: InputStream): TrainedEventAggregator {
+  override fun decode(inStream: InputStream): TrainedEventCompressor {
     val kv = kvCoder.decode(inStream)
-    return TrainedEventAggregator(checkNotNull(kv.key), checkNotNull(kv.value))
+    return TrainedEventCompressor(checkNotNull(kv.key), checkNotNull(kv.value))
   }
 
   companion object {
-    fun of(): TrainedEventsAggregatorCoder {
-      return TrainedEventsAggregatorCoder()
+    fun of(): TrainedEventCompressorCoder {
+      return TrainedEventCompressorCoder()
     }
   }
 }
