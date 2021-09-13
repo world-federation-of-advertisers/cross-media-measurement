@@ -120,11 +120,7 @@ private val EXCHANGE_STEP = exchangeStep {
   date = DATE
   state = ExchangeStep.State.IN_PROGRESS
   stepIndex = STEP_INDEX
-  provider =
-    provider {
-      externalId = EXTERNAL_MODEL_PROVIDER_ID
-      type = Provider.Type.MODEL_PROVIDER
-    }
+  provider = getModelProvider()
 }
 
 private val DATA_PROVIDER = dataProvider {
@@ -222,13 +218,7 @@ abstract class ExchangeStepsServiceTest {
 
     val response =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest {
-          provider =
-            provider {
-              externalId = EXTERNAL_MODEL_PROVIDER_ID
-              type = Provider.Type.MODEL_PROVIDER
-            }
-        }
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
       )
 
     val expected = claimReadyExchangeStepResponse {
@@ -255,13 +245,7 @@ abstract class ExchangeStepsServiceTest {
 
     val firstResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest {
-          provider =
-            provider {
-              externalId = EXTERNAL_MODEL_PROVIDER_ID
-              type = Provider.Type.MODEL_PROVIDER
-            }
-        }
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
       )
     val expected = claimReadyExchangeStepResponse {
       exchangeStep = EXCHANGE_STEP
@@ -276,13 +260,7 @@ abstract class ExchangeStepsServiceTest {
 
     val secondResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest {
-          provider =
-            provider {
-              externalId = EXTERNAL_MODEL_PROVIDER_ID
-              type = Provider.Type.MODEL_PROVIDER
-            }
-        }
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
       )
     assertThat(secondResponse.attemptNumber).isEqualTo(2L)
     exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
@@ -295,13 +273,7 @@ abstract class ExchangeStepsServiceTest {
     createRecurringExchange()
 
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
+      claimReadyExchangeStepRequest { provider = getModelProvider() }
     )
 
     val response =
@@ -310,11 +282,7 @@ abstract class ExchangeStepsServiceTest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = DATE
           stepIndex = 1
-          provider =
-            provider {
-              externalId = EXTERNAL_MODEL_PROVIDER_ID
-              type = Provider.Type.MODEL_PROVIDER
-            }
+          provider = getModelProvider()
         }
       )
 
@@ -328,13 +296,7 @@ abstract class ExchangeStepsServiceTest {
     createRecurringExchange()
 
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
+      claimReadyExchangeStepRequest { provider = getModelProvider() }
     )
 
     val exception =
