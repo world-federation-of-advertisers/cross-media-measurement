@@ -106,6 +106,7 @@ class ComputationsService(
             updatedAfter = lastUpdateTime.toProtoTime()
             addAllStates(STATES_SUBSCRIBED)
           }
+          measurementView = Measurement.View.COMPUTATION
         }
         .build()
     return measurementsClient.streamMeasurements(request)
