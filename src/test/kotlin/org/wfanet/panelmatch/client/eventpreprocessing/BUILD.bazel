@@ -65,9 +65,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "EventAggregatorsTest",
-    srcs = ["EventAggregatorsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EventAggregatorsTest",
+    name = "CompressByKeyTest",
+    srcs = ["CompressByKeyTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.CompressByKeyTest",
     deps = [
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",

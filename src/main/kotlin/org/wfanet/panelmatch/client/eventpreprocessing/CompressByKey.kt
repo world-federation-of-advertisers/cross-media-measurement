@@ -20,12 +20,15 @@ import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
-import org.wfanet.panelmatch.client.eventpreprocessing.EventAggregatorTrainer.TrainedEventAggregator
+import org.wfanet.panelmatch.client.combinedEvents
+import org.wfanet.panelmatch.client.eventpreprocessing.EventCompressorTrainer.TrainedEventCompressor
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.mapValues
 import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.beam.values
+import org.wfanet.panelmatch.common.compression.Compressor
 
 /**
  * First use [Sample.any] -- which is not guaranteed to be uniform -- to significantly over-sample
@@ -35,33 +38,38 @@ import org.wfanet.panelmatch.common.beam.values
  */
 private const val OVERSAMPLING_FACTOR = 10L
 
-/** The results of training an [EventAggregator] and then applying it to a [PCollection]. */
-data class AggregatedEvents(
+/** The results of training a [Compressor] and then applying it to a [PCollection]. */
+data class CompressedEvents(
   val events: PCollection<KV<ByteString, ByteString>>,
   val dictionary: PCollectionView<ByteString>
 )
 
-/** Trains an [EventAggregator] and applies it to a [PCollection]. */
-fun EventAggregatorTrainer.aggregateByKey(
+/** Trains a [Compressor] and applies it to a [PCollection]. */
+fun EventCompressorTrainer.compressByKey(
   events: PCollection<KV<ByteString, ByteString>>
-): AggregatedEvents {
-  val trainedEventAggregator: PCollection<TrainedEventAggregator> =
+): CompressedEvents {
+  val trainedEventCompressor: PCollection<TrainedEventCompressor> =
     events
       .values()
       .apply("Rough Sample", Sample.any(OVERSAMPLING_FACTOR * preferredSampleSize))
       .apply("Uniform Sample", Sample.fixedSizeGlobally(preferredSampleSize))
       .map { train(it) }
-      .setCoder(TrainedEventsAggregatorCoder.of())
+      .setCoder(TrainedEventCompressorCoder.of())
 
-  val eventAggregatorView =
-    trainedEventAggregator.map { it.eventAggregator }.apply(View.asSingleton())
+  val compressorView: PCollectionView<Compressor> =
+    trainedEventCompressor.map { it.compressor }.apply(View.asSingleton())
 
-  val aggregatedEvents: PCollection<KV<ByteString, ByteString>> =
-    events.groupByKey().parDoWithSideInput(eventAggregatorView) { keyAndEvents, eventAggregator ->
-      yield(kvOf(keyAndEvents.key, eventAggregator.combine(keyAndEvents.value)))
-    }
+  val compressedEvents: PCollection<KV<ByteString, ByteString>> =
+    events
+      .groupByKey()
+      .mapValues { combinedEvents { serializedEvents += it }.toByteString() }
+      .parDoWithSideInput(compressorView) {
+        keyAndEvents: KV<ByteString, ByteString>,
+        compressor: Compressor ->
+        yield(kvOf(keyAndEvents.key, compressor.compress(keyAndEvents.value)))
+      }
 
-  val dictionaryView = trainedEventAggregator.map { it.dictionary }.apply(View.asSingleton())
+  val dictionaryView = trainedEventCompressor.map { it.dictionary }.apply(View.asSingleton())
 
-  return AggregatedEvents(aggregatedEvents, dictionaryView)
+  return CompressedEvents(compressedEvents, dictionaryView)
 }

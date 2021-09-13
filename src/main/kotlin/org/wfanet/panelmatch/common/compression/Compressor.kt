@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.common.compression
 
 import com.google.protobuf.ByteString
 import java.io.Serializable
 
-/** Type-safe interface for combining event data. */
-interface EventAggregator : Serializable {
-  fun combine(events: Iterable<ByteString>): ByteString
+/** Type-safe interface for compressing event data. */
+interface Compressor : Serializable {
+  fun compress(events: ByteString): ByteString
 }

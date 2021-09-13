@@ -28,3 +28,25 @@ kt_jvm_proto_library(
     srcs = [":preprocess_events_proto"],
     deps = [":preprocess_events_java_proto"],
 )
+
+proto_library(
+    name = "combined_events_proto",
+    srcs = ["combined_events.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "combined_events_cc_proto",
+    deps = [":combined_events_proto"],
+)
+
+java_proto_library(
+    name = "combined_events_java_proto",
+    deps = [":combined_events_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "combined_events_kt_jvm_proto",
+    srcs = [":combined_events_proto"],
+    deps = [":combined_events_java_proto"],
+)
