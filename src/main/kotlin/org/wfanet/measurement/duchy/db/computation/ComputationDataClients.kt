@@ -71,7 +71,7 @@ private constructor(
     content: Flow<ByteString>
   ): ComputationToken {
     return writeBlobIfNotPresent(computationToken, computationToken.singleOutputBlobMetadata()) {
-      computationStore.write(it, content)
+      computationStore.write(content)
     }
   }
 
@@ -81,7 +81,7 @@ private constructor(
     content: ByteString
   ): ComputationToken {
     return writeBlobIfNotPresent(computationToken, computationToken.singleOutputBlobMetadata()) {
-      computationStore.write(it, content)
+      computationStore.write(content)
     }
   }
 

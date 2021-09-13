@@ -44,7 +44,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -84,14 +84,14 @@ class RequisitionFulfillmentServiceTest {
     mock(useConstructor = UseConstructor.parameterless())
 
   private val tempDirectory = TemporaryFolder()
-  private lateinit var requisitionStore: RequisitionStore
+  private lateinit var computationStore: ComputationStore
   private suspend fun StorageClient.readBlobAsString(key: String): String {
     return getBlob(key)?.read(defaultBufferSizeBytes)?.flatten()?.toStringUtf8()!!
   }
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    computationStore = ComputationStore.forTesting(storageClient) { NEXT_BLOB_PATH }
     addService(requisitionsServiceMock)
     addService(computationsServiceMock)
   }
@@ -106,7 +106,7 @@ class RequisitionFulfillmentServiceTest {
       RequisitionFulfillmentService(
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
         ComputationsCoroutineStub(grpcTestServerRule.channel),
-        requisitionStore
+        computationStore
       )
   }
 
@@ -130,7 +130,7 @@ class RequisitionFulfillmentServiceTest {
 
     assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
       .isEqualTo(FULFILLED_RESPONSE)
-    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
     assertThat(data).contentEqualTo(TEST_REQUISITION_DATA)
 
     verifyProtoArgument(
@@ -182,7 +182,7 @@ class RequisitionFulfillmentServiceTest {
     assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
       .isEqualTo(FULFILLED_RESPONSE)
     // The blob is not created since it is marked already fulfilled.
-    assertNull(requisitionStore.get(NEXT_BLOB_PATH))
+    assertNull(computationStore.get(NEXT_BLOB_PATH))
 
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(
