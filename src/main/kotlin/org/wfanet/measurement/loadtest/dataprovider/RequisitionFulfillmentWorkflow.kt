@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
+import java.nio.file.Paths
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
@@ -53,6 +55,8 @@ import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.consent.client.dataprovider.createParticipationSignature
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -61,12 +65,20 @@ import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingH
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-/* Key handle of the EDP's private consent signaling key */
-const val EDP_PRIVATE_KEY_HANDLE_KEY = "edp-private-consent-signaling-key"
+data class EdpData(
+  /** The Edp's public API resource name. */
+  val name: String,
+  /** The ID of the Edp's encryption private key in keyStore. */
+  val encryptionPrivateKeyId: String,
+  /** The ID of the Edp's consent signaling private key in keyStore. */
+  val consentSignalingPrivateKeyId: String,
+  /** The Edp's consent signaling certificate in DER format. */
+  val consentSignalCertificateDer: ByteString,
+)
 
 /** [RequisitionFulfillmentWorkflow] polls for unfulfilled requisitions and fulfills them */
 class RequisitionFulfillmentWorkflow(
-  private val externalDataProviderId: String,
+  private val edp: EdpData,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
@@ -91,20 +103,22 @@ class RequisitionFulfillmentWorkflow(
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
-  private fun encryptSketch(sketch: Sketch, combinedPublicKey: ElGamalPublicKey): Flow<ByteString> {
+  private fun encryptSketch(
+    sketch: Sketch,
+    combinedPublicKey: AnySketchElGamalPublicKey,
+    protocolConfig: ProtocolConfig.LiquidLegionsV2
+  ): Flow<ByteString> {
     logger.info("Encrypting Sketch...")
-    val request: EncryptSketchRequest =
+    val request =
       EncryptSketchRequest.newBuilder()
         .apply {
           this.sketch = sketch
-
-          // todo(@ohardt): read from protocolConfig when the proto is fixed
-          maximumValue = 5
-          curveId = combinedPublicKey.ellipticCurveId.toLong()
-          elGamalKeysBuilder.generator = combinedPublicKey.generator
-          elGamalKeysBuilder.element = combinedPublicKey.element
+          elGamalKeys = combinedPublicKey
+          curveId = protocolConfig.ellipticCurveId.toLong()
+          maximumValue = protocolConfig.maximumFrequency
           destroyedRegisterStrategy =
             EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY // for LL_V2 protocol
+          // TODO(wangyaopw): add publisher noise
         }
         .build()
     val response =
@@ -113,25 +127,39 @@ class RequisitionFulfillmentWorkflow(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
-  private suspend fun fulfillRequisition(name: String, data: Flow<ByteString>) {
-    logger.info("Fulfilling requisition $name...")
+  private suspend fun fulfillRequisition(
+    requisitionName: String,
+    participationSignature: ByteString,
+    data: Flow<ByteString>
+  ) {
+    logger.info("Fulfilling requisition $requisitionName...")
     requisitionFulfillmentStub.fulfillRequisition(
       flow {
-        emit(makeFulfillRequisitionHeader(name))
+        emit(makeFulfillRequisitionHeader(requisitionName, participationSignature))
         emitAll(data.map { makeFulfillRequisitionBody(it) })
       }
     )
   }
 
-  private fun makeFulfillRequisitionHeader(name: String): FulfillRequisitionRequest {
-    return FulfillRequisitionRequest.newBuilder().apply { headerBuilder.name = name }.build()
+  private fun makeFulfillRequisitionHeader(
+    requisitionName: String,
+    participationSignature: ByteString
+  ): FulfillRequisitionRequest {
+    return FulfillRequisitionRequest.newBuilder()
+      .apply {
+        headerBuilder.apply {
+          name = requisitionName
+          dataProviderParticipationSignature = participationSignature
+        }
+      }
+      .build()
   }
 
   private fun makeFulfillRequisitionBody(bytes: ByteString): FulfillRequisitionRequest {
     return FulfillRequisitionRequest.newBuilder().apply { bodyChunkBuilder.data = bytes }.build()
   }
 
-  private fun Requisition.getCombinedPublicKey(curveId: Int): ElGamalPublicKey {
+  private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {
     logger.info("Getting combined public key...")
     val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
     val request =
@@ -146,14 +174,13 @@ class RequisitionFulfillmentWorkflow(
         SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
       )
       .elGamalKeys
-      .toV2ElGamalPublicKey()
   }
 
   private suspend fun getRequisition(): Requisition? {
     val request =
       ListRequisitionsRequest.newBuilder()
         .apply {
-          parent = externalDataProviderId
+          parent = edp.name
           filterBuilder.addStates(Requisition.State.UNFULFILLED)
         }
         .build()
@@ -176,24 +203,19 @@ class RequisitionFulfillmentWorkflow(
     }
     logger.info("Processing requisition ${requisition.name}...")
 
-    val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
-
-    val decryptedSignedDataRequisitionSpec =
-      decryptRequisitionSpec(
-        requisition.encryptedRequisitionSpec,
-        checkNotNull(keyStore.getPrivateKeyHandle(EDP_PRIVATE_KEY_HANDLE_KEY)),
-        HybridCipherSuite.getDefaultInstance(),
-        ::fakeGetHybridCryptorForCipherSuite
+    if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2) {
+      logger.info(
+        "Skipping requisition ${requisition.name}, only LIQUID_LEGIONS_V2 is supported..."
       )
-
-    val decryptedRequisitionSpec =
-      RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
+      return
+    }
 
     val measurementConsumerCertificate =
       certificateServiceStub.getCertificate(
         getCertificateRequest { name = requisition.measurementConsumerCertificate }
       )
 
+    val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
     if (!verifyMeasurementSpec(
         measurementSpecSignature = requisition.measurementSpec.signature,
         measurementSpec = measurementSpec,
@@ -204,6 +226,15 @@ class RequisitionFulfillmentWorkflow(
       return
     }
 
+    val decryptedSignedDataRequisitionSpec =
+      decryptRequisitionSpec(
+        requisition.encryptedRequisitionSpec,
+        checkNotNull(keyStore.getPrivateKeyHandle(ENCRYPTION_PRIVATE_KEY_HANDLE_KEY)),
+        HybridCipherSuite.getDefaultInstance(),
+        ::fakeGetHybridCryptorForCipherSuite
+      )
+    val decryptedRequisitionSpec =
+      RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
     if (!verifyRequisitionSpec(
         requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
         requisitionSpec = decryptedRequisitionSpec,
@@ -215,25 +246,44 @@ class RequisitionFulfillmentWorkflow(
       return
     }
 
+    val participationSignature =
+      createParticipationSignature(
+        requisition,
+        checkNotNull(keyStore.getPrivateKeyHandle(edp.encryptionPrivateKeyId)),
+        checkNotNull(keyStore.getPrivateKeyHandle(edp.consentSignalingPrivateKeyId)),
+        readCertificate(edp.consentSignalCertificateDer),
+        HybridCipherSuite.getDefaultInstance(),
+        ::fakeGetHybridCryptorForCipherSuite
+      )
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
     val sketch = generateSketch(sketchConfig, sketchGenerationParams)
 
     sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(1024))
-    val sketchChunks: Flow<ByteString> = encryptSketch(sketch, combinedPublicKey)
-    fulfillRequisition(requisition.name, sketchChunks)
+    val sketchChunks: Flow<ByteString> =
+      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
+    fulfillRequisition(requisition.name, participationSignature.signature, sketchChunks)
   }
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
-}
 
-private fun AnySketchElGamalPublicKey.toV2ElGamalPublicKey(): ElGamalPublicKey {
-  val that = this
-  return elGamalPublicKey {
-    generator = that.generator
-    element = that.element
+    init {
+      loadLibrary(
+        name = "sketch_encrypter_adapter",
+        directoryPath =
+          Paths.get(
+            "any_sketch_java",
+            "src",
+            "main",
+            "java",
+            "org",
+            "wfanet",
+            "anysketch",
+            "crypto"
+          )
+      )
+    }
   }
 }
 
