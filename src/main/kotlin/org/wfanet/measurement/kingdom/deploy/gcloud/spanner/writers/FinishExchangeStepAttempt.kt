@@ -15,16 +15,20 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Date
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -121,6 +125,14 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       recurringExchangeId = recurringExchangeId,
       date = reqDate
     )
+
+    if (allStepsCompleted(recurringExchangeId = recurringExchangeId, date = reqDate)) {
+      updateExchangeState(
+        recurringExchangeId = recurringExchangeId,
+        date = exchangeStep.date,
+        state = Exchange.State.SUCCEEDED
+      )
+    }
 
     return updateExchangeStepAttempt(
       recurringExchangeId = recurringExchangeId,
@@ -300,6 +312,31 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     }
 
     return exchangeStepAttempt.toBuilder().setState(state).setDetails(details).build()
+  }
+
+  private suspend fun TransactionScope.allStepsCompleted(
+    recurringExchangeId: Long,
+    date: Date
+  ): Boolean {
+    val sql =
+      """
+      SELECT COUNT(*) AS NumberOfIncomplete
+      FROM ExchangeSteps
+      WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
+      AND ExchangeSteps.Date = @date
+      AND ExchangeSteps.State != @state
+      """.trimIndent()
+
+    val statement: Statement =
+      statement(sql) {
+        bind("recurring_exchange_id" to recurringExchangeId)
+        bind("date" to date.toCloudDate())
+        bind("state" to ExchangeStep.State.SUCCEEDED)
+      }
+    val row: Struct = transactionContext.executeQuery(statement).single()
+
+    // If only returns current Step still IN_PROGRESS, then done.
+    return row.getLong("NumberOfIncomplete") == 1L
   }
 }
 

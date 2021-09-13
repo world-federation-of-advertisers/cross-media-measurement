@@ -15,11 +15,9 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.FieldScope
-import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.type.Date
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.lang.IllegalArgumentException
@@ -35,15 +33,19 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.Exchange
+import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
+import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Provider
@@ -53,9 +55,11 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.exchangeStep
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.getExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.provider
@@ -94,14 +98,11 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
     }
 }
 
-private val DATE: Date =
-  Date.newBuilder()
-    .apply {
-      year = 2021
-      month = 8
-      day = 5
-    }
-    .build()
+private val DATE = date {
+  year = 2021
+  month = 8
+  day = 5
+}
 
 private val RECURRING_EXCHANGE = recurringExchange {
   externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
@@ -134,13 +135,6 @@ private val DATA_PROVIDER = dataProvider {
 
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
 
-private val EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS: FieldScope =
-  FieldScopes.allowingFieldDescriptors(
-    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("start_time"),
-    ExchangeStepAttemptDetails.getDescriptor().findFieldByName("update_time"),
-    ExchangeStepAttemptDetails.DebugLog.getDescriptor().findFieldByName("time")
-  )
-
 @RunWith(JUnit4::class)
 abstract class ExchangeStepAttemptsServiceTest {
 
@@ -148,6 +142,9 @@ abstract class ExchangeStepAttemptsServiceTest {
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator
   ): RecurringExchangesCoroutineImplBase
+
+  /** Creates a /Exchanges service implementation using [idGenerator]. */
+  protected abstract fun newExchangesService(idGenerator: IdGenerator): ExchangesCoroutineImplBase
 
   /** Creates a test subject. */
   protected abstract fun newDataProvidersService(
@@ -169,16 +166,18 @@ abstract class ExchangeStepAttemptsServiceTest {
     idGenerator: IdGenerator
   ): ExchangeStepAttemptsCoroutineImplBase
 
-  private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
+  private lateinit var exchangesService: ExchangesCoroutineImplBase
   private lateinit var exchangeStepsService: ExchangeStepsCoroutineImplBase
+  private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
 
   @Before
   fun initServices() {
-    exchangeStepAttemptsService = newExchangeStepAttemptsService(idGenerator)
+    exchangesService = newExchangesService(idGenerator)
     exchangeStepsService = newExchangeStepsService(idGenerator)
+    exchangeStepAttemptsService = newExchangeStepAttemptsService(idGenerator)
+    val recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
     val dataProvidersService = newDataProvidersService(DATA_PROVIDER_ID_GENERATOR)
     val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
-    val recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
     runBlocking {
       dataProvidersService.createDataProvider(DATA_PROVIDER)
       modelProvidersService.createModelProvider(MODEL_PROVIDER)
@@ -192,9 +191,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   fun `finishExchangeStepAttempt fails for missing date`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.finishExchangeStepAttempt(
-          FinishExchangeStepAttemptRequest.getDefaultInstance()
-        )
+        exchangeStepAttemptsService.finishExchangeStepAttempt(finishExchangeStepAttemptRequest {})
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -206,14 +203,12 @@ abstract class ExchangeStepAttemptsServiceTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(
-          FinishExchangeStepAttemptRequest.newBuilder()
-            .apply {
-              externalRecurringExchangeId = 1L
-              stepIndex = STEP_INDEX
-              attemptNumber = 1
-              date = DATE
-            }
-            .build()
+          finishExchangeStepAttemptRequest {
+            externalRecurringExchangeId = 1L
+            stepIndex = STEP_INDEX
+            attemptNumber = 1
+            date = DATE
+          }
         )
       }
 
@@ -223,13 +218,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
+      claimReadyExchangeStepRequest { provider = getModelProvider() }
     )
 
     val response =
@@ -239,11 +228,7 @@ abstract class ExchangeStepAttemptsServiceTest {
           date = DATE
           stepIndex = 1
           attemptNumber = 1
-          provider =
-            provider {
-              externalId = EXTERNAL_MODEL_PROVIDER_ID
-              type = Provider.Type.MODEL_PROVIDER
-            }
+          provider = getModelProvider()
         }
       )
 
@@ -264,13 +249,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   @Test
   fun `getExchangeStepAttempt fails with wrong provider`() = runBlocking {
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest {
-        provider =
-          provider {
-            externalId = EXTERNAL_MODEL_PROVIDER_ID
-            type = Provider.Type.MODEL_PROVIDER
-          }
-      }
+      claimReadyExchangeStepRequest { provider = getModelProvider() }
     )
 
     val exception =
@@ -296,19 +275,152 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
+      )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
+      )
+    assertThat(response.attemptNumber).isEqualTo(1L)
+
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
+
+    exchangesService.getAndAssertExchange(Exchange.State.SUCCEEDED)
+    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.SUCCEEDED)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
+      )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.FAILED)
+      )
+    assertThat(response.attemptNumber).isEqualTo(1L)
+
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED)
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
+    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
+    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.READY_FOR_RETRY)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-    // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/204.
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
+      )
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.FAILED_STEP)
+      )
+    assertThat(response.attemptNumber).isEqualTo(1L)
+
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
+    exchangesService.getAndAssertExchange(Exchange.State.FAILED)
+    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.FAILED)
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt succeeds on second try`() = runBlocking {
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
+      )
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
+
+    val failedAttempt =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.FAILED)
+      )
+    assertThat(failedAttempt.attemptNumber).isEqualTo(1L)
+    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
+    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.READY_FOR_RETRY)
+
+    val claimReadyExchangeStepResponse2 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = getModelProvider() }
+      )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep)
+      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(claimReadyExchangeStepResponse2.exchangeStep)
+    assertThat(claimReadyExchangeStepResponse2.exchangeStep.updateTime.toGcloudTimestamp())
+      .isGreaterThan(claimReadyExchangeStepResponse.exchangeStep.updateTime.toGcloudTimestamp())
+    assertThat(claimReadyExchangeStepResponse2.attemptNumber).isEqualTo(2L)
+
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(
+          ExchangeStepAttempt.State.SUCCEEDED,
+          claimReadyExchangeStepResponse2.attemptNumber
+        )
+      )
+    assertThat(response.attemptNumber).isEqualTo(2L)
+
+    val expected =
+      makeExchangeStepAttempt(
+        ExchangeStepAttempt.State.SUCCEEDED,
+        claimReadyExchangeStepResponse2.attemptNumber
+      )
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    exchangesService.getAndAssertExchange(Exchange.State.SUCCEEDED)
+    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.SUCCEEDED)
+  }
+
+  private fun makeRequest(
+    attemptState: ExchangeStepAttempt.State,
+    attemptNo: Int = 1
+  ): FinishExchangeStepAttemptRequest {
+    return finishExchangeStepAttemptRequest {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = attemptNo
+      state = attemptState
+    }
+  }
+
+  private fun makeExchangeStepAttempt(
+    attemptState: ExchangeStepAttempt.State,
+    attemptNo: Int = 1
+  ): ExchangeStepAttempt {
+    val debugLogMessage =
+      when (attemptState) {
+        ExchangeStepAttempt.State.SUCCEEDED -> "Attempt for Step: 1 Succeeded."
+        else -> "Attempt for Step: 1 Failed."
+      }
+    return exchangeStepAttempt {
+      externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+      date = DATE
+      stepIndex = STEP_INDEX
+      attemptNumber = attemptNo
+      state = attemptState
+      details =
+        exchangeStepAttemptDetails { debugLogEntries += debugLog { message = debugLogMessage } }
+    }
   }
 }
