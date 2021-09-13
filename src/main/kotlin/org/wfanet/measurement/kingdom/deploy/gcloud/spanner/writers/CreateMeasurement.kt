@@ -179,7 +179,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       """.trimIndent()
 
     return MeasurementReader(Measurement.View.DEFAULT)
-      .withBuilder {
+      .fillStatementBuilder {
         appendClause(whereClause)
         bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
         bind(params.PROVIDED_MEASUREMENT_ID to measurement.providedMeasurementId)

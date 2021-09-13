@@ -34,7 +34,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
   override suspend fun TransactionScope.runTransaction(): EventGroup {
     val measurementConsumerId =
       MeasurementConsumerReader()
-        .readExternalIdOrNull(
+        .readByExternalMeasurementConsumerId(
           transactionContext,
           ExternalId(eventGroup.externalMeasurementConsumerId)
         )
@@ -45,7 +45,10 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
 
     val dataProviderId =
       DataProviderReader()
-        .readExternalIdOrNull(transactionContext, ExternalId(eventGroup.externalDataProviderId))
+        .readByExternalDataProviderId(
+          transactionContext,
+          ExternalId(eventGroup.externalDataProviderId)
+        )
         ?.dataProviderId
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 

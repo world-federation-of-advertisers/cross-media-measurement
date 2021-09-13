@@ -28,8 +28,11 @@ class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Excha
   override suspend fun TransactionScope.runTransaction(): Exchange {
     val recurringExchangeId =
       RecurringExchangeReader()
-        .readExternalId(transactionContext, ExternalId(exchange.externalRecurringExchangeId))
-        .recurringExchangeId
+        .readByExternalRecurringExchangeId(
+          transactionContext,
+          ExternalId(exchange.externalRecurringExchangeId)
+        )
+        ?.recurringExchangeId
 
     transactionContext.bufferInsertMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)

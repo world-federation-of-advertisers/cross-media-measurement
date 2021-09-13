@@ -15,7 +15,11 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toProtoDate
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Exchange
@@ -48,8 +52,6 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
     JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "RecurringExchanges.ExternalRecurringExchangeId"
-
   override suspend fun translate(struct: Struct): Result {
     return Result(
       recurringExchange = buildRecurringExchange(struct),
@@ -57,6 +59,19 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
       modelProviderId = struct.getLong("ModelProviderId"),
       dataProviderId = struct.getLong("DataProviderId")
     )
+  }
+
+  suspend fun readByExternalRecurringExchangeId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalRecurringExchangeId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE ExternalRecurringExchangeId = @externalRecurringExchangeId")
+        bind("externalRecurringExchangeId").to(externalRecurringExchangeId.value)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
   }
 
   private fun buildRecurringExchange(struct: Struct): RecurringExchange {

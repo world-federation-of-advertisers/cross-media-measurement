@@ -30,13 +30,19 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
   override suspend fun TransactionScope.runTransaction(): RecurringExchange {
     val dataProviderId =
       DataProviderReader()
-        .readExternalId(transactionContext, ExternalId(recurringExchange.externalDataProviderId))
-        .dataProviderId
+        .readByExternalDataProviderId(
+          transactionContext,
+          ExternalId(recurringExchange.externalDataProviderId)
+        )
+        ?.dataProviderId
 
     val modelProviderId =
       ModelProviderReader()
-        .readExternalId(transactionContext, ExternalId(recurringExchange.externalModelProviderId))
-        .modelProviderId
+        .readByExternalModelProviderId(
+          transactionContext,
+          ExternalId(recurringExchange.externalModelProviderId)
+        )
+        ?.modelProviderId
 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {

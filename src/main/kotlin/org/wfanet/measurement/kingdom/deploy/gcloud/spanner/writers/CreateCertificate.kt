@@ -75,12 +75,15 @@ class CreateCertificate(private val certificate: Certificate) :
     return when (certificate.parentCase) {
       Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
         DataProviderReader()
-          .readExternalIdOrNull(transactionContext, ExternalId(certificate.externalDataProviderId))
+          .readByExternalDataProviderId(
+            transactionContext,
+            ExternalId(certificate.externalDataProviderId)
+          )
           ?.dataProviderId
           ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
         MeasurementConsumerReader()
-          .readExternalIdOrNull(
+          .readByExternalMeasurementConsumerId(
             transactionContext,
             ExternalId(certificate.externalMeasurementConsumerId)
           )

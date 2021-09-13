@@ -48,9 +48,6 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     JOIN RecurringExchanges USING (RecurringExchangeId)
     """.trimIndent()
 
-  override val externalIdColumn: String
-    get() = error("This isn't supported.")
-
   override suspend fun translate(struct: Struct): Result {
     return Result(
       exchangeStep = buildExchangeStep(struct),

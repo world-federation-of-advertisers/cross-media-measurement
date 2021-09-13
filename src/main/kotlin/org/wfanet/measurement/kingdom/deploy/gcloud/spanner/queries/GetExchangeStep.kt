@@ -31,7 +31,7 @@ class GetExchangeStep(filter: GetExchangeStepFilter) :
   SimpleSpannerQuery<ExchangeStepReader.Result>() {
 
   override val reader: BaseSpannerReader<ExchangeStepReader.Result> by lazy {
-    ExchangeStepReader(ExchangeStepReader.Index.NONE).withBuilder {
+    ExchangeStepReader(ExchangeStepReader.Index.NONE).fillStatementBuilder {
       require(!filter.empty) { "Filter not provided for GetExchangeStep." }
 
       appendClause("WHERE ")

@@ -34,7 +34,10 @@ class SpannerModelProvidersService(
   }
   override suspend fun getModelProvider(request: GetModelProviderRequest): ModelProvider {
     return ModelProviderReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalModelProviderId))
+      .readByExternalModelProviderId(
+        client.singleUse(),
+        ExternalId(request.externalModelProviderId)
+      )
       ?.modelProvider
       ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
   }

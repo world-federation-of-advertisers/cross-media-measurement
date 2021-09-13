@@ -38,7 +38,7 @@ class SpannerExchangesService(
 
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
     return ExchangeReader()
-      .withBuilder {
+      .fillStatementBuilder {
         appendClause(
           "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
         )

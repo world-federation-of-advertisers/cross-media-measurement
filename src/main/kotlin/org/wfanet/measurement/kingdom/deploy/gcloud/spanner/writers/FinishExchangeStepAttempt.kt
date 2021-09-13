@@ -105,22 +105,29 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
 
     val workflow =
       RecurringExchangeReader()
-        .readExternalId(transactionContext, ExternalId(externalRecurringExchangeId))
-        .recurringExchange
-        .details
-        .exchangeWorkflow
+        .readByExternalRecurringExchangeId(
+          transactionContext,
+          ExternalId(externalRecurringExchangeId)
+        )
+        ?.recurringExchange
+        ?.details
+        ?.exchangeWorkflow
 
     val steps =
-      findReadyExchangeSteps(
-        workflow = workflow,
+      workflow?.let {
+        findReadyExchangeSteps(
+          workflow = it,
+          recurringExchangeId = recurringExchangeId,
+          date = reqDate
+        )
+      }
+    if (steps != null) {
+      updateExchangeStepsToReady(
+        steps = steps,
         recurringExchangeId = recurringExchangeId,
         date = reqDate
       )
-    updateExchangeStepsToReady(
-      steps = steps,
-      recurringExchangeId = recurringExchangeId,
-      date = reqDate
-    )
+    }
 
     return updateExchangeStepAttempt(
       recurringExchangeId = recurringExchangeId,
@@ -226,7 +233,7 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     attemptIndex: Int
   ): ExchangeStepAttemptReader.Result? {
     return ExchangeStepAttemptReader()
-      .withBuilder {
+      .fillStatementBuilder {
         appendClause(
           "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
         )

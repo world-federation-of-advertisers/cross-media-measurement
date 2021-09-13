@@ -80,7 +80,7 @@ class SpannerMeasurementsService(
     request: GetMeasurementByComputationIdRequest
   ): Measurement {
     return MeasurementReader(Measurement.View.COMPUTATION)
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalComputationId))
+      .readByExternalComputationId(client.singleUse(), ExternalId(request.externalComputationId))
       ?.measurement
       ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }

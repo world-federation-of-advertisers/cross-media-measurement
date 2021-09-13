@@ -49,8 +49,6 @@ class MeasurementReader(private val view: Measurement.View) :
   }
   override val baseSql: String = constructBaseSql(view)
 
-  override val externalIdColumn: String = "Measurements.ExternalComputationId"
-
   override suspend fun translate(struct: Struct): Result =
     Result(
       struct.getInternalId("MeasurementConsumerId"),
@@ -63,7 +61,7 @@ class MeasurementReader(private val view: Measurement.View) :
     externalMeasurementConsumerId: ExternalId,
     externalMeasurementId: ExternalId
   ): Result? {
-    return withBuilder {
+    return fillStatementBuilder {
         appendClause(
           """
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
@@ -73,6 +71,19 @@ class MeasurementReader(private val view: Measurement.View) :
         bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
         bind("externalMeasurementId").to(externalMeasurementId.value)
 
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  suspend fun readByExternalComputationId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalComputationId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE ExternalComputationId = @externalComputationId")
+        bind("externalComputationId").to(externalComputationId.value)
         appendClause("LIMIT 1")
       }
       .execute(readContext)
