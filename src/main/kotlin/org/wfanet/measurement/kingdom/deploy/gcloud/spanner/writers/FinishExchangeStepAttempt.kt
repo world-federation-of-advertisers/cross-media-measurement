@@ -195,12 +195,11 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
   ): Set<Int> {
     val sql =
       """
-      SELECT
-       ExchangeSteps.StepIndex
+      SELECT ExchangeSteps.StepIndex
       FROM ExchangeSteps
       WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
-      AND ExchangeSteps.Date = @date
-      AND ExchangeSteps.State = @state
+        AND ExchangeSteps.Date = @date
+        AND ExchangeSteps.State = @state
       ORDER BY ExchangeSteps.StepIndex
       """.trimIndent()
     val statement: Statement =
