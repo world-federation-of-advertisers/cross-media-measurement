@@ -39,6 +39,10 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
 
+/* Key handle of the EDP's private key */
+const val CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY = "edp-consent-signaling-private-key"
+const val ENCRYPTION_PRIVATE_KEY_HANDLE_KEY = "edp-encryption-private-key"
+
 data class SketchGenerationParams(
   val reach: Int,
   val universeSize: Int,
@@ -68,7 +72,7 @@ abstract class EdpSimulator : Runnable {
       )
     val requisitionsStub = RequisitionsCoroutineStub(v2alphaPublicApiChannel)
     val eventGroupsStub = EventGroupsCoroutineStub(v2alphaPublicApiChannel)
-    val certificatesServiceStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
+    val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
 
     val requisitionFulfillmentStub =
       RequisitionFulfillmentCoroutineStub(
@@ -81,21 +85,33 @@ abstract class EdpSimulator : Runnable {
 
     val inMemoryKeyStore = InMemoryKeyStore()
 
+    val edp =
+      EdpData(
+        flags.dataProviderResourceName,
+        ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
+        CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
+        flags.edpCsCertificateDerFile.readBytes().toByteString()
+      )
+
     val workflow =
       RequisitionFulfillmentWorkflow(
-        flags.dataProviderResourceName,
+        edp,
         requisitionsStub,
         requisitionFulfillmentStub,
         SketchStore(storageClient),
         inMemoryKeyStore,
-        certificatesServiceStub,
+        certificatesStub,
         SketchGenerationParams(reach = flags.edpSketchReach, universeSize = flags.edpUniverseSize)
       )
 
     runBlocking {
       inMemoryKeyStore.storePrivateKeyDer(
-        EDP_PRIVATE_KEY_HANDLE_KEY,
-        flags.edpPrivateKeyDerFile.readBytes().toByteString()
+        ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
+        flags.edpEncryptionPrivateKeyDerFile.readBytes().toByteString()
+      )
+      inMemoryKeyStore.storePrivateKeyDer(
+        CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
+        flags.edpCsPrivateKeyDerFile.readBytes().toByteString()
       )
 
       val eventGroup =
@@ -126,11 +142,27 @@ abstract class EdpSimulator : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--data-provider-consent-signaling-key-der-file"],
+      names = ["--data-provider-encryption-private-key-der-file"],
+      description = ["The EDP's Encryption private key (DER format) file."],
+      required = true
+    )
+    lateinit var edpEncryptionPrivateKeyDerFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--data-provider-consent-signaling-private-key-der-file"],
       description = ["The EDP's consent signaling private key (DER format) file."],
       required = true
     )
-    lateinit var edpPrivateKeyDerFile: File
+    lateinit var edpCsPrivateKeyDerFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--data-provider-consent-signaling-certificate-der-file"],
+      description = ["The EDP's consent signaling private key (DER format) file."],
+      required = true
+    )
+    lateinit var edpCsCertificateDerFile: File
       private set
 
     @CommandLine.Option(
