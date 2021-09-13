@@ -42,8 +42,8 @@ package k8s
 						"--mc-resource-name=\(_mc_resource_name)",
 						"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
 						"--mc-encryption-private-key-der-file=var/run/secrets/files/mc_enc_private.der",
-						"--output-differential-privacy-epsilon=1.0",
-						"--output-differential-privacy-delta=1.0",
+						"--output-differential-privacy-epsilon=0.1",
+						"--output-differential-privacy-delta=0.000001",
 			] + _blob_storage_flags
 			volumeMounts: [
 				{
