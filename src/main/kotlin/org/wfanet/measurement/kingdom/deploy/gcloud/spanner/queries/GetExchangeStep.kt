@@ -37,7 +37,7 @@ class GetExchangeStep(filter: GetExchangeStepFilter) :
       appendClause("WHERE ")
       filter.toSql(this, GetExchangeStepFilterSqlConverter)
 
-      appendClause("ORDER BY ExchangeSteps.UpdateTime ASC")
+      appendClause("ORDER BY Date, ExchangeSteps.UpdateTime ASC")
       appendClause("LIMIT 1")
     }
   }

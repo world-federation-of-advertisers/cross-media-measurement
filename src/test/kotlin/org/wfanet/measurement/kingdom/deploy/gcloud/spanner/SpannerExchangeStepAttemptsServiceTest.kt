@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
@@ -49,6 +50,10 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
     idGenerator: IdGenerator
   ): RecurringExchangesCoroutineImplBase {
     return makeKingdomDataServices(idGenerator).recurringExchangesService
+  }
+
+  override fun newExchangesService(idGenerator: IdGenerator): ExchangesCoroutineImplBase {
+    return makeKingdomDataServices(idGenerator).exchangesService
   }
 
   override fun newDataProvidersService(idGenerator: IdGenerator): DataProvidersCoroutineImplBase {

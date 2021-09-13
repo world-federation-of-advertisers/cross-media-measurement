@@ -29,9 +29,10 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.GetRecurringExchangeRequest
-import org.wfanet.measurement.internal.kingdom.ModelProvider
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.modelProvider
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -88,13 +89,6 @@ private val DATA_PROVIDER: DataProvider =
 
 /** Base test class for [RecurringExchangesCoroutineImplBase] implementations. */
 abstract class RecurringExchangesServiceTest {
-  /**
-   * Creates a ModelProvider using [idGenerator] to generate internal and external ids.
-   *
-   * TODO: replace with /ModelProviders service once that exists.
-   */
-  protected abstract fun createModelProvider(idGenerator: IdGenerator): ModelProvider
-
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator
@@ -104,6 +98,11 @@ abstract class RecurringExchangesServiceTest {
   protected abstract fun newDataProvidersService(
     idGenerator: IdGenerator
   ): DataProvidersCoroutineImplBase
+
+  /** Creates a test subject. */
+  protected abstract fun newModelProvidersService(
+    idGenerator: IdGenerator
+  ): ModelProvidersCoroutineImplBase
 
   private lateinit var recurringExchanges: RecurringExchangesCoroutineImplBase
 
@@ -115,7 +114,8 @@ abstract class RecurringExchangesServiceTest {
 
   @Before
   fun createModelProvider() {
-    createModelProvider(MODEL_ID_GENERATOR)
+    val service = newModelProvidersService(MODEL_ID_GENERATOR)
+    runBlocking { service.createModelProvider(modelProvider {}) }
   }
 
   @Before
