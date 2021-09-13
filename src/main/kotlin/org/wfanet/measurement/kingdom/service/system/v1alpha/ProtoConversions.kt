@@ -61,13 +61,17 @@ fun InternalRequisition.toSystemRequisition(publicApiVersion: Version): Requisit
       it.dataProviderCertificateDer = dataProviderCertificate.details.x509Der
       it.requisitionSpecHash = hashSha256(details.encryptedRequisitionSpec)
       it.state = state.toSystemRequisitionState()
-      it.dataProviderParticipationSignature = details.dataProviderParticipationSignature
-      it.fulfillingComputationParticipant =
-        ComputationParticipantKey(
-            externalIdToApiId(externalComputationId),
-            externalFulfillingDuchyId
-          )
-          .toName()
+      if (!details.dataProviderParticipationSignature.isEmpty) {
+        it.dataProviderParticipationSignature = details.dataProviderParticipationSignature
+      }
+      if (externalFulfillingDuchyId.isNotBlank()) {
+        it.fulfillingComputationParticipant =
+          ComputationParticipantKey(
+              externalIdToApiId(externalComputationId),
+              externalFulfillingDuchyId
+            )
+            .toName()
+      }
     }
     .build()
 }
