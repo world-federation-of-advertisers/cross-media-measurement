@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
@@ -80,8 +79,9 @@ class SpannerExchangeStepsService(
         }
         .execute(client.singleUse())
         .singleOrNull()
+        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
 
-    return grpcRequireNotNull(exchangeStepResult) { "Exchange Step not found." }.exchangeStep
+    return exchangeStepResult.exchangeStep
   }
 
   override suspend fun claimReadyExchangeStep(

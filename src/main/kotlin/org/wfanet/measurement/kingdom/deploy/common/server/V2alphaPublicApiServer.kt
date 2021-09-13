@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.server
 
+import com.google.protobuf.ByteString
+import io.grpc.ServerServiceDefinition
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -36,7 +38,10 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.Principal
+import org.wfanet.measurement.kingdom.service.api.v2alpha.PrincipalServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V2alphaPublicApiServer"
@@ -68,19 +73,34 @@ private fun run(
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
 
+  // TODO(@efoxepstein): load AKID->Principal map from a secret config file.
+  val principalLookup =
+    object : PrincipalServerInterceptor.PrincipalLookup {
+      override fun get(authorityKeyIdentifier: ByteString): Principal<*>? {
+        TODO("Not yet implemented")
+      }
+    }
+
+  val internalExchangeStepsCoroutineStub = InternalExchangeStepsCoroutineStub(channel)
+
   // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
-  val service =
+  val services: List<ServerServiceDefinition> =
     listOf(
-      CertificatesService(InternalCertificatesCoroutineStub(channel)),
-      DataProvidersService(InternalDataProvidersCoroutineStub(channel)),
-      EventGroupsService(InternalEventGroupsCoroutineStub(channel)),
-      ExchangeStepAttemptsService(InternalExchangeStepAttemptsCoroutineStub(channel)),
-      ExchangeStepsService(InternalExchangeStepsCoroutineStub(channel)),
-      MeasurementsService(InternalMeasurementsCoroutineStub(channel)),
-      MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel)),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+      CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
+      DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
+      EventGroupsService(InternalEventGroupsCoroutineStub(channel)).bindService(),
+      ExchangeStepAttemptsService(
+          InternalExchangeStepAttemptsCoroutineStub(channel),
+          internalExchangeStepsCoroutineStub
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      ExchangeStepsService(internalExchangeStepsCoroutineStub)
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      MeasurementsService(InternalMeasurementsCoroutineStub(channel)).bindService(),
+      MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel)).bindService(),
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
     )
-  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, service).start().blockUntilShutdown()
+  CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

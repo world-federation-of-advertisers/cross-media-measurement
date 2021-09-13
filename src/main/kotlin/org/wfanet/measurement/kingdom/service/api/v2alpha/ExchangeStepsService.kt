@@ -16,57 +16,28 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val internalRequest =
-      InternalClaimReadyExchangeStepRequest.newBuilder()
-        .apply {
-          providerBuilder.apply {
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-            when (request.partyCase) {
-              PartyCase.DATA_PROVIDER -> {
-                type = Provider.Type.DATA_PROVIDER
-                externalId =
-                  apiIdToExternalId(
-                    grpcRequireNotNull(DataProviderKey.fromName(request.dataProvider))
-                      .dataProviderId
-                  )
-              }
-              PartyCase.MODEL_PROVIDER -> {
-                type = Provider.Type.MODEL_PROVIDER
-                externalId =
-                  apiIdToExternalId(
-                    grpcRequireNotNull(ModelProviderKey.fromName(request.modelProvider))
-                      .modelProviderId
-                  )
-              }
-              PartyCase.PARTY_NOT_SET -> failGrpc { "Party not set" }
-            }
-          }
-        }
-        .build()
+    // TODO(@efoxepstein): ensure the request's provider matches the Principal
+    val internalRequest = claimReadyExchangeStepRequest { provider = getProviderFromContext() }
 
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
     val externalExchangeStep = internalResponse.exchangeStep.toV2Alpha()
@@ -79,12 +50,10 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           exchangeStepAttemptId = internalResponse.attemptNumber.toString()
         )
         .toName()
-    return ClaimReadyExchangeStepResponse.newBuilder()
-      .apply {
-        exchangeStep = externalExchangeStep
-        exchangeStepAttempt = externalExchangeStepAttempt
-      }
-      .build()
+    return claimReadyExchangeStepResponse {
+      exchangeStep = externalExchangeStep
+      exchangeStepAttempt = externalExchangeStepAttempt
+    }
   }
 
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
@@ -93,20 +62,19 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
 }
 
 private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
-  return ExchangeStep.newBuilder()
-    .also {
-      it.name =
-        ExchangeStepKey(
-            recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-            exchangeId = date.toLocalDate().toString(),
-            exchangeStepId = stepIndex.toString()
-          )
-          .toName()
-      it.state = v2AlphaState
-      it.stepIndex = stepIndex
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3): add remaining fields
-    }
-    .build()
+  val exchangeStepKey =
+    ExchangeStepKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = stepIndex.toString()
+    )
+
+  return exchangeStep {
+    name = exchangeStepKey.toName()
+    state = v2AlphaState
+    stepIndex = this@toV2Alpha.stepIndex
+    // TODO(world-federation-of-advertisers/cross-media-measurement#3): add remaining fields
+  }
 }
 
 private val InternalExchangeStep.v2AlphaState: ExchangeStep.State

@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.type.Date
-import kotlin.test.assertFails
+import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -26,66 +28,71 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepRequest as InternalClaimReadyExchangeStepRequest
-import org.wfanet.measurement.internal.kingdom.ClaimReadyExchangeStepResponse as InternalClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest as internalClaimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
+import org.wfanet.measurement.internal.kingdom.provider
 
 private const val RECURRING_EXCHANGE_ID = 1L
-private val DATE = Date.newBuilder().setYear(2021).setMonth(3).setDay(14).build()
+private val DATE = date {
+  year = 2021
+  month = 3
+  day = 14
+}
 private const val EXCHANGE_ID = "2021-03-14"
 private const val STEP_INDEX = 123
 private const val ATTEMPT_NUMBER = 5
 
-private fun toV2AlphaName(): String {
-  return ExchangeStepKey(
+private val EXCHANGE_STEP = exchangeStep {
+  val exchangeStepKey =
+    ExchangeStepKey(
       recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
       exchangeId = EXCHANGE_ID,
       exchangeStepId = STEP_INDEX.toString()
     )
-    .toName()
+  name = exchangeStepKey.toName()
+  state = ExchangeStep.State.READY_FOR_RETRY
+  stepIndex = STEP_INDEX
 }
 
-private val EXCHANGE_STEP =
-  ExchangeStep.newBuilder()
-    .apply {
-      name = toV2AlphaName()
-      state = ExchangeStep.State.READY_FOR_RETRY
-      stepIndex = STEP_INDEX
-    }
-    .build()
+private val EXCHANGE_STEP_ATTEMPT: String =
+  ExchangeStepAttemptKey(
+      recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
+      exchangeId = EXCHANGE_ID,
+      exchangeStepId = STEP_INDEX.toString(),
+      exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
+    )
+    .toName()
 
-private val EXCHANGE_STEP_ATTEMPT: String
-  get() {
-    return ExchangeStepAttemptKey(
-        recurringExchangeId = externalIdToApiId(RECURRING_EXCHANGE_ID),
-        exchangeId = EXCHANGE_ID,
-        exchangeStepId = STEP_INDEX.toString(),
-        exchangeStepAttemptId = ATTEMPT_NUMBER.toString()
-      )
-      .toName()
-  }
+private val CLAIM_READY_EXCHANGE_STEP_RESPONSE: ClaimReadyExchangeStepResponse =
+    claimReadyExchangeStepResponse {
+  exchangeStep = EXCHANGE_STEP
+  exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
+}
 
-private val INTERNAL_EXCHANGE_STEP =
-  InternalExchangeStep.newBuilder()
-    .apply {
-      externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-      date = DATE
-      stepIndex = STEP_INDEX
-      state = InternalExchangeStep.State.READY_FOR_RETRY
-    }
-    .build()
+private val INTERNAL_EXCHANGE_STEP: InternalExchangeStep = internalExchangeStep {
+  externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+  date = DATE
+  stepIndex = STEP_INDEX
+  state = InternalExchangeStep.State.READY_FOR_RETRY
+}
 
 @RunWith(JUnit4::class)
 class ExchangeStepsServiceTest {
@@ -94,12 +101,10 @@ class ExchangeStepsServiceTest {
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { claimReadyExchangeStep(any()) }
         .thenReturn(
-          InternalClaimReadyExchangeStepResponse.newBuilder()
-            .apply {
-              exchangeStep = INTERNAL_EXCHANGE_STEP
-              attemptNumber = ATTEMPT_NUMBER
-            }
-            .build()
+          internalClaimReadyExchangeStepResponse {
+            exchangeStep = INTERNAL_EXCHANGE_STEP
+            attemptNumber = ATTEMPT_NUMBER
+          }
         )
     }
 
@@ -116,84 +121,44 @@ class ExchangeStepsServiceTest {
       }
     }
 
+  private fun claimReadyExchangeStep(): ClaimReadyExchangeStepResponse = runBlocking {
+    service.claimReadyExchangeStep(claimReadyExchangeStepRequest {})
+  }
+
   @Test
-  fun `claimReadyExchangeStep for DataProvider`() {
-    val id = 12345L
-    val dataProviderName = "dataProviders/${externalIdToApiId(id)}"
-    val request =
-      ClaimReadyExchangeStepRequest.newBuilder().apply { dataProvider = dataProviderName }.build()
-    val response = runBlocking { service.claimReadyExchangeStep(request) }
-    assertThat(response)
-      .isEqualTo(
-        ClaimReadyExchangeStepResponse.newBuilder()
-          .apply {
-            exchangeStep = EXCHANGE_STEP
-            exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
-          }
-          .build()
-      )
+  fun `claimReadyExchangeStep unauthenticated`() {
+    val e = assertFailsWith<StatusRuntimeException> { claimReadyExchangeStep() }
+    assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  private fun testClaimReadyExchangeStepWithPrincipal(principal: Principal<*>, provider: Provider) {
+    assertThat(withPrincipal(principal) { claimReadyExchangeStep() })
+      .isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
 
     verifyProtoArgument(
         internalService,
         InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
       )
-      .isEqualTo(
-        InternalClaimReadyExchangeStepRequest.newBuilder()
-          .apply {
-            provider =
-              Provider.newBuilder()
-                .apply {
-                  externalId = 12345L
-                  type = Provider.Type.DATA_PROVIDER
-                }
-                .build()
-          }
-          .build()
-      )
+      .isEqualTo(internalClaimReadyExchangeStepRequest { this.provider = provider })
+  }
+
+  @Test
+  fun `claimReadyExchangeStep for DataProvider`() {
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val provider = provider {
+      type = Provider.Type.DATA_PROVIDER
+      externalId = 12345L
+    }
+    testClaimReadyExchangeStepWithPrincipal(principal, provider)
   }
 
   @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
-    val id = 12345L
-    val modelProviderName = "modelProviders/${externalIdToApiId(id)}"
-    val request =
-      ClaimReadyExchangeStepRequest.newBuilder().apply { modelProvider = modelProviderName }.build()
-    val response = runBlocking { service.claimReadyExchangeStep(request) }
-    assertThat(response)
-      .isEqualTo(
-        ClaimReadyExchangeStepResponse.newBuilder()
-          .apply {
-            exchangeStep = EXCHANGE_STEP
-            exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
-          }
-          .build()
-      )
-
-    verifyProtoArgument(
-        internalService,
-        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
-      )
-      .isEqualTo(
-        InternalClaimReadyExchangeStepRequest.newBuilder()
-          .apply {
-            provider =
-              Provider.newBuilder()
-                .apply {
-                  externalId = 12345L
-                  type = Provider.Type.MODEL_PROVIDER
-                }
-                .build()
-          }
-          .build()
-      )
-  }
-
-  @Test
-  fun `claimReadyExchangeStep without party`() {
-    assertFails {
-      runBlocking {
-        service.claimReadyExchangeStep(ClaimReadyExchangeStepRequest.getDefaultInstance())
-      }
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val provider = provider {
+      type = Provider.Type.MODEL_PROVIDER
+      externalId = 12345L
     }
+    testClaimReadyExchangeStepWithPrincipal(principal, provider)
   }
 }
