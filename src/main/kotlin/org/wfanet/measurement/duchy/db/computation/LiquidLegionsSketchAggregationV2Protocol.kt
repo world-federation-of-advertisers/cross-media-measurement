@@ -54,7 +54,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 object LiquidLegionsSketchAggregationV2Protocol {
   /** Implementation of [ProtocolStageEnumHelper] for [LiquidLegionsSketchAggregationV2.Stage]. */
   object EnumStages : ProtocolStageEnumHelper<LiquidLegionsSketchAggregationV2.Stage> {
-    override val validInitialStages = setOf(CONFIRMATION_PHASE)
+    override val validInitialStages = setOf(INITIALIZATION_PHASE)
     override val validTerminalStages = setOf(COMPLETE)
 
     override val validSuccessors =

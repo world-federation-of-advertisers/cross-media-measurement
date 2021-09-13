@@ -61,7 +61,8 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
 private const val COMPUTATION_ID = "xyz"
 private const val DATA_PROVIDER_ID = "1234"
 private const val REQUISITION_ID = "abcd"
-private const val NEXT_BLOB_PATH = "just a path"
+private const val NEXT_ID = "foo"
+private const val NEXT_BLOB_PATH = "/requisitions/$NEXT_ID"
 private val TEST_REQUISITION_DATA = ByteString.copyFromUtf8("some data")
 private val SIGNATURE = ByteString.copyFromUtf8("a signature")
 private val HEADER =
@@ -91,7 +92,7 @@ class RequisitionFulfillmentServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_ID }
     addService(requisitionsServiceMock)
     addService(computationsServiceMock)
   }

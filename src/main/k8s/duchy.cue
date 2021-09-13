@@ -37,7 +37,7 @@ import ("strings")
 	_async_computations_control_service_cert_host_flag: "--async-computation-control-service-cert-host=localhost"
 	_computations_service_target_flag:                  "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
 	_computations_service_cert_host_flag:               "--computations-service-cert-host=localhost"
-	_duchy_name_flag:                                   "--duchy-name=duchy-\(_name)"
+	_duchy_name_flag:                                   "--duchy-name=\(_name)"
 	_duchy_info_config_flag:                            "--duchy-info-config=" + #DuchyInfoConfig
 	_duchy_protocols_setup_config_flag:                 "--protocols-setup-config=\(_protocols_setup_config)"
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"

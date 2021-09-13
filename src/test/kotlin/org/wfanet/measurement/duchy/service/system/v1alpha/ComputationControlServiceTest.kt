@@ -56,7 +56,8 @@ private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
-private const val NEXT_BLOB_PATH = "just a path"
+private const val NEXT_ID = "foo"
+private const val NEXT_BLOB_PATH = "/requisitions/$NEXT_ID"
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
@@ -82,7 +83,7 @@ class ComputationControlServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_ID }
     addService(mockAsyncControlService)
   }
 
