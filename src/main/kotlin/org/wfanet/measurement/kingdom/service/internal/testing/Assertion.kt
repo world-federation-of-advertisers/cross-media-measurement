@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.date
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -44,6 +44,11 @@ private val DATE = date {
   day = 5
 }
 
+internal val PROVIDER = provider {
+  externalId = EXTERNAL_MODEL_PROVIDER_ID
+  type = Provider.Type.MODEL_PROVIDER
+}
+
 internal val EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS: FieldScope =
   FieldScopes.allowingFieldDescriptors(ExchangeStep.getDescriptor().findFieldByName("update_time"))
 
@@ -52,10 +57,10 @@ internal val EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS: FieldScope =
     ExchangeStepAttempt.getDescriptor().findFieldByName("details")
   )
 
-internal suspend fun ExchangesCoroutineImplBase.getAndAssertExchange(
+internal suspend fun ExchangesCoroutineImplBase.assertTestExchangeHasState(
   exchangeState: Exchange.State
 ) {
-  ProtoTruth.assertThat(
+  assertThat(
       getExchange(
         getExchangeRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
@@ -73,16 +78,16 @@ internal suspend fun ExchangesCoroutineImplBase.getAndAssertExchange(
     )
 }
 
-internal suspend fun ExchangeStepsCoroutineImplBase.getAndAssertExchangeStep(
+internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasState(
   exchangeStepState: ExchangeStep.State
 ) {
-  ProtoTruth.assertThat(
+  assertThat(
       getExchangeStep(
         getExchangeStepRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = DATE
           stepIndex = STEP_INDEX
-          provider = getModelProvider()
+          provider = PROVIDER
         }
       )
     )
@@ -93,23 +98,23 @@ internal suspend fun ExchangeStepsCoroutineImplBase.getAndAssertExchangeStep(
         date = DATE
         stepIndex = STEP_INDEX
         state = exchangeStepState
-        provider = getModelProvider()
+        provider = PROVIDER
       }
     )
 }
 
-internal suspend fun ExchangeStepAttemptsCoroutineImplBase.getAndAssertExchangeStepAttempt(
+internal suspend fun ExchangeStepAttemptsCoroutineImplBase.assertTestExchangeStepAttemptHasState(
   exchangeStepAttemptState: ExchangeStepAttempt.State,
   attemptIndex: Int = 1
 ) {
-  ProtoTruth.assertThat(
+  assertThat(
       getExchangeStepAttempt(
         getExchangeStepAttemptRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = DATE
           stepIndex = STEP_INDEX
           attemptNumber = attemptIndex
-          provider = getModelProvider()
+          provider = PROVIDER
         }
       )
     )
@@ -124,11 +129,4 @@ internal suspend fun ExchangeStepAttemptsCoroutineImplBase.getAndAssertExchangeS
         details = exchangeStepAttemptDetails {}
       }
     )
-}
-
-internal fun getModelProvider(): Provider {
-  return provider {
-    externalId = EXTERNAL_MODEL_PROVIDER_ID
-    type = Provider.Type.MODEL_PROVIDER
-  }
 }
