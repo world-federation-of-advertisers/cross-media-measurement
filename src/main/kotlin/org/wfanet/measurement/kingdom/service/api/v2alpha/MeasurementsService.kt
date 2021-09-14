@@ -110,7 +110,12 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
     measurement.dataProvidersList.forEach {
-      with(it.validateAndMap()) { dataProvidersMap[key] = value }
+      with(it.validateAndMap()) {
+        grpcRequire(!dataProvidersMap.containsKey(key)) {
+          "Duplicated keys found in the data_providers."
+        }
+        dataProvidersMap[key] = value
+      }
     }
 
     val internalMeasurement =
