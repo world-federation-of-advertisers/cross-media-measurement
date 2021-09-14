@@ -23,10 +23,9 @@
 #include "common_cpp/testing/status_matchers.h"
 #include "gtest/gtest.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
-#include "private_membership/rlwe/batch/cpp/client/client.pb.h"
 #include "private_membership/rlwe/batch/cpp/client/client_helper.h"
-#include "private_membership/rlwe/batch/cpp/shared.h"
-#include "private_membership/rlwe/batch/cpp/shared.pb.h"
+#include "private_membership/rlwe/batch/proto/client.pb.h"
+#include "private_membership/rlwe/batch/proto/shared.pb.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/client/privatemembership/decrypt_event_data.pb.h"
 #include "wfa/panelmatch/client/privatemembership/decrypt_query_results_wrapper.h"
@@ -43,6 +42,7 @@ using ::crypto::tink::util::SecretDataFromStringView;
 using ::google::protobuf::RepeatedPtrField;
 using ::testing::Eq;
 using ::testing::Pointwise;
+using ::testing::UnorderedElementsAre;
 using ::wfa::EqualsProto;
 using ::wfa::panelmatch::common::crypto::Aes;
 using ::wfa::panelmatch::common::crypto::AesWithHkdf;
@@ -53,8 +53,6 @@ using ClientDecryptQueriesRequest =
     ::private_membership::batch::DecryptQueriesRequest;
 using ClientEncryptedQueryResult =
     ::private_membership::batch::EncryptedQueryResult;
-using ::wfa::panelmatch::client::privatemembership::testing::
-    CreateTestDecryptQueriesRequest;
 
 TEST(DecryptQueryResults, DecryptQueryResultsTest) {
   std::string hkdf_pepper = "some-pepper";
@@ -84,6 +82,10 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
 
   std::array<absl::string_view, 3> kTestBuckets = {ciphertext1, ciphertext2,
                                                    ciphertext3};
+
+  auto status = CreateTestDecryptQueriesRequest(kTestBuckets).status();
+  ASSERT_TRUE(status.ok()) << status;
+
   ASSERT_OK_AND_ASSIGN(ClientDecryptQueriesRequest request,
                        CreateTestDecryptQueriesRequest(kTestBuckets));
 
@@ -109,25 +111,28 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
         client_encrypted_query_result.query_metadata().shard_id());
   }
 
-  absl::StatusOr<DecryptQueryResultsResponse> test_response =
-      DecryptQueryResults(test_request);
-  DecryptQueryResultsResponse expected_response;
-  DecryptedEventData *expected_decrypted_event_data1 =
-      expected_response.add_decrypted_event_data();
-  expected_decrypted_event_data1->set_plaintext(plaintext1);
-  expected_decrypted_event_data1->mutable_query_id()->set_id(0);
-  expected_decrypted_event_data1->mutable_shard_id()->set_id(8);
-  DecryptedEventData *expected_decrypted_event_data2 =
-      expected_response.add_decrypted_event_data();
-  expected_decrypted_event_data2->set_plaintext(plaintext2);
-  expected_decrypted_event_data2->mutable_query_id()->set_id(1);
-  expected_decrypted_event_data2->mutable_shard_id()->set_id(3);
-  DecryptedEventData *expected_decrypted_event_data3 =
-      expected_response.add_decrypted_event_data();
-  expected_decrypted_event_data3->set_plaintext(plaintext3);
-  expected_decrypted_event_data3->mutable_query_id()->set_id(2);
-  expected_decrypted_event_data3->mutable_shard_id()->set_id(11);
-  EXPECT_THAT(test_response, IsOkAndHolds(EqualsProto(expected_response)));
+  ASSERT_OK_AND_ASSIGN(DecryptQueryResultsResponse test_response,
+                       DecryptQueryResults(test_request));
+
+  DecryptedEventData expected_decrypted_event_data1;
+  expected_decrypted_event_data1.set_plaintext(plaintext1);
+  expected_decrypted_event_data1.mutable_query_id()->set_id(0);
+  expected_decrypted_event_data1.mutable_shard_id()->set_id(2);
+
+  DecryptedEventData expected_decrypted_event_data2;
+  expected_decrypted_event_data2.set_plaintext(plaintext2);
+  expected_decrypted_event_data2.mutable_query_id()->set_id(1);
+  expected_decrypted_event_data2.mutable_shard_id()->set_id(3);
+
+  DecryptedEventData expected_decrypted_event_data3;
+  expected_decrypted_event_data3.set_plaintext(plaintext3);
+  expected_decrypted_event_data3.mutable_query_id()->set_id(2);
+  expected_decrypted_event_data3.mutable_shard_id()->set_id(1);
+  EXPECT_THAT(
+      test_response.decrypted_event_data(),
+      UnorderedElementsAre(EqualsProto(expected_decrypted_event_data1),
+                           EqualsProto(expected_decrypted_event_data2),
+                           EqualsProto(expected_decrypted_event_data3)));
 }
 
 }  // namespace

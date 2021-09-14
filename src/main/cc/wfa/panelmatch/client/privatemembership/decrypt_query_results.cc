@@ -26,7 +26,7 @@
 #include "absl/types/span.h"
 #include "common_cpp/macros/macros.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
-#include "private_membership/rlwe/batch/cpp/client/client.pb.h"
+#include "private_membership/rlwe/batch/proto/client.pb.h"
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
 
 namespace wfa::panelmatch::client::privatemembership {

@@ -17,15 +17,17 @@
 #ifndef SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_TESTING_PRIVATE_MEMBERSHIP_HELPER_H_
 #define SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_TESTING_PRIVATE_MEMBERSHIP_HELPER_H_
 
+#include <array>
 #include <string>
 
 #include "absl/status/statusor.h"
-#include "private_membership/rlwe/batch/cpp/client/client.pb.h"
+#include "absl/strings/string_view.h"
+#include "private_membership/rlwe/batch/proto/client.pb.h"
 
-namespace wfa::panelmatch::client::privatemembership::testing {
+namespace wfa::panelmatch::client::privatemembership {
 
 absl::StatusOr<private_membership::batch::DecryptQueriesRequest>
 CreateTestDecryptQueriesRequest(std::array<absl::string_view, 3> kTestBuckets);
 
-}  // namespace wfa::panelmatch::client::privatemembership::testing
+}  // namespace wfa::panelmatch::client::privatemembership
 #endif  // SRC_MAIN_CC_WFA_PANELMATCH_CLIENT_PRIVATEMEMBERSHIP_TESTING_PRIVATE_MEMBERSHIP_HELPER_H_

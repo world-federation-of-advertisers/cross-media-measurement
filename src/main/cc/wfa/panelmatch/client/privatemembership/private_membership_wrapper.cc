@@ -19,7 +19,7 @@
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
-#include "private_membership/rlwe/batch/cpp/client/client.pb.h"
+#include "private_membership/rlwe/batch/proto/client.pb.h"
 
 namespace wfa::panelmatch::client::privatemembership {
 using ::private_membership::batch::DecryptQueries;
