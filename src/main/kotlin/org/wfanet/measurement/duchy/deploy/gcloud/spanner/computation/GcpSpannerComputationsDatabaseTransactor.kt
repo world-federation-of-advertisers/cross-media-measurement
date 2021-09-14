@@ -95,14 +95,6 @@ class GcpSpannerComputationsDatabaseTransactor<
         details = stageDetails
       )
 
-    val blobRefRow =
-      computationMutations.insertComputationBlobReference(
-        localId = localId,
-        stage = initialStage,
-        blobId = 0,
-        dependencyType = ComputationBlobDependency.OUTPUT
-      )
-
     val requisitionRows =
       requisitions.map {
         computationMutations.insertRequisition(
@@ -113,7 +105,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         )
       }
 
-    databaseClient.write(listOf(computationRow, computationStageRow, blobRefRow) + requisitionRows)
+    databaseClient.write(listOf(computationRow, computationStageRow) + requisitionRows)
   }
 
   override suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int) {
