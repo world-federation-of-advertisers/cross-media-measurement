@@ -98,12 +98,6 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
     }
 }
 
-private val DATE = date {
-  year = 2021
-  month = 8
-  day = 5
-}
-
 private val RECURRING_EXCHANGE = recurringExchange {
   externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
@@ -114,7 +108,7 @@ private val RECURRING_EXCHANGE = recurringExchange {
       cronSchedule = "@daily"
       exchangeWorkflow = EXCHANGE_WORKFLOW
     }
-  nextExchangeDate = DATE
+  nextExchangeDate = EXCHANGE_DATE
 }
 
 private val DATA_PROVIDER = dataProvider {
@@ -207,7 +201,7 @@ abstract class ExchangeStepAttemptsServiceTest {
             externalRecurringExchangeId = 1L
             stepIndex = STEP_INDEX
             attemptNumber = 1
-            date = DATE
+            date = EXCHANGE_DATE
           }
         )
       }
@@ -225,7 +219,7 @@ abstract class ExchangeStepAttemptsServiceTest {
       exchangeStepAttemptsService.getExchangeStepAttempt(
         getExchangeStepAttemptRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
+          date = EXCHANGE_DATE
           stepIndex = 1
           attemptNumber = 1
           provider = PROVIDER
@@ -234,7 +228,7 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val expected = exchangeStepAttempt {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
+      date = EXCHANGE_DATE
       stepIndex = STEP_INDEX
       attemptNumber = 1
       state = ExchangeStepAttempt.State.ACTIVE
@@ -257,7 +251,7 @@ abstract class ExchangeStepAttemptsServiceTest {
         exchangeStepAttemptsService.getExchangeStepAttempt(
           getExchangeStepAttemptRequest {
             externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-            date = DATE
+            date = EXCHANGE_DATE
             stepIndex = 1
             attemptNumber = 1
             provider =
@@ -390,7 +384,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
+      date = EXCHANGE_DATE
       stepIndex = STEP_INDEX
       attemptNumber = attemptNo
       state = attemptState
@@ -408,7 +402,7 @@ abstract class ExchangeStepAttemptsServiceTest {
       }
     return exchangeStepAttempt {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-      date = DATE
+      date = EXCHANGE_DATE
       stepIndex = STEP_INDEX
       attemptNumber = attemptNo
       state = attemptState

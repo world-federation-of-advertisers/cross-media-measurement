@@ -140,7 +140,7 @@ class SpannerExchangeStepsService(
       return result.get().toClaimReadyExchangeStepResponse()
     }
 
-    return ClaimReadyExchangeStepResponse.getDefaultInstance()
+    return claimReadyExchangeStepResponse {}
   }
 
   private fun Result.toClaimReadyExchangeStepResponse(): ClaimReadyExchangeStepResponse {
