@@ -34,9 +34,11 @@ class SpannerMeasurementLogEntriesService(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
 
-    grpcRequire(request.measurementLogEntryDetails.error.type == TRANSIENT) {
-      "MeasurementLogEntries Service only supports TRANSIENT errors, " +
-        "use FailComputationParticipant instead."
+    if (request.measurementLogEntryDetails.hasError()) {
+      grpcRequire(request.measurementLogEntryDetails.error.type == TRANSIENT) {
+        "MeasurementLogEntries Service only supports TRANSIENT errors, " +
+          "use FailComputationParticipant instead."
+      }
     }
 
     try {
