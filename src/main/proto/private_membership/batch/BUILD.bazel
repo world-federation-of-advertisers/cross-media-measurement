@@ -1,0 +1,21 @@
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+kt_jvm_proto_library(
+    name = "shared_kt_jvm_proto",
+    srcs = ["@private_membership//private_membership/rlwe/batch/proto:shared_proto"],
+    deps = ["@private_membership//private_membership/rlwe/batch/proto:shared_java_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "client_kt_jvm_proto",
+    srcs = ["@private_membership//private_membership/rlwe/batch/proto:client_proto"],
+    deps = ["@private_membership//private_membership/rlwe/batch/proto:client_java_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "server_kt_jvm_proto",
+    srcs = ["@private_membership//private_membership/rlwe/batch/proto:server_proto"],
+    deps = ["@private_membership//private_membership/rlwe/batch/proto:server_java_proto"],
+)
