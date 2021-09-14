@@ -333,28 +333,6 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
         }
         .build()
     )
-
-    assertQueryReturns(
-      databaseClient,
-      """
-      SELECT ComputationId, COUNT(1) as N
-      FROM ComputationBlobReferences
-      GROUP BY ComputationId
-      ORDER BY ComputationId DESC
-      """.trimIndent(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(localId1)
-          set("N").to(1)
-        }
-        .build(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(localId2)
-          set("N").to(1)
-        }
-        .build()
-    )
   }
 
   @Test

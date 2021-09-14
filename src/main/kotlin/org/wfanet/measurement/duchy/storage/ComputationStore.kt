@@ -14,79 +14,40 @@
 
 package org.wfanet.measurement.duchy.storage
 
-import com.google.protobuf.ByteString
 import java.util.UUID
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationStage
+import org.wfanet.measurement.storage.BlobKeyGenerator
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.Store
 
-private typealias ComputationBlobKeyGenerator = ComputationToken.() -> String
+private const val BLOB_KEY_PREFIX = "/computations"
 
-/**
- * Blob storage for computations.
- *
- * @param storageClient the blob storage client.
- * @param generateBlobKey a function to generate a unique blob key for a given [token]
- * [ComputationToken].
- */
+/** A [Store] instance for managing Blobs associated with computations in the Duchy. */
 class ComputationStore
 private constructor(
-  private val storageClient: StorageClient,
-  private val generateBlobKey: ComputationBlobKeyGenerator
-) {
-  constructor(
-    storageClient: StorageClient
-  ) : this(storageClient, ComputationToken::generateUniqueBlobKey)
+  storageClient: StorageClient,
+  generateBlobKey: BlobKeyGenerator<ComputationBlobContext>
+) : Store<ComputationBlobContext>(storageClient, generateBlobKey) {
+  constructor(storageClient: StorageClient) : this(storageClient, ::generateBlobKey)
 
-  /**
-   * Writes a new computation blob with the specified content.
-   *
-   * @param token [ComputationToken] from which to derive the blob key
-   * @param content [Flow] producing the content to write
-   * @return [Blob] with a key derived from [token]
-   */
-  suspend fun write(token: ComputationToken, content: Flow<ByteString>): Blob {
-    val blobKey = token.generateBlobKey()
-    val createdBlob = storageClient.createBlob(blobKey, content)
-    return Blob(blobKey, createdBlob)
-  }
-
-  /** @see write */
-  suspend fun write(token: ComputationToken, content: ByteString): Blob =
-    write(token, content.asBufferedFlow(storageClient.defaultBufferSizeBytes))
-
-  /**
-   * Returns a [Blob] for the computation with the specified blob key, or `null` if the computation
-   * isn't found.
-   */
-  fun get(blobKey: String): Blob? {
-    return storageClient.getBlob(blobKey)?.let { Blob(blobKey, it) }
-  }
-
-  /** [StorageClient.Blob] implementation for [ComputationStore]. */
-  class Blob(val blobKey: String, wrappedBlob: StorageClient.Blob) :
-    StorageClient.Blob by wrappedBlob
+  override val blobKeyPrefix = BLOB_KEY_PREFIX
 
   companion object {
     fun forTesting(
       storageClient: StorageClient,
-      blobKeyGenerator: ComputationBlobKeyGenerator
-    ): ComputationStore {
-      return ComputationStore(storageClient, blobKeyGenerator)
-    }
+      generateBlobKey: BlobKeyGenerator<ComputationBlobContext>
+    ): ComputationStore = ComputationStore(storageClient, generateBlobKey)
   }
 }
 
-/** Returns a unique blob key derived from this [ComputationToken]. */
-private fun ComputationToken.generateUniqueBlobKey(): String {
-  return listOf(
-      "/computations",
-      localComputationId,
-      computationStage.name,
-      version,
-      UUID.randomUUID().toString()
-    )
-    .joinToString("/")
+/** The context used to generate blob key for the [ComputationStore]. */
+data class ComputationBlobContext(
+  val externalComputationId: String,
+  val computationStage: ComputationStage
+)
+
+/** Generates a Blob key using the [ComputationBlobContext]. */
+private fun generateBlobKey(context: ComputationBlobContext): String {
+  return "/${context.externalComputationId}/${context.computationStage.name}/${UUID.randomUUID()}"
 }

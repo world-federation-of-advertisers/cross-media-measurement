@@ -109,6 +109,11 @@ class ComputationDataClientsTest {
       )
     val fakeRpcService = computation.FakeRpcService()
     computation.enqueue()
+
+    computation.claimWorkFor("mill-0")
+    computation.runWaitStage(Stage.WAIT_REQUISITIONS_AND_KEY_SET, numOfOutput = 0)
+    computation.getRequisitionAndKeySet()
+
     computation.claimWorkFor("mill-1")
     computation.runWaitStage(Stage.WAIT_TO_START, numOfOutput = 0)
     computation.start()
@@ -152,6 +157,10 @@ class ComputationDataClientsTest {
     val fakeRpcService = computation.FakeRpcService()
 
     computation.enqueue()
+    computation.claimWorkFor("mill-0")
+    computation.runWaitStage(Stage.WAIT_REQUISITIONS_AND_KEY_SET, numOfOutput = 0)
+    computation.getRequisitionAndKeySet()
+
     computation.claimWorkFor("mill-1")
 
     computation.waitForSketches(
@@ -377,6 +386,22 @@ class SingleLiquidLegionsV2Computation(
       dataClients.transitionComputationToStage(
         computationToken = it.token,
         stage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+      )
+    }
+  }
+
+  suspend fun getRequisitionAndKeySet() {
+    assertTokenChangesTo(
+      token
+        .outputBlobsToInputBlobs(keepInputs = true)
+        .setComputationStage(Stage.CONFIRMATION_PHASE.toProtocolStage())
+        .setAttempt(0)
+        .build()
+    ) {
+      dataClients.transitionComputationToStage(
+        computationToken = it.token,
+        inputsToNextStage = it.inputs.paths(),
+        stage = Stage.CONFIRMATION_PHASE.toProtocolStage()
       )
     }
   }
