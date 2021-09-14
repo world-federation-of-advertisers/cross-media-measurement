@@ -25,7 +25,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.storage.ComputationBlobContext
+import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
@@ -36,7 +37,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationKey
 
 class ComputationControlService(
   private val asyncComputationControlClient: AsyncComputationControlCoroutineStub,
-  private val requisitionStore: RequisitionStore,
+  private val computationStore: ComputationStore,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
 ) : ComputationControlCoroutineImplBase() {
 
@@ -44,7 +45,7 @@ class ComputationControlService(
     asyncComputationControlClient: AsyncComputationControlCoroutineStub,
     storageClient: StorageClient,
     duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext
-  ) : this(asyncComputationControlClient, RequisitionStore(storageClient), duchyIdentityProvider)
+  ) : this(asyncComputationControlClient, ComputationStore(storageClient), duchyIdentityProvider)
 
   override suspend fun advanceComputation(
     requests: Flow<AdvanceComputationRequest>
@@ -78,12 +79,13 @@ class ComputationControlService(
   ) {
     // TODO: maybe early reject the request, e.g., by checking if a computation with this id
     //  exists.
-    val blob = requisitionStore.write(content)
+    val stage = header.stageExpectingInput()
+    val blob = computationStore.write(ComputationBlobContext(globalId, stage), content)
     val advanceAsyncComputationRequest =
       AsyncAdvanceComputationRequest.newBuilder()
         .apply {
           globalComputationId = globalId
-          computationStage = header.stageExpectingInput()
+          computationStage = stage
           blobPath = blob.blobKey
           dataOrigin = duchyIdentityProvider().id
         }

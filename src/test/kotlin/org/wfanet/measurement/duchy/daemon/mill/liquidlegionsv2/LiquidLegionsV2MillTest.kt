@@ -75,7 +75,10 @@ import org.wfanet.measurement.duchy.service.internal.computation.ComputationsSer
 import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -121,6 +124,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
+import org.wfanet.measurement.storage.Store.Blob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -464,23 +468,45 @@ class LiquidLegionsV2MillTest {
 
   private lateinit var computationDataClients: ComputationDataClients
   private lateinit var computationStore: ComputationStore
+  private lateinit var requisitionStore: RequisitionStore
 
   private val tempDirectory = TemporaryFolder()
   private val keyStore = InMemoryKeyStore()
 
   private val blobCount = AtomicInteger()
   private val generatedBlobKeys = mutableListOf<String>()
-  private fun ComputationToken.generateBlobKey(): String {
-    return listOf(localComputationId, computationStage.name, blobCount.getAndIncrement())
+  private fun generateComputationBlobKey(context: ComputationBlobContext): String {
+    return listOf(context.externalComputationId, blobCount.getAndIncrement())
+      .joinToString("/")
+      .also { generatedBlobKeys.add(it) }
+  }
+  private fun generateRequisitionBlobKey(context: RequisitionBlobContext): String {
+    return listOf(
+      context.externalDataProviderId,
+      context.externalRequisitionId,
+      blobCount.getAndIncrement()
+    )
       .joinToString("/")
       .also { generatedBlobKeys.add(it) }
   }
 
   private val grpcTestServerRule = GrpcTestServerRule {
     computationStore =
-      ComputationStore.forTesting(FileSystemStorageClient(tempDirectory.root)) { generateBlobKey() }
+      ComputationStore.forTesting(
+        FileSystemStorageClient(tempDirectory.root),
+        ::generateComputationBlobKey
+      )
+    requisitionStore =
+      RequisitionStore.forTesting(
+        FileSystemStorageClient(tempDirectory.root),
+        ::generateRequisitionBlobKey
+      )
     computationDataClients =
-      ComputationDataClients.forTesting(ComputationsCoroutineStub(channel), computationStore)
+      ComputationDataClients.forTesting(
+        ComputationsCoroutineStub(channel),
+        computationStore,
+        requisitionStore
+      )
     addService(mockLiquidLegionsComputationControl)
     addService(mockSystemComputations)
     addService(mockComputationLogEntries)
@@ -510,7 +536,7 @@ class LiquidLegionsV2MillTest {
     SystemComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val systemcomputationParticipantsStub:
+  private val systemComputationParticipantsStub:
     SystemComputationParticipantsCoroutineStub by lazy {
     SystemComputationParticipantsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -565,7 +591,7 @@ class LiquidLegionsV2MillTest {
         keyStore = keyStore,
         consentSignalCert = csCertificate,
         dataClients = computationDataClients,
-        systemComputationParticipantsClient = systemcomputationParticipantsStub,
+        systemComputationParticipantsClient = systemComputationParticipantsStub,
         systemComputationsClient = systemComputationStub,
         systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
@@ -581,7 +607,7 @@ class LiquidLegionsV2MillTest {
         keyStore = keyStore,
         consentSignalCert = csCertificate,
         dataClients = computationDataClients,
-        systemComputationParticipantsClient = systemcomputationParticipantsStub,
+        systemComputationParticipantsClient = systemComputationParticipantsStub,
         systemComputationsClient = systemComputationStub,
         systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
@@ -690,9 +716,7 @@ class LiquidLegionsV2MillTest {
 
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteInitializationPhaseRequest.newBuilder()
-          .apply { curveId = CURVE_ID.toLong() }
-          .build()
+        CompleteInitializationPhaseRequest.newBuilder().apply { curveId = CURVE_ID }.build()
       )
   }
 
@@ -992,7 +1016,13 @@ class LiquidLegionsV2MillTest {
           stage = SETUP_PHASE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "local_requisition")
+    requisitionStore.writeString(
+      RequisitionBlobContext(
+        REQUISITION_1.externalDataProviderId,
+        REQUISITION_1.externalRequisitionId
+      ),
+      "local_requisition"
+    )
     val requisitionListWithCorrectPath =
       listOf(
         REQUISITION_1.toBuilder().apply { path = generatedBlobKeys.last() }.build(),
@@ -1090,9 +1120,21 @@ class LiquidLegionsV2MillTest {
           stage = SETUP_PHASE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "local_requisition_")
-    computationStore.writeString(partialToken, "duchy_two_sketch_")
-    computationStore.writeString(partialToken, "duchy_three_sketch_")
+    requisitionStore.writeString(
+      RequisitionBlobContext(
+        REQUISITION_1.externalDataProviderId,
+        REQUISITION_1.externalRequisitionId
+      ),
+      "local_requisition_"
+    )
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage()),
+      "duchy_two_sketch_"
+    )
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage()),
+      "duchy_three_sketch_"
+    )
     val requisitionListWithCorrectPath =
       listOf(
         REQUISITION_1.toBuilder().apply { path = generatedBlobKeys[0] }.build(),
@@ -1197,8 +1239,14 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_ONE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "sketch")
-    computationStore.writeString(partialToken, "cached result")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
+      "sketch"
+    )
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
+      "cached result"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1255,7 +1303,10 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_ONE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "data")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
+      "data"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1338,7 +1389,10 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_ONE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "data")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
+      "data"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1428,7 +1482,10 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_TWO.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "data")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage()),
+      "data"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1517,7 +1574,10 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_TWO.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "data")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage()),
+      "data"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1624,7 +1684,10 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_THREE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(partialToken, "data")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage()),
+      "data"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1706,7 +1769,10 @@ class LiquidLegionsV2MillTest {
         .toBuilder()
         .apply { liquidLegionsV2Builder.apply { reachEstimateBuilder.reach = 123 } }
         .build()
-    computationStore.writeString(partialToken, "data")
+    computationStore.writeString(
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage()),
+      "data"
+    )
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
@@ -1791,12 +1857,17 @@ class LiquidLegionsV2MillTest {
   }
 }
 
-private suspend fun ComputationStore.Blob.readToString(): String = read().flatten().toStringUtf8()
+private suspend fun Blob.readToString(): String = read().flatten().toStringUtf8()
 
 private suspend fun ComputationStore.writeString(
-  token: ComputationToken,
+  context: ComputationBlobContext,
   content: String
-): ComputationStore.Blob = write(token, ByteString.copyFromUtf8(content))
+): Blob = write(context, ByteString.copyFromUtf8(content))
+
+private suspend fun RequisitionStore.writeString(
+  context: RequisitionBlobContext,
+  content: String
+): Blob = write(context, ByteString.copyFromUtf8(content))
 
 private fun hashSha256(data: ByteString): ByteString {
   val sha256MessageDigest = MessageDigest.getInstance("SHA-256")

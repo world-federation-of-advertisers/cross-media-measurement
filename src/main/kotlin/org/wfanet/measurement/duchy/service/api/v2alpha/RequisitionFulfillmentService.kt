@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -45,7 +46,7 @@ private val FULFILLED_RESPONSE =
 class RequisitionFulfillmentService(
   private val systemRequisitionsClient: RequisitionsCoroutineStub,
   private val computationsClient: ComputationsCoroutineStub,
-  private val storageClient: RequisitionStore
+  private val requisitionStore: RequisitionStore
 ) : RequisitionFulfillmentCoroutineImplBase() {
 
   override suspend fun fulfillRequisition(
@@ -83,7 +84,11 @@ class RequisitionFulfillmentService(
       // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
       //  is already marked fulfilled locally.
       if (!alreadyMarkedFulfilled) {
-        val blob = storageClient.write(consumed.remaining.map { it.bodyChunk.data })
+        val blob =
+          requisitionStore.write(
+            RequisitionBlobContext(key.dataProviderId, key.requisitionId),
+            consumed.remaining.map { it.bodyChunk.data }
+          )
         recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
       }
 
