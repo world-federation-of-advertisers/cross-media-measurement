@@ -40,7 +40,7 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse as AsyncAdvanceComputationResponse
@@ -73,7 +73,7 @@ class ComputationControlServiceTest {
     }
 
   private val tempDirectory = TemporaryFolder()
-  private lateinit var requisitionStore: RequisitionStore
+  private lateinit var computationStore: ComputationStore
   private lateinit var service: ComputationControlService
   private val duchyIdSetter = DuchyIdSetter(RUNNING_DUCHY_NAME, *OTHER_DUCHY_NAMES.toTypedArray())
 
@@ -82,7 +82,7 @@ class ComputationControlServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    computationStore = ComputationStore.forTesting(storageClient) { NEXT_BLOB_PATH }
     addService(mockAsyncControlService)
   }
 
@@ -104,7 +104,7 @@ class ComputationControlServiceTest {
         service =
           ComputationControlService(
             AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
-            requisitionStore,
+            computationStore,
             duchyIdProvider
           )
         service
@@ -130,7 +130,7 @@ class ComputationControlServiceTest {
           }
           .build()
       )
-    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
@@ -154,7 +154,7 @@ class ComputationControlServiceTest {
           }
           .build()
       )
-    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
@@ -178,7 +178,7 @@ class ComputationControlServiceTest {
           }
           .build()
       )
-    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
@@ -202,7 +202,7 @@ class ComputationControlServiceTest {
           }
           .build()
       )
-    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 

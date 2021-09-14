@@ -45,7 +45,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "GcpSpannerComputationDbTest",
+    name = "GcpSpannerComputationsDatabaseTransactorTest",
     srcs = ["GcpSpannerComputationsDatabaseTransactorTest.kt"],
     test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactorTest",
     deps = [
@@ -62,7 +62,7 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
-    name = "GcpSpannerReadOnlyComputationsRelationalDbTest",
+    name = "GcpSpannerComputationsDatabaseReaderTest",
     srcs = ["GcpSpannerComputationsDatabaseReaderTest.kt"],
     test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReaderTest",
     deps = [

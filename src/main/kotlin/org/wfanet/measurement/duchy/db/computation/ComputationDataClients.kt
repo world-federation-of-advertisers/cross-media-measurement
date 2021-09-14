@@ -17,7 +17,9 @@ package org.wfanet.measurement.duchy.db.computation
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
@@ -25,19 +27,25 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.Store.Blob
 import org.wfanet.measurement.storage.read
 
 /** Storage clients providing access to the ComputationsService and ComputationStore. */
 class ComputationDataClients
 private constructor(
   val computationsClient: ComputationsCoroutineStub,
-  private val computationStore: ComputationStore
+  private val computationStore: ComputationStore,
+  private val requisitionStore: RequisitionStore
 ) {
 
   constructor(
     computationStorageClient: ComputationsCoroutineStub,
     storageClient: StorageClient
-  ) : this(computationStorageClient, ComputationStore(storageClient))
+  ) : this(
+    computationStorageClient,
+    ComputationStore(storageClient),
+    RequisitionStore(storageClient)
+  )
 
   /**
    * Calls AdvanceComputationStage to move to a new stage in a consistent way.
@@ -66,12 +74,18 @@ private constructor(
    * @return the resulting [ComputationToken] after updating blob reference, or [computationToken]
    * if no blob was written
    */
-  suspend fun writeSingleOutputBlob(
+  private suspend fun writeSingleOutputBlob(
     computationToken: ComputationToken,
     content: Flow<ByteString>
   ): ComputationToken {
     return writeBlobIfNotPresent(computationToken, computationToken.singleOutputBlobMetadata()) {
-      computationStore.write(it, content)
+      computationStore.write(
+        ComputationBlobContext(
+          computationToken.globalComputationId,
+          computationToken.computationStage
+        ),
+        content
+      )
     }
   }
 
@@ -81,7 +95,13 @@ private constructor(
     content: ByteString
   ): ComputationToken {
     return writeBlobIfNotPresent(computationToken, computationToken.singleOutputBlobMetadata()) {
-      computationStore.write(it, content)
+      computationStore.write(
+        ComputationBlobContext(
+          computationToken.globalComputationId,
+          computationToken.computationStage
+        ),
+        content
+      )
     }
   }
 
@@ -97,7 +117,7 @@ private constructor(
   private suspend fun writeBlobIfNotPresent(
     computationToken: ComputationToken,
     metadata: ComputationStageBlobMetadata,
-    writeContent: suspend (ComputationToken) -> ComputationStore.Blob
+    writeContent: suspend (ComputationToken) -> Blob
   ): ComputationToken {
     if (metadata.path.isNotEmpty()) {
       return computationToken
@@ -123,7 +143,7 @@ private constructor(
       .requisitionsList
       .filter { it.details.externalFulfillingDuchyId == duchyId }
       .map {
-        checkNotNull(computationStore.get(it.path)) { "Blob with key ${it.path} not found" }
+        checkNotNull(requisitionStore.get(it.path)) { "Blob with key ${it.path} not found" }
           .read()
           .flatten()
       }
@@ -152,7 +172,7 @@ private constructor(
     return getBlob(blobRef).read()
   }
 
-  private fun getBlob(ref: BlobRef): ComputationStore.Blob {
+  private fun getBlob(ref: BlobRef): Blob {
     return checkNotNull(computationStore.get(ref.key)) {
       "Failed to read content for computation blob ${ref.idInRelationalDatabase}: " +
         "Blob with key ${ref.key} not found"
@@ -162,9 +182,10 @@ private constructor(
   companion object {
     fun forTesting(
       computationStorageClient: ComputationsCoroutineStub,
-      computationStore: ComputationStore
+      computationStore: ComputationStore,
+      requisitionStore: RequisitionStore
     ): ComputationDataClients {
-      return ComputationDataClients(computationStorageClient, computationStore)
+      return ComputationDataClients(computationStorageClient, computationStore, requisitionStore)
     }
   }
 }
