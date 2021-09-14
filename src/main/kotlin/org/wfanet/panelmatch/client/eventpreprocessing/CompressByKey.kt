@@ -41,7 +41,7 @@ private const val OVERSAMPLING_FACTOR = 10L
 /** The results of training a [Compressor] and then applying it to a [PCollection]. */
 data class CompressedEvents(
   val events: PCollection<KV<ByteString, ByteString>>,
-  val dictionary: PCollectionView<ByteString>
+  val dictionary: PCollection<ByteString>
 )
 
 /** Trains a [Compressor] and applies it to a [PCollection]. */
@@ -69,7 +69,5 @@ fun EventCompressorTrainer.compressByKey(
         yield(kvOf(keyAndEvents.key, compressor.compress(keyAndEvents.value)))
       }
 
-  val dictionaryView = trainedEventCompressor.map { it.dictionary }.apply(View.asSingleton())
-
-  return CompressedEvents(compressedEvents, dictionaryView)
+  return CompressedEvents(compressedEvents, trainedEventCompressor.map { it.dictionary })
 }

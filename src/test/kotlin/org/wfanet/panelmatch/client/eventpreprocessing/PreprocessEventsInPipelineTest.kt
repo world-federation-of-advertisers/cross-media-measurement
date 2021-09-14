@@ -40,7 +40,7 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
   fun hardCodedProviders() {
     val events = eventsOf("A" to "B", "C" to "D")
 
-    val encrypted =
+    val (encryptedEvents, dictionary) =
       preprocessEventsInPipeline(
         events,
         MAX_BYTE_SIZE,
@@ -50,10 +50,16 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
         UncompressedEventCompressorTrainer()
       )
 
-    assertThat(encrypted).satisfies { encryptedEvents ->
-      val results: List<KV<Long, ByteString>> = encryptedEvents.toList()
+    assertThat(encryptedEvents).satisfies {
+      val results: List<KV<Long, ByteString>> = it.toList()
       assertThat(results).hasSize(2)
-      assertThat(results.map { it.value }).containsNoneOf("B".toByteString(), "D".toByteString())
+      assertThat(results.map { kv -> kv.value })
+        .containsNoneOf("B".toByteString(), "D".toByteString())
+      null
+    }
+
+    assertThat(dictionary).satisfies {
+      assertThat(it).containsExactly(ByteString.EMPTY)
       null
     }
   }
