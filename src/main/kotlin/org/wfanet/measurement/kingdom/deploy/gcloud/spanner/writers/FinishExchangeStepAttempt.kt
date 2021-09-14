@@ -334,7 +334,8 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       }
     val row: Struct = transactionContext.executeQuery(statement).single()
 
-    // If it only returns a single Step (Current Step IN_PROGRESS), then all the steps are complete.
+    // Since the current step is still IN_PROGRESS, if this is 1 then after updating the current
+    // step, there will be no more incomplete steps.
     return row.getLong("NumberOfIncomplete") == 1L
   }
 }

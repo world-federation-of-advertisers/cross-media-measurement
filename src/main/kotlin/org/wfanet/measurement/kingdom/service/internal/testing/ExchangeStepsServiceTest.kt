@@ -268,11 +268,11 @@ abstract class ExchangeStepsServiceTest {
     exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
     exchangeStepAttemptsService.assertTestExchangeStepAttemptHasState(
       ExchangeStepAttempt.State.FAILED,
-      1
+      attemptIndex = 1
     )
     exchangeStepAttemptsService.assertTestExchangeStepAttemptHasState(
       ExchangeStepAttempt.State.ACTIVE,
-      2
+      attemptIndex = 2
     )
   }
 
