@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.type.Date
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -56,15 +55,6 @@ private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private val MODEL_ID_GENERATOR =
   FixedIdGenerator(InternalId(INTERNAL_MODEL_PROVIDER_ID), ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
 
-private val DATE =
-  Date.newBuilder()
-    .apply {
-      year = 2021
-      month = 1
-      day = 15
-    }
-    .build()
-
 private val RECURRING_EXCHANGE: RecurringExchange =
   RecurringExchange.newBuilder()
     .apply {
@@ -89,7 +79,7 @@ private val EXCHANGE: Exchange =
     .apply {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       state = Exchange.State.ACTIVE
-      date = DATE
+      date = EXCHANGE_DATE
       detailsBuilder.apply {
         auditTrailHash = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")
       }
@@ -217,7 +207,7 @@ abstract class ExchangesServiceTest {
       GetExchangeRequest.newBuilder()
         .apply {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
+          date = EXCHANGE_DATE
         }
         .build()
     return runBlocking { exchanges.getExchange(request) }

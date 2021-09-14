@@ -96,12 +96,6 @@ private val EXCHANGE_WORKFLOW = exchangeWorkflow {
     }
 }
 
-private val DATE = date {
-  year = 2021
-  month = 8
-  day = 5
-}
-
 private val RECURRING_EXCHANGE = recurringExchange {
   externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
@@ -112,12 +106,12 @@ private val RECURRING_EXCHANGE = recurringExchange {
       cronSchedule = "@daily"
       exchangeWorkflow = EXCHANGE_WORKFLOW
     }
-  nextExchangeDate = DATE
+  nextExchangeDate = EXCHANGE_DATE
 }
 
 private val EXCHANGE_STEP = exchangeStep {
   externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-  date = DATE
+  date = EXCHANGE_DATE
   state = ExchangeStep.State.IN_PROGRESS
   stepIndex = STEP_INDEX
   provider = PROVIDER
@@ -234,6 +228,12 @@ abstract class ExchangeStepsServiceTest {
     exchangeStepAttemptsService.assertTestExchangeStepAttemptHasState(
       ExchangeStepAttempt.State.ACTIVE
     )
+
+    val secondResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(secondResponse).isEqualTo(claimReadyExchangeStepResponse {})
   }
 
   @Test
@@ -293,7 +293,7 @@ abstract class ExchangeStepsServiceTest {
       exchangeStepsService.getExchangeStep(
         getExchangeStepRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
+          date = EXCHANGE_DATE
           stepIndex = 1
           provider = PROVIDER
         }
@@ -317,7 +317,7 @@ abstract class ExchangeStepsServiceTest {
         exchangeStepsService.getExchangeStep(
           getExchangeStepRequest {
             externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-            date = DATE
+            date = EXCHANGE_DATE
             stepIndex = 1
             provider =
               provider {

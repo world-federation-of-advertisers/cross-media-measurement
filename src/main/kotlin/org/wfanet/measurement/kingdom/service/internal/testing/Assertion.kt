@@ -18,6 +18,8 @@ import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.type.date
+import java.time.LocalDate
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
@@ -38,11 +40,8 @@ import org.wfanet.measurement.internal.kingdom.provider
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
 private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private const val STEP_INDEX = 1
-private val DATE = date {
-  year = 2021
-  month = 8
-  day = 5
-}
+
+internal val EXCHANGE_DATE = LocalDate.now().toProtoDate()
 
 internal val PROVIDER = provider {
   externalId = EXTERNAL_MODEL_PROVIDER_ID
@@ -64,14 +63,14 @@ internal suspend fun ExchangesCoroutineImplBase.assertTestExchangeHasState(
       getExchange(
         getExchangeRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
+          date = EXCHANGE_DATE
         }
       )
     )
     .isEqualTo(
       exchange {
         externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-        date = DATE
+        date = EXCHANGE_DATE
         state = exchangeState
         details = exchangeDetails {}
       }
@@ -85,7 +84,7 @@ internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasSta
       getExchangeStep(
         getExchangeStepRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
+          date = EXCHANGE_DATE
           stepIndex = STEP_INDEX
           provider = PROVIDER
         }
@@ -95,7 +94,7 @@ internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasSta
     .isEqualTo(
       exchangeStep {
         externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-        date = DATE
+        date = EXCHANGE_DATE
         stepIndex = STEP_INDEX
         state = exchangeStepState
         provider = PROVIDER
@@ -111,7 +110,7 @@ internal suspend fun ExchangeStepAttemptsCoroutineImplBase.assertTestExchangeSte
       getExchangeStepAttempt(
         getExchangeStepAttemptRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-          date = DATE
+          date = EXCHANGE_DATE
           stepIndex = STEP_INDEX
           attemptNumber = attemptIndex
           provider = PROVIDER
@@ -122,7 +121,7 @@ internal suspend fun ExchangeStepAttemptsCoroutineImplBase.assertTestExchangeSte
     .isEqualTo(
       exchangeStepAttempt {
         externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-        date = DATE
+        date = EXCHANGE_DATE
         stepIndex = STEP_INDEX
         attemptNumber = attemptIndex
         state = exchangeStepAttemptState
