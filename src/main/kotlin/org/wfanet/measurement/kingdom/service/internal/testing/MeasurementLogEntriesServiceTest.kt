@@ -93,7 +93,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1234L // WrongID
-            externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
                 error =
@@ -150,7 +150,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1L
-            externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
                 error =
@@ -166,7 +166,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
   }
 
   @Test
-  fun `createMeasurementLogEntry succeeds`() = runBlocking {
+  fun `create transient error MeasurementLogEntry succeeds`() = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
@@ -196,14 +196,63 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
         createDuchyMeasurementLogEntryRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
           this.measurementLogEntryDetails = measurementLogEntryDetails
           details = duchyMeasurementLogEntryDetails
         }
       )
 
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
+      logEntry =
+        measurementLogEntry {
+          this.externalMeasurementId = measurement.externalMeasurementId
+          this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          details = measurementLogEntryDetails
+          createTime = createdDuchyMeasurementLogEntry.logEntry.createTime
+        }
+      details = duchyMeasurementLogEntryDetails
+    }
+
+    assertThat(createdDuchyMeasurementLogEntry.externalComputationLogEntryId).isNotEqualTo(0L)
+    assertThat(createdDuchyMeasurementLogEntry.logEntry.createTime.seconds).isGreaterThan(0L)
+    assertThat(createdDuchyMeasurementLogEntry).isEqualTo(expectedDuchyMeasurementLogEntry)
+  }
+
+  @Test
+  fun `create non-error MeasurementLogEntry succeeds`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+
+    val measurementLogEntryDetails = MeasurementLogEntryKt.details { logMessage = "This is a log." }
+
+    val duchyMeasurementLogEntryDetails =
+      DuchyMeasurementLogEntryKt.details {
+        duchyChildReferenceId = "some child reference"
+        stageAttempt = DuchyMeasurementLogEntryKt.stageAttempt { stage = 1 }
+      }
+
+    val createdDuchyMeasurementLogEntry =
+      measurementLogEntriesService.createDuchyMeasurementLogEntry(
+        createDuchyMeasurementLogEntryRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          this.measurementLogEntryDetails = measurementLogEntryDetails
+          details = duchyMeasurementLogEntryDetails
+        }
+      )
+
+    val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
       logEntry =
         measurementLogEntry {
