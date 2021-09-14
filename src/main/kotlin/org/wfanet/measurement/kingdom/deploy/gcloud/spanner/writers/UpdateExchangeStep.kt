@@ -43,6 +43,7 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
   recurringExchangeId: Long,
   state: ExchangeStep.State
 ) {
+  // TODO(yunyeng): Add logger and log exceptional cases like this.
   if (exchangeStep.state == state) return
 
   require(!exchangeStep.state.isTerminal) {
