@@ -20,6 +20,17 @@ import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.common.beam.parDo
 
 /**
+ * Output of [preprocessEventsInPipeline].
+ *
+ * @property events preprocessed events (aggregated by key and compressed)
+ * @property dictionary a dictionary necessary for decompression
+ */
+data class PreprocessedEvents(
+  val events: PCollection<KV<Long, ByteString>>,
+  val dictionary: PCollection<ByteString>
+)
+
+/**
  * Prepares event data for usage in Private Membership query evaluation.
  *
  * The basic steps are:
@@ -35,19 +46,22 @@ fun preprocessEventsInPipeline(
   hkdfPepperProvider: HkdfPepperProvider,
   cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
   eventCompressorTrainer: EventCompressorTrainer
-): PCollection<KV<Long, ByteString>> {
-  // TODO(@efoxepstein): also return the dictionary for aggregation
-  return eventCompressorTrainer
-    .compressByKey(events)
-    .events
-    .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
-    .parDo(
-      EncryptEventsDoFn(
-        EncryptEvents(),
-        identifierHashPepperProvider,
-        hkdfPepperProvider,
-        cryptoKeyProvider
-      ),
-      name = "Encrypt"
-    )
+): PreprocessedEvents {
+  val compressedEvents: CompressedEvents = eventCompressorTrainer.compressByKey(events)
+
+  val preprocessedEvents =
+    compressedEvents
+      .events
+      .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
+      .parDo(
+        EncryptEventsDoFn(
+          EncryptEvents(),
+          identifierHashPepperProvider,
+          hkdfPepperProvider,
+          cryptoKeyProvider
+        ),
+        name = "Encrypt"
+      )
+
+  return PreprocessedEvents(preprocessedEvents, compressedEvents.dictionary)
 }
