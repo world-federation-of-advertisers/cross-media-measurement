@@ -218,7 +218,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = getModelProvider() }
+      claimReadyExchangeStepRequest { provider = PROVIDER }
     )
 
     val response =
@@ -228,7 +228,7 @@ abstract class ExchangeStepAttemptsServiceTest {
           date = DATE
           stepIndex = 1
           attemptNumber = 1
-          provider = getModelProvider()
+          provider = PROVIDER
         }
       )
 
@@ -249,7 +249,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   @Test
   fun `getExchangeStepAttempt fails with wrong provider`() = runBlocking {
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = getModelProvider() }
+      claimReadyExchangeStepRequest { provider = PROVIDER }
     )
 
     val exception =
@@ -277,7 +277,7 @@ abstract class ExchangeStepAttemptsServiceTest {
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
 
     val response =
@@ -290,17 +290,17 @@ abstract class ExchangeStepAttemptsServiceTest {
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
 
-    exchangesService.getAndAssertExchange(Exchange.State.SUCCEEDED)
-    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.SUCCEEDED)
+    exchangesService.assertTestExchangeHasState(Exchange.State.SUCCEEDED)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.SUCCEEDED)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
 
     val response =
@@ -314,16 +314,16 @@ abstract class ExchangeStepAttemptsServiceTest {
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
-    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
-    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.READY_FOR_RETRY)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
+    exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.READY_FOR_RETRY)
   }
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
 
     val response =
@@ -337,16 +337,16 @@ abstract class ExchangeStepAttemptsServiceTest {
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(response.attemptNumber)
-    exchangesService.getAndAssertExchange(Exchange.State.FAILED)
-    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.FAILED)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
+    exchangesService.assertTestExchangeHasState(Exchange.State.FAILED)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.FAILED)
   }
 
   @Test
   fun `finishExchangeStepAttempt succeeds on second try`() = runBlocking {
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
     assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
 
@@ -355,12 +355,12 @@ abstract class ExchangeStepAttemptsServiceTest {
         makeRequest(ExchangeStepAttempt.State.FAILED)
       )
     assertThat(failedAttempt.attemptNumber).isEqualTo(1L)
-    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
-    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.READY_FOR_RETRY)
+    exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.READY_FOR_RETRY)
 
     val claimReadyExchangeStepResponse2 =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
     assertThat(claimReadyExchangeStepResponse.exchangeStep)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
@@ -371,24 +371,17 @@ abstract class ExchangeStepAttemptsServiceTest {
 
     val response =
       exchangeStepAttemptsService.finishExchangeStepAttempt(
-        makeRequest(
-          ExchangeStepAttempt.State.SUCCEEDED,
-          claimReadyExchangeStepResponse2.attemptNumber
-        )
+        makeRequest(ExchangeStepAttempt.State.SUCCEEDED, 2)
       )
     assertThat(response.attemptNumber).isEqualTo(2L)
 
-    val expected =
-      makeExchangeStepAttempt(
-        ExchangeStepAttempt.State.SUCCEEDED,
-        claimReadyExchangeStepResponse2.attemptNumber
-      )
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED, 2)
 
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-    exchangesService.getAndAssertExchange(Exchange.State.SUCCEEDED)
-    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.SUCCEEDED)
+    exchangesService.assertTestExchangeHasState(Exchange.State.SUCCEEDED)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.SUCCEEDED)
   }
 
   private fun makeRequest(

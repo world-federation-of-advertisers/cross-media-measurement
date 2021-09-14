@@ -120,7 +120,7 @@ private val EXCHANGE_STEP = exchangeStep {
   date = DATE
   state = ExchangeStep.State.IN_PROGRESS
   stepIndex = STEP_INDEX
-  provider = getModelProvider()
+  provider = PROVIDER
 }
 
 private val DATA_PROVIDER = dataProvider {
@@ -206,7 +206,7 @@ abstract class ExchangeStepsServiceTest {
   fun `claimReadyExchangeStepRequest fails without recurring exchange`() = runBlocking {
     val response =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
 
     assertThat(response).isEqualTo(claimReadyExchangeStepResponse {})
@@ -218,7 +218,7 @@ abstract class ExchangeStepsServiceTest {
 
     val response =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
 
     val expected = claimReadyExchangeStepResponse {
@@ -229,9 +229,11 @@ abstract class ExchangeStepsServiceTest {
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
-    exchangeStepsService.getAndAssertExchangeStep(ExchangeStep.State.IN_PROGRESS)
-    exchangeStepAttemptsService.getAndAssertExchangeStepAttempt(ExchangeStepAttempt.State.ACTIVE)
+    exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.IN_PROGRESS)
+    exchangeStepAttemptsService.assertTestExchangeStepAttemptHasState(
+      ExchangeStepAttempt.State.ACTIVE
+    )
   }
 
   @Test
@@ -245,7 +247,7 @@ abstract class ExchangeStepsServiceTest {
 
     val firstResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
     val expected = claimReadyExchangeStepResponse {
       exchangeStep = EXCHANGE_STEP
@@ -254,18 +256,29 @@ abstract class ExchangeStepsServiceTest {
     assertThat(firstResponse)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
       .isEqualTo(expected)
-    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
+    exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
 
     clock.tickSeconds("Next Day", expirationDuration)
 
     val secondResponse =
       exchangeStepsService.claimReadyExchangeStep(
-        claimReadyExchangeStepRequest { provider = getModelProvider() }
+        claimReadyExchangeStepRequest { provider = PROVIDER }
       )
     assertThat(secondResponse.attemptNumber).isEqualTo(2L)
-    exchangesService.getAndAssertExchange(Exchange.State.ACTIVE)
-    exchangeStepAttemptsService.getAndAssertExchangeStepAttempt(ExchangeStepAttempt.State.FAILED, 1)
-    exchangeStepAttemptsService.getAndAssertExchangeStepAttempt(ExchangeStepAttempt.State.ACTIVE, 2)
+    exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
+    exchangeStepAttemptsService.assertTestExchangeStepAttemptHasState(
+      ExchangeStepAttempt.State.FAILED,
+      1
+    )
+    exchangeStepAttemptsService.assertTestExchangeStepAttemptHasState(
+      ExchangeStepAttempt.State.ACTIVE,
+      2
+    )
+  }
+
+  @Test
+  fun `claimReadyExchangeStepRequest without any step`() = runBlocking {
+    // TODO(yunyeng): Add test once underlying services complete.
   }
 
   @Test
@@ -273,7 +286,7 @@ abstract class ExchangeStepsServiceTest {
     createRecurringExchange()
 
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = getModelProvider() }
+      claimReadyExchangeStepRequest { provider = PROVIDER }
     )
 
     val response =
@@ -282,7 +295,7 @@ abstract class ExchangeStepsServiceTest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = DATE
           stepIndex = 1
-          provider = getModelProvider()
+          provider = PROVIDER
         }
       )
 
@@ -296,7 +309,7 @@ abstract class ExchangeStepsServiceTest {
     createRecurringExchange()
 
     exchangeStepsService.claimReadyExchangeStep(
-      claimReadyExchangeStepRequest { provider = getModelProvider() }
+      claimReadyExchangeStepRequest { provider = PROVIDER }
     )
 
     val exception =
