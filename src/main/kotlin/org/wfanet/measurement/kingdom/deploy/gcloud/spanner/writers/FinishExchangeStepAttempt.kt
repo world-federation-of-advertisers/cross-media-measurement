@@ -17,8 +17,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import com.google.type.Date
+import io.grpc.Status
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -112,22 +114,19 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
         ?.recurringExchange
         ?.details
         ?.exchangeWorkflow
+        ?: failGrpc(Status.PERMISSION_DENIED) { "Workflow not found" }
 
     val steps =
-      workflow?.let {
-        findReadyExchangeSteps(
-          workflow = it,
-          recurringExchangeId = recurringExchangeId,
-          date = reqDate
-        )
-      }
-    if (steps != null) {
-      updateExchangeStepsToReady(
-        steps = steps,
+      findReadyExchangeSteps(
+        workflow = workflow,
         recurringExchangeId = recurringExchangeId,
         date = reqDate
       )
-    }
+    updateExchangeStepsToReady(
+      steps = steps,
+      recurringExchangeId = recurringExchangeId,
+      date = reqDate
+    )
 
     return updateExchangeStepAttempt(
       recurringExchangeId = recurringExchangeId,
