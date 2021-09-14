@@ -745,6 +745,22 @@ class MeasurementsServiceTest {
       .isEqualTo("Resource name is either unspecified or invalid")
   }
 
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when dataProviderList has duplicated keys`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            createMeasurementRequest {
+              measurement = MEASUREMENT.copy { dataProviders += dataProviders }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).contains("Duplicated keys")
+  }
+
   companion object {
     @BeforeClass
     @JvmStatic
