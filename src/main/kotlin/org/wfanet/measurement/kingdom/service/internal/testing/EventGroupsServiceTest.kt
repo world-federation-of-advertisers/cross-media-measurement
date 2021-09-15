@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
@@ -179,6 +180,42 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
     val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(eventGroup)
     assertThat(secondCreateEventGroupAttempt).isEqualTo(createdEventGroup)
+  }
+
+  @Test
+  fun `createEventGroup creates new eventGroup when without providedEventGroupId`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+    }
+
+    eventGroupsService.createEventGroup(eventGroup)
+
+    val otherExternalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val otherEventGroup =
+      eventGroup.copy {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalMeasurementConsumerId = otherExternalMeasurementConsumerId
+      }
+
+    val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(otherEventGroup)
+    assertThat(secondCreateEventGroupAttempt)
+      .isEqualTo(
+        otherEventGroup.copy {
+          externalEventGroupId = secondCreateEventGroupAttempt.externalEventGroupId
+          createTime = secondCreateEventGroupAttempt.createTime
+        }
+      )
   }
 
   @Test

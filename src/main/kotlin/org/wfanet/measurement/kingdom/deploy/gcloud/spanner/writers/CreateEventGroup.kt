@@ -68,7 +68,9 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
-      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      if (!eventGroup.providedEventGroupId.isEmpty()) {
+        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 
@@ -76,6 +78,10 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
   }
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
+    if (eventGroup.providedEventGroupId.isEmpty()) {
+      return null
+    }
+    
     return EventGroupReader()
       .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
       .execute(transactionContext)
