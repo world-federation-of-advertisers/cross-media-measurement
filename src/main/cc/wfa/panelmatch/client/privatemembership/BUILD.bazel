@@ -124,6 +124,7 @@ cc_library(
     deps = [
         ":event_data_decryptor",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_cc_proto",
+        "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

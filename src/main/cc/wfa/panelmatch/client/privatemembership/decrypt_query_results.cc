@@ -20,6 +20,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -30,6 +31,8 @@
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
 
 namespace wfa::panelmatch::client::privatemembership {
+
+namespace {
 using ClientEncryptedQueryResult =
     ::private_membership::batch::EncryptedQueryResult;
 using ClientDecryptedQueryResult =
@@ -39,7 +42,6 @@ using ClientDecryptQueriesRequest =
 using ClientDecryptQueriesResponse =
     ::private_membership::batch::DecryptQueriesResponse;
 using ::private_membership::batch::DecryptQueries;
-
 absl::StatusOr<ClientDecryptQueriesResponse> RemoveRlwe(
     const DecryptQueryResultsRequest& request) {
   ClientDecryptQueriesRequest client_decrypt_queries_request;
@@ -68,33 +70,45 @@ absl::StatusOr<ClientDecryptQueriesResponse> RemoveRlwe(
   return client_decrypt_queries_response;
 }
 
+absl::StatusOr<DecryptEventDataResponse> RemoveAesFromDecryptedQueryResult(
+    const ClientDecryptedQueryResult& client_decrypted_query_result,
+    const std::string& single_blinded_joinkey, const std::string& hkdf_pepper) {
+  DecryptEventDataRequest decrypt_event_data_request;
+  decrypt_event_data_request.set_hkdf_pepper(hkdf_pepper);
+  decrypt_event_data_request.mutable_single_blinded_joinkey()->set_key(
+      single_blinded_joinkey);
+  decrypt_event_data_request.mutable_encrypted_event_data()
+      ->mutable_shard_id()
+      ->set_id(client_decrypted_query_result.query_metadata().shard_id());
+  decrypt_event_data_request.mutable_encrypted_event_data()
+      ->mutable_query_id()
+      ->set_id(client_decrypted_query_result.query_metadata().query_id());
+  QueryResult query_results;
+  query_results.ParseFromString(client_decrypted_query_result.result());
+  *decrypt_event_data_request.mutable_encrypted_event_data()
+       ->mutable_ciphertexts() =
+      *std::move(query_results.mutable_ciphertexts());
+  return DecryptEventData(decrypt_event_data_request);
+}
+
 absl::StatusOr<DecryptQueryResultsResponse> RemoveAes(
     const DecryptQueryResultsRequest& request,
     const ClientDecryptQueriesResponse& client_decrypt_queries_response) {
   DecryptQueryResultsResponse result;
   for (const ClientDecryptedQueryResult& client_decrypted_query_result :
        client_decrypt_queries_response.result()) {
-    DecryptEventDataRequest decrypt_event_data_request;
-    decrypt_event_data_request.set_hkdf_pepper(request.hkdf_pepper());
-    decrypt_event_data_request.mutable_single_blinded_joinkey()->CopyFrom(
-        request.single_blinded_joinkey());
-    decrypt_event_data_request.mutable_encrypted_event_data()
-        ->mutable_shard_id()
-        ->set_id(client_decrypted_query_result.query_metadata().shard_id());
-    decrypt_event_data_request.mutable_encrypted_event_data()
-        ->mutable_query_id()
-        ->set_id(client_decrypted_query_result.query_metadata().query_id());
-    decrypt_event_data_request.mutable_encrypted_event_data()->add_ciphertexts(
-        client_decrypted_query_result.result());
-    ASSIGN_OR_RETURN(DecryptEventDataResponse decrypt_event_data_response,
-                     DecryptEventData(decrypt_event_data_request));
-    for (DecryptedEventData decrypted_event_data :
-         *decrypt_event_data_response.mutable_decrypted_event_data()) {
-      result.add_decrypted_event_data()->Swap(&decrypted_event_data);
-    }
+    ASSIGN_OR_RETURN(
+        DecryptEventDataResponse decrypt_event_data_response,
+        RemoveAesFromDecryptedQueryResult(
+            client_decrypted_query_result,
+            request.single_blinded_joinkey().key(), request.hkdf_pepper()));
+    absl::c_move(*decrypt_event_data_response.mutable_decrypted_event_data(),
+                 google::protobuf::RepeatedPtrFieldBackInserter(
+                     result.mutable_decrypted_event_data()));
   }
   return result;
 }
+}  // namespace
 
 absl::StatusOr<DecryptQueryResultsResponse> DecryptQueryResults(
     const DecryptQueryResultsRequest& request) {
