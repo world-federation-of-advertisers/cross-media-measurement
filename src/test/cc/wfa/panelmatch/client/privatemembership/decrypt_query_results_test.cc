@@ -79,12 +79,23 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
       std::string ciphertext3,
       aes_hkdf.Encrypt(plaintext3, SecretDataFromStringView(key),
                        SecretDataFromStringView(hkdf_pepper)));
+  QueryResult bucket_result1;
+  bucket_result1.add_ciphertexts(ciphertext1);
+  std::string serialized_bucket_result1;
+  bucket_result1.SerializeToString(&serialized_bucket_result1);
 
-  std::array<absl::string_view, 3> kTestBuckets = {ciphertext1, ciphertext2,
-                                                   ciphertext3};
+  QueryResult bucket_result2;
+  bucket_result2.add_ciphertexts(ciphertext2);
+  std::string serialized_bucket_result2;
+  bucket_result2.SerializeToString(&serialized_bucket_result2);
 
-  auto status = CreateTestDecryptQueriesRequest(kTestBuckets).status();
-  ASSERT_TRUE(status.ok()) << status;
+  QueryResult bucket_result3;
+  bucket_result3.add_ciphertexts(ciphertext3);
+  std::string serialized_bucket_result3;
+  bucket_result3.SerializeToString(&serialized_bucket_result3);
+  std::array<absl::string_view, 3> kTestBuckets = {serialized_bucket_result1,
+                                                   serialized_bucket_result2,
+                                                   serialized_bucket_result3};
 
   ASSERT_OK_AND_ASSIGN(ClientDecryptQueriesRequest request,
                        CreateTestDecryptQueriesRequest(kTestBuckets));
@@ -126,6 +137,103 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
 
   DecryptedEventData expected_decrypted_event_data3;
   expected_decrypted_event_data3.set_plaintext(plaintext3);
+  expected_decrypted_event_data3.mutable_query_id()->set_id(2);
+  expected_decrypted_event_data3.mutable_shard_id()->set_id(1);
+  EXPECT_THAT(
+      test_response.decrypted_event_data(),
+      UnorderedElementsAre(EqualsProto(expected_decrypted_event_data1),
+                           EqualsProto(expected_decrypted_event_data2),
+                           EqualsProto(expected_decrypted_event_data3)));
+}
+
+TEST(DecryptQueryResults, ParseCiphertextsWithDifferentKeys) {
+  std::string hkdf_pepper = "some-pepper";
+  std::string key = "some-single-blinded-joinkey";
+  JoinKey single_blinded_joinkey;
+  single_blinded_joinkey.set_key(key);
+  std::string plaintext1 = "Some data to encrypt.";
+  std::string ciphertext2 = "Some event data I should not be able to decrypt.";
+  std::string plaintext3 = "Some other event data to encrypt.";
+  std::string ciphertext4 = "Some event data I should not be able to decrypt.";
+  std::string plaintext5 = "Yet some other event data to encrypt.";
+
+  // We first generate a valid ciphertext
+  std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
+  std::unique_ptr<Aes> aes = GetAesSivCmac512();
+  AesWithHkdf aes_hkdf(std::move(hkdf), std::move(aes));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext1,
+      aes_hkdf.Encrypt(plaintext1, SecretDataFromStringView(key),
+                       SecretDataFromStringView(hkdf_pepper)));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext3,
+      aes_hkdf.Encrypt(plaintext3, SecretDataFromStringView(key),
+                       SecretDataFromStringView(hkdf_pepper)));
+  ASSERT_OK_AND_ASSIGN(
+      std::string ciphertext5,
+      aes_hkdf.Encrypt(plaintext5, SecretDataFromStringView(key),
+                       SecretDataFromStringView(hkdf_pepper)));
+  QueryResult bucket_result1;
+  bucket_result1.add_ciphertexts(ciphertext1);
+  bucket_result1.add_ciphertexts(ciphertext2);
+  bucket_result1.add_ciphertexts(ciphertext3);
+  std::string serialized_bucket_result1;
+  bucket_result1.SerializeToString(&serialized_bucket_result1);
+
+  QueryResult bucket_result2;
+  bucket_result2.add_ciphertexts(ciphertext4);
+  std::string serialized_bucket_result2;
+  bucket_result2.SerializeToString(&serialized_bucket_result2);
+
+  QueryResult bucket_result3;
+  bucket_result3.add_ciphertexts(ciphertext5);
+  std::string serialized_bucket_result3;
+  bucket_result3.SerializeToString(&serialized_bucket_result3);
+
+  std::array<absl::string_view, 3> kTestBuckets = {serialized_bucket_result1,
+                                                   serialized_bucket_result2,
+                                                   serialized_bucket_result3};
+
+  ASSERT_OK_AND_ASSIGN(ClientDecryptQueriesRequest request,
+                       CreateTestDecryptQueriesRequest(kTestBuckets));
+
+  DecryptQueryResultsRequest test_request;
+  test_request.set_hkdf_pepper(hkdf_pepper);
+  test_request.mutable_single_blinded_joinkey()->set_key(key);
+  test_request.set_serialized_private_key(
+      request.private_key().SerializeAsString());
+  test_request.set_serialized_public_key(
+      request.public_key().SerializeAsString());
+  test_request.set_serialized_parameters(
+      request.parameters().SerializeAsString());
+  for (const ClientEncryptedQueryResult &client_encrypted_query_result :
+       request.encrypted_queries()) {
+    EncryptedQueryResult *encrypted_query_result =
+        test_request.add_encrypted_query_results();
+    for (const auto &ciphertext : client_encrypted_query_result.ciphertexts()) {
+      encrypted_query_result->add_ciphertexts(ciphertext.SerializeAsString());
+    }
+    encrypted_query_result->mutable_query_id()->set_id(
+        client_encrypted_query_result.query_metadata().query_id());
+    encrypted_query_result->mutable_shard_id()->set_id(
+        client_encrypted_query_result.query_metadata().shard_id());
+  }
+
+  ASSERT_OK_AND_ASSIGN(DecryptQueryResultsResponse test_response,
+                       DecryptQueryResults(test_request));
+
+  DecryptedEventData expected_decrypted_event_data1;
+  expected_decrypted_event_data1.set_plaintext(plaintext1);
+  expected_decrypted_event_data1.mutable_query_id()->set_id(0);
+  expected_decrypted_event_data1.mutable_shard_id()->set_id(2);
+
+  DecryptedEventData expected_decrypted_event_data2;
+  expected_decrypted_event_data2.set_plaintext(plaintext3);
+  expected_decrypted_event_data2.mutable_query_id()->set_id(0);
+  expected_decrypted_event_data2.mutable_shard_id()->set_id(2);
+
+  DecryptedEventData expected_decrypted_event_data3;
+  expected_decrypted_event_data3.set_plaintext(plaintext5);
   expected_decrypted_event_data3.mutable_query_id()->set_id(2);
   expected_decrypted_event_data3.mutable_shard_id()->set_id(1);
   EXPECT_THAT(

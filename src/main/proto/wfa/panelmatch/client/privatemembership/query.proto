@@ -75,6 +75,11 @@ message EncryptedEventData {
   repeated bytes ciphertexts = 3;
 }
 
+// The underlying format for an encrypted query result
+message QueryResult {
+  repeated bytes ciphertexts = 1;
+}
+
 // Generic message type holding an decrypted query result
 message DecryptedQueryResult {
   ShardId shard_id = 1;
