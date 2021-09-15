@@ -51,9 +51,12 @@ class CreateMeasurement(private val measurement: Measurement) :
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val measurementConsumerId: InternalId =
       readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
-    val existingMeasurement = findExistingMeasurement(measurementConsumerId)
-    if (existingMeasurement != null) {
-      return existingMeasurement
+
+    if (!measurement.providedMeasurementId.isBlank()) {
+      val existingMeasurement = findExistingMeasurement(measurementConsumerId)
+      if (existingMeasurement != null) {
+        return existingMeasurement
+      }
     }
 
     val measurementId: InternalId = idGenerator.generateInternalId()
@@ -169,9 +172,6 @@ class CreateMeasurement(private val measurement: Measurement) :
   private suspend fun TransactionScope.findExistingMeasurement(
     measurementConsumerId: InternalId
   ): Measurement? {
-    if (measurement.providedMeasurementId.isEmpty()) {
-      return null
-    }
     val params =
       object {
         val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"

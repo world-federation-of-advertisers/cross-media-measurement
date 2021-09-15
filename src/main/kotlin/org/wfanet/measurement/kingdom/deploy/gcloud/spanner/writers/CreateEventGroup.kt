@@ -52,8 +52,12 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         ?.dataProviderId
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
-    return findExistingEventGroup(dataProviderId)
-      ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+    return if (eventGroup.providedEventGroupId.isBlank()) {
+      createNewEventGroup(dataProviderId, measurementConsumerId)
+    } else {
+      findExistingEventGroup(dataProviderId)
+        ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+    }
   }
 
   private suspend fun TransactionScope.createNewEventGroup(
@@ -78,10 +82,6 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
   }
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
-    if (eventGroup.providedEventGroupId.isEmpty()) {
-      return null
-    }
-
     return EventGroupReader()
       .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
       .execute(transactionContext)
