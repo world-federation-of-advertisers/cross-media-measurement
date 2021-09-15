@@ -19,12 +19,17 @@
 #include "absl/status/statusor.h"
 #include "common_cpp/jni/jni_wrap.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
+#include "private_membership/rlwe/batch/cpp/server/server.h"
 #include "private_membership/rlwe/batch/proto/client.pb.h"
+#include "private_membership/rlwe/batch/proto/server.pb.h"
 
 namespace wfa::panelmatch::client::privatemembership {
+using ::private_membership::batch::ApplyQueries;
 using ::private_membership::batch::DecryptQueries;
 using ::private_membership::batch::EncryptQueries;
+using ::private_membership::batch::FinalizeResults;
 using ::private_membership::batch::GenerateKeys;
+using ::private_membership::batch::SumCiphertexts;
 
 absl::StatusOr<std::string> GenerateKeysWrapper(
     const std::string& serialized_request) {
@@ -34,6 +39,21 @@ absl::StatusOr<std::string> GenerateKeysWrapper(
 absl::StatusOr<std::string> EncryptQueriesWrapper(
     const std::string& serialized_request) {
   return JniWrap(serialized_request, EncryptQueries);
+}
+
+absl::StatusOr<std::string> ApplyQueriesWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, ApplyQueries);
+}
+
+absl::StatusOr<std::string> SumCiphertextsWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, SumCiphertexts);
+}
+
+absl::StatusOr<std::string> FinalizeResultsWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, FinalizeResults);
 }
 
 }  // namespace wfa::panelmatch::client::privatemembership

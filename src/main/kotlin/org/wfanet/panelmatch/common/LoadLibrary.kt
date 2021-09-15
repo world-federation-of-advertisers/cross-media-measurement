@@ -43,8 +43,16 @@ fun loadLibraryFromResource(libraryName: String, resourcePathPrefix: String) {
   tmpDir.toFile().deleteOnExit()
   val outputPath = tmpDir.resolve(fullLibraryName)
 
-  val stream: InputStream = object {}::class.java.getResourceAsStream(libraryPath)!!
+  val stream: InputStream =
+    checkNotNull(getResourceAsStream(libraryPath)) {
+      "Could not load resource with path $libraryPath"
+    }
+
   stream.use { Files.copy(stream, outputPath) }
   outputPath.toFile().deleteOnExit()
   System.load(outputPath.toString())
+}
+
+private fun getResourceAsStream(path: String): InputStream? {
+  return object {}::class.java.getResourceAsStream(path)
 }

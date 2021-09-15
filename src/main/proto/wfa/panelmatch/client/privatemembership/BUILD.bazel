@@ -71,7 +71,9 @@ proto_library(
     name = "query_evaluator_proto",
     srcs = ["query_evaluator.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":query_proto"],
+    deps = [
+        ":query_proto",
+    ],
 )
 
 cc_proto_library(

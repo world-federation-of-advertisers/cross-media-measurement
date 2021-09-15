@@ -23,8 +23,7 @@ import com.google.privatemembership.batch.client.encryptQueriesRequest as client
 import com.google.privatemembership.batch.client.generateKeysRequest as clientGenerateKeysRequest
 import com.google.privatemembership.batch.client.plaintextQuery as clientPlaintextQuery
 import com.google.privatemembership.batch.queryMetadata as clientQueryMetadata
-import java.nio.file.Paths
-import org.wfanet.panelmatch.common.loadLibrary
+import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapper
 
@@ -84,10 +83,8 @@ class JniPrivateMembershipCryptor : PrivateMembershipCryptor {
   }
 
   companion object {
-    private val SWIG_PATH =
-      "panel_exchange_client/src/main/swig/wfanet/panelmatch/client/privatemembership/querybuilder"
     init {
-      loadLibrary(name = "private_membership", directoryPath = Paths.get(SWIG_PATH))
+      loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")
     }
   }
 }

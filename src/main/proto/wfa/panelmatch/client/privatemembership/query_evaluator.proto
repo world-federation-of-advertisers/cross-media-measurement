@@ -24,29 +24,12 @@ option java_outer_classname = "QueryEvaluatorProto";
 
 // An argument in every Request proto. It contains various knobs for tuning the
 // system.
-message QueryEvaluatorParameters {}
+message QueryEvaluatorParameters {
+  // Serialized private_membership.batch.Parameters message.
+  bytes serialized_private_membership_parameters = 1;
 
-// Request to execute batch lookup queries.
-message ExecuteQueriesRequest {
-  QueryEvaluatorParameters parameters = 1;
-  repeated DatabaseShard shards = 2;
-  repeated QueryBundle query_bundles = 3;
-}
-
-// Results from executing batch lookup queries.
-message ExecuteQueriesResponse {
-  repeated Result result = 1;
-}
-
-// Request to combine multiple batch lookup results for a single query.
-message CombineResultsRequest {
-  QueryEvaluatorParameters parameters = 1;
-  repeated Result results = 2;
-}
-
-// Response for a CombineResultsRequest.
-message CombineResultsResponse {
-  Result result = 1;
+  // Serialized private_membership.batch.PublicKey message.
+  bytes serialized_public_key = 2;
 }
 
 // A full or partial set of buckets in a batch lookup database.
@@ -59,7 +42,7 @@ message DatabaseShard {
 message Bucket {
   BucketId bucket_id = 1;
 
-  // TODO: document payload format.
+  // Serialized private_membership.batch.RawDatabaseShard.Bucket message.
   bytes payload = 2;
 }
 
@@ -67,6 +50,6 @@ message Bucket {
 message Result {
   QueryMetadata query_metadata = 1;
 
-  // TODO: document payload format.
+  // Serialized private_membership.batch.EncryptedQueryResult message.
   bytes payload = 2;
 }
