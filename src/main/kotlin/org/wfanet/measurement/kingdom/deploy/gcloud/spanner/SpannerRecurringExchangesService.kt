@@ -40,7 +40,10 @@ class SpannerRecurringExchangesService(
     request: GetRecurringExchangeRequest
   ): RecurringExchange {
     return RecurringExchangeReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalRecurringExchangeId))
+      .readByExternalRecurringExchangeId(
+        client.singleUse(),
+        ExternalId(request.externalRecurringExchangeId)
+      )
       ?.recurringExchange
       ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
   }

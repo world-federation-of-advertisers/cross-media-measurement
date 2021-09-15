@@ -52,7 +52,7 @@ class SpannerExchangeStepsService(
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
     val exchangeStepResult =
       ExchangeStepReader()
-        .withBuilder {
+        .fillStatementBuilder {
           appendClause(
             """
           WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id

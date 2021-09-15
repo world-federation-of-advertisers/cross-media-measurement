@@ -39,7 +39,7 @@ private val BASE_SQL =
     """.trimIndent()
 
 class EventGroupReader : BaseSpannerReader<EventGroup>() {
-  override val builder = Statement.newBuilder(BASE_SQL)
+  override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
 
   /** Fills [builder], returning this [RequisitionReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupReader {

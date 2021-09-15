@@ -28,7 +28,7 @@ class StreamMeasurements(
   limit: Int = 0
 ) : SimpleSpannerQuery<MeasurementReader.Result>() {
   override val reader =
-    MeasurementReader(view).withBuilder {
+    MeasurementReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
       appendClause("ORDER BY Measurements.CreateTime ASC")
       if (limit > 0) {

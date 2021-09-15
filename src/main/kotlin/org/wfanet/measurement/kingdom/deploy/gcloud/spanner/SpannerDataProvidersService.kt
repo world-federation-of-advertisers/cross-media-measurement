@@ -40,7 +40,7 @@ class SpannerDataProvidersService(
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     return DataProviderReader()
-      .readExternalIdOrNull(client.singleUse(), ExternalId(request.externalDataProviderId))
+      .readByExternalDataProviderId(client.singleUse(), ExternalId(request.externalDataProviderId))
       ?.dataProvider
       ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
   }

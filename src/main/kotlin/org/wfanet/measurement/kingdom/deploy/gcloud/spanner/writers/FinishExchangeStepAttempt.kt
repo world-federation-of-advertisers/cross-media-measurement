@@ -18,9 +18,11 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.Date
+import io.grpc.Status
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -109,10 +111,14 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
 
     val workflow =
       RecurringExchangeReader()
-        .readExternalId(transactionContext, ExternalId(externalRecurringExchangeId))
-        .recurringExchange
-        .details
-        .exchangeWorkflow
+        .readByExternalRecurringExchangeId(
+          transactionContext,
+          ExternalId(externalRecurringExchangeId)
+        )
+        ?.recurringExchange
+        ?.details
+        ?.exchangeWorkflow
+        ?: failGrpc(Status.PERMISSION_DENIED) { "Workflow not found" }
 
     val steps =
       findReadyExchangeSteps(
@@ -237,7 +243,7 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     attemptIndex: Int
   ): ExchangeStepAttemptReader.Result? {
     return ExchangeStepAttemptReader()
-      .withBuilder {
+      .fillStatementBuilder {
         appendClause(
           "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
         )

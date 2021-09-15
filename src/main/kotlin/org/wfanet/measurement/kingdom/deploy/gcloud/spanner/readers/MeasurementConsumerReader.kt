@@ -15,6 +15,10 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
@@ -43,8 +47,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     JOIN Certificates USING (CertificateId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "MeasurementConsumers.ExternalMeasurementConsumerId"
-
   override suspend fun translate(struct: Struct): Result =
     Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"))
 
@@ -57,6 +59,19 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
         certificate = buildCertificate(struct)
       }
       .build()
+
+  suspend fun readByExternalMeasurementConsumerId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalMeasurementConsumerId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId")
+        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 
   // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
   private fun buildCertificate(struct: Struct): Certificate =

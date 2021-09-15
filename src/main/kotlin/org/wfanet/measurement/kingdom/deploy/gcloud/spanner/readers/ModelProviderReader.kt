@@ -15,6 +15,10 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 
 class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
@@ -28,10 +32,21 @@ class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
     FROM ModelProviders
     """.trimIndent()
 
-  override val externalIdColumn: String = "ModelProviders.ExternalModelProviderId"
-
   override suspend fun translate(struct: Struct): Result =
     Result(buildModelProvider(struct), struct.getLong("ModelProviderId"))
+
+  suspend fun readByExternalModelProviderId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalModelProviderId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE ExternalModelProviderId = @externalModelProviderId")
+        bind("externalModelProviderId").to(externalModelProviderId.value)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 
   private fun buildModelProvider(struct: Struct): ModelProvider {
     return ModelProvider.newBuilder()

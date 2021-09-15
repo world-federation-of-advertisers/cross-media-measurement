@@ -34,7 +34,7 @@ class StreamRecurringExchanges(filter: StreamRecurringExchangesFilter, limit: Lo
   SimpleSpannerQuery<RecurringExchangeReader.Result>() {
 
   override val reader: BaseSpannerReader<RecurringExchangeReader.Result> by lazy {
-    RecurringExchangeReader(forcedIndex).withBuilder {
+    RecurringExchangeReader(forcedIndex).fillStatementBuilder {
       if (!filter.empty) {
         appendClause("WHERE ")
         filter.toSql(this, StreamRecurringExchangesFilterSqlConverter)

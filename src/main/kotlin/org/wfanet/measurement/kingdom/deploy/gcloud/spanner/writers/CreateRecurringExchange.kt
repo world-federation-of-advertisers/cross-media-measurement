@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import io.grpc.Status
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -30,13 +32,21 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
   override suspend fun TransactionScope.runTransaction(): RecurringExchange {
     val dataProviderId =
       DataProviderReader()
-        .readExternalId(transactionContext, ExternalId(recurringExchange.externalDataProviderId))
-        .dataProviderId
+        .readByExternalDataProviderId(
+          transactionContext,
+          ExternalId(recurringExchange.externalDataProviderId)
+        )
+        ?.dataProviderId
+        ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
 
     val modelProviderId =
       ModelProviderReader()
-        .readExternalId(transactionContext, ExternalId(recurringExchange.externalModelProviderId))
-        .modelProviderId
+        .readByExternalModelProviderId(
+          transactionContext,
+          ExternalId(recurringExchange.externalModelProviderId)
+        )
+        ?.modelProviderId
+        ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {

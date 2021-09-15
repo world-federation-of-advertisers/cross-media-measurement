@@ -15,6 +15,10 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
@@ -43,10 +47,21 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     JOIN Certificates USING (CertificateId)
     """.trimIndent()
 
-  override val externalIdColumn: String = "DataProviders.ExternalDataProviderId"
-
   override suspend fun translate(struct: Struct): Result =
     Result(buildDataProvider(struct), struct.getLong("DataProviderId"))
+
+  suspend fun readByExternalDataProviderId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalDataProviderId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE ExternalDataProviderId = @externalDataProviderId")
+        bind("externalDataProviderId").to(externalDataProviderId.value)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 
   private fun buildDataProvider(struct: Struct): DataProvider =
     DataProvider.newBuilder()

@@ -37,9 +37,6 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     JOIN ExchangeSteps USING (RecurringExchangeId, Date, StepIndex)
     """.trimIndent()
 
-  override val externalIdColumn: String
-    get() = error("This isn't supported.")
-
   override suspend fun translate(struct: Struct): Result {
     return Result(
       exchangeStepAttempt =
@@ -85,7 +82,7 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
         "Specify exactly one of `externalDataProviderId` and `externalModelProviderId`"
       }
 
-      return ExchangeStepAttemptReader().withBuilder {
+      return ExchangeStepAttemptReader().fillStatementBuilder {
         appendClause(
           """
             WHERE ExchangeSteps.State = @exchange_step_state

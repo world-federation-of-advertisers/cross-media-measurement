@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import io.grpc.Status
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -28,8 +30,12 @@ class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Excha
   override suspend fun TransactionScope.runTransaction(): Exchange {
     val recurringExchangeId =
       RecurringExchangeReader()
-        .readExternalId(transactionContext, ExternalId(exchange.externalRecurringExchangeId))
-        .recurringExchangeId
+        .readByExternalRecurringExchangeId(
+          transactionContext,
+          ExternalId(exchange.externalRecurringExchangeId)
+        )
+        ?.recurringExchangeId
+        ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
 
     transactionContext.bufferInsertMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
