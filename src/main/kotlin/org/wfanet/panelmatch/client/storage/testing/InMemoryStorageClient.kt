@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.client.storage.testing
 
 import com.google.protobuf.ByteString
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.fold
 import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -50,7 +50,7 @@ class InMemoryStorageClient(private val keyPrefix: String) : StorageClient {
 
     // As we're using this primarily for unit tests, we want to collect the input to record
     // size and to emulate "writing out" to memory.
-    val newBlob = Blob(content.fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) }), blobKey)
+    val newBlob = Blob(content.flatten(), blobKey)
     inMemoryStorageMap[mapKey] = newBlob
 
     return newBlob

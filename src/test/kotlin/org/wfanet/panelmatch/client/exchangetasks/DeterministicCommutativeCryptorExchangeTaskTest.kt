@@ -41,8 +41,8 @@ import org.wfanet.panelmatch.client.launcher.testing.LOOKUP_KEYS
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
 import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
 import org.wfanet.panelmatch.client.launcher.testing.buildMockCryptor
-import org.wfanet.panelmatch.client.storage.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputs
 

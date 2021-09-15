@@ -20,9 +20,12 @@ import java.lang.Exception
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.crypto.signFlow
+import org.wfanet.measurement.common.crypto.verifySignedFlow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.read
 
 class StorageNotFoundException(inputKey: String) : Exception("$inputKey not found")
@@ -35,6 +38,9 @@ class VerifiedStorageClient(
 ) {
 
   val defaultBufferSizeBytes: Int = storageClient.defaultBufferSizeBytes
+
+  /** A helper function to get the implicit path for a input's signature. */
+  private fun getSigPath(blobKey: String): String = "${blobKey}_signature"
 
   /**
    * Transforms values of [inputLabels] into the underlying blobs.
@@ -83,7 +89,16 @@ class VerifiedStorageClient(
   @Throws(StorageNotFoundException::class)
   suspend fun getBlob(blobKey: String): VerifiedBlob {
     val sourceBlob: Blob = storageClient.getBlob(blobKey) ?: throw StorageNotFoundException(blobKey)
-    return VerifiedBlob(sourceBlob, blobKey, readCert)
+    val signatureBlob: Blob =
+      storageClient.getBlob(getSigPath(blobKey))
+        ?: throw StorageNotFoundException(getSigPath(blobKey))
+
+    return VerifiedBlob(
+      sourceBlob,
+      signatureBlob.read(defaultBufferSizeBytes).flatten(),
+      blobKey,
+      readCert
+    )
   }
 
   /**
@@ -91,22 +106,19 @@ class VerifiedStorageClient(
    * [PrivateKey] , this creates a signature in shared storage for the written blob that can be
    * verified by the other party using a pre-provided [X509Certificate].
    */
+  @Suppress("EXPERIMENTAL_API_USAGE")
   suspend fun createBlob(blobKey: String, content: Flow<ByteString>): VerifiedBlob {
-    // TODO: downstream PR to implement signing
-    //  This is intended to actually write two files (by creating two Blobs). One being the normal
-    //  write, the other writing a signature file created with our [PrivateKey]. We still only
-    //  return the Blob created from the passed [content] val, but a failure to sign the file will
-    //  still throw an exception (causing the task step to fail).
-    //  This function assumes VerifiedStorageClient will handle tracking the [PrivateKey].
-    return VerifiedBlob(
-      storageClient.createBlob(blobKey = blobKey, content = content),
-      blobKey,
-      writeCert
-    )
+    val (signedContent, deferredSig) = privateKey.signFlow(writeCert, content)
+    val sourceBlob = storageClient.createBlob(blobKey = blobKey, content = signedContent)
+
+    val signature = deferredSig.getCompleted()
+    storageClient.createBlob(blobKey = getSigPath(blobKey), content = signature)
+    return VerifiedBlob(sourceBlob, signature, blobKey, writeCert)
   }
 
   class VerifiedBlob(
     private val sourceBlob: Blob,
+    private val signature: ByteString,
     val blobKey: String,
     private val cert: X509Certificate
   ) {
@@ -126,11 +138,7 @@ class VerifiedStorageClient(
      * terminal error if it fails.
      */
     private fun verifiedRead(bufferSize: Int): Flow<ByteString> {
-      // TODO: downstream PR to implement signature validation
-      //  Downstream reads the file as well as a signature file derived from blobKey and starts a
-      //  validation process using a provided [X509Certificate]. Right now it just runs [read].
-      //  This function assumes that VerifiedStorageClient handles tracking the [X509Certificate].
-      return sourceBlob.read(bufferSize)
+      return cert.verifySignedFlow(sourceBlob.read(bufferSize), signature)
     }
 
     fun read(bufferSize: Int = this.defaultBufferSizeBytes): Flow<ByteString> {

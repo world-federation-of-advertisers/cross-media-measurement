@@ -37,8 +37,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
-import org.wfanet.panelmatch.client.storage.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 import org.wfanet.panelmatch.common.toByteString
 

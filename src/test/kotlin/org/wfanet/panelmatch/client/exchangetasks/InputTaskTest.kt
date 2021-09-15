@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.INPUT_S
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.sign
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
@@ -66,6 +67,13 @@ class InputTaskTest {
     mock<StorageClient.Blob> {
       on { read(any()) } doReturn MP_0_SECRET_KEY.asBufferedFlow(1024)
     } // MP_0_SECRET_KEY
+  private val secretKeySourceBlobSignature =
+    mock<StorageClient.Blob> {
+      on { read(any()) } doReturn
+        readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+          .sign(readCertificate(FIXED_SERVER_CERT_PEM_FILE), MP_0_SECRET_KEY)
+          .asBufferedFlow(1024)
+    } // MP_0_SECRET_KEY
 
   private val throttler =
     object : Throttler {
@@ -87,11 +95,15 @@ class InputTaskTest {
       .thenReturn(null)
       .thenReturn(secretKeySourceBlob)
 
+    whenever(underlyingPrivateStorage.getBlob("mp-crypto-key_signature"))
+      .thenReturn(secretKeySourceBlobSignature)
+
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
     verify(underlyingPrivateStorage, times(5)).getBlob("mp-crypto-key")
+    verify(underlyingPrivateStorage, times(1)).getBlob("mp-crypto-key_signature")
     verify(underlyingPrivateStorage, times(1)).defaultBufferSizeBytes
     verify(underlyingSharedStorage, times(1)).defaultBufferSizeBytes
     verifyNoMoreInteractions(underlyingSharedStorage, underlyingPrivateStorage)
@@ -109,12 +121,15 @@ class InputTaskTest {
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(secretKeySourceBlob)
+    whenever(underlyingSharedStorage.getBlob("mp-crypto-key_signature"))
+      .thenReturn(secretKeySourceBlobSignature)
 
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
     verify(underlyingSharedStorage, times(5)).getBlob("mp-crypto-key")
+    verify(underlyingSharedStorage, times(1)).getBlob("mp-crypto-key_signature")
     verify(underlyingPrivateStorage, times(1)).defaultBufferSizeBytes
     verify(underlyingSharedStorage, times(1)).defaultBufferSizeBytes
 

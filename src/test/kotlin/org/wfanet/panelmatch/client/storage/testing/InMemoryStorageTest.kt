@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.client.storage.testing
 
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
-import org.wfanet.panelmatch.client.storage.testing.AbstractStorageTest
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 
 class InMemoryStorageTest : AbstractStorageTest() {
   override val privateStorage =
