@@ -27,4 +27,10 @@ interface QueryEvaluator : Serializable {
    * @throws IllegalArgumentException if [results] do not all have the same [QueryId].
    */
   fun combineResults(results: Sequence<Result>): Result
+
+  /**
+   * For each [Result] in [results], "finalizes" the result. After this point, it is ready to be
+   * transmitted to the client for decryption.
+   */
+  fun finalizeResults(results: Sequence<Result>): Sequence<Result>
 }

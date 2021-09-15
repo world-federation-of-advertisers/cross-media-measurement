@@ -68,6 +68,10 @@ object PlaintextQueryEvaluator : QueryEvaluator {
     }
   }
 
+  override fun finalizeResults(results: Sequence<Result>): Sequence<Result> {
+    return results
+  }
+
   private fun query(shard: DatabaseShard, bundle: QueryBundle): List<Result> {
     val queriedBuckets = ListValue.parseFrom(bundle.payload)
     require(queriedBuckets.valuesCount == bundle.queryMetadataList.size)
