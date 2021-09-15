@@ -30,6 +30,10 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
     TODO()
   }
 
+  override fun finalizeResults(results: Sequence<Result>): Sequence<Result> {
+    TODO()
+  }
+
   companion object {
     init {
       loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")

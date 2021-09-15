@@ -79,6 +79,11 @@ class EvaluateQueriesWorkflow(
     return uncombinedResults
       .combinePerKey("Combine Subshard Results") { queryEvaluator.combineResults(it.asSequence()) }
       .values("Extract Results")
+      .map {
+        // TODO: consider batching calls to finalizeResults if JNI overhead is too large.
+        // Batching will reduce JNI overhead but may increase memory usage.
+        queryEvaluator.finalizeResults(sequenceOf(it)).single()
+      }
   }
 
   /** Joins the inputs to execute the queries on the appropriate shards. */
