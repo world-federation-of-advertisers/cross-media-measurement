@@ -14,28 +14,23 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
-import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.common.JniException
 
-// TODO: subclass AbstractQueryEvaluatorTest once implemented
+// TODO(@efoxepstein): subclass AbstractQueryEvaluatorTest once implemented
 @RunWith(JUnit4::class)
 class JniQueryEvaluatorTest {
   @Test
   fun `executeQueries is unimplemented`() {
-    val queryEvaluator = JniQueryEvaluator()
-    val e =
-      assertFailsWith<JniException> { queryEvaluator.executeQueries(emptyList(), emptyList()) }
-    assertThat(e.message).ignoringCase().contains("unimplemented")
+    val queryEvaluator = JniQueryEvaluator(queryEvaluatorParameters {})
+    assertFailsWith<NotImplementedError> { queryEvaluator.executeQueries(emptyList(), emptyList()) }
   }
 
   @Test
   fun `combineResults is unimplemented`() {
-    val queryEvaluator = JniQueryEvaluator()
-    val e = assertFailsWith<JniException> { queryEvaluator.combineResults(emptySequence()) }
-    assertThat(e.message).ignoringCase().contains("unimplemented")
+    val queryEvaluator = JniQueryEvaluator(queryEvaluatorParameters {})
+    assertFailsWith<NotImplementedError> { queryEvaluator.combineResults(emptySequence()) }
   }
 }

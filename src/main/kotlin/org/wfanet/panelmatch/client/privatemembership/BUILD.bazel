@@ -5,9 +5,28 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
 ])
 
+# Embed C++ libraries into a JAR. This is to ensure Apache Beam copies over
+# the C++ library to its workers.
+#
+# There is a bug in kt_jvm_library that does not allow specifying a .so file in
+# the `resources` parameter, so instead we make a `java_library` containing the
+# .so file.
+#
+# See also https://github.com/world-federation-of-advertisers/panel-exchange-client/issues/77.
+#
+# TODO: Drop this if rules_swig gains support for embedding the native shared library as a resource
+java_library(
+    name = "swig_resources",
+    resources = [
+        "//src/main/swig/wfanet/panelmatch/client/privatemembership/decryptqueryresults:libdecrypt_query_results.so",
+        "//src/main/swig/wfanet/panelmatch/client/privatemembership/privatemembership:libprivate_membership.so",
+    ],
+)
+
 kt_jvm_library(
     name = "privatemembership",
     srcs = glob(["*.kt"]),
+    runtime_deps = [":swig_resources"],
     deps = [
         "//imports/java/org/apache/beam:core",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
@@ -22,8 +41,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_evaluator_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_kt_jvm_proto",
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/decryptqueryresults:decrypt_query_results",
-        "//src/main/swig/wfanet/panelmatch/client/privatemembership/querybuilder:private_membership",
-        "//src/main/swig/wfanet/panelmatch/client/privatemembership/queryevaluator:query_evaluator",
+        "//src/main/swig/wfanet/panelmatch/client/privatemembership/privatemembership:private_membership",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )

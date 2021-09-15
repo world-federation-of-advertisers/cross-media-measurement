@@ -14,25 +14,4 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
-import org.wfanet.panelmatch.common.loadLibraryFromResource
-
-/** [QueryEvaluator] that calls into C++ via JNI. */
-class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : QueryEvaluator {
-
-  override fun executeQueries(
-    shards: List<DatabaseShard>,
-    queryBundles: List<QueryBundle>
-  ): List<Result> {
-    TODO()
-  }
-
-  override fun combineResults(results: Sequence<Result>): Result {
-    TODO()
-  }
-
-  companion object {
-    init {
-      loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")
-    }
-  }
-}
+internal const val SWIG_PREFIX: String = "/main/swig/wfanet/panelmatch/client/privatemembership"
