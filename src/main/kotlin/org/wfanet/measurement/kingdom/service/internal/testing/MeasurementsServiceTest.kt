@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -283,6 +284,41 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val createdMeasurement = measurementsService.createMeasurement(measurement)
     val secondCreateMeasurementAttempt = measurementsService.createMeasurement(measurement)
     assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
+  }
+
+  @Test
+  fun `createMeasurement returns new measurement when called without providedMeasurementId`() =
+      runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    insertDataProvider()
+    val measurement =
+      Measurement.newBuilder()
+        .also {
+          it.detailsBuilder.apiVersion = "v2alpha"
+          it.externalMeasurementConsumerId = externalMeasurementConsumerId
+          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+        }
+        .build()
+
+    val otherMeasurement =
+      measurement.copy {
+        details =
+          details { measurementSpec = ByteString.copyFromUtf8("This is a MeasurementSpec.") }
+      }
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val secondCreateMeasurementAttempt = measurementsService.createMeasurement(otherMeasurement)
+    assertThat(secondCreateMeasurementAttempt)
+      .ignoringFields(
+        Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
+        Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
+        Measurement.CREATE_TIME_FIELD_NUMBER,
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+      )
+      .isEqualTo(otherMeasurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
   }
 
   @Test

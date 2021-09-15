@@ -102,7 +102,9 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementId" to measurementId)
       set("ExternalMeasurementId" to externalMeasurementId)
       set("ExternalComputationId" to externalComputationId)
-      set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      if (!measurement.providedMeasurementId.isEmpty()) {
+        set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      }
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to INITIAL_MEASUREMENT_STATE)
       set("MeasurementDetails" to measurement.details)
@@ -167,6 +169,9 @@ class CreateMeasurement(private val measurement: Measurement) :
   private suspend fun TransactionScope.findExistingMeasurement(
     measurementConsumerId: InternalId
   ): Measurement? {
+    if (measurement.providedMeasurementId.isEmpty()) {
+      return null
+    }
     val params =
       object {
         val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"

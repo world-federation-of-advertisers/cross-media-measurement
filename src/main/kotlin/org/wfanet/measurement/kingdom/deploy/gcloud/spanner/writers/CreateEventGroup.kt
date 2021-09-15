@@ -81,7 +81,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     if (eventGroup.providedEventGroupId.isEmpty()) {
       return null
     }
-    
+
     return EventGroupReader()
       .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
       .execute(transactionContext)
