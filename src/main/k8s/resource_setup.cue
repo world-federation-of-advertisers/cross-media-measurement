@@ -15,11 +15,9 @@
 package k8s
 
 #ResourceSetup: {
-	_name: "resource-setup-job"
 	_edp_display_names: [...string]
 	_duchy_ids: [...string]
-	_foooo: string
-
+	_job_image: string
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -54,41 +52,14 @@ package k8s
 		"--kingdom-public-api-cert-host=localhost",
 	]
 
-	_image:           string
-	_imagePullPolicy: string
-
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: {
-		name: "resource-setup-job"
-		labels: "app.kubernetes.io/name": #AppName
-	}
-	spec: template: spec: {
-		containers: [{
-			name:            "resource-setup-container"
-			image:           _image
-			imagePullPolicy: _imagePullPolicy
-			args:
-				_edp_cert_key_files_flags +
-				_mc_cert_key_files_flags +
-				_tls_cert_key_files_flags +
-				_duchy_cs_cert_files_flags +
-				_kingdom_public_api_flags
-			volumeMounts: [
-				{
-					name:      _name + "-files"
-					mountPath: "/var/run/secrets/files"
-					readOnly:  true
-				}]
-
-		}]
-		restartPolicy: "OnFailure"
-		volumes: [
-			{
-				name: _name + "-files"
-				secret: {
-					secretName: #SecretName
-				}
-			}]
+	resource_setup_job: #Job & {
+		_name:  "resource-setup"
+		_image: _job_image
+		_args:
+			_edp_cert_key_files_flags +
+			_mc_cert_key_files_flags +
+			_tls_cert_key_files_flags +
+			_duchy_cs_cert_files_flags +
+			_kingdom_public_api_flags
 	}
 }
