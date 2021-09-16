@@ -72,7 +72,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
-      if (!eventGroup.providedEventGroupId.isEmpty()) {
+      if (!eventGroup.providedEventGroupId.isBlank()) {
         set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)

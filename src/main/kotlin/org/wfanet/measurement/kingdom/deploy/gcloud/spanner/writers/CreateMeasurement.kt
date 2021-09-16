@@ -105,7 +105,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementId" to measurementId)
       set("ExternalMeasurementId" to externalMeasurementId)
       set("ExternalComputationId" to externalComputationId)
-      if (!measurement.providedMeasurementId.isEmpty()) {
+      if (!measurement.providedMeasurementId.isBlank()) {
         set("ProvidedMeasurementId" to measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)
