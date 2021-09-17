@@ -52,8 +52,12 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         ?.dataProviderId
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
-    return findExistingEventGroup(dataProviderId)
-      ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+    return if (eventGroup.providedEventGroupId.isBlank()) {
+      createNewEventGroup(dataProviderId, measurementConsumerId)
+    } else {
+      findExistingEventGroup(dataProviderId)
+        ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+    }
   }
 
   private suspend fun TransactionScope.createNewEventGroup(
@@ -68,7 +72,9 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
-      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      if (!eventGroup.providedEventGroupId.isBlank()) {
+        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 

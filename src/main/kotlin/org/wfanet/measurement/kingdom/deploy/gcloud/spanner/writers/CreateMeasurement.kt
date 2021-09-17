@@ -51,9 +51,12 @@ class CreateMeasurement(private val measurement: Measurement) :
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val measurementConsumerId: InternalId =
       readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
-    val existingMeasurement = findExistingMeasurement(measurementConsumerId)
-    if (existingMeasurement != null) {
-      return existingMeasurement
+
+    if (!measurement.providedMeasurementId.isBlank()) {
+      val existingMeasurement = findExistingMeasurement(measurementConsumerId)
+      if (existingMeasurement != null) {
+        return existingMeasurement
+      }
     }
 
     val measurementId: InternalId = idGenerator.generateInternalId()
@@ -102,7 +105,9 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementId" to measurementId)
       set("ExternalMeasurementId" to externalMeasurementId)
       set("ExternalComputationId" to externalComputationId)
-      set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      if (!measurement.providedMeasurementId.isBlank()) {
+        set("ProvidedMeasurementId" to measurement.providedMeasurementId)
+      }
       set("CertificateId" to measurementConsumerCertificateId)
       set("State" to INITIAL_MEASUREMENT_STATE)
       set("MeasurementDetails" to measurement.details)
