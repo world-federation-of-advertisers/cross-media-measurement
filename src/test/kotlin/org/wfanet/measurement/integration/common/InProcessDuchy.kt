@@ -71,7 +71,6 @@ class InProcessDuchy(
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
     val storageClient: StorageClient,
-    val consentSignalingCertName: String,
     val keyStore: KeyStore,
     val consentSignalingCert: Certificate
   )
