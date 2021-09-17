@@ -2,6 +2,7 @@ load("//build/cue:defs.bzl", "cue_string_field")
 
 package(default_visibility = [
     "//src/main/k8s:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
 ])
 
 exports_files(["duchy_rpc_config.textproto"])
@@ -47,4 +48,9 @@ cue_string_field(
     src = "non_aggregator_protocols_setup_config.textproto",
     identifier = "#NonAggregatorProtocolsSetupConfig",
     package = "k8s",
+)
+
+filegroup(
+    name = "all_configs",
+    srcs = glob(["*.textproto"]),
 )
