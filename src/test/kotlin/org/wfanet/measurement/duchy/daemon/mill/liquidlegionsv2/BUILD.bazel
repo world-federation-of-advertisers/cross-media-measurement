@@ -8,7 +8,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",

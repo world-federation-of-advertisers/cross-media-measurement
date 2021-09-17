@@ -29,7 +29,7 @@ import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
-import org.wfanet.measurement.duchy.service.internal.computation.toGetTokenRequest
+import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig

@@ -39,8 +39,8 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquid
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
+import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.duchy.storage.RequisitionStore
@@ -71,7 +71,6 @@ class InProcessDuchy(
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
     val storageClient: StorageClient,
-    val consentSignalingCertName: String,
     val keyStore: KeyStore,
     val consentSignalingCert: Certificate
   )

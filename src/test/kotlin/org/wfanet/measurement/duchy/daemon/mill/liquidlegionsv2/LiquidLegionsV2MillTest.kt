@@ -71,10 +71,10 @@ import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2M
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.name
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext

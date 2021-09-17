@@ -38,10 +38,10 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
-import org.wfanet.measurement.duchy.service.internal.computation.ComputationsService
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
+import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub

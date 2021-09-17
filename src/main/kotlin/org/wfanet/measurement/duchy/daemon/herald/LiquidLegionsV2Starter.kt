@@ -25,7 +25,7 @@ import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
-import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
+import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken

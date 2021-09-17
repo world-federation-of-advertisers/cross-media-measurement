@@ -50,7 +50,7 @@ import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaHybridCipherSuite
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaMeasurementResult
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
+import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason

@@ -22,7 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV2Protocol
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails

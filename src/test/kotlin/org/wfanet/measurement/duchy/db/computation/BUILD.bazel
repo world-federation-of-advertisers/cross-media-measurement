@@ -30,7 +30,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
