@@ -136,3 +136,40 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			periodSeconds: 60
 		}}]
 }
+
+#Job: {
+	_name:            string
+	_image:           string | *""
+	_imagePullPolicy: string | *"Always"
+	_args: [...string]
+	_dependencies: [...string]
+
+	apiVersion: "batch/v1"
+	kind:       "Job"
+	metadata: {
+		name: _name + "-job"
+		labels: "app.kubernetes.io/name": #AppName
+	}
+	spec: template: spec: {
+		containers: [{
+			name:            _name + "-container"
+			image:           _image
+			imagePullPolicy: _imagePullPolicy
+			args:            _args
+			volumeMounts: [{
+				name:      _name + "-files"
+				mountPath: "/var/run/secrets/files"
+				readOnly:  true
+			}]
+		}]
+		volumes: [
+			{
+				name: _name + "-files"
+				secret: {
+					secretName: #SecretName
+				}
+			},
+		]
+		restartPolicy: "OnFailure"
+	}
+}

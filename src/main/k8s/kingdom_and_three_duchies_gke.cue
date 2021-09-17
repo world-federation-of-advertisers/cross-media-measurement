@@ -139,23 +139,19 @@ kingdom: #Kingdom & {
 	_verbose_grpc_logging:      "false"
 }
 
-frontend_simulator: "frontend_simulator": #FrontendSimulator & {
+frontend_simulator: #FrontendSimulator & {
 	_mc_resource_name: #McResourcename
-	_image:            "\(_container_registry_prefix)/loadtest/frontend-simulator"
-	_imagePullPolicy:  "Always"
+	_simulator_image:  "\(_container_registry_prefix)/loadtest/frontend-simulator"
 	_blob_storage_flags: [
 		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
 		"--google-cloud-storage-project=\(_cloud_storage_project)",
 	]
-	_dependencies: ["v2alpha-public-api-server"]
 }
 
-resource_setup_job: "resource_setup_job": #ResourceSetup & {
+resource_setup_job: #ResourceSetup & {
 	_edp_display_names: [ for d in #Edps {d.display_name}]
 	_duchy_ids: [ for d in #Duchies {d.name}]
-	_image:           "\(_container_registry_prefix)/loadtest/resource-setup"
-	_imagePullPolicy: "Always"
-	_dependencies: ["v2alpha-public-api-server"]
+	_job_image: "\(_container_registry_prefix)/loadtest/resource-setup"
 }
 
 edp_simulators: {
