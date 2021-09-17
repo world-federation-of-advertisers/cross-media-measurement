@@ -41,7 +41,7 @@ class CoroutineLauncherTest {
       ExchangeStep.newBuilder()
         .apply {
           name = "some-exchange-step-name"
-          signedExchangeWorkflowBuilder.data = workflowStep.toByteString()
+          signedExchangeWorkflowBuilder.serializedExchangeWorkflow = workflowStep.toByteString()
         }
         .build()
 

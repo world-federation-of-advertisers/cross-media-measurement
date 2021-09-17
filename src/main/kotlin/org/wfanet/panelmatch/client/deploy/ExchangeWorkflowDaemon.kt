@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import java.security.cert.X509Certificate
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
@@ -46,6 +47,10 @@ abstract class ExchangeWorkflowDaemon : Runnable {
 
   /** [VerifiedStorageClient] for payloads that should NOT shared with the other party. */
   abstract val privateStorage: VerifiedStorageClient
+
+  abstract val dataProviderCertificate: X509Certificate
+
+  abstract val modelProviderCertificate: X509Certificate
 
   override fun run() {
     val clientCerts =
@@ -97,7 +102,12 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = grpcApiClient,
-        validator = ExchangeStepValidatorImpl(),
+        validator =
+          ExchangeStepValidatorImpl(
+            flags.partyType,
+            dataProviderCertificate,
+            modelProviderCertificate
+          ),
         jobLauncher = launcher
       )
 

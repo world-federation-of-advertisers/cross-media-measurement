@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import java.security.cert.X509Certificate
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import picocli.CommandLine
@@ -28,6 +29,10 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemon() {
   override val sharedStorage: VerifiedStorageClient
     get() = TODO("Not yet implemented")
   override val privateStorage: VerifiedStorageClient
+    get() = TODO("Not yet implemented")
+  override val dataProviderCertificate: X509Certificate
+    get() = TODO("Not yet implemented")
+  override val modelProviderCertificate: X509Certificate
     get() = TODO("Not yet implemented")
 }
 

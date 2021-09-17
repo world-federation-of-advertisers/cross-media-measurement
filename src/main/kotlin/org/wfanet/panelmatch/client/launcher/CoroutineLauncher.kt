@@ -30,7 +30,7 @@ class CoroutineLauncher(
     scope.launch {
       stepExecutor.execute(
         attemptKey = attemptKey,
-        step = Step.parseFrom(exchangeStep.signedExchangeWorkflow.data)
+        step = Step.parseFrom(exchangeStep.signedExchangeWorkflow.serializedExchangeWorkflow)
       )
     }
   }
