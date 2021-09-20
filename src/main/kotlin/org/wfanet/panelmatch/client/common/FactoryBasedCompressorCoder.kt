@@ -20,28 +20,28 @@ import org.apache.beam.sdk.coders.AtomicCoder
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.SerializableCoder
 import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
-import org.wfanet.panelmatch.client.common.EventCompressorTrainer.TrainedEventCompressor
 import org.wfanet.panelmatch.common.beam.kvOf
-import org.wfanet.panelmatch.common.compression.Compressor
+import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
 
-/** Apache Beam Coder for [TrainedEventCompressor]. */
-class TrainedEventCompressorCoder : AtomicCoder<TrainedEventCompressor>() {
-  private val serializableCoder = SerializableCoder.of(Compressor::class.java)
+/** Apache Beam Coder for [FactoryBasedCompressor]. */
+class FactoryBasedCompressorCoder : AtomicCoder<FactoryBasedCompressor>() {
   private val byteStringCoder = ByteStringCoder.of()
-  private val kvCoder = KvCoder.of(serializableCoder, byteStringCoder)
+  private val serializableCoder = SerializableCoder.of(CompressorFactory::class.java)
+  private val kvCoder = KvCoder.of(byteStringCoder, serializableCoder)
 
-  override fun encode(value: TrainedEventCompressor, outStream: OutputStream) {
-    kvCoder.encode(kvOf(value.compressor, value.dictionary), outStream)
+  override fun encode(value: FactoryBasedCompressor, outStream: OutputStream) {
+    kvCoder.encode(kvOf(value.dictionary, value.factory), outStream)
   }
 
-  override fun decode(inStream: InputStream): TrainedEventCompressor {
+  override fun decode(inStream: InputStream): FactoryBasedCompressor {
     val kv = kvCoder.decode(inStream)
-    return TrainedEventCompressor(checkNotNull(kv.key), checkNotNull(kv.value))
+    return FactoryBasedCompressor(checkNotNull(kv.key), checkNotNull(kv.value))
   }
 
   companion object {
-    fun of(): TrainedEventCompressorCoder {
-      return TrainedEventCompressorCoder()
+    fun of(): FactoryBasedCompressorCoder {
+      return FactoryBasedCompressorCoder()
     }
   }
 }
