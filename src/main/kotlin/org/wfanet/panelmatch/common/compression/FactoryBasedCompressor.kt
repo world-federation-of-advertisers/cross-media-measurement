@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.common
+package org.wfanet.panelmatch.common.compression
 
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
-import org.wfanet.panelmatch.common.compression.NoOpCompressor
 
-/**
- * Trivial trainer for [NoOpCompressor].
- *
- * WARNING: since this does no compression, you likely do not want to use it in production.
- */
-class UncompressedEventCompressorTrainer : EventCompressorTrainer {
-  override val preferredSampleSize: Int = 0
+data class FactoryBasedCompressor(val dictionary: ByteString, val factory: CompressorFactory) :
+  Compressor {
+  override fun compress(events: ByteString): ByteString {
+    return factory.build(dictionary).compress(events)
+  }
 
-  override fun train(eventsSample: Iterable<ByteString>): FactoryBasedCompressor {
-    return FactoryBasedCompressor(ByteString.EMPTY) { NoOpCompressor() }
+  override fun uncompress(compressedEvents: ByteString): ByteString {
+    return factory.build(dictionary).uncompress(compressedEvents)
   }
 }

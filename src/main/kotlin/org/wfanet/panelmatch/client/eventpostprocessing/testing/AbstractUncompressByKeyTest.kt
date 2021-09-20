@@ -39,11 +39,7 @@ abstract class AbstractUncompressByKeyTest : BeamTestBase() {
     val compressedEvents: CompressedEvents = eventCompressorTrainer.compressByKey(events)
     val uncompressedEvents = uncompressByKey(compressedEvents, getCompressor)
     assertThat(uncompressedEvents).satisfies {
-      assertThat(
-          it.map {
-            requireNotNull(it.key.toStringUtf8()) to requireNotNull(it.value.toStringUtf8())
-          }
-        )
+      assertThat(it.map { kv -> kv.key.toStringUtf8() to kv.value.toStringUtf8() })
         .containsExactlyElementsIn(listOf("A" to "W", "A" to "X", "B" to "Y", "C" to "Z"))
       null
     }

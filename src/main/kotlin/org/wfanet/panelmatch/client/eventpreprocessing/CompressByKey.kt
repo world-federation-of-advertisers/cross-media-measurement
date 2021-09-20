@@ -19,12 +19,10 @@ import org.apache.beam.sdk.transforms.Sample
 import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
-import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.client.combinedEvents
 import org.wfanet.panelmatch.client.common.CompressedEvents
 import org.wfanet.panelmatch.client.common.EventCompressorTrainer
-import org.wfanet.panelmatch.client.common.EventCompressorTrainer.TrainedEventCompressor
-import org.wfanet.panelmatch.client.common.TrainedEventCompressorCoder
+import org.wfanet.panelmatch.client.common.FactoryBasedCompressorCoder
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
@@ -32,6 +30,7 @@ import org.wfanet.panelmatch.common.beam.mapValues
 import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.compression.Compressor
+import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
 
 /**
  * First use [Sample.any] -- which is not guaranteed to be uniform -- to significantly over-sample
@@ -46,26 +45,23 @@ fun EventCompressorTrainer.compressByKey(
   events: PCollection<KV<ByteString, ByteString>>
 ): CompressedEvents {
 
-  val trainedEventCompressor: PCollection<TrainedEventCompressor> =
+  val compressor: PCollection<FactoryBasedCompressor> =
     events
       .values()
       .apply("Rough Sample", Sample.any(OVERSAMPLING_FACTOR * preferredSampleSize))
       .apply("Uniform Sample", Sample.fixedSizeGlobally(preferredSampleSize))
       .map { train(it) }
-      .setCoder(TrainedEventCompressorCoder.of())
-
-  val compressorView: PCollectionView<Compressor> =
-    trainedEventCompressor.map { it.compressor }.apply(View.asSingleton())
+      .setCoder(FactoryBasedCompressorCoder.of())
 
   val compressedEvents: PCollection<KV<ByteString, ByteString>> =
     events
       .groupByKey()
       .mapValues { combinedEvents { serializedEvents += it }.toByteString() }
-      .parDoWithSideInput(compressorView) {
+      .parDoWithSideInput(compressor.apply(View.asSingleton())) {
         keyAndEvents: KV<ByteString, ByteString>,
-        compressor: Compressor ->
-        yield(kvOf(keyAndEvents.key, compressor.compress(keyAndEvents.value)))
+        compressorSideInput: FactoryBasedCompressor ->
+        yield(kvOf(keyAndEvents.key, compressorSideInput.compress(keyAndEvents.value)))
       }
 
-  return CompressedEvents(compressedEvents, trainedEventCompressor.map { it.dictionary })
+  return CompressedEvents(compressedEvents, compressor.map { it.dictionary })
 }
