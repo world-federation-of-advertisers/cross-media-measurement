@@ -10,5 +10,6 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/org/apache/beam:core",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )

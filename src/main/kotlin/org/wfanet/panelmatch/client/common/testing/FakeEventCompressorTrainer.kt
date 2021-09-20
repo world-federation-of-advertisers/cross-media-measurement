@@ -12,21 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.client.common.testing
 
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.client.eventpreprocessing.EventCompressorTrainer.TrainedEventCompressor
-import org.wfanet.panelmatch.common.compression.NoOpCompressor
+import org.wfanet.panelmatch.client.common.EventCompressorTrainer
+import org.wfanet.panelmatch.client.common.EventCompressorTrainer.TrainedEventCompressor
+import org.wfanet.panelmatch.common.compression.testing.FakeCompressor
+import org.wfanet.panelmatch.common.toByteString
 
-/**
- * Trivial trainer for [NoOpCompressor].
- *
- * WARNING: since this does no compression, you likely do not want to use it in production.
- */
-class UncompressedEventCompressorTrainer : EventCompressorTrainer {
-  override val preferredSampleSize: Int = 0
+class FakeEventCompressorTrainer : EventCompressorTrainer {
+  override val preferredSampleSize: Int = 3
 
   override fun train(eventsSample: Iterable<ByteString>): TrainedEventCompressor {
-    return TrainedEventCompressor(NoOpCompressor(), ByteString.EMPTY)
+    val sortedJoinedSample = eventsSample.map { it.toStringUtf8() }.sorted().joinToString(", ")
+    return TrainedEventCompressor(
+      FakeCompressor(),
+      "Dictionary: $sortedJoinedSample".toByteString()
+    )
   }
 }

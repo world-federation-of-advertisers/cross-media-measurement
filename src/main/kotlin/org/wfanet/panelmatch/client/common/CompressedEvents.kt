@@ -12,22 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression
+package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.PCollection
 
-/**
- * This is a simple [Compressor] for testing/debugging purposes.
- *
- * This does not attempt to perform any compression, so it is likely not suitable for production
- * environments.
- */
-class NoOpCompressor : Compressor {
-  override fun compress(events: ByteString): ByteString {
-    return events
-  }
-
-  override fun uncompress(compressedEvents: ByteString): ByteString {
-    return compressedEvents
-  }
-}
+/** The results of training a [Compressor] and then applying it to a [PCollection]. */
+data class CompressedEvents(
+  val events: PCollection<KV<ByteString, ByteString>>,
+  val dictionary: PCollection<ByteString>
+)

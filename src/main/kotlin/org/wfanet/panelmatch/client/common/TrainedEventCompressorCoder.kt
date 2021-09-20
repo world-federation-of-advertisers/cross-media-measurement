@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.client.common
 
 import java.io.InputStream
 import java.io.OutputStream
@@ -20,12 +20,12 @@ import org.apache.beam.sdk.coders.AtomicCoder
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.SerializableCoder
 import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
-import org.wfanet.panelmatch.client.eventpreprocessing.EventCompressorTrainer.TrainedEventCompressor
+import org.wfanet.panelmatch.client.common.EventCompressorTrainer.TrainedEventCompressor
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.compression.Compressor
 
 /** Apache Beam Coder for [TrainedEventCompressor]. */
-internal class TrainedEventCompressorCoder : AtomicCoder<TrainedEventCompressor>() {
+class TrainedEventCompressorCoder : AtomicCoder<TrainedEventCompressor>() {
   private val serializableCoder = SerializableCoder.of(Compressor::class.java)
   private val byteStringCoder = ByteStringCoder.of()
   private val kvCoder = KvCoder.of(serializableCoder, byteStringCoder)
