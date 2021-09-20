@@ -8,6 +8,26 @@
 # * Each step is run on hardware controlled by the `party` given in each step. #
 ################################################################################
 
+# EDP provides a pepper used in generating AES keys.
+steps {
+  step_id: "generate-hkdf-pepper"
+  party: DATA_PROVIDER
+
+  input_step {}
+
+  shared_output_labels { key: "input" value: "hkdf-pepper" }
+}
+
+# EDP provides a pepper used in hashing encrypted identifiers.
+steps {
+  step_id: "generate-identifier-hash-pepper"
+  party: DATA_PROVIDER
+
+  input_step {}
+
+  shared_output_labels { key: "input" value: "identifier-hash-pepper" }
+}
+
 # MP provides private key as input.
 steps {
   step_id: "mp-input-commutative-deterministic-key"
@@ -99,7 +119,6 @@ steps {
   # appeared in the previous protocol.
   intersect_and_validate_step {
     max_size: 10000
-    min_size: 1000
     minimum_overlap: 0.99
   }
 
@@ -153,16 +172,56 @@ steps {
   private_output_labels { key: "output" value: "lookup-keys" }
 }
 
-# MP performs the lookup to get event-level data.
+# MP encrypts their queries.
 steps {
-  step_id: "lookup"
+  step_id: "prepare-event-lookup-queries"
   party: MODEL_PROVIDER
 
-  table_query_step {}
+  build_private_membership_queries_step {
+    serialized_parameters: "..."
+  }
 
-  private_input_labels { key: "keys" value: "lookup-keys" }
+  private_input_labels { key: "identifiers" value: "raw-joinkeys" }
+  private_input_labels { key: "identifiers" value: "lookup-keys" }
 
-  shared_input_labels { key: "table" value: "encrypted-event-data" }
+  private_output_labels { key: "serialized-rlwe-private-key" value: "serialized-rlwe-private-key" }
+  private_output_labels { key: "query-decryption-keys" value: "query-decryption-keys" }
 
-  private_output_labels { key: "output" value: "encrypted-results" }
+  shared_output_labels { key: "encrypted-queries" value: "encrypted-queries" }
+  shared_output_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+}
+
+# EDP executes private membership queries
+steps {
+  step_id: "execute-private-membership-queries"
+  party: DATA_PROVIDER
+
+  execute_private_membership_queries_step {
+    serialized_parameters: "..."
+  }
+
+  private_input_labels { key: "event-data" value: "event-data" }
+
+  shared_input_labels { key: "encrypted-queries" value: "encrypted-queries" }
+  shared_input_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+
+  shared_output_labels { key: "encrypted-results" value: "encrypted-results" }
+}
+
+# MP decrypts the results
+steps {
+  step_id: "decrypt-private-membership-results"
+  party: MODEL_PROVIDER
+
+  decrypt_private_membership_query_results_step {
+    serialized_parameters: "..."
+  }
+
+  private_input_labels { key: "query-decryption-keys" value: "query-decryption-keys" }
+  private_input_labels { key: "serialized-rlwe-private-key" value: "serialized-rlwe-private-key" }
+
+  shared_input_labels { key: "encrypted-results" value: "encrypted-results" }
+  shared_input_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+
+  private_output_labels { key: "results" value: "results" }
 }

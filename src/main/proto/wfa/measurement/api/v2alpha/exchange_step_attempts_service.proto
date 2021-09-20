@@ -122,13 +122,4 @@ message FinishExchangeStepAttemptRequest {
 
   // Final debug log entries to append concurrently with the state transition.
   repeated ExchangeStepAttempt.DebugLog log_entries = 3;
-
-  // See documentation on `ExchangeStep.shared_inputs`.
-  //
-  // Contains an entry for each output accessible in the ExchangeStep's
-  // `step.shared_output_labels` map. The keys here are values from
-  // `shared_output_labels`.
-  //
-  // This field will be ignored if the `final_state` is `FAILED`.
-  map<string, bytes> shared_outputs = 4;
 }

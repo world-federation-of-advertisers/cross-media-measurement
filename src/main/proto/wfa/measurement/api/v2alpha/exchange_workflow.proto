@@ -49,12 +49,15 @@ message ExchangeWorkflow {
     // Inputs to the protocol are provided via InputStep step types -- this
     // ensures that all inputs to all steps appear as some output label.
     map<string, string> private_input_labels = 3;
+
     // Inputs to be fetched from shared storage
-    map<string, string> shared_input_labels = 11;
+    map<string, string> shared_input_labels = 4;
+
     // Outputs not shared
-    map<string, string> private_output_labels = 4;
+    map<string, string> private_output_labels = 5;
+
     // Outputs that are shared
-    map<string, string> shared_output_labels = 12;
+    map<string, string> shared_output_labels = 6;
 
     // Compares the inputs to determine if they overlap sufficiently.
     message IntersectAndValidateStep {
@@ -64,9 +67,6 @@ message ExchangeWorkflow {
       // The minimum fraction of items that must exist in both input data sets.
       float minimum_overlap = 4;
     }
-
-    // Selects a subset of key-value pairs.
-    message TableQueryStep {}
 
     // Applies deterministic, commutative encryption to the input plaintext
     // data.
@@ -86,15 +86,39 @@ message ExchangeWorkflow {
     // their inputs are ready.
     message InputStep {}
 
+    // Executes Private Membership queries.
+    message ExecutePrivateMembershipQueriesStep {
+      // This is a serialized instance of private_membership.batch.Parameters.
+      bytes serialized_parameters = 1;
+    }
+
+    // Builds Private Membership queries.
+    message BuildPrivateMembershipQueriesStep {
+      // This is a serialized instance of private_membership.batch.Parameters.
+      bytes serialized_parameters = 1;
+    }
+
+    // Decrypts results from Private Membership queries.
+    message DecryptPrivateMembershipQueryResultsStep {
+      // This is a serialized instance of private_membership.batch.Parameters.
+      bytes serialized_parameters = 1;
+    }
+
     oneof step {
-      IntersectAndValidateStep intersect_and_validate_step = 5;
-      TableQueryStep table_query_step = 6;
-      EncryptStep encrypt_step = 7;
-      ReEncryptStep reencrypt_step = 8;
-      DecryptStep decrypt_step = 9;
-      InputStep input_step = 10;
+      IntersectAndValidateStep intersect_and_validate_step = 7;
+      EncryptStep encrypt_step = 8;
+      ReEncryptStep reencrypt_step = 9;
+      DecryptStep decrypt_step = 10;
+      InputStep input_step = 11;
+      ExecutePrivateMembershipQueriesStep
+          execute_private_membership_queries_step = 12;
+      BuildPrivateMembershipQueriesStep build_private_membership_queries_step =
+          13;
+      DecryptPrivateMembershipQueryResultsStep
+          decrypt_private_membership_query_results_step = 14;
     }
   }
+
   // Sequence of steps of the workflow.
   repeated Step steps = 1;
 }
