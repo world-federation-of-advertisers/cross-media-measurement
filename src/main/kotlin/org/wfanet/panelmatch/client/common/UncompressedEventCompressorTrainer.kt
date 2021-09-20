@@ -12,21 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing
+package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
-import org.wfanet.measurement.common.flatten
-import org.wfanet.panelmatch.client.eventpreprocessing.EventCompressorTrainer.TrainedEventCompressor
-import org.wfanet.panelmatch.common.compression.BrotliCompressor
+import org.wfanet.panelmatch.client.common.EventCompressorTrainer.TrainedEventCompressor
+import org.wfanet.panelmatch.common.compression.NoOpCompressor
 
-/** [EventCompressorTrainer] that uses Brotli compression (via JNI). */
-class BrotliEventCompressorTrainer : EventCompressorTrainer {
-  // TODO(@efoxepstein): experimentally adjust this value
-  override val preferredSampleSize: Int = 1000
+/**
+ * Trivial trainer for [NoOpCompressor].
+ *
+ * WARNING: since this does no compression, you likely do not want to use it in production.
+ */
+class UncompressedEventCompressorTrainer : EventCompressorTrainer {
+  override val preferredSampleSize: Int = 0
 
   override fun train(eventsSample: Iterable<ByteString>): TrainedEventCompressor {
-    val dictionary: ByteString = eventsSample.flatten()
-
-    return TrainedEventCompressor(BrotliCompressor(dictionary), dictionary)
+    return TrainedEventCompressor(NoOpCompressor(), ByteString.EMPTY)
   }
 }

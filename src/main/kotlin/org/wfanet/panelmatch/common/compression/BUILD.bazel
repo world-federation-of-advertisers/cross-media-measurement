@@ -24,7 +24,9 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     runtime_deps = [":swig_resources"],
     deps = [
+        "//imports/java/org/apache/beam:core",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:combined_events_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/common/compression:compression_kt_jvm_proto",
         "//src/main/swig/wfanet/panelmatch/common/compression:brotli",
     ],

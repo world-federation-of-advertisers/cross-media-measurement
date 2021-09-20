@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpreprocessing.testing
+package org.wfanet.panelmatch.client.common.testing
 
 import com.google.protobuf.ByteString
 import org.apache.beam.sdk.coders.Coder

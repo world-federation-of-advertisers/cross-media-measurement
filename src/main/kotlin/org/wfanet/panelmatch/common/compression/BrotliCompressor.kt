@@ -20,12 +20,24 @@ import org.wfanet.panelmatch.common.wrapJniException
 
 class BrotliCompressor(private val dictionary: ByteString) : Compressor {
   override fun compress(events: ByteString): ByteString {
-    val request: CompressRequest = compressRequest {
+    val request = compressRequest {
       dictionary = this@BrotliCompressor.dictionary
       uncompressedData += events
     }
     val serializedResponse = wrapJniException {
       Brotli.brotliCompressWrapper(request.toByteArray())
+    }
+    val response = CompressResponse.parseFrom(serializedResponse)
+    return response.compressedDataList.single()
+  }
+
+  override fun uncompress(compressedEvents: ByteString): ByteString {
+    val request = decompressRequest {
+      dictionary = this@BrotliCompressor.dictionary
+      compressedData += compressedEvents
+    }
+    val serializedResponse = wrapJniException {
+      Brotli.brotliDecompressWrapper(request.toByteArray())
     }
     val response = CompressResponse.parseFrom(serializedResponse)
     return response.compressedDataList.single()

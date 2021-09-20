@@ -3,7 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(
     default_testonly = True,
     default_visibility = [
-        "//src/test/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/client/eventpostprocessing:__subpackages__",
     ],
 )
 
@@ -11,16 +11,18 @@ kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpostprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
-        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:combined_events_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

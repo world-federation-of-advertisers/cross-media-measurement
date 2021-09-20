@@ -20,4 +20,6 @@ import java.io.Serializable
 /** Type-safe interface for compressing event data. */
 interface Compressor : Serializable {
   fun compress(events: ByteString): ByteString
+
+  fun uncompress(compressedEvents: ByteString): ByteString
 }

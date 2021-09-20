@@ -12,22 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression
+package org.wfanet.panelmatch.common.compression.testing
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.CombinedEvents
+import org.wfanet.panelmatch.common.compression.Compressor
+import org.wfanet.panelmatch.common.toByteString
 
-/**
- * This is a simple [Compressor] for testing/debugging purposes.
- *
- * This does not attempt to perform any compression, so it is likely not suitable for production
- * environments.
- */
-class NoOpCompressor : Compressor {
+class FakeCompressor : Compressor {
   override fun compress(events: ByteString): ByteString {
-    return events
+    val x = CombinedEvents.parseFrom(events)
+    for (f in x.serializedEventsList) {
+      require(f.size() == 1) { "FakeCompressor only works on events of length 1" }
+    }
+    return PREFIX.toByteString().concat(events)
   }
 
   override fun uncompress(compressedEvents: ByteString): ByteString {
-    return compressedEvents
+    return compressedEvents.toStringUtf8().removePrefix(PREFIX).toByteString()
+  }
+
+  companion object {
+    val PREFIX = "Compressed"
   }
 }
