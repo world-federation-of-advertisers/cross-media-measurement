@@ -108,8 +108,8 @@ import ("strings")
 			_jvm_flags: "-Xmx4g -Xms256m"
 			_resourceRequestMemory: "4Gi"
 			_resourceLimitMemory: "4Gi"
-			_resourceRequestCpu: "16"
-			_resourceLimitCpu: "16"
+			_resourceRequestCpu: "2"
+			_resourceLimitCpu: "2"
 			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-pod": #ServerPod & {

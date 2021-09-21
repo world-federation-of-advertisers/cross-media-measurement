@@ -75,7 +75,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_system:          string
 	_jvm_flags:       string | *""
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"2"
+	_resourceRequestCpu:    string | *"1"
 	_resourceLimitCpu:      string | *"2"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
