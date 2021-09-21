@@ -15,6 +15,8 @@
 package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.common.compression.Compressor
+import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
 import org.wfanet.panelmatch.common.compression.NoOpCompressor
 
@@ -27,6 +29,12 @@ class UncompressedEventCompressorTrainer : EventCompressorTrainer {
   override val preferredSampleSize: Int = 0
 
   override fun train(eventsSample: Iterable<ByteString>): FactoryBasedCompressor {
-    return FactoryBasedCompressor(ByteString.EMPTY) { NoOpCompressor() }
+    return FactoryBasedCompressor(ByteString.EMPTY, NoOpCompressorFactory())
+  }
+}
+
+private class NoOpCompressorFactory : CompressorFactory() {
+  override fun build(dictionary: ByteString): Compressor {
+    return NoOpCompressor()
   }
 }

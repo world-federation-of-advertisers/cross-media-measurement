@@ -17,6 +17,20 @@ package org.wfanet.panelmatch.common.compression
 import com.google.protobuf.ByteString
 import java.io.Serializable
 
-fun interface CompressorFactory : Serializable {
-  fun build(dictionary: ByteString): Compressor
+/**
+ * Factory for building Compressors from a dictionary.
+ *
+ * Subclasses MUST be stateless; [CompressorFactory] gives trivial [equals] and [hashCode]
+ * implementations.
+ */
+abstract class CompressorFactory : Serializable {
+  abstract fun build(dictionary: ByteString): Compressor
+
+  override fun equals(other: Any?): Boolean {
+    return other != null && this::class == other::class
+  }
+
+  override fun hashCode(): Int {
+    return javaClass.hashCode()
+  }
 }
