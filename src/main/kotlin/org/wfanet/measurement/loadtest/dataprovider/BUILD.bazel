@@ -15,7 +15,8 @@ kt_jvm_library(
     name = "edp_simulator",
     srcs = [
         "EdpSimulator.kt",
-        "RequisitionFulfillmentWorkflow.kt",
+        "EdpSimulatorFlags.kt",
+        "EdpSimulatorRunner.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",

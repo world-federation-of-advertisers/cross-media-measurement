@@ -20,12 +20,12 @@ import picocli.CommandLine
 
 @CommandLine.Command(
   name = "ForwardStorageEdpSimulatorRunner",
-  description = ["${EdpSimulator.DAEMON_NAME} Daemon"],
+  description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 /** Implementation of [EdpSimulator] using ForwardStorage. */
-class ForwardStorageEdpSimulatorRunner : EdpSimulator() {
+class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
