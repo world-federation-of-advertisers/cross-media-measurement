@@ -16,7 +16,7 @@ package org.wfanet.panelmatch.common.compression
 
 import com.google.protobuf.ByteString
 
-data class FactoryBasedCompressor(val dictionary: ByteString, val factory: CompressorFactory) :
+class FactoryBasedCompressor(val dictionary: ByteString, val factory: CompressorFactory) :
   Compressor {
   override fun compress(events: ByteString): ByteString {
     return factory.build(dictionary).compress(events)
