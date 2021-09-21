@@ -106,6 +106,10 @@ import ("strings")
 				"--polling-interval=1s",
 			] + _blob_storage_flags
 			_jvm_flags: "-Xmx4g -Xms256m"
+			_resourceRequestMemory: "4Gi"
+			_resourceLimitMemory: "4Gi"
+			_resourceRequestCpu: "16"
+			_resourceLimitCpu: "16"
 			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-pod": #ServerPod & {
