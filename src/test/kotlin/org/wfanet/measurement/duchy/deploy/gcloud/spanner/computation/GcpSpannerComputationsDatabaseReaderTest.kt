@@ -27,9 +27,9 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator

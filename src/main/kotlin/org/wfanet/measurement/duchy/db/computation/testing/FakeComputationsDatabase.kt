@@ -26,9 +26,9 @@ import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.duchy.db.computation.toCompletedReason
-import org.wfanet.measurement.duchy.service.internal.computation.newEmptyOutputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newInputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computation.newPassThroughBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
+import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata

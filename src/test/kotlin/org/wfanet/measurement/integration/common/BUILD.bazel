@@ -1,4 +1,5 @@
 load("@io_bazel_rules_kotlin//kotlin:kotlin.bzl", "kt_jvm_library")
+load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDOM_INTERNAL_PROTOS")  # buildifier: disable=bzl-visibility
 
 package(
     default_testonly = True,
@@ -6,6 +7,34 @@ package(
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
 )
+
+KINGDOM_PUBLIC_API_SERVICES = [
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_groups_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurement_consumers_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
+]
+
+KINGDOM_SYSTEM_API_SERVICES = [
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_log_entries_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_participants_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computations_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:requisitions_service",
+]
+
+DUCHY_SERVICES = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
+]
+
+ALL_CMMS_SERVICES = DUCHY_SERVICES + KINGDOM_PUBLIC_API_SERVICES + KINGDOM_SYSTEM_API_SERVICES + KINGDOM_INTERNAL_PROTOS
 
 kt_jvm_library(
     name = "configs",
@@ -21,24 +50,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "in_process_duchy",
-    srcs = ["InProcessDuchy.kt"],
+    name = "in_process_components",
+    srcs = [
+        "InProcessDuchy.kt",
+        "InProcessKingdom.kt",
+    ],
     deps = [
         ":configs",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computation",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_log_entries_service",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computation_participants_service",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:computations_service",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:requisitions_service",
-        "//src/main/proto/wfa/measurement/internal/duchy:async_computation_control_service_kt_jvm_grpc",
-        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -50,5 +72,5 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/keystore/testing",
-    ],
+    ] + ALL_CMMS_SERVICES,
 )

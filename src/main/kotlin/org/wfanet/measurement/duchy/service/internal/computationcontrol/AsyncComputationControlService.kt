@@ -19,7 +19,7 @@ import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
-import org.wfanet.measurement.duchy.service.internal.computation.outputPathList
+import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase as AsyncComputationControlCoroutineService

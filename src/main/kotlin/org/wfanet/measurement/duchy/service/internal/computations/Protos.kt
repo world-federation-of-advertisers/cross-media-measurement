@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.service.internal.computation
+package org.wfanet.measurement.duchy.service.internal.computations
 
-import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -32,10 +31,6 @@ import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 
 fun String.toGetTokenRequest(): GetComputationTokenRequest =
   GetComputationTokenRequest.newBuilder().setGlobalComputationId(this).build()
-
-@Deprecated("Computation store should generate blob keys")
-fun ComputationToken.toBlobPath(name: String) =
-  "$localComputationId/${computationStage.name}_${attempt}_$name"
 
 /** Wraps a [ComputationToken] in an [AdvanceComputationStageResponse]. */
 fun ComputationToken.toAdvanceComputationStageResponse(): AdvanceComputationStageResponse =

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.service.internal.computation
+package org.wfanet.measurement.duchy.service.internal.computations
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Clock
