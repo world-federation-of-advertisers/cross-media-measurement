@@ -87,6 +87,9 @@ import ("strings")
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8080",
 			] + _spanner_flags
+			_resourceRequestCpu: "1"
+			_resourceLimitCpu: "1"
+
 		}
 
 		"system-api-server-pod": #ServerPod & {

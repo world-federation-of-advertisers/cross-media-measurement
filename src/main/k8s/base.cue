@@ -79,7 +79,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceLimitCpu:      string | *"2"
 	_resourceRequestMemory: string | "256Mi"
 	_resourceLimitMemory:   string | "512Mi"
-
 	apiVersion: "v1"
 	kind:       "Pod"
 	metadata: {
