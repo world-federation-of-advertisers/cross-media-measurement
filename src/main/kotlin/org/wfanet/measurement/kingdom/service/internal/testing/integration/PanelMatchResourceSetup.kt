@@ -16,14 +16,12 @@ package org.wfanet.measurement.kingdom.service.internal.testing.integration
 
 import com.google.protobuf.ByteString
 import com.google.type.Date
-import io.grpc.Status
 import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
@@ -152,8 +150,7 @@ class PanelMatchResourceSetup(
   private fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
     return when (this) {
       ExchangeWorkflow.Party.DATA_PROVIDER -> InternalExchangeWorkflow.Party.DATA_PROVIDER
-      ExchangeWorkflow.Party.MODEL_PROVIDER ->
-        InternalExchangeWorkflow.Party.MODEL_PROVIDER
+      ExchangeWorkflow.Party.MODEL_PROVIDER -> InternalExchangeWorkflow.Party.MODEL_PROVIDER
       else -> throw IllegalArgumentException("Provider is not set for the Exchange Step.")
     }
   }
