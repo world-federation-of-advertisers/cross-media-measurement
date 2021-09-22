@@ -59,8 +59,7 @@ class FakeCompressorCompressByKeyTest : BeamTestBase() {
 
     assertThat(compressedEvents.dictionary).satisfies {
       val dictionary = it.toList()
-      assertThat(dictionary).hasSize(1)
-      assertThat(dictionary[0].toStringUtf8())
+      assertThat(dictionary.single().toStringUtf8())
         .isAnyOf(
           "Dictionary: W, X, Y",
           "Dictionary: W, X, Z",

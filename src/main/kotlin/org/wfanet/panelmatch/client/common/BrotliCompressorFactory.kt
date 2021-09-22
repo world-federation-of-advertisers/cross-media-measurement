@@ -12,23 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression.testing
+package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.common.compression.BrotliCompressor
 import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.toByteString
+import org.wfanet.panelmatch.common.compression.CompressorFactory
 
-/** For testing only. Does not play nicely with non-Utf8 source data. */
-class FakeCompressor : Compressor {
-  override fun compress(events: ByteString): ByteString {
-    return PREFIX.toByteString().concat(events)
-  }
-
-  override fun uncompress(compressedEvents: ByteString): ByteString {
-    return compressedEvents.toStringUtf8().removePrefix(PREFIX).toByteString()
-  }
-
-  companion object {
-    val PREFIX = "Compressed"
+class BrotliCompressorFactory : CompressorFactory() {
+  override fun build(dictionary: ByteString): Compressor {
+    return BrotliCompressor(dictionary)
   }
 }

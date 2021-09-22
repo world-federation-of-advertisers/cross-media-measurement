@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpostprocessing.testing
+package org.wfanet.panelmatch.client.common.testing
 
 import com.google.protobuf.ByteString
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.common.testing.FakeEventCompressorTrainer
+import org.wfanet.panelmatch.common.compression.Compressor
+import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.testing.FakeCompressor
 
-@RunWith(JUnit4::class)
-class FakeCompressorUncompressByKeyTest : AbstractUncompressByKeyTest() {
-  override val eventCompressorTrainer = FakeEventCompressorTrainer()
-  override val getCompressor = { _: ByteString -> FakeCompressor() }
+class FakeCompressorFactory : CompressorFactory() {
+  override fun build(dictionary: ByteString): Compressor {
+    return FakeCompressor()
+  }
 }

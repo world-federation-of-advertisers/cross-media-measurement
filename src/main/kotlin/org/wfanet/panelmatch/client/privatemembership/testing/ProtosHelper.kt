@@ -21,6 +21,7 @@ import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQuery
 import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
+import org.wfanet.panelmatch.client.privatemembership.decryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventDataOf
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryOf
@@ -51,6 +52,14 @@ fun plaintextOf(plaintext: ByteString, query: Int, shard: Int): DecryptedEventDa
 /** Constructs a [DecryptedEventData]. */
 fun plaintextOf(plaintext: String, query: Int, shard: Int): DecryptedEventData {
   return plaintextOf(plaintext.toByteString(), query, shard)
+}
+
+/** Constructs a [DecryptedEventData]. */
+fun plaintextOf(plaintext: String, query: Int): DecryptedEventData {
+  return decryptedEventData {
+    this.plaintext = plaintext.toByteString()
+    queryId = queryIdOf(query)
+  }
 }
 
 /** Constructs a [DecryptedQueryResult]. */

@@ -20,8 +20,8 @@ import org.wfanet.panelmatch.common.toByteString
 
 private const val SEPARATOR = " encrypted by "
 
-/** Does no real crypto. It only concatenates the data with the privateKey. */
-class ConcatSymmetricCryptor : SymmetricCryptor {
+/** For testing only. Does not play nicely with non-Utf8 source data. */
+class FakeSymmetricCryptor : SymmetricCryptor {
 
   override fun encrypt(privateKey: ByteString, data: ByteString): ByteString {
     return data.concat(SEPARATOR.toByteString()).concat(privateKey)

@@ -12,8 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.crypto.testing
+package org.wfanet.panelmatch.client.eventpostprocessing.testing
 
-class ConcatSymmetricCryptorTest : AbstractSymmetricCryptorTest() {
-  override val symmetricCryptor = ConcatSymmetricCryptor()
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.testing.FakeCompressorFactory
+import org.wfanet.panelmatch.client.common.testing.FakeEventCompressorTrainer
+
+@RunWith(JUnit4::class)
+class FakeCompressorUncompressEventsTest : AbstractUncompressEventsTest() {
+  override val eventCompressorTrainer = FakeEventCompressorTrainer()
+  override val compressorFactory = FakeCompressorFactory()
 }
