@@ -21,6 +21,7 @@ import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptRequest
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptResponse
@@ -44,6 +45,14 @@ interface PrivateMembershipCryptorHelper : Serializable {
   ): List<EncryptedQueryResult>
 
   /**
+   * Takes a list of PCollection of [EncryptedEventData] and returns a PCollection of
+   * [EncryptedQueryResult]
+   */
+  fun makeEncryptedQueryResults(
+    encryptedEventData: PCollection<EncryptedEventData>
+  ): PCollection<EncryptedQueryResult>
+
+  /**
    * Takes a list [DecryptedEventData] and a list of pairs of (QueryId, ByteString) and returns an
    * encrypted list of [EncryptedEventData]
    */
@@ -51,6 +60,15 @@ interface PrivateMembershipCryptorHelper : Serializable {
     plaintexts: List<DecryptedEventData>,
     joinkeys: List<Pair<Int, String>>
   ): List<EncryptedEventData>
+
+  /**
+   * Takes a PCollection [DecryptedEventData] and a PCollection (QueryId, ByteString) and returns an
+   * PCollection of [EncryptedEventData]
+   */
+  fun makeEncryptedEventData(
+    plaintexts: PCollection<DecryptedEventData>,
+    joinkeys: PCollection<KV<QueryId, JoinKey>>
+  ): PCollection<EncryptedEventData>
 
   /** Used for testing. Removes a single layer of encryption from encrypted query results. */
   fun decryptQueryResults(

@@ -35,6 +35,10 @@ class BeamTest : BeamTestBase() {
     pcollectionOf("right-hand side", kvOf(1, 'a'), kvOf(1, 'b'), kvOf(4, 'c'))
   }
 
+  private val yetAnotherCollection by lazy {
+    pcollectionOf("right-hand side", kvOf(1, 'a'), kvOf(2, 'b'), kvOf(3, 'c'))
+  }
+
   private val listOfCollections by lazy {
     listOf(pcollectionOf("first", 1, 2, 3), pcollectionOf("second", 4, 5, 6))
   }
@@ -132,6 +136,17 @@ class BeamTest : BeamTestBase() {
         kvOf(2, "[B] and []"),
         kvOf(3, "[C] and []"),
         kvOf(4, "[] and [c]")
+      )
+  }
+
+  @Test
+  fun strictOneToOneJoin() {
+    val result: PCollection<KV<String, Char>> = collection.strictOneToOneJoin(yetAnotherCollection)
+    assertThat(result)
+      .containsInAnyOrder(
+        kvOf("A", 'a'),
+        kvOf("B", 'b'),
+        kvOf("C", 'c'),
       )
   }
 

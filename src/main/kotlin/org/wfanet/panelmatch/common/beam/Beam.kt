@@ -133,19 +133,31 @@ fun <T> PCollection<T>.partition(
 }
 
 /** Kotlin convenience helper for a join between two [PCollection]s. */
-inline fun <reified KeyT, reified Value1T, reified Value2T, reified OutT> PCollection<
-  KV<KeyT, Value1T>>.join(
-  right: PCollection<KV<KeyT, Value2T>>,
+inline fun <reified KeyT, reified LeftT, reified RightT, reified OutT> PCollection<
+  KV<KeyT, LeftT>>.join(
+  right: PCollection<KV<KeyT, RightT>>,
   name: String = "Join",
   crossinline transform:
-    suspend SequenceScope<OutT>.(KeyT, Iterable<Value1T>, Iterable<Value2T>) -> Unit
+    suspend SequenceScope<OutT>.(KeyT, Iterable<LeftT>, Iterable<RightT>) -> Unit
 ): PCollection<OutT> {
-  val leftTag = object : TupleTag<Value1T>() {}
-  val rightTag = object : TupleTag<Value2T>() {}
+  val leftTag = object : TupleTag<LeftT>() {}
+  val rightTag = object : TupleTag<RightT>() {}
   return KeyedPCollectionTuple.of(leftTag, this)
     .and(rightTag, right)
     .apply("$name/CoGroupByKey", CoGroupByKey.create())
     .parDo(name) { transform(it.key, it.value.getAll(leftTag), it.value.getAll(rightTag)) }
+}
+
+/**
+ * Kotlin convenience helper for a join between two [PCollection]s where each joined list should
+ * only contain a single element.
+ */
+inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<
+  KV<KeyT, LeftT>>.strictOneToOneJoin(
+  right: PCollection<KV<KeyT, RightT>>,
+  name: String = "Strict Join",
+): PCollection<KV<LeftT, RightT>> {
+  return join(right, name) { _, lefts, rights -> yield(kvOf(lefts.single(), rights.single())) }
 }
 
 /** Kotlin convenience helper for getting the size of a [PCollection]. */

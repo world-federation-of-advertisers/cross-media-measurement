@@ -4,6 +4,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing:__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/client/privatemembership/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/common/compression:__subpackages__",
     ],
 )

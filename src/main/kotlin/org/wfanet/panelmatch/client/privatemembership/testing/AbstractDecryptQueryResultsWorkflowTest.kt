@@ -21,6 +21,9 @@ import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.CompressedEvents
+import org.wfanet.panelmatch.client.common.EventCompressorTrainer
+import org.wfanet.panelmatch.client.eventpreprocessing.compressByKey
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflow
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflow.Parameters
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
@@ -34,9 +37,14 @@ import org.wfanet.panelmatch.client.privatemembership.generateKeysRequest
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
 import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
+import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.mapKeys
+import org.wfanet.panelmatch.common.beam.strictOneToOneJoin
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS =
@@ -63,26 +71,36 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
   abstract val privateMembershipCryptor: PrivateMembershipCryptor
   abstract val privateMembershipCryptorHelper: PrivateMembershipCryptorHelper
   abstract val serializedParameters: ByteString
+  abstract val eventCompressorTrainer: EventCompressorTrainer
+  abstract val compressorFactory: CompressorFactory
 
   private fun runWorkflow(
     queryResultsDecryptor: QueryResultsDecryptor,
     parameters: Parameters
   ): PCollection<DecryptedEventData> {
-    val encryptedEventData: List<EncryptedEventData> =
-      privateMembershipCryptorHelper.makeEncryptedEventData(PLAINTEXTS, JOINKEYS)
-    val encryptedResults: PCollection<EncryptedQueryResult> =
-      encryptedResultOf(
-        privateMembershipCryptorHelper.makeEncryptedQueryResults(encryptedEventData)
+    val plaintextCollection: PCollection<DecryptedEventData> =
+      pcollectionOf("Create plaintext data", *PLAINTEXTS.toTypedArray())
+    val joinkeyCollection: PCollection<KV<QueryId, JoinKey>> =
+      pcollectionOf(
+        "Create joinkey data",
+        *JOINKEYS
+          .map { kvOf(queryIdOf(it.first), joinKeyOf(it.second.toByteString())) }
+          .toTypedArray()
       )
-    val joinkeyCollection = joinkeyCollectionOf(JOINKEYS)
+    val compressedEvents = makeCompressedEvents(plaintextCollection)
+    val encryptedResults =
+      makeEncryptedResults(joinkeyCollection, plaintextCollection, compressedEvents.events)
+
     return DecryptQueryResultsWorkflow(
         parameters = parameters,
         queryResultsDecryptor = queryResultsDecryptor,
         hkdfPepper = HKDF_PEPPER,
+        compressorFactory = compressorFactory,
       )
       .batchDecryptQueryResults(
         encryptedQueryResults = encryptedResults,
         queryIdToJoinKey = joinkeyCollection,
+        dictionary = compressedEvents.dictionary,
       )
   }
 
@@ -102,18 +120,29 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
     assertThat(decryptedResults).containsInAnyOrder(PLAINTEXTS)
   }
 
-  private fun encryptedResultOf(
-    entries: List<EncryptedQueryResult>
-  ): PCollection<EncryptedQueryResult> {
-    return pcollectionOf("Create encryptedResults", *entries.map { it }.toTypedArray())
+  private fun makeCompressedEvents(
+    plaintextCollection: PCollection<DecryptedEventData>,
+  ): CompressedEvents {
+
+    val eventPCollection = plaintextCollection.map { kvOf(it.queryId.toByteString(), it.plaintext) }
+    return eventCompressorTrainer.compressByKey(eventPCollection)
   }
 
-  private fun joinkeyCollectionOf(
-    entries: List<Pair<Int, String>>
-  ): PCollection<KV<QueryId, JoinKey>> {
-    return pcollectionOf(
-      "Create encryptedResults",
-      *entries.map { kvOf(queryIdOf(it.first), joinKeyOf(it.second.toByteString())) }.toTypedArray()
-    )
+  private fun makeEncryptedResults(
+    joinkeyCollection: PCollection<KV<QueryId, JoinKey>>,
+    plaintextCollection: PCollection<DecryptedEventData>,
+    events: PCollection<KV<ByteString, ByteString>>
+  ): PCollection<EncryptedQueryResult> {
+
+    val mappedCompressedEvents = events.mapKeys { QueryId.parseFrom(it) }
+    val compressedPlaintexts: PCollection<DecryptedEventData> =
+      plaintextCollection
+        .keyBy<DecryptedEventData, QueryId>("Key by QueryId") { requireNotNull(it.queryId) }
+        .strictOneToOneJoin<QueryId, DecryptedEventData, ByteString>(mappedCompressedEvents)
+        .map { plaintextOf(it.value, it.key.queryId, it.key.shardId) }
+
+    val encryptedEventData: PCollection<EncryptedEventData> =
+      privateMembershipCryptorHelper.makeEncryptedEventData(compressedPlaintexts, joinkeyCollection)
+    return privateMembershipCryptorHelper.makeEncryptedQueryResults(encryptedEventData)
   }
 }
