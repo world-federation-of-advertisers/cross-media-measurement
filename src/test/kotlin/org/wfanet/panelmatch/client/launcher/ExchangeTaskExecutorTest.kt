@@ -28,37 +28,20 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
-import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.client.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class ExchangeTaskExecutorTest {
   private val apiClient: ApiClient = mock()
-  private val privateStorage =
-    VerifiedStorageClient(
-      InMemoryStorageClient(keyPrefix = "private"),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
-  private val sharedStorage =
-    VerifiedStorageClient(
-      InMemoryStorageClient(keyPrefix = "shared"),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
+  private val privateStorage = makeTestVerifiedStorageClient()
+  private val sharedStorage = makeTestVerifiedStorageClient()
 
   private val timeout = FakeTimeout()
 

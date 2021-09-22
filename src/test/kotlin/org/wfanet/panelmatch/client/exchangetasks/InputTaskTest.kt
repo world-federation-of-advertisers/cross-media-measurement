@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import org.junit.Test
@@ -42,27 +41,16 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class InputTaskTest {
   private val underlyingPrivateStorage = mock<StorageClient>()
   private val underlyingSharedStorage = mock<StorageClient>()
-  private val privateStorage =
-    VerifiedStorageClient(
-      underlyingPrivateStorage,
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
-  private val sharedStorage =
-    VerifiedStorageClient(
-      underlyingSharedStorage,
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
+  private val privateStorage = makeTestVerifiedStorageClient(underlyingPrivateStorage)
+  private val sharedStorage = makeTestVerifiedStorageClient(underlyingSharedStorage)
+
   private val secretKeySourceBlob =
     mock<StorageClient.Blob> {
       on { read(any()) } doReturn MP_0_SECRET_KEY.asBufferedFlow(1024)

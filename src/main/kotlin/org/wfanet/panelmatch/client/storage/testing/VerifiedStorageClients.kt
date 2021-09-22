@@ -14,26 +14,22 @@
 
 package org.wfanet.panelmatch.client.storage.testing
 
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 
-class InMemoryStorageTest : AbstractStorageTest() {
-  override val privateStorage =
-    VerifiedStorageClient(
-      InMemoryStorageClient(keyPrefix = "private"),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
-  override val sharedStorage =
-    VerifiedStorageClient(
-      InMemoryStorageClient(keyPrefix = "shared"),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
+private val certificate: X509Certificate by lazy { readCertificate(FIXED_SERVER_CERT_PEM_FILE) }
+
+private val privateKey: PrivateKey by lazy { readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM) }
+
+fun makeTestVerifiedStorageClient(
+  underlyingClient: StorageClient = InMemoryStorageClient()
+): VerifiedStorageClient {
+  return VerifiedStorageClient(underlyingClient, certificate, certificate, privateKey)
 }

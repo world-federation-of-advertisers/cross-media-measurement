@@ -48,7 +48,7 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
   @Test
   fun endToEnd() {
     for (numShards in listOf(1, 10, 100)) {
-      for (numBucketsPerShard in listOf(1, 10, 100, 1000)) {
+      for (numBucketsPerShard in listOf(1, 10, 1000)) {
         val parameters =
           Parameters(
             numShards = numShards,

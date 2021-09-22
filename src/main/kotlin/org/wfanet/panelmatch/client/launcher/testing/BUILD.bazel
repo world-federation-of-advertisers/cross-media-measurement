@@ -9,7 +9,7 @@ package(
 )
 
 kt_jvm_library(
-    name = "ExchangeTaskTesting",
+    name = "testing",
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/common",

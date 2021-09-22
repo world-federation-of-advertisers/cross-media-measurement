@@ -29,37 +29,31 @@ import org.wfanet.measurement.storage.StorageClient
 private const val BYTE_BUFFER_SIZE = BYTES_PER_MIB * 1
 
 /** [StorageClient] for InMemoryStorage service. */
-class InMemoryStorageClient(private val keyPrefix: String) : StorageClient {
-
-  private var inMemoryStorageMap = ConcurrentHashMap<String, StorageClient.Blob>()
-
-  private fun getKey(path: String): String {
-    return "$keyPrefix$path"
-  }
+class InMemoryStorageClient(
+  private var storageMap: ConcurrentHashMap<String, StorageClient.Blob> =
+    ConcurrentHashMap<String, StorageClient.Blob>()
+) : StorageClient {
 
   private fun deleteKey(path: String) {
-    inMemoryStorageMap.remove(getKey(path))
+    storageMap.remove(path)
   }
 
   override val defaultBufferSizeBytes: Int
     get() = BYTE_BUFFER_SIZE
 
   override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
-    val mapKey: String = getKey(blobKey)
-    require(!inMemoryStorageMap.containsKey(mapKey)) { "Cannot write to an existing key: $blobKey" }
+    require(!storageMap.containsKey(blobKey)) { "Cannot write to an existing key: $blobKey" }
 
     // As we're using this primarily for unit tests, we want to collect the input to record
     // size and to emulate "writing out" to memory.
     val newBlob = Blob(content.flatten(), blobKey)
-    inMemoryStorageMap[mapKey] = newBlob
+    storageMap[blobKey] = newBlob
 
     return newBlob
   }
 
   override fun getBlob(blobKey: String): StorageClient.Blob? {
-    val mapKey: String = getKey(blobKey)
-
-    return inMemoryStorageMap[mapKey]
+    return storageMap[blobKey]
   }
 
   private inner class Blob(private val byteData: ByteString, private val blobKey: String) :
