@@ -218,7 +218,9 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
   externalMeasurementId = struct.getLong("ExternalMeasurementId")
   externalComputationId = struct.getLong("ExternalComputationId")
-  providedMeasurementId = struct.getString("ProvidedMeasurementId")
+  if (!struct.isNull("ProvidedMeasurementId")) {
+    providedMeasurementId = struct.getString("ProvidedMeasurementId")
+  }
   externalMeasurementConsumerCertificateId =
     struct.getLong("ExternalMeasurementConsumerCertificateId")
   createTime = struct.getTimestamp("CreateTime").toProto()

@@ -309,7 +309,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           details { measurementSpec = ByteString.copyFromUtf8("This is a MeasurementSpec.") }
       }
 
-    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    measurementsService.createMeasurement(measurement)
     val secondCreateMeasurementAttempt = measurementsService.createMeasurement(otherMeasurement)
     assertThat(secondCreateMeasurementAttempt)
       .ignoringFields(
@@ -378,7 +378,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               MeasurementKt.dataProviderValue {
                 this.externalDataProviderCertificateId = externalDataProviderCertificateId
               }
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
           }
         )
 
