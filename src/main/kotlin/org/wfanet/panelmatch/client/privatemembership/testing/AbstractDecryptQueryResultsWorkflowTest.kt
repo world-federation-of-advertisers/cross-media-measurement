@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
@@ -57,11 +56,11 @@ private val PLAINTEXTS =
   )
 private val JOINKEYS =
   listOf(
-    Pair(1, "some joinkey 1"),
-    Pair(2, "some joinkey 1"),
-    Pair(3, "some joinkey 1"),
-    Pair(4, "some joinkey 1"),
-    Pair(5, "some joinkey 1")
+    1 to "some joinkey 1",
+    2 to "some joinkey 1",
+    3 to "some joinkey 1",
+    4 to "some joinkey 1",
+    5 to "some joinkey 1"
   )
 private val HKDF_PEPPER = "some-pepper".toByteString()
 

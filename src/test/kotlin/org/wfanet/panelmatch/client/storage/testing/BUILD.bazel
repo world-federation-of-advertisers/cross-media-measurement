@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "InMemoryStorageTest",
-    srcs = ["InMemoryStorageTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.storage.testing.InMemoryStorageTest",
+    name = "InMemoryVerifiedStorageTest",
+    srcs = ["InMemoryVerifiedStorageTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.storage.testing.InMemoryVerifiedStorageTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
@@ -14,7 +14,6 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
 )

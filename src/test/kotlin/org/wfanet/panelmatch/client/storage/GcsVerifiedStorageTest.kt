@@ -15,31 +15,21 @@
 package org.wfanet.panelmatch.client.storage
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
-import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.panelmatch.client.storage.testing.AbstractStorageTest
+import org.wfanet.panelmatch.client.storage.testing.AbstractVerifiedStorageTest
+import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 
-class GcsStorageTest : AbstractStorageTest() {
+class GcsVerifiedStorageTest : AbstractVerifiedStorageTest() {
 
   override val privateStorage by lazy {
-    VerifiedStorageClient(
-      GcsStorageClient(LocalStorageHelper.getOptions().service, PRIVATE_BUCKET),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+    makeTestVerifiedStorageClient(
+      GcsStorageClient(LocalStorageHelper.getOptions().service, PRIVATE_BUCKET)
     )
   }
 
   override val sharedStorage by lazy {
-    VerifiedStorageClient(
-      GcsStorageClient(LocalStorageHelper.getOptions().service, SHARED_BUCKET),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+    makeTestVerifiedStorageClient(
+      GcsStorageClient(LocalStorageHelper.getOptions().service, SHARED_BUCKET)
     )
   }
 

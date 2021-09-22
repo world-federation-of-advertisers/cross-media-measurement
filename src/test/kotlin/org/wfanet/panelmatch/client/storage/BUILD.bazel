@@ -1,9 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "FileSystemStorageTest",
-    srcs = ["FileSystemStorageTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.storage.FileSystemStorageTest",
+    name = "FileSystemVerifiedStorageTest",
+    srcs = ["FileSystemVerifiedStorageTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.storage.FileSystemVerifiedStorageTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
@@ -14,16 +14,15 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
 
 kt_jvm_test(
-    name = "GcsStorageTest",
-    srcs = ["GcsStorageTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.storage.GcsStorageTest",
+    name = "GcsVerifiedStorageTest",
+    srcs = ["GcsVerifiedStorageTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.storage.GcsVerifiedStorageTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
@@ -36,7 +35,6 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
     ],

@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.exchangetasks
 import java.time.Clock
 import java.time.Duration
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
@@ -32,25 +33,27 @@ class ExchangeTaskMapperForJoinKeyExchange(
 ) : ExchangeTaskMapper {
 
   override suspend fun getExchangeTaskForStep(step: ExchangeWorkflow.Step): ExchangeTask {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     return when (step.stepCase) {
-      ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP ->
-        CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
-      ExchangeWorkflow.Step.StepCase.REENCRYPT_STEP ->
+      StepCase.ENCRYPT_STEP -> CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
+      StepCase.REENCRYPT_STEP ->
         CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
-      ExchangeWorkflow.Step.StepCase.DECRYPT_STEP ->
-        CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
-      ExchangeWorkflow.Step.StepCase.INPUT_STEP ->
+      StepCase.DECRYPT_STEP -> CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
+      StepCase.INPUT_STEP ->
         InputTask(
           sharedStorage = sharedStorage,
           privateStorage = privateStorage,
           step = step,
           throttler = throttler
         )
-      ExchangeWorkflow.Step.StepCase.INTERSECT_AND_VALIDATE_STEP ->
+      StepCase.INTERSECT_AND_VALIDATE_STEP ->
         IntersectValidateTask(
           maxSize = step.intersectAndValidateStep.maxSize,
           minimumOverlap = step.intersectAndValidateStep.minimumOverlap
         )
+      StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> TODO()
+      StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> TODO()
+      StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> TODO()
       else -> error("Unsupported step type")
     }
   }

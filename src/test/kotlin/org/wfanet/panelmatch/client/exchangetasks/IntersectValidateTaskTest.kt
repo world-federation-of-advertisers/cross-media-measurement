@@ -15,33 +15,20 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
-import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
+import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.client.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
 @RunWith(JUnit4::class)
 class IntersectValidateTaskTest {
-  private val mockStorage =
-    VerifiedStorageClient(
-      InMemoryStorageClient(keyPrefix = "mock"),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readCertificate(FIXED_SERVER_CERT_PEM_FILE),
-      readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
-    )
+  private val mockStorage = makeTestVerifiedStorageClient()
 
   @Test
   fun `test valid intersect and validate exchange step`() = runBlocking {
@@ -67,12 +54,7 @@ class IntersectValidateTaskTest {
               )
           )
         )
-    assertThat(
-        parseSerializedSharedInputs(
-          requireNotNull(output["current-data"])
-            .fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) })
-        )
-      )
+    assertThat(parseSerializedSharedInputs(requireNotNull(output["current-data"]).flatten()))
       .isEqualTo(SINGLE_BLINDED_KEYS)
   }
 

@@ -55,7 +55,7 @@ class CreateQueriesWorkflow(
    * @property numBucketsPerShard the number of buckets each shard can have
    * @property totalQueriesPerShard [Int?] pads the number of queries per shard to be this number.
    * If the number of queries is larger than [totalQueriesPerShard], then queries in that shard are
-   * culled down to [totalQueriesPerShard]. Null signfies no additional padding/culling should take
+   * culled down to [totalQueriesPerShard]. Null signifies no additional padding/culling should take
    * place. TODO: Implement totalQueriesPerShard
    */
   data class Parameters(
@@ -163,7 +163,7 @@ class CreateQueriesWorkflow(
   /**
    * Maps each [PanelistKey] to a unique [QueryId] using an iterator. Works well as long as total
    * collection size is less than ~90% of the mapped [QueryId] space (currently 32 bits). The
-   * current iterator uses a BitSet that only supports nonnegative integers which further reduces
+   * current iterator uses a BitSet that only supports non-negative integers which further reduces
    * the mapped space to 16 bits.
    */
   private fun mapToQueryId(data: PCollection<ShardedData>): PCollection<KV<QueryId, ShardedData>> {

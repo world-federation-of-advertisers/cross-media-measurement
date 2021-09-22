@@ -27,7 +27,7 @@ import org.wfanet.panelmatch.common.toByteString
 private const val KEY = "some arbitrary key"
 private val VALUE = "some arbitrary value".toByteString()
 
-abstract class AbstractStorageTest {
+abstract class AbstractVerifiedStorageTest {
   abstract val privateStorage: VerifiedStorageClient
   abstract val sharedStorage: VerifiedStorageClient
 
