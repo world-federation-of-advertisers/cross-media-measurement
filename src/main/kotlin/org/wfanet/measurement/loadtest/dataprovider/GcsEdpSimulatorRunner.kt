@@ -21,12 +21,12 @@ import picocli.CommandLine
 
 @CommandLine.Command(
   name = "GcsEdpSimulatorRunner",
-  description = ["${EdpSimulator.DAEMON_NAME} Daemon"],
+  description = ["EdpSimulator Daemon"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
 /** Implementation of [EdpSimulator] using the File System to store blobs. */
-class GcsEdpSimulatorRunner : EdpSimulator() {
+class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override fun run() {
