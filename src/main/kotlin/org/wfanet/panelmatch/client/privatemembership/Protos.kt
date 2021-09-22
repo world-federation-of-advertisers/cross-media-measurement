@@ -17,34 +17,31 @@ package org.wfanet.panelmatch.client.privatemembership
 import com.google.protobuf.ByteString
 
 /** Constructs a [ShardId]. */
-fun shardIdOf(id: Int): ShardId = ShardId.newBuilder().setId(id).build()
+fun shardIdOf(id: Int): ShardId = shardId { this.id = id }
 
 /** Constructs a [BucketId]. */
-fun bucketIdOf(id: Int): BucketId = BucketId.newBuilder().setId(id).build()
+fun bucketIdOf(id: Int): BucketId = bucketId { this.id = id }
 
 /** Constructs a [QueryId]. */
-fun queryIdOf(id: Int): QueryId = QueryId.newBuilder().setId(id).build()
+fun queryIdOf(id: Int): QueryId = queryId { this.id = id }
 
 /** Constructs a [EncryptedEventData]. */
 fun encryptedEventDataOf(
   ciphertext: ByteString,
   queryId: QueryId,
   shardId: ShardId
-): EncryptedEventData {
-  return encryptedEventData {
-    ciphertexts += ciphertext
-    this.queryId = queryId
-    this.shardId = shardId
-  }
+): EncryptedEventData = encryptedEventData {
+  ciphertexts += ciphertext
+  this.queryId = queryId
+  this.shardId = shardId
 }
 
 /** Constructs a [DecryptedEventData]. */
-fun plaintextOf(plaintext: ByteString, queryId: QueryId, shardId: ShardId): DecryptedEventData {
-  return decryptedEventData {
-    this.plaintext = plaintext
-    this.queryId = queryId
-    this.shardId = shardId
-  }
+fun plaintextOf(plaintext: ByteString, queryId: QueryId, shardId: ShardId): DecryptedEventData =
+    decryptedEventData {
+  this.plaintext = plaintext
+  this.queryId = queryId
+  this.shardId = shardId
 }
 
 /** Constructs a [UnencryptedQuery]. */
@@ -60,12 +57,10 @@ fun decryptedQueryOf(
   queryResult: ByteString,
   queryId: QueryId,
   shardId: ShardId
-): DecryptedQueryResult {
-  return decryptedQueryResult {
-    this.queryResult = queryResult
-    this.queryId = queryId
-    this.shardId = shardId
-  }
+): DecryptedQueryResult = decryptedQueryResult {
+  this.queryResult = queryResult
+  this.queryId = queryId
+  this.shardId = shardId
 }
 
 /** Constructs a [EncryptedQuery]. */
@@ -75,40 +70,42 @@ fun encryptedQueryOf(shardId: ShardId, queryId: QueryId): EncryptedQuery = encry
 }
 
 /** Constructs a [DatabaseShard]. */
-fun databaseShardOf(shardId: ShardId, buckets: Iterable<Bucket>): DatabaseShard =
-  DatabaseShard.newBuilder().setShardId(shardId).addAllBuckets(buckets).build()
+fun databaseShardOf(shardId: ShardId, buckets: Iterable<Bucket>): DatabaseShard = databaseShard {
+  this.shardId = shardId
+  this.buckets += buckets
+}
 
 /** Constructs a [Bucket]. */
-fun bucketOf(bucketId: BucketId, payload: ByteString): Bucket =
-  Bucket.newBuilder().setBucketId(bucketId).setPayload(payload).build()
+fun bucketOf(bucketId: BucketId, payload: ByteString): Bucket = bucket {
+  this.bucketId = bucketId
+  this.payload = payload
+}
 
 /** Constructs a [Result]. */
-fun resultOf(queryMetadata: QueryMetadata, payload: ByteString): Result =
-  Result.newBuilder().setQueryMetadata(queryMetadata).setPayload(payload).build()
+fun resultOf(queryId: QueryId, serializedEncryptedQueryResult: ByteString): Result = result {
+  this.queryId = queryId
+  this.serializedEncryptedQueryResult = serializedEncryptedQueryResult
+}
 
 /** Constructs a [QueryBundle]. */
 fun queryBundleOf(
   shardId: ShardId,
-  queryMetadata: Iterable<QueryMetadata>,
-  payload: ByteString
+  queryIds: Iterable<QueryId>,
+  serializedEncryptedQueries: ByteString
 ): QueryBundle = queryBundle {
   this.shardId = shardId
-  this.queryMetadata += queryMetadata
-  this.payload = payload
+  this.queryIds += queryIds
+  this.serializedEncryptedQueries = serializedEncryptedQueries
 }
 
-/** Constructs a [QueryMetadata]. */
-fun queryMetadataOf(queryId: QueryId, metadata: ByteString): QueryMetadata =
-  QueryMetadata.newBuilder().setQueryId(queryId).setMetadata(metadata).build()
-
 /** Constructs a [DatabaseKey]. */
-fun databaseKeyOf(id: Long): DatabaseKey = DatabaseKey.newBuilder().setId(id).build()
+fun databaseKeyOf(id: Long): DatabaseKey = databaseKey { this.id = id }
 
 /** Constructs a [Plaintext]. */
-fun plaintextOf(payload: ByteString): Plaintext = Plaintext.newBuilder().setPayload(payload).build()
+fun plaintextOf(payload: ByteString): Plaintext = plaintext { this.payload = payload }
 
 /** Constructs a [PanelistKey]. */
-fun panelistKeyOf(id: Long): PanelistKey = PanelistKey.newBuilder().setId(id).build()
+fun panelistKeyOf(id: Long): PanelistKey = panelistKey { this.id = id }
 
 /** Constructs a [JoinKey]. */
-fun joinKeyOf(key: ByteString): JoinKey = JoinKey.newBuilder().setKey(key).build()
+fun joinKeyOf(key: ByteString): JoinKey = joinKey { this.key = key }

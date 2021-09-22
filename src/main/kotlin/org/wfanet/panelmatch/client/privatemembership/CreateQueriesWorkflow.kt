@@ -33,6 +33,7 @@ import org.wfanet.panelmatch.common.beam.values
 
 private const val FAKE_PANELIST_ID: Long = 0
 private val FAKE_JOIN_KEY = ByteString.EMPTY
+private const val DEFAULT_TOTAL_QUERIES = 100000
 
 /**
  * Implements a query creation engine in Apache Beam that encrypts a query so that it can later be
@@ -48,7 +49,7 @@ class CreateQueriesWorkflow(
 ) : Serializable {
 
   /**
-   * Tuning knobs for the [BatchCreationWorkflow].
+   * Tuning knobs for the [CreateQueriesWorkflow].
    *
    * @property numShards the number of shards to split the data into
    * @property numBucketsPerShard the number of buckets each shard can have
@@ -57,32 +58,22 @@ class CreateQueriesWorkflow(
    * culled down to [totalQueriesPerShard]. Null signfies no additional padding/culling should take
    * place. TODO: Implement totalQueriesPerShard
    */
-  data class Parameters
-  private constructor(
+  data class Parameters(
     val numShards: Int,
     val numBucketsPerShard: Int,
-    val totalQueriesPerShard: Int?,
-    val numQueries: Int,
+    val totalQueriesPerShard: Int?
   ) : Serializable {
+    val numQueries =
+      if (totalQueriesPerShard == null) {
+        DEFAULT_TOTAL_QUERIES
+      } else {
+        numShards * totalQueriesPerShard
+      }
+
     init {
       require(numShards > 0)
       require(numBucketsPerShard > 0)
     }
-    constructor(
-      numShards: Int,
-      numBucketsPerShard: Int,
-      totalQueriesPerShard: Int?
-    ) : this(
-      numShards = numShards,
-      numBucketsPerShard = numBucketsPerShard,
-      totalQueriesPerShard = totalQueriesPerShard,
-      numQueries =
-        if (totalQueriesPerShard == null) {
-          100000
-        } else {
-          numShards * totalQueriesPerShard
-        }
-    )
   }
 
   private data class ShardedData(
@@ -92,7 +83,7 @@ class CreateQueriesWorkflow(
     val joinKey: JoinKey
   ) : Serializable
 
-  /** Creates [EncryptQueriesResponse] on [data]. */
+  /** Creates [PrivateMembershipEncryptResponse] from [data]. */
   fun batchCreateQueries(
     data: PCollection<KV<PanelistKey, JoinKey>>
   ): Pair<PCollection<KV<QueryId, PanelistKey>>, PCollection<PrivateMembershipEncryptResponse>> {
@@ -155,7 +146,7 @@ class CreateQueriesWorkflow(
       }
       discardedQueriesMetric.update(discardedQueries)
       /** Add queries to get to the limit */
-      for (i in total..totalQueriesPerShard - 1) {
+      for (i in total until totalQueriesPerShard) {
         // TODO If we add in query mitigation, the BucketId should be set to the fake bucket
         context.output(
           ShardedData(
@@ -176,7 +167,7 @@ class CreateQueriesWorkflow(
    * the mapped space to 16 bits.
    */
   private fun mapToQueryId(data: PCollection<ShardedData>): PCollection<KV<QueryId, ShardedData>> {
-    return data.keyBy { 1 }.groupByKey().parDo {
+    return data.keyBy { 1 }.groupByKey().values().parDo { shardedDatas ->
       val queryIds: Iterator<Int> = iterator {
         // TODO - find a better way to do this. It uses too much memory.
         val seen = BitSet()
@@ -188,8 +179,7 @@ class CreateQueriesWorkflow(
           }
         }
       }
-      it
-        .value
+      shardedDatas
         .asSequence()
         .mapIndexed { index, value ->
           require(index < parameters.numQueries) { "Too many queries" }

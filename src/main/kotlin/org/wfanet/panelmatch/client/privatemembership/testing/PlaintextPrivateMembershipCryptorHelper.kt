@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.ListValue
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
@@ -27,19 +26,13 @@ import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipDecryptRe
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipEncryptResponse
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.QueryMetadata
 import org.wfanet.panelmatch.client.privatemembership.Result
-import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.privateMembershipDecryptResponse
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
-import org.wfanet.panelmatch.client.privatemembership.queryMetadataOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.beam.kvOf
-import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.crypto.SymmetricCryptor
 import org.wfanet.panelmatch.common.crypto.testing.ConcatSymmetricCryptor
@@ -49,19 +42,14 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
 
   private val symmetricCryptor: SymmetricCryptor = ConcatSymmetricCryptor()
 
-  private fun queryBundleOf(shard: Int, queries: List<Pair<Int, Int>>): QueryBundle {
-    return PlaintextQueryEvaluatorTestHelper.makeQueryBundle(
-      shardIdOf(shard),
-      queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
-    )
-  }
-
   private fun decodeQueryBundle(queryBundle: QueryBundle): List<ShardedQuery> {
-    val queryBundleList = queryBundle.queryMetadataList
+    val queryIdsList = queryBundle.queryIdsList
     val bucketValuesList =
-      ListValue.parseFrom(queryBundle.payload).valuesList.map { it.stringValue.toInt() }
-    return queryBundleList.zip(bucketValuesList) { a: QueryMetadata, b: Int ->
-      ShardedQuery(requireNotNull(queryBundle.shardId).id, a.queryId.id, b)
+      ListValue.parseFrom(queryBundle.serializedEncryptedQueries).valuesList.map {
+        it.stringValue.toInt()
+      }
+    return queryIdsList.zip(bucketValuesList) { queryId: QueryId, bucketValue: Int ->
+      ShardedQuery(requireNotNull(queryBundle.shardId).id, queryId.id, bucketValue)
     }
   }
 
@@ -72,9 +60,7 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
       encryptedQueryResult {
         queryId = it.queryId
         shardId = it.shardId
-        ciphertexts +=
-          resultOf(queryMetadataOf(it.queryId, ByteString.EMPTY), it.ciphertextsList.single())
-            .toByteString()
+        ciphertexts += resultOf(it.queryId, it.ciphertextsList.single()).toByteString()
       }
     }
   }
@@ -86,7 +72,10 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
     val encryptedQueryResults = request.encryptedQueryResultsList
     val decryptedResults: List<DecryptedQueryResult> =
       encryptedQueryResults.map { result ->
-        val decodedData = Result.parseFrom(result.ciphertextsList.single()).payload.toStringUtf8()
+        val decodedData =
+          Result.parseFrom(result.ciphertextsList.single())
+            .serializedEncryptedQueryResult
+            .toStringUtf8()
         decryptedQueryResult {
           queryId = result.queryId
           shardId = result.shardId
@@ -114,9 +103,9 @@ object PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper 
   override fun decodeEncryptedQuery(
     data: PCollection<PrivateMembershipEncryptResponse>
   ): PCollection<KV<QueryId, ShardedQuery>> {
-    return data.parDo("Map to ShardedQuery") {
+    return data.parDo("Map to ShardedQuery") { response ->
       yieldAll(
-        it
+        response
           .ciphertextsList
           .asSequence()
           .map { QueryBundle.parseFrom(it) }

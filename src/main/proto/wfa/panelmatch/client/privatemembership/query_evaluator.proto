@@ -41,15 +41,13 @@ message DatabaseShard {
 // A bucket in a batch lookup database.
 message Bucket {
   BucketId bucket_id = 1;
-
-  // Serialized private_membership.batch.RawDatabaseShard.Bucket message.
   bytes payload = 2;
 }
 
 // A full or partial result for an oblivious query.
 message Result {
-  QueryMetadata query_metadata = 1;
+  QueryId query_id = 1;
 
-  // Serialized private_membership.batch.EncryptedQueryResult message.
-  bytes payload = 2;
+  // Serialized encrypted query results.
+  bytes serialized_encrypted_query_result = 2;
 }

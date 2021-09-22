@@ -14,29 +14,74 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
-import org.wfanet.panelmatch.common.loadLibraryFromResource
+import com.google.privatemembership.batch.Shared.EncryptedQueries
+import com.google.privatemembership.batch.Shared.Parameters
+import com.google.privatemembership.batch.Shared.PublicKey
+import com.google.privatemembership.batch.server.ApplyQueriesRequestKt.rawDatabase
+import com.google.privatemembership.batch.server.RawDatabaseShardKt.bucket
+import com.google.privatemembership.batch.server.Server.RawDatabaseShard
+import com.google.privatemembership.batch.server.applyQueriesRequest
+import com.google.privatemembership.batch.server.rawDatabaseShard
 
 /** [QueryEvaluator] that calls into C++ via JNI. */
 class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : QueryEvaluator {
+  private val privateMembershipParameters: Parameters by lazy {
+    Parameters.parseFrom(parameters.serializedPrivateMembershipParameters)
+  }
+
+  private val privateMembershipPublicKey: PublicKey by lazy {
+    PublicKey.parseFrom(parameters.serializedPublicKey)
+  }
 
   override fun executeQueries(
     shards: List<DatabaseShard>,
     queryBundles: List<QueryBundle>
   ): List<Result> {
-    TODO()
-  }
+    val presentDatabaseShards = shards.map { it.shardId.id }.toSet()
+    val presentQueryShards = queryBundles.map { it.shardId.id }.toSet()
+    require(presentDatabaseShards == presentQueryShards) {
+      "Mismatching shards: $presentDatabaseShards vs $presentQueryShards"
+    }
 
-  override fun combineResults(results: Sequence<Result>): Result {
-    TODO()
-  }
+    val request = applyQueriesRequest {
+      parameters = privateMembershipParameters
+      publicKey = privateMembershipPublicKey
+      finalizeResults = true
+      queries += queryBundles.map(QueryBundle::encryptedQueries)
+      rawDatabase =
+        rawDatabase {
+          this.shards += shards.map(DatabaseShard::toPrivateMembershipRawDatabaseShard)
+        }
+    }
 
-  override fun finalizeResults(results: Sequence<Result>): Sequence<Result> {
-    TODO()
-  }
+    val response = JniPrivateMembership.applyQueries(request)
 
-  companion object {
-    init {
-      loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")
+    val inputQueryCount = queryBundles.sumBy { it.queryIdsCount }
+    require(response.queryResultsCount == inputQueryCount) {
+      "Output query count (${response.queryResultsCount}) is not the same as the input query " +
+        "count ($inputQueryCount)"
+    }
+
+    return response.queryResultsList.map { encryptedQueryResult ->
+      resultOf(
+        queryIdOf(encryptedQueryResult.queryMetadata.queryId),
+        encryptedQueryResult.toByteString()
+      )
     }
   }
+}
+
+private val QueryBundle.encryptedQueries: EncryptedQueries
+  get() = EncryptedQueries.parseFrom(serializedEncryptedQueries)
+
+private fun DatabaseShard.toPrivateMembershipRawDatabaseShard(): RawDatabaseShard =
+    rawDatabaseShard {
+  shardIndex = shardId.id
+  buckets +=
+    bucketsList.map {
+      bucket {
+        bucketId = it.bucketId.id
+        bucketContents = it.payload
+      }
+    }
 }

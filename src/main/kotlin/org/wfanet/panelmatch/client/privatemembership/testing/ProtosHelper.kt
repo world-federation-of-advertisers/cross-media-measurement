@@ -57,8 +57,3 @@ fun plaintextOf(plaintext: String, query: Int, shard: Int): DecryptedEventData {
 fun decryptedQueryOf(queryResult: ByteString, query: Int, shard: Int): DecryptedQueryResult {
   return decryptedQueryOf(queryResult, queryIdOf(query), shardIdOf(shard))
 }
-
-/** Constructs a [DecryptedQueryResult]. */
-fun decryptedQueryOf(decryptedQuery: String, query: Int, shard: Int): DecryptedQueryResult {
-  return decryptedQueryOf(decryptedQuery.toByteString(), query, shard)
-}

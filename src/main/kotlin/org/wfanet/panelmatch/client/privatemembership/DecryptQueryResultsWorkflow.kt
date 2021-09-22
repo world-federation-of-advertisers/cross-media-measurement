@@ -37,7 +37,7 @@ class DecryptQueryResultsWorkflow(
   private val hkdfPepper: ByteString,
 ) : Serializable {
 
-  /** Tuning knobs for the [DecryptQueriesWorkflow]. */
+  /** Tuning knobs for the [DecryptQueryResultsWorkflow]. */
   data class Parameters(
     val serializedParameters: ByteString,
     val serializedPublicKey: ByteString,

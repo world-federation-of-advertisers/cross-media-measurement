@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
-import com.google.protobuf.ByteString
 import java.io.Serializable
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
@@ -86,10 +85,4 @@ data class PanelistQuery(
     panelist: Long,
     bucket: Int
   ) : this(shardIdOf(shard), panelistKeyOf(panelist), bucketIdOf(bucket))
-}
-
-data class DecodedResult(val queryId: Int, val data: ByteString) : Serializable {
-  override fun toString(): String {
-    return "DecodedResult(query=$queryId, data=${data.toStringUtf8()}"
-  }
 }

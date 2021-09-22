@@ -15,14 +15,14 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.ListValue
+import com.google.protobuf.listValue
+import com.google.protobuf.value
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
-import org.wfanet.panelmatch.client.privatemembership.queryMetadataOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
 
 /**
@@ -33,7 +33,7 @@ import org.wfanet.panelmatch.client.privatemembership.resultOf
  */
 object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
   override fun decodeResultData(result: Result): ByteString {
-    return result.payload
+    return result.serializedEncryptedQueryResult
   }
 
   override fun makeQueryBundle(
@@ -42,19 +42,21 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
   ): QueryBundle {
     return queryBundleOf(
       shard,
-      queries.map { queryMetadataOf(it.first, ByteString.EMPTY) },
-      ListValue.newBuilder()
-        .apply {
+      queries.map { it.first },
+      listValue {
           for (query in queries) {
-            addValuesBuilder().stringValue = query.second.id.toString()
+            values += value { stringValue = query.second.id.toString() }
           }
         }
-        .build()
         .toByteString()
     )
   }
 
   override fun makeResult(query: QueryId, rawPayload: ByteString): Result {
-    return resultOf(queryMetadataOf(query, ByteString.EMPTY), rawPayload)
+    return resultOf(query, rawPayload)
+  }
+
+  override fun makeEmptyResult(query: QueryId): Result {
+    return makeResult(query, ByteString.EMPTY)
   }
 }

@@ -27,6 +27,9 @@ absl::StatusOr<std::string> GenerateKeysWrapper(
 absl::StatusOr<std::string> EncryptQueriesWrapper(
     const std::string& serialized_request);
 
+absl::StatusOr<std::string> DecryptQueriesWrapper(
+    const std::string& serialized_request);
+
 absl::StatusOr<std::string> ApplyQueriesWrapper(
     const std::string& serialized_request);
 

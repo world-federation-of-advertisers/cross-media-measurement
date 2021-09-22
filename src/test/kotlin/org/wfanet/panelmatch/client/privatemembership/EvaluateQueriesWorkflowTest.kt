@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import kotlin.test.assertFails
 import org.apache.beam.sdk.metrics.MetricNameFilter
 import org.apache.beam.sdk.metrics.MetricsFilter
@@ -55,7 +54,7 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "hij", 1 with "abc", and 2 with "klm"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, subshardSizeBytes = 1000)
+    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
 
     val queryBundles = listOf(queryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
 
@@ -70,13 +69,12 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "hij", 1 with "abc", and 2 with "klm"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, subshardSizeBytes = 1000)
+    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
 
     val queryBundles =
       listOf(
         queryBundleOf(shard = 0, listOf(100 to 4)),
-        queryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1)),
-        queryBundleOf(shard = 2, listOf(104 to 0)),
+        queryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1))
       )
 
     assertThat(runWorkflow(queryBundles, parameters))
@@ -84,8 +82,7 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
         resultOf(100, "def"),
         resultOf(101, "hij"),
         resultOf(102, "hij"),
-        resultOf(103, "abc"),
-        resultOf(104, "")
+        resultOf(103, "abc")
       )
 
     assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(9)
@@ -96,7 +93,7 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "hij", 1 with "abc", and 2 with "klm"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, subshardSizeBytes = 1000)
+    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
 
     val queryBundles =
       listOf(
@@ -118,79 +115,33 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
   }
 
   @Test
-  fun `subshardSizeBytes too small`() {
-    val parameters = Parameters(numShards = 1, numBucketsPerShard = 100, subshardSizeBytes = 2)
-
-    val queryBundles =
-      listOf(
-        queryBundleOf(shard = 0, listOf(1 to 53, 2 to 58)),
-        queryBundleOf(shard = 0, listOf(3 to 71, 4 to 85))
-      )
-
-    runWorkflow(queryBundles, parameters)
-
-    // We expect the pipeline to crash if `subshardSizeBytes` is smaller than an individual bucket.
-    assertFails { pipeline.run() }
-  }
-
-  @Test
-  fun `subshards that fit a single item`() {
-    // With `parameters`, we expect database to have a single shard with 5 subshards.
-    // The buckets should be 53 to "abc", 58 to "def", 71 to "hij", 85 to "klm".
-    val parameters = Parameters(numShards = 1, numBucketsPerShard = 100, subshardSizeBytes = 5)
-
-    val queryBundles =
-      listOf(
-        queryBundleOf(shard = 0, listOf(1 to 53, 2 to 58)),
-        queryBundleOf(shard = 0, listOf(3 to 71, 4 to 85))
-      )
-
-    assertThat(runWorkflow(queryBundles, parameters))
-      .containsInAnyOrder(
-        resultOf(1, "abc"),
-        resultOf(2, "def"),
-        resultOf(3, "hij"),
-        resultOf(4, "klm")
-      )
-
-    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(3)
-  }
-
-  @Test
-  fun `subshards that fit two items`() {
-    val parameters = Parameters(numShards = 1, numBucketsPerShard = 100, subshardSizeBytes = 8)
-
-    val queryBundles =
-      listOf(
-        queryBundleOf(shard = 0, listOf(1 to 53, 2 to 58)),
-        queryBundleOf(shard = 0, listOf(3 to 71, 4 to 85))
-      )
-
-    assertThat(runWorkflow(queryBundles, parameters))
-      .containsInAnyOrder(
-        resultOf(1, "abc"),
-        resultOf(2, "def"),
-        resultOf(3, "hij"),
-        resultOf(4, "klm")
-      )
-
-    assertThat(runPipelineAndGetActualMaxSubshardSize()).isEqualTo(6)
-  }
-
-  @Test
   fun `repeated bucket`() {
-    val parameters = Parameters(numShards = 1, numBucketsPerShard = 1, subshardSizeBytes = 1000)
+    val parameters = Parameters(numShards = 1, numBucketsPerShard = 1, maxQueriesPerShard = 1)
 
     val queryBundles = listOf(queryBundleOf(shard = 0, listOf(17 to 0)))
 
     assertThat(runWorkflow(queryBundles, parameters)).satisfies {
       val list = it.toList()
       assertThat(list).hasSize(1)
-      assertThat(list[0].queryMetadata).isEqualTo(queryMetadataOf(queryIdOf(17), ByteString.EMPTY))
-      assertThat(list[0].payload.toStringUtf8().toList())
+      assertThat(list[0].queryId).isEqualTo(queryIdOf(17))
+      assertThat(list[0].serializedEncryptedQueryResult.toStringUtf8().toList())
         .containsExactlyElementsIn("abcdefhijklm".toList())
       null
     }
+  }
+
+  @Test
+  fun `too many queries per shard`() {
+    // With `parameters`, we expect database to have:
+    //  - Shard 0 to have bucket 4 with "def" in it
+    //  - Shard 1 to have buckets 0 with "hij", 1 with "abc", and 2 with "klm"
+    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 2)
+
+    val queryBundles = listOf(queryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
+
+    runWorkflow(queryBundles, parameters)
+
+    assertFails { pipeline.run() }
   }
 
   private fun databaseOf(

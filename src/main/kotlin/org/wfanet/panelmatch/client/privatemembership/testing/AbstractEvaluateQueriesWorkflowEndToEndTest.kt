@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import kotlin.random.Random
 import org.apache.beam.sdk.transforms.Create
 import org.junit.Test
+import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.Bucketing
 import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
@@ -27,6 +28,8 @@ import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow.Pa
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
+import org.wfanet.panelmatch.client.privatemembership.QueryId
+import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.databaseKeyOf
 import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
@@ -37,29 +40,30 @@ import org.wfanet.panelmatch.common.toByteString
 /** Base test class for testing the full pipeline, including a specific [QueryEvaluator]. */
 abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
   /** Provides a test subject. */
-  abstract val queryEvaluator: QueryEvaluator
+  abstract fun makeQueryEvaluator(parameters: Parameters): QueryEvaluator
 
   /** Provides a helper for the test subject. */
-  abstract val helper: QueryEvaluatorTestHelper
+  abstract fun makeHelper(parameters: Parameters): QueryEvaluatorTestHelper
 
   @Test
   fun endToEnd() {
     for (numShards in listOf(1, 10, 100)) {
       for (numBucketsPerShard in listOf(1, 10, 100, 1000)) {
-        for (subshardSizeBytes in listOf(500, 1000, 100000)) {
-          val parameters =
-            Parameters(
-              numShards = numShards,
-              numBucketsPerShard = numBucketsPerShard,
-              subshardSizeBytes = subshardSizeBytes
-            )
-          runEndToEndTest(parameters)
-        }
+        val parameters =
+          Parameters(
+            numShards = numShards,
+            numBucketsPerShard = numBucketsPerShard,
+            maxQueriesPerShard = 1000
+          )
+        runEndToEndTest(parameters)
       }
     }
   }
 
   private fun runEndToEndTest(parameters: Parameters) {
+    val queryEvaluator = makeQueryEvaluator(parameters)
+    val helper = makeHelper(parameters)
+
     val random = Random(seed = 12345L)
     val keys: List<Long> = (0 until 10).map { random.nextLong() }
     assertThat(keys).containsNoDuplicates() // Sanity check: 10 different keys
@@ -84,16 +88,18 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
         numShards = parameters.numShards,
         numBucketsPerShard = parameters.numBucketsPerShard
       )
-    val bucketsAndShardsToQuery = rawQueries.map { bucketing.apply(it.first) to it.second }
+    val bucketsAndShardsToQuery: List<Pair<Pair<ShardId, BucketId>, QueryId>> =
+      rawQueries.map { bucketing.apply(it.first) to it.second }
+
     val queryBundles: List<QueryBundle> =
       bucketsAndShardsToQuery.groupBy { it.first.first }.map { (shard, entries) ->
         helper.makeQueryBundle(shard, entries.map { it.second to it.first.second })
       }
+
     val queryBundlesPCollection = pipeline.apply("Create QueryBundles", Create.of(queryBundles))
 
     val workflow = EvaluateQueriesWorkflow(parameters, queryEvaluator)
     val results = workflow.batchEvaluateQueries(databasePCollection, queryBundlesPCollection)
-    val localHelper = helper // For Beam's serialization
 
     assertThat(results).satisfies {
       // First, we decode each result and then split each bucket up into individual values.
@@ -105,7 +111,7 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
       // Finally, we compare the unique results with the expected results.
       val uniqueResults =
         it
-          .map { result -> localHelper.decodeResultData(result).toStringUtf8() }
+          .map { result -> helper.decodeResultData(result).toStringUtf8() }
           .flatMap { decodedResult -> splitConcatenatedPayloads(decodedResult) }
           .toSet()
       assertWithMessage("with $parameters")

@@ -14,20 +14,19 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
-import com.google.protobuf.ByteString
 import java.io.Serializable
+import java.lang.IllegalArgumentException
 import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.panelmatch.common.beam.combinePerKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
-import org.wfanet.panelmatch.common.beam.values
 
 /**
  * Implements a batch query engine in Apache Beam using homomorphic encryption.
@@ -41,26 +40,22 @@ class EvaluateQueriesWorkflow(
 ) : Serializable {
 
   /**
-   * Tuning knobs for the [BatchLookupWorkflow].
-   *
-   * The [subshardSizeBytes] property should be set to the largest value possible such that the
-   * pipeline does not experience out-of-memory errors, or is unable to exploit all available
-   * parallelism, or is blocked on I/O. We recommend tuning this parameter experimentally -- it
-   * should fall somewhere between 10MiB and 1GiB, most likely.
+   * Tuning knobs for the [EvaluateQueriesWorkflow].
    *
    * @property numShards the number of shards to split the database into
    * @property numBucketsPerShard the number of buckets each shard can have
-   * @property subshardSizeBytes the maximum size of a [DatabaseShard] before it is split up
+   * @property maxQueriesPerShard the number of queries each shard can have -- this is a safeguard
+   * against malicious behavior
    */
   data class Parameters(
     val numShards: Int,
     val numBucketsPerShard: Int,
-    val subshardSizeBytes: Int
+    val maxQueriesPerShard: Int
   ) : Serializable {
     init {
       require(numShards > 0)
       require(numBucketsPerShard > 0)
-      require(subshardSizeBytes > 0)
+      require(maxQueriesPerShard > 0)
     }
   }
 
@@ -73,41 +68,32 @@ class EvaluateQueriesWorkflow(
 
     val queriesByShard = queryBundles.keyBy("Key QueryBundles by Shard") { it.shardId }
 
-    val uncombinedResults: PCollection<KV<KV<ShardId, QueryId>, Result>> =
-      querySubshards(shardedDatabase, queriesByShard)
-
-    return uncombinedResults
-      .combinePerKey("Combine Subshard Results") { queryEvaluator.combineResults(it.asSequence()) }
-      .values("Extract Results")
-      .map {
-        // TODO: consider batching calls to finalizeResults if JNI overhead is too large.
-        // Batching will reduce JNI overhead but may increase memory usage.
-        queryEvaluator.finalizeResults(sequenceOf(it)).single()
-      }
+    return queryShards(shardedDatabase, queriesByShard)
   }
 
   /** Joins the inputs to execute the queries on the appropriate shards. */
-  private fun querySubshards(
+  private fun queryShards(
     shardedDatabase: PCollection<KV<ShardId, DatabaseShard>>,
     queriesByShard: PCollection<KV<ShardId, QueryBundle>>
-  ): PCollection<KV<KV<ShardId, QueryId>, Result>> {
+  ): PCollection<Result> {
     return shardedDatabase.join(queriesByShard, name = "Join Database and queryMetadata") {
       key: ShardId,
       shards: Iterable<DatabaseShard>,
       queries: Iterable<QueryBundle> ->
       val queriesList = queries.toList()
 
-      val nonEmptyShards: Iterable<DatabaseShard> =
-        if (shards.iterator().hasNext()) {
-          shards
-        } else {
-          listOf(databaseShardOf(key, emptyList()))
-        }
+      val numQueries = queriesList.sumBy { it.queryIdsCount }
+      require(numQueries <= parameters.maxQueriesPerShard) {
+        "Shard $key has $numQueries queries (${parameters.maxQueriesPerShard} allowed) $queriesList"
+      }
 
-      for (shard in nonEmptyShards) {
-        val results = queryEvaluator.executeQueries(listOf(shard), queriesList)
-        for (result in results) {
-          yield(kvOf(kvOf(key, result.queryMetadata.queryId), result))
+      if (numQueries > 0) {
+        val shardsList = shards.toList()
+        // TODO(@efoxepstein): consider throwing an error when the size is 0, too.
+        when (shardsList.size) {
+          0 -> return@join
+          1 -> yieldAll(queryEvaluator.executeQueries(shardsList, queriesList))
+          else -> throw IllegalArgumentException("Too many DatabaseShards for shard $key")
         }
       }
     }
@@ -124,47 +110,18 @@ class EvaluateQueriesWorkflow(
         kvOf(shardId, bucketId)
       }
       .groupByKey("Group by Shard and Bucket")
-      .map {
-        val combinedValues =
-          it.value.fold(ByteString.EMPTY) { acc, e -> acc.concat(e.value.payload) }
-        require(combinedValues.size() <= parameters.subshardSizeBytes) {
-          "Bucket ${it.key} has size ${combinedValues.size()}, which is larger than the maximum " +
-            "allowed size of ${parameters.subshardSizeBytes}"
-        }
-        kvOf(it.key.key, bucketOf(it.key.value, combinedValues))
+      .map { kv ->
+        val combinedValues = kv.value.map { it.value.payload }.flatten()
+        kvOf(kv.key.key, bucketOf(kv.key.value, combinedValues))
       }
-      // TODO: try replacing this with `GroupIntoBatches`. The size limit should be the
-      //  subshardSizeBytes minus some constant that we expect to be larger than any individual
-      //  bucket.
       .groupByKey("Group by Shard")
-      .parDo<KV<ShardId, Iterable<Bucket>>, KV<ShardId, DatabaseShard>> {
-        // While this might look like exactly what GroupIntoBatches does, it's not. GroupIntoBatches
-        // does not guarantee a strict size limit. We, on the other hand, need a strict size limit
-        // here because we're trying to build as big batches as possible without OOMing.
-        var size = 0
-        var buffer = mutableListOf<Bucket>()
-        val shardId: ShardId = requireNotNull(it.key)
-        val buckets: Iterable<Bucket> = requireNotNull(it.value)
-        for (bucket in buckets) {
-          val bucketSize = bucket.payload.size()
-          if (size + bucketSize > parameters.subshardSizeBytes) {
-            yield(kvOf(shardId, databaseShardOf(shardId, buffer)))
-            buffer = mutableListOf()
-            size = 0
-          }
-          size += bucketSize
-          buffer.add(bucket)
-        }
-        if (buffer.isNotEmpty()) {
-          yield(kvOf(shardId, databaseShardOf(shardId, buffer)))
-        }
-      }
+      .map { kvOf(it.key, databaseShardOf(it.key, it.value.toList())) }
       .parDo(DatabaseShardSizeObserver())
   }
 }
 
 /**
- * This makes a Distribution metric of the number of bytes in each subshard's buckets' payloads.
+ * This makes a Distribution metric of the number of bytes in each shard's buckets' payloads.
  *
  * Note that this is a different value than the size of the DatabaseShard as a serialized proto.
  */
@@ -176,7 +133,7 @@ private class DatabaseShardSizeObserver :
   @ProcessElement
   fun processElement(context: ProcessContext) {
     val bucketsList = context.element().value.bucketsList
-    val totalSize = bucketsList.fold(0L) { acc, bucket -> acc + bucket.payload.size() }
+    val totalSize = bucketsList.sumOf { it.payload.size().toLong() }
     sizeDistribution.update(totalSize)
     context.output(context.element())
   }

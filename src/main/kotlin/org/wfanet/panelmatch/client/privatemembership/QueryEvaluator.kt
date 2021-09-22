@@ -20,17 +20,4 @@ import java.io.Serializable
 interface QueryEvaluator : Serializable {
   /** Executes [queryBundles] on [shards]. */
   fun executeQueries(shards: List<DatabaseShard>, queryBundles: List<QueryBundle>): List<Result>
-
-  /**
-   * Combines [results] into a single [Result].
-   *
-   * @throws IllegalArgumentException if [results] do not all have the same [QueryId].
-   */
-  fun combineResults(results: Sequence<Result>): Result
-
-  /**
-   * For each [Result] in [results], "finalizes" the result. After this point, it is ready to be
-   * transmitted to the client for decryption.
-   */
-  fun finalizeResults(results: Sequence<Result>): Sequence<Result>
 }

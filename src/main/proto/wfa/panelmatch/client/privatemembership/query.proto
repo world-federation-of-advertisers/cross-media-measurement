@@ -34,21 +34,20 @@ message QueryId {
   int32 id = 1;
 }
 
-// A full or partial set of oblivious queries for a single database shard.
+// A set of oblivious queries for a single database shard.
+//
+// All of the queries for a specific shard need not fit into a single
+// QueryBundle -- this is just a way of packing multiple queries into multiple
+// ciphertexts to improve efficiency.
+//
+// The buckets within the shard that each query selects are encoded in the
+// serialized_encrypted_queries field.
 message QueryBundle {
   ShardId shard_id = 1;
-  repeated QueryMetadata query_metadata = 2;
+  repeated QueryId query_ids = 2;
 
-  // TODO: document payload format.
-  bytes payload = 3;
-}
-
-// Identifier and metadata for an oblivious query.
-message QueryMetadata {
-  QueryId query_id = 1;
-
-  // TODO: document metadata format.
-  bytes metadata = 2;
+  // Serialized, encrypted queries.
+  bytes serialized_encrypted_queries = 3;
 }
 
 // Some key maintained by a model provider to identify a panelist

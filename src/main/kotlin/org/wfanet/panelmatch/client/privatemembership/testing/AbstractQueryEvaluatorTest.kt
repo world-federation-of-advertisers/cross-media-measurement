@@ -16,13 +16,11 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
-import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
 import org.wfanet.panelmatch.client.privatemembership.bucketOf
 import org.wfanet.panelmatch.client.privatemembership.databaseShardOf
@@ -33,6 +31,9 @@ import org.wfanet.panelmatch.common.toByteString
 
 /** Tests for [QueryEvaluator]s. */
 abstract class AbstractQueryEvaluatorTest {
+  protected val shardCount: Int = 128
+  protected val bucketsPerShardCount: Int = 16
+
   /** Provides a test subject. */
   abstract val evaluator: QueryEvaluator
 
@@ -50,15 +51,19 @@ abstract class AbstractQueryEvaluatorTest {
       listOf(
         queryBundleOf(shard = 100, queries = listOf(500 to 0, 501 to 1, 502 to 3)),
         queryBundleOf(shard = 100, queries = listOf(503 to 9)),
-        queryBundleOf(shard = 102, queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3))
+        queryBundleOf(shard = 101, queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3))
       )
     val results = evaluator.executeQueries(database, queryBundles)
-    assertThat(results.map { it.queryMetadata.queryId to helper.decodeResultData(it) })
+    assertThat(results.map { it.queryId to helper.decodeResultData(it) })
       .containsExactly(
         queryIdOf(500) to makeFakeBucketData(bucket = 0, shard = 100),
         queryIdOf(501) to makeFakeBucketData(bucket = 1, shard = 100),
         queryIdOf(502) to ByteString.EMPTY,
-        queryIdOf(503) to ByteString.EMPTY
+        queryIdOf(503) to ByteString.EMPTY,
+        queryIdOf(504) to ByteString.EMPTY,
+        queryIdOf(505) to ByteString.EMPTY,
+        queryIdOf(506) to ByteString.EMPTY,
+        queryIdOf(507) to makeFakeBucketData(bucket = 3, shard = 101),
       )
   }
 
@@ -84,62 +89,11 @@ abstract class AbstractQueryEvaluatorTest {
       )
   }
 
-  @Test
-  fun `combineResults empty input`() {
-    assertFailsWith<IllegalArgumentException> { evaluator.combineResults(emptySequence()) }
-  }
-
-  @Test
-  fun `combineResults mismatching queries`() {
-    assertFailsWith<IllegalArgumentException> {
-      runCombineResults(resultOf(1, ByteString.EMPTY), resultOf(2, ByteString.EMPTY))
-    }
-  }
-
-  @Test
-  fun `combineResults single result`() {
-    val queryId = 5
-
-    assertThat(runCombineResults(resultOf(queryId, ByteString.EMPTY)))
-      .isEqualTo(DecodedResult(queryId, ByteString.EMPTY))
-
-    val rawPayload = "some-raw-payload".toByteString()
-    assertThat(runCombineResults(resultOf(queryId, rawPayload)))
-      .isEqualTo(DecodedResult(queryId, rawPayload))
-  }
-
-  @Test
-  fun `combineResults multiple results`() {
-    val queryId = 5
-
-    val emptyResult = resultOf(queryId, ByteString.EMPTY)
-    val payload = "some-payload".toByteString()
-    val nonEmptyResult = resultOf(queryId, payload)
-
-    assertThat(runCombineResults(emptyResult, nonEmptyResult, emptyResult, emptyResult))
-      .isEqualTo(DecodedResult(queryId, payload))
-
-    assertThat(runCombineResults(emptyResult, emptyResult, emptyResult))
-      .isEqualTo(DecodedResult(queryId, ByteString.EMPTY))
-
-    // It is not fully defined what happens when combining multiple non-empty results.
-    // This checks that it does not throw:
-    runCombineResults(nonEmptyResult, nonEmptyResult)
-  }
-
-  private fun runCombineResults(vararg results: Result): DecodedResult {
-    return helper.decodeResult(evaluator.combineResults(results.asSequence()))
-  }
-
   private fun queryBundleOf(shard: Int, queries: List<Pair<Int, Int>>): QueryBundle {
     return helper.makeQueryBundle(
       shardIdOf(shard),
       queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
     )
-  }
-
-  private fun resultOf(query: Int, rawPayload: ByteString): Result {
-    return helper.makeResult(queryIdOf(query), rawPayload)
   }
 }
 
