@@ -18,7 +18,7 @@ import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 
 /**
- * A [QueryResultsDecryptor] implementation using the JNI [QueryResultDecryptorWrapper]. Keys should
+ * A [QueryResultsDecryptor] implementation using the JNI [DecryptQueryResultsWrapper]. Keys should
  * have been generated prior to this step using an implementation of [PrivateMembershipCryptor].
  */
 class JniQueryResultsDecryptor : QueryResultsDecryptor {

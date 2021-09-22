@@ -15,6 +15,9 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import java.io.Serializable
+import java.lang.Long.divideUnsigned
+import java.lang.Long.remainderUnsigned
+import java.lang.Long.toUnsignedString
 import org.wfanet.panelmatch.common.crypto.hashSha256ToSpace
 
 /** Computes the appropriate bucket and shard for keys. */
@@ -37,14 +40,24 @@ class Bucketing(private val numShards: Int, private val numBucketsPerShard: Int)
   }
 
   private fun shard(value: Long): ShardId {
-    val remainder = java.lang.Long.remainderUnsigned(value, numShards.toLong())
+    val remainder = remainderUnsigned(value, numShards.toLong())
     // The conversion here is safe because 0 <= remainder < numShards and numShards is an Int.
     return shardIdOf(remainder.toInt())
   }
 
   private fun bucket(value: Long): BucketId {
-    val quotient = java.lang.Long.divideUnsigned(value, numShards.toLong())
-    val remainder = quotient % numBucketsPerShard
+    val quotient = divideUnsigned(value, numShards.toLong())
+    val remainder = remainderUnsigned(quotient, numBucketsPerShard.toLong())
+
+    check(remainder >= 0) {
+      """
+      Bucketing(numShards = $numShards, numBucketsPerShard = $numBucketsPerShard):
+        value = $value (unsigned: ${toUnsignedString(value)})
+        quotient = $quotient (unsigned: ${toUnsignedString(quotient)})
+        remainder = $remainder (unsigned: ${toUnsignedString(remainder)})
+      """.trimIndent()
+    }
+
     // The conversion here is safe because 0 <= remainder < numBucketsPerShard and
     // numBucketsPerShard is an Int.
     return bucketIdOf(remainder.toInt())

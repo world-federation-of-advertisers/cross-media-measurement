@@ -20,8 +20,6 @@
 #include "common_cpp/jni/jni_wrap.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
 #include "private_membership/rlwe/batch/cpp/server/server.h"
-#include "private_membership/rlwe/batch/proto/client.pb.h"
-#include "private_membership/rlwe/batch/proto/server.pb.h"
 
 namespace wfa::panelmatch::client::privatemembership {
 using ::private_membership::batch::ApplyQueries;
@@ -39,6 +37,11 @@ absl::StatusOr<std::string> GenerateKeysWrapper(
 absl::StatusOr<std::string> EncryptQueriesWrapper(
     const std::string& serialized_request) {
   return JniWrap(serialized_request, EncryptQueries);
+}
+
+absl::StatusOr<std::string> DecryptQueriesWrapper(
+    const std::string& serialized_request) {
+  return JniWrap(serialized_request, DecryptQueries);
 }
 
 absl::StatusOr<std::string> ApplyQueriesWrapper(

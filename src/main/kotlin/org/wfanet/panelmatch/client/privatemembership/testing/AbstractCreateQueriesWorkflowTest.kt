@@ -36,7 +36,6 @@ import org.wfanet.panelmatch.client.privatemembership.panelistKeyOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.kvOf
-import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.beam.values
@@ -125,9 +124,10 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
         PanelistQuery(1, 95L, 2),
         PanelistQuery(0, 99L, 0)
       )
-    assertThat(encryptedResults).satisfies {
-      val encryptedQueries: List<EncryptedQuery> = it.flatMap { it.encryptedQueryList }
-      for (i in 0..numShards - 1) {
+    assertThat(encryptedResults).satisfies { encryptedResultsIterable ->
+      val encryptedQueries: List<EncryptedQuery> =
+        encryptedResultsIterable.flatMap { it.encryptedQueryList }
+      for (i in 0 until numShards) {
         val resultsPerShard = encryptedQueries.filter { it.shardId == shardIdOf(i) }
         assertThat(resultsPerShard.count()).isEqualTo(totalQueriesPerShard)
       }
@@ -149,9 +149,10 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
       )
 
     val (_, encryptedResults) = runWorkflow(privateMembershipCryptor, parameters)
-    assertThat(encryptedResults).satisfies {
-      val encryptedQueries: List<EncryptedQuery> = it.flatMap { it.encryptedQueryList }
-      for (i in 0..numShards - 1) {
+    assertThat(encryptedResults).satisfies { encryptedResultsIterable ->
+      val encryptedQueries: List<EncryptedQuery> =
+        encryptedResultsIterable.flatMap { it.encryptedQueryList }
+      for (i in 0 until numShards) {
         val resultsPerShard = encryptedQueries.filter { it.shardId == shardIdOf(i) }
         assertThat(resultsPerShard.count()).isEqualTo(totalQueriesPerShard)
       }

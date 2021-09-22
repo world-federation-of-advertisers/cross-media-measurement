@@ -58,6 +58,21 @@ kt_jvm_test(
     test_class = "org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluatorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "JniEvaluateQueriesWorkflowEndToEndTest",
+    srcs = ["JniEvaluateQueriesWorkflowEndToEndTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.JniEvaluateQueriesWorkflowEndToEndTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

@@ -25,12 +25,12 @@ import org.wfanet.panelmatch.client.privatemembership.ShardId
 interface QueryEvaluatorTestHelper : Serializable {
   data class DecodedResult(val queryId: Int, val data: ByteString) : Serializable {
     override fun toString(): String {
-      return "DecodedResult(query=$queryId, data=${data.toStringUtf8()}"
+      return "DecodedResult(query=$queryId, data=${data.toStringUtf8()})"
     }
   }
 
   fun decodeResult(result: Result): DecodedResult {
-    return DecodedResult(result.queryMetadata.queryId.id, decodeResultData(result))
+    return DecodedResult(result.queryId.id, decodeResultData(result))
   }
 
   fun decodeResultData(result: Result): ByteString
@@ -38,4 +38,6 @@ interface QueryEvaluatorTestHelper : Serializable {
   fun makeQueryBundle(shard: ShardId, queries: List<Pair<QueryId, BucketId>>): QueryBundle
 
   fun makeResult(query: QueryId, rawPayload: ByteString): Result
+
+  fun makeEmptyResult(query: QueryId): Result
 }

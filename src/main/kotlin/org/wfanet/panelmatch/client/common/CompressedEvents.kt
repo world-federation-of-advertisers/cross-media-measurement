@@ -18,7 +18,10 @@ import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 
-/** The results of training a [Compressor] and then applying it to a [PCollection]. */
+/**
+ * The results of training a [Compressor][org.wfanet.panelmatch.common.compression.Compressor] and
+ * then applying it to a [PCollection].
+ */
 data class CompressedEvents(
   val events: PCollection<KV<ByteString, ByteString>>,
   val dictionary: PCollection<ByteString>
