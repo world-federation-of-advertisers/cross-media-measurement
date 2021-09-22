@@ -75,6 +75,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_system:          string
 	_jvm_flags:       string | *""
 	_dependencies: [...string]
+	_resourceRequestCpu:    string | *"0.5"
+	_resourceLimitCpu:      string | *"2"
+	_resourceRequestMemory: string | *"256Mi"
+	_resourceLimitMemory:   string | *"512Mi"
 	apiVersion: "v1"
 	kind:       "Pod"
 	metadata: {
@@ -89,6 +93,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		containers: [{
 			name:            _name + "-container"
 			image:           _image
+			resources: requests: {
+				memory: _resourceRequestMemory
+				cpu:    _resourceRequestCpu
+			}
+			resources: limits: {
+				memory: _resourceLimitMemory
+				cpu:    _resourceLimitCpu
+			}
 			imagePullPolicy: _imagePullPolicy
 			args:            _args
 			ports:           _ports
