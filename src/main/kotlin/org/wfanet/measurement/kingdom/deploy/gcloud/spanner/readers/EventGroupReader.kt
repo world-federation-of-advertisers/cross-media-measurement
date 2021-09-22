@@ -88,7 +88,9 @@ class EventGroupReader : BaseSpannerReader<EventGroup>() {
         externalEventGroupId = struct.getLong("ExternalEventGroupId")
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        providedEventGroupId = struct.getString("ProvidedEventGroupId")
+        if (!struct.isNull("ProvidedEventGroupId")) {
+          providedEventGroupId = struct.getString("ProvidedEventGroupId")
+        }
         createTime = struct.getTimestamp("CreateTime").toProto()
       }
       .build()

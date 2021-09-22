@@ -183,7 +183,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `createEventGroup creates new eventGroup when called without providedEventGroupId`() =
+  fun `createEventGroup creates new eventGroup when called without providedEventGroupId`(): Unit =
       runBlocking {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer(measurementConsumersService)
@@ -231,7 +231,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val eventGroup = eventGroup {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
     }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
