@@ -16,12 +16,14 @@ package org.wfanet.measurement.kingdom.service.internal.testing.integration
 
 import com.google.protobuf.ByteString
 import com.google.type.Date
+import io.grpc.Status
 import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
@@ -41,17 +43,18 @@ import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelPro
 import org.wfanet.measurement.internal.kingdom.recurringExchange as internalRecurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 
-/**
- * Class preparing resources required for the Panel Match Integration test using internal services.
- */
-class ResourceSetup(
+/** Prepares resources for Panel Match integration tests using internal APIs. */
+class PanelMatchResourceSetup(
   private val dataProvidersService: DataProvidersCoroutineImplBase,
   private val modelProvidersService: ModelProvidersCoroutineImplBase,
   private val recurringExchangesService: RecurringExchangesCoroutineImplBase
 ) {
 
   /** Process to create resources. */
-  suspend fun process(exchangeSchedule: String, exchangeWorkflow: ExchangeWorkflow): ProviderKey {
+  suspend fun createResourcesForWorkflow(
+    exchangeSchedule: String,
+    exchangeWorkflow: ExchangeWorkflow
+  ): RecurringExchangeParticipants {
 
     val externalDataProviderId = createDataProvider()
     logger.info("Successfully created data provider: $externalDataProviderId.")
@@ -68,7 +71,7 @@ class ResourceSetup(
       )
     logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
 
-    return ProviderKey(
+    return RecurringExchangeParticipants(
       DataProviderKey(externalIdToApiId(externalDataProviderId)).toName(),
       ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
     )
@@ -98,12 +101,12 @@ class ResourceSetup(
       .externalDataProviderId
   }
 
-  suspend fun createModelProvider(): Long {
+  private suspend fun createModelProvider(): Long {
     return modelProvidersService.createModelProvider(internalModelProvider {})
       .externalModelProviderId
   }
 
-  suspend fun createRecurringExchange(
+  private suspend fun createRecurringExchange(
     externalDataProvider: Long,
     externalModelProvider: Long,
     exchangeDate: Date,
@@ -132,18 +135,26 @@ class ResourceSetup(
   private fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
     val prerequisiteList =
       stepsList.map { step ->
-        step.stepId.toInt() to
-          Pair(step.partyValue, step.sharedInputLabelsMap.keys.map { it.toInt() })
+        step.stepId.toInt() to Pair(step.party, step.sharedInputLabelsMap.keys.map { it.toInt() })
       }
     return internalExchangeWorkflow {
       prerequisiteList.forEach {
         steps +=
           internalStep {
             stepIndex = it.first
-            party = InternalExchangeWorkflow.Party.forNumber(it.second.first)
+            party = it.second.first.toInternal()
             prerequisiteStepIndices.addAll(it.second.second)
           }
       }
+    }
+  }
+
+  private fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
+    return when (this) {
+      ExchangeWorkflow.Party.DATA_PROVIDER -> InternalExchangeWorkflow.Party.DATA_PROVIDER
+      ExchangeWorkflow.Party.MODEL_PROVIDER ->
+        InternalExchangeWorkflow.Party.MODEL_PROVIDER
+      else -> throw IllegalArgumentException("Provider is not set for the Exchange Step.")
     }
   }
 
@@ -152,4 +163,4 @@ class ResourceSetup(
   }
 }
 
-data class ProviderKey(val dataProviderKey: String, val modelProviderKey: String)
+data class RecurringExchangeParticipants(val dataProviderKey: String, val modelProviderKey: String)
