@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -183,8 +184,132 @@ abstract class ExchangeStepsServiceTest {
     }
   }
 
+  fun org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.toInternal(): ExchangeWorkflow {
+    val labelsMap = mutableMapOf<String, MutableSet<Int>>()
+    stepsList.forEachIndexed { index, step ->
+      val outputLabels =
+        step.sharedOutputLabelsMap.values.toList() + step.privateOutputLabelsMap.values.toList()
+      outputLabels.forEach {
+        labelsMap.putIfAbsent(it, mutableSetOf())
+        labelsMap.getValue(it).add(index)
+      }
+    }
+    val internalSteps =
+      stepsList.mapIndexed { index, step ->
+        val labels =
+          step.sharedInputLabelsMap.values.toList() + step.privateInputLabelsMap.values.toList()
+        step {
+          stepIndex = index + 1
+          party = step.party.toInternal()
+          prerequisiteStepIndices +=
+            labels
+              .flatMap { value ->
+                if (labelsMap.contains(value)) {
+                  labelsMap.getValue(value).map { it + 1 }
+                } else {
+                  emptyList()
+                }
+              }
+              .toSet()
+        }
+      }
+
+    return exchangeWorkflow { steps += internalSteps }
+  }
+
+  private fun org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.toInternal():
+    ExchangeWorkflow.Party {
+    return when (this) {
+      org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER ->
+        ExchangeWorkflow.Party.DATA_PROVIDER
+      org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.MODEL_PROVIDER ->
+        ExchangeWorkflow.Party.MODEL_PROVIDER
+      else -> throw IllegalArgumentException("Provider is not set for the Exchange Step.")
+    }
+  }
+
+  companion object {
+    private val workflow: org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+    init {
+      val configPath = "config/exchange_workflow.textproto"
+      val resource = this::class.java.getResource(configPath)
+
+      workflow =
+        resource.openStream().use { input ->
+          parseTextProto(
+            input.bufferedReader(),
+            org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.getDefaultInstance()
+          )
+        }
+    }
+  }
+
   @Test
   fun `claimReadyExchangeStepRequest fails for missing Provider id`() = runBlocking {
+    val privateInputLabels = mapOf("a" to "b")
+    val sharedInputLabels = mapOf("c" to "d")
+    val privateOutputLabels = mapOf("Out:c" to "e")
+    val sharedOutputLabels = mapOf("Out:a" to "f")
+
+    val privateInputLabels2 = mapOf("k" to "e")
+    val sharedInputLabels2 = mapOf("l" to "f")
+    val privateOutputLabels2 = mapOf("Out:c" to "r")
+    val sharedOutputLabels2 = mapOf("Out:a" to "s")
+
+    println(
+      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+    )
+    println(workflow)
+    println(
+      "11111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+    )
+
+    //
+    //    val workflow =
+    //      parseTextProto(
+    //        File(
+    //
+    // "/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/service/config/exchange_workflow.textproto"
+    //        ),
+    //        org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.getDefaultInstance()
+    //      )
+
+    //
+    //
+    //    val exchangeWorkflow =
+    //      org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.newBuilder()
+    //        .addSteps(
+    //          org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.newBuilder()
+    //            .setParty(org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER)
+    //            .putAllPrivateInputLabels(privateInputLabels)
+    //            .putAllPrivateOutputLabels(privateOutputLabels)
+    //            .putAllSharedInputLabels(sharedInputLabels)
+    //            .putAllSharedOutputLabels(sharedOutputLabels)
+    //            .setEncryptStep(
+    //              org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.EncryptStep
+    //                .getDefaultInstance()
+    //            )
+    //        )
+    //        .addSteps(
+    //          org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.newBuilder()
+    //
+    // .setParty(org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.MODEL_PROVIDER)
+    //            .putAllPrivateInputLabels(privateInputLabels2)
+    //            .putAllPrivateOutputLabels(privateOutputLabels2)
+    //            .putAllSharedInputLabels(sharedInputLabels2)
+    //            .putAllSharedOutputLabels(sharedOutputLabels2)
+    //            .setDecryptStep(
+    //              org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.DecryptStep
+    //                .getDefaultInstance()
+    //            )
+    //        )
+    //        .build()
+    //        .toInternal()
+
+    println("000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+    println(workflow.toInternal())
+    println("000000000000000000000000000000000000000000000000000000000000000000000000000000000000")
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepsService.claimReadyExchangeStep(claimReadyExchangeStepRequest {})
