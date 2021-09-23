@@ -283,6 +283,16 @@ proto_library(
 )
 
 proto_library(
+    name = "model_providers_service_proto",
+    srcs = ["model_providers_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_provider_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+proto_library(
     name = "event_groups_service_proto",
     srcs = ["event_groups_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
