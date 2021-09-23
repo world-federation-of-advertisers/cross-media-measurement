@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.CountDownLatch
 import org.wfanet.panelmatch.client.launcher.testing.buildStep
+import org.wfanet.panelmatch.client.launcher.testing.buildWorkflow
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
@@ -37,11 +38,13 @@ class CoroutineLauncherTest {
   @Test
   fun launches() = runBlockingTest {
     val workflowStep = buildStep(ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP)
+    val workflow = buildWorkflow(workflowStep, "some-edp", "some-mp")
     val step =
       ExchangeStep.newBuilder()
         .apply {
+          stepIndex = 0
           name = "some-exchange-step-name"
-          signedExchangeWorkflowBuilder.serializedExchangeWorkflow = workflowStep.toByteString()
+          signedExchangeWorkflowBuilder.serializedExchangeWorkflow = workflow.toByteString()
         }
         .build()
 
@@ -63,6 +66,6 @@ class CoroutineLauncherTest {
     middleLatch.countDown()
     endLatch.await()
 
-    verify(stepExecutor).execute(attemptKey, workflowStep)
+    verify(stepExecutor).execute(attemptKey, step)
   }
 }

@@ -18,7 +18,12 @@ import com.google.protobuf.ByteString
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStep.SignedExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKt.signedExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.exchangeStep
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.common.toByteString
 import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 
@@ -66,6 +71,20 @@ fun buildMockCryptor(): DeterministicCommutativeCipher {
   return mockCryptor
 }
 
+fun buildWorkflow(
+  testedStep: ExchangeWorkflow.Step,
+  dataProviderName: String,
+  modelProviderName: String
+): ExchangeWorkflow {
+  return exchangeWorkflow { steps += testedStep }
+}
+
+fun buildSignedExchangeWorkflow(exchangeWorkflow: ExchangeWorkflow): SignedExchangeWorkflow {
+  return signedExchangeWorkflow {
+    this.serializedExchangeWorkflow = exchangeWorkflow.toByteString()
+  }
+}
+
 fun buildStep(
   stepType: ExchangeWorkflow.Step.StepCase,
   privateInputLabels: Map<String, String> = emptyMap(),
@@ -102,4 +121,19 @@ fun buildStep(
       }
     }
     .build()
+}
+
+fun buildExchangeStep(
+  name: String,
+  stepIndex: Int = 0,
+  dataProviderName: String,
+  modelProviderName: String,
+  testedStep: ExchangeWorkflow.Step
+): ExchangeStep {
+  return exchangeStep {
+    this.stepIndex = stepIndex
+    this.name = name
+    this.signedExchangeWorkflow =
+      buildSignedExchangeWorkflow(buildWorkflow(testedStep, dataProviderName, modelProviderName))
+  }
 }
