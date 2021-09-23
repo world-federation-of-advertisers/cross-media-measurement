@@ -22,6 +22,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -48,10 +49,12 @@ class ExchangeTaskExecutor(
    * Reads inputs for [step], executes [step], and writes the outputs to appropriate
    * [VerifiedStorageClient].
    */
-  override suspend fun execute(attemptKey: ExchangeStepAttemptKey, step: ExchangeWorkflow.Step) {
+  override suspend fun execute(attemptKey: ExchangeStepAttemptKey, exchangeStep: ExchangeStep) {
     withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {
       try {
-        tryExecute(attemptKey, step)
+        val workflow =
+          ExchangeWorkflow.parseFrom(exchangeStep.signedExchangeWorkflow.serializedExchangeWorkflow)
+        tryExecute(attemptKey, workflow.getSteps(exchangeStep.stepIndex))
       } catch (e: Exception) {
         logger.addToTaskLog(e.toString())
         markAsFinished(attemptKey, ExchangeStepAttempt.State.FAILED)
