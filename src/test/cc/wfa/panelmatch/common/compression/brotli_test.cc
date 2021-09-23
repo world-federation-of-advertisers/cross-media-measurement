@@ -34,7 +34,7 @@ TEST(BrotliTest, RoundTrip) {
   // The last item should take up the least amount of space because of the
   // dictionary. This shows the dictionary is used because the second item takes
   // up more space than the first and last, despite the similar pattern.
-  compress_request.add_uncompressed_data("some first item!");
+  compress_request.add_uncompressed_data("some first item");
   compress_request.add_uncompressed_data("123451234512345 1234512345");
   compress_request.add_uncompressed_data("this should take up even more space");
   compress_request.add_uncompressed_data("abcdeabcdeabcde abcdeabcde");

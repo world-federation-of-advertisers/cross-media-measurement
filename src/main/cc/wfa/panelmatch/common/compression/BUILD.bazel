@@ -13,8 +13,6 @@ cc_library(
         "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@com_google_riegeli//riegeli/base",
-        "@com_google_riegeli//riegeli/base:status",
         "@com_google_riegeli//riegeli/brotli:brotli_reader",
         "@com_google_riegeli//riegeli/brotli:brotli_writer",
         "@com_google_riegeli//riegeli/bytes:string_reader",
