@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "BeamTest",
+    timeout = "short",
     srcs = ["BeamTest.kt"],
     test_class = "org.wfanet.panelmatch.common.beam.BeamTest",
     deps = [

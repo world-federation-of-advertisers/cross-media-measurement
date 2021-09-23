@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "JniDeterministicCommutativeCipherTest",
+    timeout = "short",
     srcs = ["JniDeterministicCommutativeCipherTest.kt"],
     test_class = "org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCipherTest",
     deps = [
@@ -18,6 +19,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "SharedInputsTest",
+    timeout = "short",
     srcs = ["SharedInputsTest.kt"],
     test_class = "org.wfanet.panelmatch.protocol.common.SharedInputsTest",
     deps = [

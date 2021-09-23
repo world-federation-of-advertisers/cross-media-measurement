@@ -21,7 +21,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
-import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS =
@@ -46,11 +45,11 @@ private val PRIVATE_KEY = "some public key".toByteString()
 
 @RunWith(JUnit4::class)
 class PlaintextQueryResultsDecryptorTest {
-  val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
-  val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
+  private val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
+  private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
 
   @Test
-  fun `decryptQueries`() {
+  fun decryptQueries() {
     val encryptedEventData: List<EncryptedEventData> =
       privateMembershipCryptorHelper.makeEncryptedEventData(PLAINTEXTS, JOINKEYS)
     val encryptedQueryResults =

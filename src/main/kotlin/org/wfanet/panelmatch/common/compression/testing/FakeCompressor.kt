@@ -29,6 +29,6 @@ class FakeCompressor : Compressor {
   }
 
   companion object {
-    val PREFIX = "Compressed"
+    const val PREFIX = "Compressed"
   }
 }

@@ -24,7 +24,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.testing.encryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.testing.unencryptedQueryOf
 
-@OptIn(kotlin.ExperimentalUnsignedTypes::class)
+@OptIn(ExperimentalUnsignedTypes::class)
 @RunWith(JUnit4::class)
 class JniPrivateMembershipCryptorTest {
   val privateMembershipCryptor = JniPrivateMembershipCryptor()

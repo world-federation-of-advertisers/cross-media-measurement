@@ -20,20 +20,16 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
-import org.wfanet.panelmatch.client.privatemembership.encryptedEventDataOf
 import org.wfanet.panelmatch.client.privatemembership.privateMembershipDecryptRequest
 import org.wfanet.panelmatch.client.privatemembership.privateMembershipEncryptRequest
-import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
-import org.wfanet.panelmatch.client.privatemembership.unencryptedQueryOf
 import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class PlaintextPrivateMembershipCryptorTest {
   val privateMembershipCryptor = PlaintextPrivateMembershipCryptor
-  val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
+  private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
 
   @Test
   fun `encryptQueries with multiple shards`() {
@@ -47,7 +43,7 @@ class PlaintextPrivateMembershipCryptorTest {
         )
     }
     val encryptedQueries = privateMembershipCryptor.encryptQueries(privateMembershipEncryptRequest)
-    assertThat(encryptedQueries.ciphertextsList.map { it -> QueryBundle.parseFrom(it) })
+    assertThat(encryptedQueries.ciphertextsList.map { QueryBundle.parseFrom(it) })
       .containsExactly(
         queryBundleOf(shard = 100, listOf(1 to 1, 2 to 2)),
         queryBundleOf(shard = 101, listOf(3 to 1, 4 to 5))
@@ -55,7 +51,7 @@ class PlaintextPrivateMembershipCryptorTest {
   }
 
   @Test
-  fun `decryptQueries`() {
+  fun decryptQueries() {
     val encryptedEventData =
       listOf(
         encryptedEventDataOf("<some encrypted data a>".toByteString(), 1, 6),

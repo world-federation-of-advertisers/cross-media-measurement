@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "BrotliCompressorUncompressEventsTest",
+    timeout = "short",
     srcs = ["BrotliCompressorUncompressEventsTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpostprocessing.BrotliCompressorUncompressEventsTest",
     deps = [

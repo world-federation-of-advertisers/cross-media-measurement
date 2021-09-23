@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "LoggerTest",
+    timeout = "short",
     srcs = ["LoggerTest.kt"],
     associates = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/logger",

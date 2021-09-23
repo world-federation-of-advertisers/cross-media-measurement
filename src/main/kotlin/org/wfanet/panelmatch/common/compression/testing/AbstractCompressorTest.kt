@@ -18,7 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.wfanet.panelmatch.client.CombinedEvents
 import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.toByteString
 
 abstract class AbstractCompressorTest {
   protected abstract val compressor: Compressor

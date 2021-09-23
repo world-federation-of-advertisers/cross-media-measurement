@@ -2,6 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
     name = "prepare_query_test",
+    timeout = "short",
     srcs = ["prepare_query_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/client/privatemembership:query_preparer",
@@ -18,6 +19,7 @@ cc_test(
 
 cc_test(
     name = "decrypt_event_data_test",
+    timeout = "short",
     srcs = ["decrypt_event_data_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/client/privatemembership:event_data_decryptor",
@@ -38,6 +40,7 @@ cc_test(
 
 cc_test(
     name = "decrypt_query_results_test",
+    timeout = "short",
     srcs = ["decrypt_query_results_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/client/privatemembership:decrypt_query_results",

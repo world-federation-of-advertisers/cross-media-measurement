@@ -2,6 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
     name = "brotli_test",
+    timeout = "short",
     srcs = ["brotli_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/compression:brotli",

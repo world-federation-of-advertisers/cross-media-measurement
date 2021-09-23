@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.junit.Test
@@ -220,7 +219,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
     whenever(deterministicCommutativeCryptor.reEncrypt(any(), any()))
       .thenReturn(DOUBLE_BLINDED_KEYS)
 
-    val result =
+    val result: Map<String, ByteString> =
       CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
         .execute(
           mapOf(
@@ -239,7 +238,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
               )
           )
         )
-        .mapValues { it.value.fold(ByteString.EMPTY, { agg, chunk -> agg.concat(chunk) }) }
+        .mapValues { it.value.flatten() }
     assertThat(result)
       .containsExactly("reencrypted-data", makeSerializedSharedInputs(DOUBLE_BLINDED_KEYS))
   }

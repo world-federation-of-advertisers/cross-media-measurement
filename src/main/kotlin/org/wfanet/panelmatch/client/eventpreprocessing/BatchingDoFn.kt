@@ -32,7 +32,7 @@ class BatchingDoFn<T>(
 ) : DoFn<T, MutableList<T>>() {
   private var buffer = mutableListOf<T>()
   var size: Int = 0
-  val batchSizeDistribution = Metrics.distribution(BatchingDoFn::class.java, "batch-sizes")
+  private val batchSizeDistribution = Metrics.distribution(BatchingDoFn::class.java, "batch-sizes")
 
   @ProcessElement
   fun process(c: ProcessContext) {
@@ -55,7 +55,7 @@ class BatchingDoFn<T>(
   @Synchronized
   @Throws(Exception::class)
   fun FinishBundle(context: FinishBundleContext) {
-    if (!buffer.isEmpty()) {
+    if (buffer.isNotEmpty()) {
       batchSizeDistribution.update(size.toLong())
       context.output(buffer, Instant.now(), GlobalWindow.INSTANCE)
       buffer = mutableListOf()

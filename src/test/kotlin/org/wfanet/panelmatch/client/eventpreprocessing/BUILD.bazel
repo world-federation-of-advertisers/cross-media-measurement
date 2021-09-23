@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "BatchingDoFnTest",
+    timeout = "short",
     srcs = ["BatchingDoFnTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.BatchingDoFnTest",
     deps = [
@@ -17,6 +18,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "EventSizeTest",
+    timeout = "short",
     srcs = ["EventSizeTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EventSizeTest",
     deps = [
@@ -32,6 +34,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "EncryptEventsDoFnTest",
+    timeout = "short",
     srcs = ["EncryptEventsDoFnTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsDoFnTest",
     deps = [
@@ -50,6 +53,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "EncryptEventsTest",
+    timeout = "short",
     srcs = ["EncryptEventsTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsTest",
     deps = [
@@ -66,6 +70,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "JniPreprocessEventsTest",
+    timeout = "short",
     srcs = ["JniPreprocessEventsTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniPreprocessEventsTest",
     deps = [
@@ -82,6 +87,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "PreprocessEventsInPipelineTest",
+    timeout = "short",
     srcs = ["PreprocessEventsInPipelineTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEventsInPipelineTest",
     deps = [

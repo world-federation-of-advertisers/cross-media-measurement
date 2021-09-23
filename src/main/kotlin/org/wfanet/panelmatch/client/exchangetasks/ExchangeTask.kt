@@ -23,7 +23,7 @@ interface ExchangeTask {
   /**
    * Executes subclass on input map and returns the output.
    *
-   * @param input inputs specified by [task].
+   * @param input input blobs as specified by the ExchangeWorkflow.
    * @return Executed output. It is a map from the labels to the payload associated with the label.
    */
   suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>>

@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "FakeCompressorCompressByKeyTest",
+    timeout = "short",
     srcs = ["FakeCompressorCompressByKeyTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.testing.FakeCompressorCompressByKeyTest",
     deps = [
