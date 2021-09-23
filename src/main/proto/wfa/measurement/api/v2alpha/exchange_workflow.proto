@@ -16,12 +16,14 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
+
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ExchangeWorkflowProto";
 
-// A generic panel matching workflow. Many different pairs of parties may use
-// the same ExchangeWorkflow.
+// The representation for the Panel Matching Workflow. These are unique per
+// recurring exchange as they contain the identities of each party.
 //
 // See docs/panelmatch/example-exchange-workflow.textproto for an example
 // ExchangeWorkflow.
@@ -31,6 +33,13 @@ message ExchangeWorkflow {
     PARTY_UNSPECIFIED = 0;
     MODEL_PROVIDER = 1;
     DATA_PROVIDER = 2;
+  }
+
+  // The type of storage used for shared storage in a workflow.
+  enum StorageType {
+    UNKNOWN_STORAGE_CLIENT = 0;
+    GOOGLE_CLOUD_STORAGE = 1;
+    AMAZON_S3 = 2;
   }
 
   // Building blocks of the ExchangeWorkflow.
@@ -121,4 +130,23 @@ message ExchangeWorkflow {
 
   // Sequence of steps of the workflow.
   repeated Step steps = 1;
+
+  message ExchangeIdentifiers {
+    // Resource key of the Data Provider for the recurring exchange.
+    string data_provider = 2
+        [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+    // Resource key of the Model Provider for the recurring exchange.
+    string model_provider = 3 [(google.api.resource_reference).type =
+                                   "halo.wfanet.org/ModelProvider"];
+
+    // Identifies which party is managing the shared storage client.
+    Party shared_storage_owner = 4;
+
+    // Identifies what chosen storage will be used to back the underlying
+    // StorageClient for shared storage.
+    StorageType storage = 5;
+  }
+
+  ExchangeIdentifiers exchange_identifiers = 2;
 }

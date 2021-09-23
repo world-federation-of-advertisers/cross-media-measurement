@@ -156,6 +156,9 @@ proto_library(
     name = "exchange_workflow_proto",
     srcs = ["exchange_workflow.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(
