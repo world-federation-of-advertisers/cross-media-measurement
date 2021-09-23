@@ -66,8 +66,8 @@ class PanelMatchResourceSetup(
         externalModelProvider = externalModelProviderId,
         exchangeDate = LocalDate.now().toProtoDate(),
         exchangeSchedule = exchangeSchedule,
-        extApiVersion = apiVersion,
-        extExchangeWorkflow = exchangeWorkflow
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
       )
     logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
 
@@ -111,8 +111,8 @@ class PanelMatchResourceSetup(
     externalModelProvider: Long,
     exchangeDate: Date,
     exchangeSchedule: String,
-    extApiVersion: String,
-    extExchangeWorkflow: ExchangeWorkflow
+    publicApiVersion: String,
+    exchangeWorkflow: ExchangeWorkflow
   ): Long {
     return recurringExchangesService.createRecurringExchange(
         createRecurringExchangeRequest {
@@ -123,10 +123,10 @@ class PanelMatchResourceSetup(
               state = InternalRecurringExchange.State.ACTIVE
               details =
                 recurringExchangeDetails {
+                  this.exchangeWorkflow = exchangeWorkflow.toInternal()
                   cronSchedule = exchangeSchedule
-                  exchangeWorkflow = extExchangeWorkflow.toInternal()
-                  externalExchangeWorkflow = extExchangeWorkflow.toByteString()
-                  apiVersion = extApiVersion
+                  externalExchangeWorkflow = exchangeWorkflow.toByteString()
+                  apiVersion = publicApiVersion
                 }
               nextExchangeDate = exchangeDate
             }
@@ -137,12 +137,11 @@ class PanelMatchResourceSetup(
 
   private fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
     val labelsMap = mutableMapOf<String, MutableSet<Int>>()
-    stepsList.forEachIndexed { index, step ->
+    for ((index, step) in stepsList.withIndex()) {
       val outputLabels =
         step.sharedOutputLabelsMap.values.toList() + step.privateOutputLabelsMap.values.toList()
-      outputLabels.forEach {
-        labelsMap.putIfAbsent(it, mutableSetOf())
-        labelsMap.getValue(it).add(index)
+      for (outputLabel in outputLabels) {
+        labelsMap.getOrPut(outputLabel) { mutableSetOf() }.add(index)
       }
     }
     val internalSteps =
@@ -150,18 +149,10 @@ class PanelMatchResourceSetup(
         val labels =
           step.sharedInputLabelsMap.values.toList() + step.privateInputLabelsMap.values.toList()
         internalStep {
-          stepIndex = index + 1
+          stepIndex = index
           party = step.party.toInternal()
           prerequisiteStepIndices +=
-            labels
-              .flatMap { value ->
-                if (labelsMap.contains(value)) {
-                  labelsMap.getValue(value).map { it + 1 }
-                } else {
-                  emptyList()
-                }
-              }
-              .toSet()
+            labels.flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }.toSet()
         }
       }
 
