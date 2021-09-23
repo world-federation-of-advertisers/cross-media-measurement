@@ -45,7 +45,7 @@ class VerifiedStorageClient(
   /**
    * Transforms values of [inputLabels] into the underlying blobs.
    *
-   * If any blob can't be found, it throws [NotFoundException].
+   * If any blob can't be found, it throws [StorageNotFoundException].
    *
    * All files read are verified against the appropriate [X509Certificate] to validate that the
    * files came from the expected source.

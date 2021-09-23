@@ -45,8 +45,8 @@ class ExchangeTaskExecutor(
   private val getExchangeTaskForStep: suspend (ExchangeWorkflow.Step) -> ExchangeTask
 ) : ExchangeStepExecutor {
   /**
-   * Reads inputs for [step], executes [step], and writes the outputs to appropriate [StorageClient]
-   * .
+   * Reads inputs for [step], executes [step], and writes the outputs to appropriate
+   * [VerifiedStorageClient].
    */
   override suspend fun execute(attemptKey: ExchangeStepAttemptKey, step: ExchangeWorkflow.Step) {
     withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {

@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "BucketingTest",
+    timeout = "short",
     srcs = ["BucketingTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.BucketingTest",
     deps = [
@@ -15,6 +16,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "EvaluateQueriesWorkflowTest",
+    timeout = "moderate",
     srcs = ["EvaluateQueriesWorkflowTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflowTest",
     deps = [
@@ -38,6 +40,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "JniPrivateMembershipCryptorTest",
+    timeout = "short",
     srcs = ["JniPrivateMembershipCryptorTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptorTest",
     deps = [
@@ -54,6 +57,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "JniQueryEvaluatorTest",
+    timeout = "short",
     srcs = ["JniQueryEvaluatorTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluatorTest",
     deps = [
@@ -68,6 +72,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "JniEvaluateQueriesWorkflowEndToEndTest",
+    timeout = "moderate",
     srcs = ["JniEvaluateQueriesWorkflowEndToEndTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.JniEvaluateQueriesWorkflowEndToEndTest",
     deps = [

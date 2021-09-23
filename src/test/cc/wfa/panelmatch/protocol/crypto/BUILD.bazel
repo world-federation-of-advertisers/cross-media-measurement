@@ -2,6 +2,7 @@ load("@rules_cc//cc:defs.bzl", "cc_test")
 
 cc_test(
     name = "deterministic_commutative_encryption_utility_test",
+    timeout = "short",
     srcs = ["deterministic_commutative_encryption_utility_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
@@ -20,6 +21,7 @@ cc_test(
 
 cc_test(
     name = "event_data_preprocessor_test",
+    timeout = "short",
     srcs = ["event_data_preprocessor_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",

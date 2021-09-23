@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "FileSystemVerifiedStorageTest",
+    timeout = "short",
     srcs = ["FileSystemVerifiedStorageTest.kt"],
     test_class = "org.wfanet.panelmatch.client.storage.FileSystemVerifiedStorageTest",
     deps = [
@@ -21,6 +22,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "GcsVerifiedStorageTest",
+    timeout = "short",
     srcs = ["GcsVerifiedStorageTest.kt"],
     test_class = "org.wfanet.panelmatch.client.storage.GcsVerifiedStorageTest",
     deps = [

@@ -18,9 +18,7 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.read
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
-import org.wfanet.panelmatch.client.storage.toByteString
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
 /**

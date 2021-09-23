@@ -17,7 +17,7 @@ package org.wfanet.panelmatch.common.crypto
 import com.google.protobuf.ByteString
 import java.security.MessageDigest
 
-private val HASH_ALGORITHM = "SHA-256"
+private const val HASH_ALGORITHM = "SHA-256"
 
 /**
  * Converts a [ByteArray] to a [Long]. A [Long] is 64 bits so the input [ByteArray] must be at least

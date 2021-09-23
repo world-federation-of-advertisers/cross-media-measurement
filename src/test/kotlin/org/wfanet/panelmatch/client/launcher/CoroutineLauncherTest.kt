@@ -35,7 +35,7 @@ class CoroutineLauncherTest {
   private val launcher = CoroutineLauncher(stepExecutor = stepExecutor)
 
   @Test
-  fun `launches`() = runBlockingTest {
+  fun launches() = runBlockingTest {
     val workflowStep = buildStep(ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP)
     val step =
       ExchangeStep.newBuilder()

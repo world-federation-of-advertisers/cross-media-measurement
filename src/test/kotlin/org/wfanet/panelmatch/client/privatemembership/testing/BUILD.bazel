@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "PlaintextEvaluateQueriesWorkflowEndToEndTest",
+    timeout = "short",
     srcs = ["PlaintextEvaluateQueriesWorkflowEndToEndTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextEvaluateQueriesWorkflowEndToEndTest",
     deps = [
@@ -18,6 +19,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "PlaintextQueryEvaluatorTest",
+    timeout = "short",
     srcs = ["PlaintextQueryEvaluatorTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluatorTest",
     deps = [
@@ -34,6 +36,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "PlaintextPrivateMembershipCryptorTest",
+    timeout = "short",
     srcs = ["PlaintextPrivateMembershipCryptorTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptorTest",
     deps = [
@@ -53,6 +56,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "PlaintextQueryResultsDecryptorTest",
+    timeout = "short",
     srcs = ["PlaintextQueryResultsDecryptorTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptorTest",
     deps = [
@@ -72,6 +76,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "PlaintextCreateQueriesWorkflowTest",
+    timeout = "short",
     srcs = ["PlaintextCreateQueriesWorkflowTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextCreateQueriesWorkflowTest",
     deps = [
@@ -89,6 +94,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "PlaintextDecryptQueryResultsWorkflowTest",
+    timeout = "short",
     srcs = ["PlaintextDecryptQueryResultsWorkflowTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextDecryptQueryResultsWorkflowTest",
     deps = [

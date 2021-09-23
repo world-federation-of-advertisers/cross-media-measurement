@@ -20,7 +20,7 @@ import java.io.Serializable
 /** Performs symmetric encryption using a private key. */
 interface SymmetricCryptor : Serializable {
 
-  abstract fun encrypt(privateKey: ByteString, data: ByteString): ByteString
+  fun encrypt(privateKey: ByteString, data: ByteString): ByteString
 
-  abstract fun decrypt(privateKey: ByteString, data: ByteString): ByteString
+  fun decrypt(privateKey: ByteString, data: ByteString): ByteString
 }

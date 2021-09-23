@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "DeterministicCommutativeCryptorExchangeTaskTest",
+    timeout = "short",
     srcs = ["DeterministicCommutativeCryptorExchangeTaskTest.kt"],
     test_class =
         "org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCryptorExchangeTaskTest",
@@ -31,6 +32,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "ExchangeTaskMapperForJoinKeyExchangeTest",
+    timeout = "short",
     srcs = ["ExchangeTaskMapperForJoinKeyExchangeTest.kt"],
     test_class = "org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchangeTest",
     deps = [
@@ -54,6 +56,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "ExchangeWorkflowTaskTest",
+    timeout = "short",
     srcs = ["ExchangeWorkflowTaskTest.kt"],
     test_class = "org.wfanet.panelmatch.client.exchangetasks.ExchangeWorkflowTaskTest",
     deps = [
@@ -72,6 +75,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "IntersectValidateTaskTest",
+    timeout = "short",
     srcs = ["IntersectValidateTaskTest.kt"],
     test_class = "org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTaskTest",
     deps = [
@@ -94,6 +98,7 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "InputTaskTest",
+    timeout = "short",
     srcs = ["InputTaskTest.kt"],
     test_class = "org.wfanet.panelmatch.client.exchangetasks.InputTaskTest",
     deps = [
