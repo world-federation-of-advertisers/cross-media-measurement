@@ -123,6 +123,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         }
         .execute(transactionContext)
         .single()
+        .certificate
 
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
