@@ -32,9 +32,9 @@ class SpannerDataProvidersService(
 ) : DataProvidersCoroutineImplBase() {
   override suspend fun createDataProvider(request: DataProvider): DataProvider {
     grpcRequire(
-      !request.details.apiVersion.isEmpty() &&
-        !request.details.publicKey.isEmpty() &&
-        !request.details.publicKeySignature.isEmpty()
+      request.details.apiVersion.isNotEmpty() &&
+        !request.details.publicKey.isEmpty &&
+        !request.details.publicKeySignature.isEmpty
     ) { "Details field of DataProvider is missing fields." }
     return CreateDataProvider(request).execute(client, idGenerator)
   }

@@ -40,7 +40,6 @@ import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as Inte
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig

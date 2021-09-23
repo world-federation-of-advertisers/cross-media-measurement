@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.ComputationParticipantsServiceTest
-import org.wfanet.measurement.kingdom.service.internal.testing.ComputationParticipantsServiceTest.Services
 
 @RunWith(JUnit4::class)
 class SpannerComputationParticipantsServiceTest :

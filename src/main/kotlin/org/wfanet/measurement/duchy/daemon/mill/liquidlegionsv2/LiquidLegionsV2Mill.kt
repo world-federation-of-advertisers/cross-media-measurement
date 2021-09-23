@@ -369,9 +369,9 @@ class LiquidLegionsV2Mill(
 
     return dataClients.computationsClient.updateComputationDetails(
         UpdateComputationDetailsRequest.newBuilder()
-          .also {
-            it.token = token
-            it.details =
+          .apply {
+            this.token = token
+            details =
               token
                 .computationDetails
                 .toBuilder()

@@ -170,7 +170,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         certificatesService.getCertificate(
           GetCertificateRequest.newBuilder()
             .apply {
-              externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+              externalDuchyId = EXTERNAL_DUCHY_IDS[0]
               externalCertificateId = EXTERNAL_CERTIFICATE_ID
             }
             .build()
@@ -203,7 +203,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val certificate =
       Certificate.newBuilder()
         .also {
-          it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
           it.notValidBeforeBuilder.seconds = 12345
           it.notValidAfterBuilder.seconds = 23456
           it.detailsBuilder.x509Der = X509_DER
@@ -226,7 +226,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val request =
       Certificate.newBuilder()
         .also {
-          it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
           it.notValidBeforeBuilder.seconds = 12345
           it.notValidAfterBuilder.seconds = 23456
           it.detailsBuilder.x509Der = X509_DER
@@ -239,7 +239,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       certificatesService.getCertificate(
         GetCertificateRequest.newBuilder()
           .also {
-            it.externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
             it.externalCertificateId = createdCertificate.externalCertificateId
           }
           .build()

@@ -16,7 +16,7 @@ package org.wfanet.measurement.system.v1alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-internal enum class IdVariable() {
+internal enum class IdVariable {
   COMPUTATION,
   COMPUTATION_LOG_ENTRY,
   DUCHY,

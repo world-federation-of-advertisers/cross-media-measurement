@@ -2,25 +2,6 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDOM_INTERNAL_PROTOS")  # buildifier: disable=bzl-visibility
 
 kt_jvm_library(
-    name = "spanner",
-    srcs = glob(["*Database.kt"]),
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
-        "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/queries",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",
-        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
     name = "services",
     srcs = glob(["*Service*.kt"]),
     visibility = [

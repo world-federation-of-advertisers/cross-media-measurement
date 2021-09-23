@@ -19,7 +19,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
 
 object DuchyIds {
-  public lateinit var entries: List<Entry>
+  lateinit var entries: List<Entry>
     private set
 
   fun initializeFromFlags(flags: DuchyIdsFlags) {
@@ -51,7 +51,7 @@ object DuchyIds {
   }
 
   fun setForTest(duchyIds: List<String>) {
-    entries = duchyIds.mapIndexed { idx, value -> DuchyIds.Entry(idx.toLong(), value) }
+    entries = duchyIds.mapIndexed { idx, value -> Entry(idx.toLong(), value) }
   }
 
   data class Entry(val internalDuchyId: Long, val externalDuchyId: String)

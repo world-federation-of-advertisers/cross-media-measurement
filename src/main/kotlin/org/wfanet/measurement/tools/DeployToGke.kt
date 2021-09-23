@@ -23,7 +23,7 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 
 @Command(name = "deploy_to_kind", description = ["Deploys containers on gcr.io to GKE"])
-class DeployToGke() : Callable<Int> {
+class DeployToGke : Callable<Int> {
   private val yamlFile = "kingdom_and_three_duchies_from_cue_gke.yaml"
   private val clusterName = "om-test-cluster"
 
