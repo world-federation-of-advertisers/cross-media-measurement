@@ -33,6 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertificate
 
 class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
@@ -74,7 +75,7 @@ class SpannerCertificatesService(
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
     val externalCertificateId = ExternalId(request.externalCertificateId)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    val reader: BaseSpannerReader<Certificate> =
+    val reader: BaseSpannerReader<CertificateReader.Result> =
       when (request.parentCase) {
         GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
           CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
@@ -102,12 +103,13 @@ class SpannerCertificatesService(
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }
 
-    return reader.execute(client.singleUse()).singleOrNull()
+    val certificateResult =  reader.execute(client.singleUse()).singleOrNull()
       ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+    return certificateResult.certificate
   }
 
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
-    TODO("not implemented yet")
+    return RevokeCertificate(request).execute(client, idGenerator)
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
