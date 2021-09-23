@@ -29,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step as internalStep
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchange as InternalRecurringExchange
@@ -51,6 +52,7 @@ class PanelMatchResourceSetup(
   /** Process to create resources. */
   suspend fun createResourcesForWorkflow(
     exchangeSchedule: String,
+    apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow
   ): RecurringExchangeParticipants {
 
@@ -65,7 +67,8 @@ class PanelMatchResourceSetup(
         externalModelProvider = externalModelProviderId,
         exchangeDate = LocalDate.now().toProtoDate(),
         exchangeSchedule = exchangeSchedule,
-        externalExchangeWorkflow = exchangeWorkflow
+        extApiVersion = apiVersion,
+        extExchangeWorkflow = exchangeWorkflow
       )
     logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
 
@@ -78,24 +81,24 @@ class PanelMatchResourceSetup(
   private suspend fun createDataProvider(): Long {
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
     return dataProvidersService.createDataProvider(
-        internalDataProvider {
-          certificate =
-            certificate {
-              notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-              notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-              details =
-                CertificateKt.details {
-                  x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-                }
-            }
-          details =
-            DataProviderKt.details {
-              apiVersion = "2"
-              publicKey = ByteString.copyFromUtf8("This is a  public key.")
-              publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-            }
-        }
-      )
+      internalDataProvider {
+        certificate =
+          certificate {
+            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+            details =
+              CertificateKt.details {
+                x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+              }
+          }
+        details =
+          DataProviderKt.details {
+            apiVersion = "2"
+            publicKey = ByteString.copyFromUtf8("This is a  public key.")
+            publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+          }
+      }
+    )
       .externalDataProviderId
   }
 
@@ -109,42 +112,58 @@ class PanelMatchResourceSetup(
     externalModelProvider: Long,
     exchangeDate: Date,
     exchangeSchedule: String,
-    externalExchangeWorkflow: ExchangeWorkflow
+    extApiVersion: String,
+    extExchangeWorkflow: ExchangeWorkflow
   ): Long {
     return recurringExchangesService.createRecurringExchange(
-        createRecurringExchangeRequest {
-          recurringExchange =
-            internalRecurringExchange {
-              externalDataProviderId = externalDataProvider
-              externalModelProviderId = externalModelProvider
-              state = InternalRecurringExchange.State.ACTIVE
-              details =
-                recurringExchangeDetails {
-                  cronSchedule = exchangeSchedule
-                  exchangeWorkflow = externalExchangeWorkflow.toInternal()
-                }
-              nextExchangeDate = exchangeDate
-            }
-        }
-      )
+      createRecurringExchangeRequest {
+        recurringExchange =
+          internalRecurringExchange {
+            externalDataProviderId = externalDataProvider
+            externalModelProviderId = externalModelProvider
+            state = InternalRecurringExchange.State.ACTIVE
+            details =
+              recurringExchangeDetails {
+                cronSchedule = exchangeSchedule
+                exchangeWorkflow = extExchangeWorkflow.toInternal()
+                externalExchangeWorkflow = extExchangeWorkflow.toByteString()
+                apiVersion = extApiVersion
+              }
+            nextExchangeDate = exchangeDate
+          }
+      }
+    )
       .externalRecurringExchangeId
   }
 
   private fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
-    val prerequisiteList =
-      stepsList.map { step ->
-        step.stepId.toInt() to Pair(step.party, step.sharedInputLabelsMap.keys.map { it.toInt() })
+    val labelsMap = mutableMapOf<String, MutableSet<Int>>()
+    stepsList
+      .forEachIndexed { index, step ->
+        val outputLabels =
+          step.sharedOutputLabelsMap.values.toList() + step.privateOutputLabelsMap.values.toList()
+        outputLabels.forEach {
+          labelsMap.putIfAbsent(it, mutableSetOf())
+          labelsMap.getValue(it).add(index)
+        }
       }
-    return internalExchangeWorkflow {
-      prerequisiteList.forEach {
-        steps +=
-          internalStep {
-            stepIndex = it.first
-            party = it.second.first.toInternal()
-            prerequisiteStepIndices.addAll(it.second.second)
+    val internalSteps = stepsList.mapIndexed { index, step ->
+      val labels =
+        step.sharedInputLabelsMap.values.toList() + step.privateInputLabelsMap.values.toList()
+      internalStep {
+        stepIndex = index + 1
+        party = step.party.toInternal()
+        prerequisiteStepIndices += labels.flatMap { value ->
+          if (labelsMap.contains(value)) {
+            labelsMap.getValue(value).map { it + 1 }
+          } else {
+            emptyList()
           }
+        }.toSet()
       }
     }
+
+    return internalExchangeWorkflow { steps += internalSteps }
   }
 
   private fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
