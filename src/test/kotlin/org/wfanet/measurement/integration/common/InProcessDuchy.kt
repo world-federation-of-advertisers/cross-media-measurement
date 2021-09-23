@@ -58,7 +58,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
  * TestRule that starts and stops all Duchy gRPC services and daemons.
  *
  * @param externalDuchyId the external ID of this duchy
- * @param kingdomChannel a gRPC channel to the Kingdom
+ * @param kingdomSystemApiChannel a gRPC channel to the Kingdom
  * @param duchyDependenciesProvider provides the backends and other inputs required to start a Duchy
  * @param verboseGrpcLogging whether to do verboseGrpcLogging
  */

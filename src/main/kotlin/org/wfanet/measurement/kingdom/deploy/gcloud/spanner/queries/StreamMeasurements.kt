@@ -23,7 +23,7 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 class StreamMeasurements(
-  private val view: Measurement.View,
+  view: Measurement.View,
   requestFilter: StreamMeasurementsRequest.Filter,
   limit: Int = 0
 ) : SimpleSpannerQuery<MeasurementReader.Result>() {

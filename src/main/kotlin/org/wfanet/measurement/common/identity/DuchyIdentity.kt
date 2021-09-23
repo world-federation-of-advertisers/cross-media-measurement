@@ -63,7 +63,7 @@ private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STR
  * ```
  * On the client side, use [withDuchyId].
  */
-class DuchyTlsIdentityInterceptor() : ServerInterceptor {
+class DuchyTlsIdentityInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,

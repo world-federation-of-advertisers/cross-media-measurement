@@ -1076,7 +1076,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
             set("BlobId").to(1234L)
             set("PathToBlob").to("/wrote/something/there")
             set("DependencyType").toProtoEnum(ComputationBlobDependency.OUTPUT)
-            set("UpdateTime").to(testClock.get("write-blob-ref").toGcloudTimestamp())
+            set("UpdateTime").to(testClock["write-blob-ref"].toGcloudTimestamp())
           }
           .build(),
         Struct.newBuilder()
@@ -1086,7 +1086,7 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
             set("BlobId").to(5678L)
             set("PathToBlob").to("/path/to/input/blob")
             set("DependencyType").toProtoEnum(ComputationBlobDependency.INPUT)
-            set("UpdateTime").to(testClock.get("write-blob-ref").toGcloudTimestamp())
+            set("UpdateTime").to(testClock["write-blob-ref"].toGcloudTimestamp())
           }
           .build()
       )
