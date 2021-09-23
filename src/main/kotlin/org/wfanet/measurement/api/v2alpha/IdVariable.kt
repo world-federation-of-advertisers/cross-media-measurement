@@ -16,7 +16,7 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-internal enum class IdVariable() {
+internal enum class IdVariable {
   RECURRING_EXCHANGE,
   EVENT_GROUP,
   EXCHANGE,

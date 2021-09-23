@@ -52,7 +52,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     val measurementConsumerId: InternalId =
       readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
 
-    if (!measurement.providedMeasurementId.isBlank()) {
+    if (measurement.providedMeasurementId.isNotBlank()) {
       val existingMeasurement = findExistingMeasurement(measurementConsumerId)
       if (existingMeasurement != null) {
         return existingMeasurement
@@ -105,7 +105,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementId" to measurementId)
       set("ExternalMeasurementId" to externalMeasurementId)
       set("ExternalComputationId" to externalComputationId)
-      if (!measurement.providedMeasurementId.isBlank()) {
+      if (measurement.providedMeasurementId.isNotBlank()) {
         set("ProvidedMeasurementId" to measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)

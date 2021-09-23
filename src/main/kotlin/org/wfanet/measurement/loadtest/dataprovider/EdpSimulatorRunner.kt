@@ -40,7 +40,7 @@ data class SketchGenerationParams(
 )
 
 /** The base class of the EdpSimulator runner. */
-abstract class EdpSimulatorRunner() : Runnable {
+abstract class EdpSimulatorRunner : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: EdpSimulatorFlags
     private set

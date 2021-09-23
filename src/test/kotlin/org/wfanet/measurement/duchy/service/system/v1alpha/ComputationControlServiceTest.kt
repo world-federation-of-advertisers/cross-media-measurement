@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
-import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.StatusRuntimeException
@@ -63,7 +62,7 @@ class ComputationControlServiceTest {
   private val mockAsyncControlService: AsyncComputationControlCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless())
   private val advanceAsyncComputationRequests = mutableListOf<AsyncAdvanceComputationRequest>()
-  fun mockAsyncService() =
+  private fun mockAsyncService() =
     runBlocking<Unit> {
       whenever(mockAsyncControlService.advanceComputation(any())).thenAnswer {
         val req: AsyncAdvanceComputationRequest = it.getArgument(0)

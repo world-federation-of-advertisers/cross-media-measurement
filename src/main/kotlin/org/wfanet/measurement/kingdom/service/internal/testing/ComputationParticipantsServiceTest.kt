@@ -138,8 +138,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
       externalDuchyId = "wrong_external_duchy_id"
-      externalDuchyCertificateId =
-        duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+      externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -170,9 +169,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = 12345L // Wrong ExternalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      externalDuchyCertificateId =
-        duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -204,7 +202,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = 12345L // Wrong External Duchy Certificate Id
       liquidLegionsV2 =
         liquidLegionsV2Details {
@@ -239,9 +237,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      externalDuchyCertificateId =
-        duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -254,10 +251,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       externalMeasurementId = measurement.externalMeasurementId
       externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       details = details { liquidLegionsV2 = request.liquidLegionsV2 }
       apiVersion = measurement.details.apiVersion
-      duchyCertificate = duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!
+      duchyCertificate = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!
     }
 
     val computationParticipant =
@@ -295,7 +292,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           this.externalComputationId = externalComputationId
           externalDuchyId = EXTERNAL_DUCHY_IDS[0]
           externalDuchyCertificateId =
-            duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+            duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
           liquidLegionsV2 =
             liquidLegionsV2Details {
               elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -307,9 +304,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       computationParticipantsService.setParticipantRequisitionParams(
         setParticipantRequisitionParamsRequest {
           this.externalComputationId = externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS.get(1)
+          externalDuchyId = EXTERNAL_DUCHY_IDS[1]
           externalDuchyCertificateId =
-            duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(1))!!.externalCertificateId
+            duchyCertificates[EXTERNAL_DUCHY_IDS[1]]!!.externalCertificateId
           liquidLegionsV2 =
             liquidLegionsV2Details {
               elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -390,7 +387,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       computationParticipantsService.confirmComputationParticipant(
         confirmComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalDuchyId
+          externalDuchyId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalDuchyId
         }
       )
 
@@ -406,10 +403,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       )
 
     assertThat(
-        relatedMeasurement
-          .computationParticipantsList
-          .filter { it.externalDuchyId == EXTERNAL_DUCHY_IDS.get(0) }
-          .singleOrNull()
+        relatedMeasurement.computationParticipantsList.singleOrNull {
+          it.externalDuchyId == EXTERNAL_DUCHY_IDS.get(0)
+        }
       )
       .isEqualTo(updatedComputationParticipant)
   }
@@ -503,9 +499,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      externalDuchyCertificateId =
-        duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -529,7 +524,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         computationParticipantsService.failComputationParticipant(
           failComputationParticipantRequest {
             externalComputationId = measurement.externalComputationId
-            externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
           }
         )
       }
@@ -552,9 +547,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     val request = setParticipantRequisitionParamsRequest {
       externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
-      externalDuchyCertificateId =
-        duchyCertificates.get(EXTERNAL_DUCHY_IDS.get(0))!!.externalCertificateId
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
       liquidLegionsV2 =
         liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
@@ -568,7 +562,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       computationParticipantsService.failComputationParticipant(
         failComputationParticipantRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS.get(0)
+          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
         }
       )
     assertThat(failedComputationParticipant.state).isEqualTo(ComputationParticipant.State.FAILED)
@@ -582,10 +576,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     assertThat(failedMeasurement.state).isEqualTo(Measurement.State.FAILED)
 
     assertThat(
-        failedMeasurement
-          .computationParticipantsList
-          .filter { it.externalDuchyId == EXTERNAL_DUCHY_IDS.get(0) }
-          .singleOrNull()
+        failedMeasurement.computationParticipantsList.singleOrNull {
+          it.externalDuchyId == EXTERNAL_DUCHY_IDS.get(0)
+        }
       )
       .isEqualTo(failedComputationParticipant)
   }

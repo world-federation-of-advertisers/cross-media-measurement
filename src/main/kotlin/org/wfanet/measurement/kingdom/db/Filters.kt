@@ -43,8 +43,8 @@ typealias GetExchangeStepFilter = AllOfClause<GetExchangeStepClause>
  * - it is associated with a ModelProvider with external id either ID1 or ID2, and
  * - it was associated with exchanges created before SOME_DATE.
  *
- * @param externalModelProviderIds a list of Model Providers
- * @param externalDataProviderIds a list of Data Providers
+ * @param externalModelProviderIds a list of Model Provider IDs
+ * @param externalDataProviderIds a list of Data Provider IDs
  * @param states a list of [RecurringExchange.State]s
  * @param nextExchangeDateBefore a time before next exchange date scheduled
  */
@@ -81,8 +81,8 @@ fun streamRecurringExchangesFilter(
  * - it is associated with a ModelProvider with external id equal to ID1, and
  * - it is associated with a date equal to SOME_DATE.
  *
- * @param externalModelProviderId a Model Provider id
- * @param externalDataProviderId a Data Provider id
+ * @param externalModelProviderIds disjunction of Model Provider IDs
+ * @param externalDataProviderIds disjunction of Data Provider IDs
  * @param recurringExchangeId a [RecurringExchange] id
  * @param date a Date
  * @param stepIndex a StepIndex of the ExchangeStep
