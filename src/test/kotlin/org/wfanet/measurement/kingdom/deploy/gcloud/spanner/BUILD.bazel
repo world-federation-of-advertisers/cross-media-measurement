@@ -123,9 +123,6 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "SpannerExchangeStepsServiceTest",
     srcs = ["SpannerExchangeStepsServiceTest.kt"],
-    resources = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing/config",
-    ],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerExchangeStepsServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
