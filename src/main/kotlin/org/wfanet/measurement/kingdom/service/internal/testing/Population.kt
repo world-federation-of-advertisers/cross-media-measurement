@@ -23,7 +23,6 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase

@@ -19,6 +19,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.copy
 
 class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
   SpannerWriter<MeasurementConsumer, MeasurementConsumer>() {
@@ -51,16 +52,14 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
       )
     }
 
-    return measurementConsumer
-      .toBuilder()
-      .also {
-        it.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-        it.certificateBuilder.also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-          it.externalCertificateId = externalMeasurementConsumerCertificateId.value
+    return measurementConsumer.copy {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+      certificate =
+        certificate.copy {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+          externalCertificateId = externalMeasurementConsumerCertificateId.value
         }
-      }
-      .build()
+    }
   }
 
   override fun ResultScope<MeasurementConsumer>.buildResult(): MeasurementConsumer {

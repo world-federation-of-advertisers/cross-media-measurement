@@ -70,7 +70,6 @@ import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
-import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata

@@ -34,7 +34,7 @@ class SpannerMeasurementConsumersService(
     request: MeasurementConsumer
   ): MeasurementConsumer {
     grpcRequire(
-      !request.details.apiVersion.isEmpty() &&
+      request.details.apiVersion.isNotEmpty() &&
         !request.details.publicKey.isEmpty &&
         !request.details.publicKeySignature.isEmpty
     ) { "Details field of MeasurementConsumer is missing fields." }

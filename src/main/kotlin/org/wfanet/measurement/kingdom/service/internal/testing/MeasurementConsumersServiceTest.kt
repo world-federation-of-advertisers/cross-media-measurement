@@ -144,7 +144,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           certificateBuilder.apply {
             notValidBeforeBuilder.seconds = 12345
             notValidAfterBuilder.seconds = 23456
-            detailsBuilder.setX509Der(CERTIFICATE_DER)
+            detailsBuilder.x509Der = CERTIFICATE_DER
           }
           detailsBuilder.apply {
             apiVersion = "v2alpha"

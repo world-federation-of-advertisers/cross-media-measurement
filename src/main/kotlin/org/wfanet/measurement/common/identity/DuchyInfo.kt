@@ -47,14 +47,7 @@ object DuchyInfo {
   fun setForTest(duchyIds: Set<String>) {
     entries =
       duchyIds
-        .map {
-          DuchyInfo.Entry(
-            it,
-            "hostname-$it",
-            "cert-host-$it",
-            ByteString.copyFromUtf8("cert-id-$it")
-          )
-        }
+        .map { Entry(it, "hostname-$it", "cert-host-$it", ByteString.copyFromUtf8("cert-id-$it")) }
         .toTypedArray()
   }
 

@@ -81,8 +81,8 @@ fun streamRecurringExchangesFilter(
  * - it is associated with a ModelProvider with external id equal to ID1, and
  * - it is associated with a date equal to SOME_DATE.
  *
- * @param externalModelProviderId a Model Provider id
- * @param externalDataProviderId a Data Provider id
+ * @param externalModelProviderIds disjunction of Model Provider ids
+ * @param externalDataProviderIds disjunction of Data Provider ids
  * @param recurringExchangeId a [RecurringExchange] id
  * @param date a Date
  * @param stepIndex a StepIndex of the ExchangeStep

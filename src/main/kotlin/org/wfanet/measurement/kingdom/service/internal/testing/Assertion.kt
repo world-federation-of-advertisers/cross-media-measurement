@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.type.date
 import java.time.LocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Exchange
