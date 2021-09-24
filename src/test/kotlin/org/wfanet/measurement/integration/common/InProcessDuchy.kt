@@ -19,8 +19,8 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
 import java.time.Clock
 import java.time.Duration
-import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.junit.rules.TestRule
@@ -79,7 +79,7 @@ class InProcessDuchy(
     val keyStore: KeyStore
   )
 
-  private val backgroundScope = CoroutineScope(EmptyCoroutineContext)
+  private val backgroundScope = CoroutineScope(Dispatchers.Default)
 
   private val duchyDependencies by lazy { duchyDependenciesProvider() }
 
