@@ -611,7 +611,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     pathToBlob: String
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    runIfTokenFromLastUpdate(token) { ctx ->
+    databaseClient.readWriteTransaction().execute { ctx ->
       val row =
         ctx.readRowUsingIndex(
           "Requisitions",
