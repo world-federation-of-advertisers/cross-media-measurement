@@ -20,19 +20,22 @@ import io.grpc.testing.GrpcCleanupRule
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.identity.withDuchyIdentities
 import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.duchy.daemon.herald.Herald
+import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
@@ -63,16 +66,15 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
  * @param verboseGrpcLogging whether to do verboseGrpcLogging
  */
 class InProcessDuchy(
-  externalDuchyId: String,
-  kingdomSystemApiChannel: Channel,
+  val externalDuchyId: String,
+  val kingdomSystemApiChannel: Channel,
   duchyDependenciesProvider: () -> DuchyDependencies,
   val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
     val storageClient: StorageClient,
-    val keyStore: KeyStore,
-    val consentSignalingCert: Certificate
+    val keyStore: KeyStore
   )
 
   private val duchyDependencies by lazy { duchyDependenciesProvider() }
@@ -129,7 +131,7 @@ class InProcessDuchy(
     ) {
       addService(
         ComputationControlService(asyncComputationControlClient, duchyDependencies.storageClient)
-          .withDuchyIdentities()
+          .withMetadataDuchyIdentities()
       )
     }
 
@@ -154,20 +156,28 @@ class InProcessDuchy(
     }
   }
 
-  private val liquidLegionsV2millRule = CloseableResource {
-    GlobalScope.launchAsAutoCloseable {
+  fun startLiquidLegionsV2mill(duchyCertMap: Map<String, String>) {
+    GlobalScope.launch {
+      duchyDependencies.keyStore.storePrivateKeyDer(
+        CONSENT_SIGNALING_PRIVATE_KEY_ID,
+        loadTestCertDerFile("${externalDuchyId}_cs_private.der")
+      )
       val workerStubs =
-        ALL_DUCHY_NAMES.associateWith {
+        ALL_DUCHY_NAMES.minus(externalDuchyId).associateWith {
           val channel = computationControlChannel(it)
           val stub = SystemComputationControlCoroutineStub(channel).withDuchyId(externalDuchyId)
           stub
         }
       val liquidLegionsV2mill =
         LiquidLegionsV2Mill(
-          millId = "$externalDuchyId liquidLegionsV2mill",
+          millId = "$externalDuchyId liquidLegionsV2 Mill",
           duchyId = externalDuchyId,
           keyStore = duchyDependencies.keyStore,
-          consentSignalCert = duchyDependencies.consentSignalingCert,
+          consentSignalCert =
+            Certificate(
+              duchyCertMap[externalDuchyId]!!,
+              readCertificate(loadTestCertDerFile("${externalDuchyId}_cs_cert.der"))
+            ),
           dataClients = computationDataClients,
           systemComputationParticipantsClient = systemComputationParticipantsClient,
           systemComputationsClient = systemComputationsClient,
@@ -191,6 +201,10 @@ class InProcessDuchy(
     return channelCloserRule.register(channel).withVerboseLogging(verboseGrpcLogging)
   }
 
+  /** Provides a gRPC channel to the duchy's public API. */
+  val publicApiChannel: Channel
+    get() = requisitionFulfillmentServer.channel
+
   override fun apply(statement: Statement, description: Description): Statement {
     val combinedRule =
       chainRulesSequentially(
@@ -198,9 +212,7 @@ class InProcessDuchy(
         requisitionFulfillmentServer,
         asyncComputationControlServer,
         computationControlServer,
-        heraldRule,
-        liquidLegionsV2millRule,
-        channelCloserRule
+        heraldRule
       )
     return combinedRule.apply(statement, description)
   }

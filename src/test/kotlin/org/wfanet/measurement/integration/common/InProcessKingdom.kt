@@ -14,13 +14,14 @@
 
 package org.wfanet.measurement.integration.common
 
+import io.grpc.Channel
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.identity.withDuchyIdentities
+import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
@@ -49,9 +50,10 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(
-  dataServices: DataServices,
+  dataServicesProvider: () -> DataServices,
   val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
+  private val kingdomDataServices by lazy { dataServicesProvider() }
 
   private val internalApiChannel by lazy { internalDataServer.channel }
   private val internalMeasurementsClient by lazy {
@@ -88,11 +90,10 @@ class InProcessKingdom(
   private val internalDataServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal Data services")
-      dataServices.buildDataServices().toList().forEach {
+      kingdomDataServices.buildDataServices().toList().forEach {
         addService(it.withVerboseLogging(verboseGrpcLogging))
       }
     }
-
   private val systemApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's system API services")
@@ -102,9 +103,10 @@ class InProcessKingdom(
         systemComputationParticipantsService(internalComputationParticipantsClient),
         systemRequisitionsService(internalRequisitionsClient)
       )
-        .forEach { addService(it.withDuchyIdentities().withVerboseLogging(verboseGrpcLogging)) }
+        .forEach {
+          addService(it.withMetadataDuchyIdentities().withVerboseLogging(verboseGrpcLogging))
+        }
     }
-
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's public API services")
@@ -123,6 +125,14 @@ class InProcessKingdom(
       )
         .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
     }
+
+  /** Provides a gRPC channel to the Kingdom's public API. */
+  val publicApiChannel: Channel
+    get() = publicApiServer.channel
+
+  /** Provides a gRPC channel to the Kingdom's system API. */
+  val systemApiChannel: Channel
+    get() = systemApiServer.channel
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)
