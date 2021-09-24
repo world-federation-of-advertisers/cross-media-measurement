@@ -17,9 +17,12 @@ package org.wfanet.measurement.integration.common
 import io.grpc.Channel
 import java.time.Clock
 import java.time.Duration
-import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import org.junit.rules.TestRule
+import org.junit.runner.Description
+import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
@@ -42,9 +45,9 @@ class InProcessEdpSimulator(
   private val storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
-) : AutoCloseable {
+) : TestRule {
 
-  private val backgroundScope = CoroutineScope(EmptyCoroutineContext)
+  private val backgroundScope = CoroutineScope(Dispatchers.Default)
 
   private val eventGroupsClient by lazy { EventGroupsCoroutineStub(kingdomPublicApiChannel) }
   private val certificatesClient by lazy { CertificatesCoroutineStub(kingdomPublicApiChannel) }
@@ -54,7 +57,7 @@ class InProcessEdpSimulator(
   }
 
   fun start(edpName: String, mcName: String) {
-    backgroundScope.launchAsAutoCloseable {
+    backgroundScope.launchAsAutoCloseable() {
       val edpData = createEdpData(displayName, edpName)
       keyStore.storePrivateKeyDer(
         edpData.encryptionPrivateKeyId,
@@ -74,8 +77,7 @@ class InProcessEdpSimulator(
           requisitionFulfillmentStub = requisitionFulfillmentClient,
           sketchStore = SketchStore(storageClient),
           keyStore = keyStore,
-          sketchGenerationParams =
-            SketchGenerationParams(reach = 1000, universeSize = 1000_000_000),
+          sketchGenerationParams = SketchGenerationParams(reach = 100, universeSize = 1000_000_000),
           throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         )
         .process()
@@ -91,7 +93,11 @@ class InProcessEdpSimulator(
       consentSignalCertificateDer = loadTestCertDerFile("${displayName}_cs_cert.der")
     )
 
-  override fun close() {
-    backgroundScope.cancel("Simulator is shutting down.")
-  }
+  override fun apply(statement: Statement, description: Description) =
+    object : Statement() {
+      override fun evaluate() {
+        statement.evaluate()
+        backgroundScope.cancel()
+      }
+    }
 }

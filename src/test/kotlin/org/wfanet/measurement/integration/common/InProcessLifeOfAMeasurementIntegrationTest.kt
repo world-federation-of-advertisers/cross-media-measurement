@@ -16,7 +16,6 @@ package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -113,7 +112,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       kingdomDataServicesRule,
       kingdom,
       duchyDependenciesRule,
-      *duchies.toTypedArray()
+      *duchies.toTypedArray(),
+      *edpSimulators.toTypedArray()
     )
   }
 
@@ -191,16 +191,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     }
   }
 
-  @After
-  fun stopAllEdpSimulators() {
-    edpSimulators.forEach { it.close() }
-  }
-
   @Test
   fun `create a measurement and check the result is equal to the expected result`() = runBlocking {
     // Wait until all EDPs finish creating eventGroups before the test starts.
     val eventGroupList =
-      pollFor(timeoutMillis = 2_000) {
+      pollFor(timeoutMillis = 10_000) {
         val eventGroups =
           publicEventGroupsClient.listEventGroups(
               listEventGroupsRequest {
