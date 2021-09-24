@@ -125,7 +125,7 @@ class ResourceSetup(
     return measurementConsumersClient.createMeasurementConsumer(request)
   }
 
-  private suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
+  suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
     val request = createCertificateRequest {
       parent = DuchyKey(duchyCert.duchyId).toName()
       certificate = certificate { x509Der = duchyCert.consentSignalCertificateDer }
