@@ -25,6 +25,7 @@ import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
 import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 
 /**
  * Base class for Apache Beam tests.
@@ -33,10 +34,15 @@ import org.junit.Rule
  * case. It also provides a convenience function for building [PCollection]s.
  */
 open class BeamTestBase {
-  private val options =
+  @get:Rule val beamTemporaryFolder = TemporaryFolder()
+
+  private val options by lazy {
+    beamTemporaryFolder.create()
     TestPipeline.testingPipelineOptions().apply {
       stableUniqueNames = PipelineOptions.CheckEnabled.OFF
+      tempLocation = beamTemporaryFolder.root.absolutePath
     }
+  }
 
   @get:Rule
   val pipeline: TestPipeline =
@@ -49,10 +55,18 @@ open class BeamTestBase {
     vararg values: T,
     coder: Coder<T>? = null
   ): PCollection<T> {
+    return pcollectionOf(name, values.asIterable(), coder)
+  }
+
+  inline fun <reified T> pcollectionOf(
+    name: String,
+    values: Iterable<T>,
+    coder: Coder<T>? = null
+  ): PCollection<T> {
     if (coder != null) {
-      return pipeline.apply(name, Create.of(values.asIterable()).withCoder(coder))
+      return pipeline.apply(name, Create.of(values).withCoder(coder))
     }
-    return pipeline.apply(name, Create.of(values.asIterable()))
+    return pipeline.apply(name, Create.of(values))
   }
 
   inline fun <reified T : Any> pcollectionViewOf(name: String, value: T): PCollectionView<T> {

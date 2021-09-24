@@ -32,7 +32,7 @@ fun BeamTestBase.eventsOf(
     KvCoder.of(ByteStringCoder.of(), ByteStringCoder.of())
   return pcollectionOf(
     "Create Events",
-    *pairs.map { kvOf(it.first.toByteString(), it.second.toByteString()) }.toTypedArray(),
+    pairs.map { kvOf(it.first.toByteString(), it.second.toByteString()) },
     coder = coder
   )
 }

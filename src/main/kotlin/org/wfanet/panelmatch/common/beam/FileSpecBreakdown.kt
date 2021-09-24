@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package org.wfanet.panelmatch.common.beam
 
-package wfa.panelmatch.client.privatemembership;
+private val FILE_SPEC_PATTERN = "^(.+)/([^/]+)-\\*-of-(\\d+)$".toRegex()
 
-option java_package = "org.wfanet.panelmatch.client.privatemembership";
-option java_multiple_files = true;
+internal class FileSpecBreakdown(fileSpecUri: String) {
+  val directoryUri: String
+  val prefix: String
+  val shardCount: Int
 
-message DatabaseKey {
-  fixed64 id = 1;
-}
-
-message Plaintext {
-  bytes payload = 1;
-}
-
-message DatabaseEntry {
-  DatabaseKey database_key = 1;
-  Plaintext plaintext = 2;
+  init {
+    val matchResult =
+      requireNotNull(FILE_SPEC_PATTERN.matchEntire(fileSpecUri)) {
+        "Invalid fileSpec string: $fileSpecUri"
+      }
+    directoryUri = matchResult.groupValues[1]
+    prefix = matchResult.groupValues[2]
+    shardCount = matchResult.groupValues[3].toInt()
+  }
 }

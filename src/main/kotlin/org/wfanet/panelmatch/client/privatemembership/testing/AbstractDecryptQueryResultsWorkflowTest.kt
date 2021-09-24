@@ -78,13 +78,11 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
     parameters: Parameters
   ): PCollection<DecryptedEventData> {
     val plaintextCollection: PCollection<DecryptedEventData> =
-      pcollectionOf("Create plaintext data", *PLAINTEXTS.toTypedArray())
+      pcollectionOf("Create plaintext data", PLAINTEXTS)
     val joinkeyCollection: PCollection<KV<QueryId, JoinKey>> =
       pcollectionOf(
         "Create joinkey data",
-        *JOINKEYS
-          .map { kvOf(queryIdOf(it.first), joinKeyOf(it.second.toByteString())) }
-          .toTypedArray()
+        JOINKEYS.map { kvOf(queryIdOf(it.first), joinKeyOf(it.second.toByteString())) }
       )
     val compressedEvents = makeCompressedEvents(plaintextCollection)
     val encryptedResults =
