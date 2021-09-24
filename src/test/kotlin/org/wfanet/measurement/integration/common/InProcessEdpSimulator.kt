@@ -74,8 +74,7 @@ class InProcessEdpSimulator(
           requisitionFulfillmentStub = requisitionFulfillmentClient,
           sketchStore = SketchStore(storageClient),
           keyStore = keyStore,
-          sketchGenerationParams =
-            SketchGenerationParams(reach = 1000, universeSize = 1000_000_000),
+          sketchGenerationParams = SketchGenerationParams(reach = 100, universeSize = 1000_000_000),
           throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         )
         .process()
@@ -92,6 +91,6 @@ class InProcessEdpSimulator(
     )
 
   override fun close() {
-    backgroundScope.cancel("Simulator is shutting down.")
+    backgroundScope.coroutineContext.cancel()
   }
 }

@@ -222,7 +222,7 @@ class InProcessDuchy(
             channelCloserRule
           )
         combinedRule.apply(statement, description).evaluate()
-        backgroundScope.cancel()
+        backgroundScope.coroutineContext.cancel()
       }
     }
 }
