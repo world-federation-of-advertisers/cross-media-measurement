@@ -229,7 +229,10 @@ proto_library(
 proto_library(
     name = "accounts_service_proto",
     srcs = ["accounts_service.proto"],
-    deps = [":account_proto"],
+    deps = [
+        ":account_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
 proto_library(

@@ -51,10 +51,6 @@ message DataProvider {
 
   // Display name of the data provider.
   string display_name = 5;
-
-  // Resource names of owner `Account`s. Output-only.
-  repeated string owners = 6
-      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 }
 
 // Wrapper for a list of `DataProvider` resource names.

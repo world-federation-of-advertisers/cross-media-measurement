@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/api/resource.proto";
 import "wfa/measurement/api/v2alpha/account.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -25,10 +26,24 @@ option java_outer_classname = "AccountsServiceProto";
 // Service for interacting with `Account` resources.
 service Accounts {
   // Creates (registers) an `Account`.
+  //
+  // The `creator` will be derived from the authenticated caller. Results in
+  // PERMISSION_DENIED if the authenticated caller does not own the
+  // `owned_measurement_consumer` in `activation_params`.
+  //
+  // Returns the `FULL` view of the created `Account`.
   rpc CreateAccount(CreateAccountRequest) returns (Account) {}
 
-  // Updates an existing `Account`.
-  rpc UpdateAccount(UpdateAccountRequest) returns (Account) {}
+  // Activates an account by transitioning its `account_state` to `ACTIVATED`.
+  //
+  // The `identity` will be derived from the authenticated caller.
+  rpc ActivateAccount(ActivateAccountRequest) returns (Account) {}
+
+  // Replaces the `identity` of an `Account`.
+  //
+  // Results in PERMISSION_DENIED if the authenticated caller does not match the
+  // current `identity`.
+  rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account) {}
 
   // Logs the user in.
   rpc LogIn(LogInRequest) returns (LogInResponse) {}
@@ -40,18 +55,44 @@ service Accounts {
 
 // Request message for `CreateAccount` method.
 message CreateAccountRequest {
-  // The `Account` to create. Required. The `name` field will be
-  // ignored, and the system will assign an ID.
+  // The `Account` to create. Required. The `name` field will be ignored, and
+  // the system will assign an ID.
   Account account = 1;
 }
 
-// Request message for `UpdateAccount` method.
-message UpdateAccountRequest {
-  // The `Account` to update. Required.
-  Account account = 1;
+// Request message for `ActivateAccount` method.
+message ActivateAccountRequest {
+  // Resource name. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 
-  // Encoded JSON Web Token (JWT) matching the updated identity. Required.
-  string identity_bearer_token = 2;
+  // Activation token. Required.
+  string activation_token = 2;
+}
+
+// Request message for `ReplaceAccountIdentity` method.
+message ReplaceAccountIdentityRequest {
+  // Resource name. Required.
+  string name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
+
+  message OpenIdConnectCredentials {
+    // Encoded JSON Web Token (JWT). Required.
+    string identity_bearer_token = 1;
+  }
+
+  message UsernameCredentials {
+    string username = 1;
+    string password = 2;
+  }
+
+  // Replacement credentials for an identity. Required.
+  oneof replacement_credentials {
+    // Replacement credentials for an `OpenIdConnectIdentity`.
+    OpenIdConnectCredentials open_id = 2;
+    // Replacement credentials for a `UsernameIdentity`.
+    UsernameCredentials username = 3;
+  }
 }
 
 message LogInRequest {}

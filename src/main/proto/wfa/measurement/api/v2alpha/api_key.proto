@@ -22,11 +22,11 @@ option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ApiKeyProto";
 
-// Resource representing a revocable authentication key for this API.
+// Resource representing a revocable authentication key for an API resource.
 message ApiKey {
   option (google.api.resource) = {
     type: "halo.wfanet.org/ApiKey"
-    pattern: "accounts/{account}/apiKeys/{api_key}"
+    pattern: "measurementConsumers/{measurement_consumer}/apiKeys/{api_key}"
   };
 
   string name = 1;
