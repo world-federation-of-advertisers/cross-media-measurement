@@ -25,7 +25,7 @@ private const val BLOB_KEY_PREFIX = "sketches"
  *
  * The blob path is deterministic such that the caller doesn't need to cache it.
  *
- * @param storageClient the blob storage client.
+ * @param storageClient the blob storage client. TODO(wangyaopw): extend the Store class.
  */
 class SketchStore(private val storageClient: StorageClient) {
   /** Writes a sketch as a new blob with the specified content. */
