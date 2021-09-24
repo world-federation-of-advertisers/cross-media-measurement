@@ -43,10 +43,7 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     parameters: Parameters
   ): PCollection<Result> {
     return EvaluateQueriesWorkflow(parameters, PlaintextQueryEvaluator)
-      .batchEvaluateQueries(
-        database,
-        pcollectionOf("Create Query Bundles", *queryBundles.toTypedArray())
-      )
+      .batchEvaluateQueries(database, pcollectionOf("Create Query Bundles", queryBundles))
   }
 
   @Test
@@ -149,9 +146,7 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
   ): PCollection<KV<DatabaseKey, Plaintext>> {
     return pcollectionOf(
       "Create Database",
-      *entries
-        .map { kvOf(databaseKeyOf(it.first), plaintextOf(it.second.toByteString())) }
-        .toTypedArray()
+      entries.map { kvOf(databaseKeyOf(it.first), plaintextOf(it.second.toByteString())) }
     )
   }
 

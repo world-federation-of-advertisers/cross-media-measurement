@@ -179,9 +179,7 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
   ): PCollection<KV<PanelistKey, JoinKey>> {
     return pcollectionOf(
       "Create Database",
-      *entries
-        .map { kvOf(panelistKeyOf(it.first), joinKeyOf(it.second.toByteString())) }
-        .toTypedArray()
+      entries.map { kvOf(panelistKeyOf(it.first), joinKeyOf(it.second.toByteString())) }
     )
   }
 }

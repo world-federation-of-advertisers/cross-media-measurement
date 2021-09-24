@@ -26,7 +26,7 @@ import org.wfanet.panelmatch.common.toByteString
  *
  * The input blobs to [execute] are treated as manifests. In other words, each input blob is
  * expected to contain a URI specification as a UTF8 string. For example, one of these blobs might
- * contain the string "s3://some-bucket-name/some/path/data-?????-of-0128", which would imply there
+ * contain the string "s3://some-bucket-name/some/path/data-????-of-0128", which would imply there
  * are 128 files in some particular Amazon S3 location. This is a standard format in batch
  * processing systems like Apache Beam.
  *
