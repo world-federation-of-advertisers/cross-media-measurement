@@ -185,3 +185,20 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		restartPolicy: "OnFailure"
 	}
 }
+
+#NetworkPolicy: {
+	_name:        string
+	_sourceMatchLabels: string
+	_destinationMatchLabels: string
+
+	apiVersion: "networking.k8s.io/v1"
+	kind:       "NetworkPolicy"
+	metadata: {
+		name: _name
+	}
+	spec: {
+		podSelector: matchLabels:	role: _destinationMatchLabels
+    policyTypes: ["Ingress"]
+    ingress: from: podSelector: matchLabels: role: _sourceMatchLabels
+	}
+}

@@ -31,6 +31,7 @@ objectSets: [
 	kingdom.kingdom_service,
 	kingdom.kingdom_pod,
 	kingdom.kingdom_job,
+	kingdom.kingdom_network,
 ]
 
 // Group 2

@@ -172,6 +172,7 @@ import ("strings")
 			_dependencies: ["system-api-server", "\(_name)-spanner-computations-server"]
 		}
 	}
+
 	setup_job: "push-spanner-schema-job": {
 		apiVersion: "batch/v1"
 		kind:       "Job"

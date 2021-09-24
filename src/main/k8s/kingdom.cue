@@ -75,6 +75,15 @@ import ("strings")
 		_imagePullPolicy: _kingdom_image_pull_policy
 	}
 
+  kingdom_network: [
+				#NetworkPolicy & {
+					_name: "public-api-server-to-system-api-server"
+					_sourceMatchLabels: "v2alpha-public-api-server-pod"
+					_destinationMatchLabels: "system-api-server-pod"
+				}
+  	]
+
+
 	kingdom_pod: {
 
 		"gcp-kingdom-data-server-pod": #ServerPod & {
