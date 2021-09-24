@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -192,15 +193,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   }
 
   @After
-  fun stopAllEdpSimulators() {
-    edpSimulators.forEach { it.close() }
-  }
+  fun stopAllEdpSimulators() = runBlocking { edpSimulators.forEach { it.edpJob.cancelAndJoin() } }
 
   @Test
   fun `create a measurement and check the result is equal to the expected result`() = runBlocking {
     // Wait until all EDPs finish creating eventGroups before the test starts.
     val eventGroupList =
-      pollFor(timeoutMillis = 2_000) {
+      pollFor(timeoutMillis = 10_000) {
         val eventGroups =
           publicEventGroupsClient.listEventGroups(
               listEventGroupsRequest {
