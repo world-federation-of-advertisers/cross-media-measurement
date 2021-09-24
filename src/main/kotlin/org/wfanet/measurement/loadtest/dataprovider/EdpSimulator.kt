@@ -55,9 +55,11 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpecAndGenerateRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.signRequisitionFingerprint
@@ -96,7 +98,9 @@ class EdpSimulator(
   /** A sequence of operations done in the simulator. */
   suspend fun process() {
     createEventGroup()
-    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
+    throttler.loopOnReady {
+      logAndSuppressExceptionSuspend { executeRequisitionFulfillingWorkflow() }
+    }
   }
 
   /** Creates an eventGroup for the MC. */
@@ -179,7 +183,8 @@ class EdpSimulator(
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
     val sketch = generateSketch(sketchConfig, sketchGenerationParams)
 
-    sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(1024))
+    // TODO(wangyaopw): call write(ByteString) directly rather than write(flow(ByteString))
+    sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(BYTES_PER_MIB))
     val sketchChunks: Flow<ByteString> =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
     fulfillRequisition(requisition.name, participationSignature.signature, sketchChunks)
