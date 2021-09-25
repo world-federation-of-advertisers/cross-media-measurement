@@ -402,7 +402,7 @@ abstract class MillBase(
   }
 
   private fun getCpuTimeMillis(): Long {
-    val cpuTime = Duration.ofNanos(threadBean.allThreadIds.map(threadBean::getThreadCpuTime).sum())
+    val cpuTime = Duration.ofNanos(threadBean.allThreadIds.sumOf(threadBean::getThreadCpuTime))
     return cpuTime.toMillis()
   }
 

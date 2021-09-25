@@ -31,7 +31,6 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
  * Creates a DuchyMeasurementLogEntry and MeasurementLogEntry in the database.
@@ -81,7 +80,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     }
   }
 
-  private suspend fun TransactionScope.insertMeasurementLogEntry(
+  private fun TransactionScope.insertMeasurementLogEntry(
     measurementId: InternalId,
     measurementConsumerId: InternalId,
   ) {
@@ -95,7 +94,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     }
   }
 
-  private suspend fun TransactionScope.insertDuchyMeasurementLogEntry(
+  private fun TransactionScope.insertDuchyMeasurementLogEntry(
     measurementId: InternalId,
     measurementConsumerId: InternalId,
     duchyId: InternalId
@@ -115,7 +114,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     return externalComputationLogEntryId
   }
 
-  suspend fun translateToInternalIds(struct: Struct): MeasurementIds =
+  fun translateToInternalIds(struct: Struct): MeasurementIds =
     MeasurementIds(
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("MeasurementConsumerId")),
