@@ -29,26 +29,17 @@ import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 class InputTask(
   private val step: ExchangeWorkflow.Step,
   private val throttler: Throttler,
-  private val sharedStorage: VerifiedStorageClient,
-  private val privateStorage: VerifiedStorageClient
+  private val storage: VerifiedStorageClient
 ) : ExchangeTask {
 
   init {
-    with(step) {
-      require(privateOutputLabelsCount + sharedOutputLabelsCount == 1)
-      require(privateInputLabelsCount + sharedInputLabelsCount == 0)
-    }
+    require(step.inputLabelsCount == 0)
+    require(step.outputLabelsCount == 1)
   }
 
-  /** Reads a single blob from either [sharedStorage] or [privateStorage] as specified in [step]. */
+  /** Reads a single blob from [storage] as specified in [step]. */
   private suspend fun readValue() {
-    val privateOutputLabels = step.privateOutputLabelsMap
-    val sharedOutputLabels = step.sharedOutputLabelsMap
-    if (privateOutputLabels.isNotEmpty()) {
-      privateStorage.verifiedBatchRead(inputLabels = privateOutputLabels)
-    } else {
-      sharedStorage.verifiedBatchRead(inputLabels = sharedOutputLabels)
-    }
+    storage.verifiedBatchRead(inputLabels = step.outputLabelsMap)
   }
 
   private suspend fun isReady(): Boolean {

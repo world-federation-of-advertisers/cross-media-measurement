@@ -26,10 +26,9 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase.INPUT_STEP
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -40,16 +39,14 @@ import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.launcher.testing.MP_0_SECRET_KEY
-import org.wfanet.panelmatch.client.launcher.testing.buildStep
+import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class InputTaskTest {
-  private val underlyingPrivateStorage = mock<StorageClient>()
-  private val underlyingSharedStorage = mock<StorageClient>()
-  private val privateStorage = makeTestVerifiedStorageClient(underlyingPrivateStorage)
-  private val sharedStorage = makeTestVerifiedStorageClient(underlyingSharedStorage)
+  private val underlyingStorage = mock<StorageClient>()
+  private val storage = makeTestVerifiedStorageClient(underlyingStorage)
 
   private val secretKeySourceBlob =
     mock<StorageClient.Blob> {
@@ -71,70 +68,38 @@ class InputTaskTest {
     }
 
   @Test
-  fun `wait on private input`() = runBlockingTest {
-    val labels = mapOf("input" to "mp-crypto-key")
-    val step = buildStep(INPUT_STEP, privateOutputLabels = labels)
-    val task = InputTask(step, throttler, sharedStorage, privateStorage)
+  fun `wait on input`() = runBlockingTest {
+    val step = inputStep("input" to "mp-crypto-key")
+    val task = InputTask(step, throttler, storage)
 
-    whenever(underlyingPrivateStorage.getBlob("mp-crypto-key"))
+    whenever(underlyingStorage.getBlob("mp-crypto-key"))
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(null)
       .thenReturn(secretKeySourceBlob)
 
-    whenever(underlyingPrivateStorage.getBlob("mp-crypto-key_signature"))
+    whenever(underlyingStorage.getBlob("mp-crypto-key_signature"))
       .thenReturn(secretKeySourceBlobSignature)
 
     val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
 
     assertThat(result).isEmpty()
 
-    verify(underlyingPrivateStorage, times(5)).getBlob("mp-crypto-key")
-    verify(underlyingPrivateStorage, times(1)).getBlob("mp-crypto-key_signature")
-    verify(underlyingPrivateStorage, times(1)).defaultBufferSizeBytes
-    verify(underlyingSharedStorage, times(1)).defaultBufferSizeBytes
-    verifyNoMoreInteractions(underlyingSharedStorage, underlyingPrivateStorage)
-  }
-
-  @Test
-  fun `wait on shared input`() = runBlockingTest {
-    val labels = mapOf("input" to "mp-crypto-key")
-    val step = buildStep(INPUT_STEP, sharedOutputLabels = labels)
-    val task = InputTask(step, throttler, sharedStorage, privateStorage)
-
-    whenever(underlyingSharedStorage.getBlob("mp-crypto-key"))
-      .thenReturn(null)
-      .thenReturn(null)
-      .thenReturn(null)
-      .thenReturn(null)
-      .thenReturn(secretKeySourceBlob)
-    whenever(underlyingSharedStorage.getBlob("mp-crypto-key_signature"))
-      .thenReturn(secretKeySourceBlobSignature)
-
-    val result: Map<String, Flow<ByteString>> = task.execute(emptyMap())
-
-    assertThat(result).isEmpty()
-
-    verify(underlyingSharedStorage, times(5)).getBlob("mp-crypto-key")
-    verify(underlyingSharedStorage, times(1)).getBlob("mp-crypto-key_signature")
-    verify(underlyingPrivateStorage, times(1)).defaultBufferSizeBytes
-    verify(underlyingSharedStorage, times(1)).defaultBufferSizeBytes
-
-    verifyNoMoreInteractions(underlyingSharedStorage, underlyingPrivateStorage)
+    verify(underlyingStorage, times(5)).getBlob("mp-crypto-key")
+    verify(underlyingStorage, times(1)).getBlob("mp-crypto-key_signature")
+    verify(underlyingStorage, times(1)).defaultBufferSizeBytes
   }
 
   @Test
   fun `invalid inputs`() = runBlockingTest {
     fun runTest(step: ExchangeWorkflow.Step) {
-      if (step.privateInputLabelsCount + step.sharedInputLabelsCount == 0 &&
-          step.privateOutputLabelsCount + step.sharedOutputLabelsCount == 1
-      ) {
+      if (step.inputLabelsCount == 0 && step.outputLabelsCount == 1) {
         // Expect no failure.
-        InputTask(step, throttler, sharedStorage, privateStorage)
+        InputTask(step, throttler, storage)
       } else {
         assertFailsWith<IllegalArgumentException>(step.toString()) {
-          InputTask(step, throttler, sharedStorage, privateStorage)
+          InputTask(step, throttler, storage)
         }
       }
     }
@@ -142,21 +107,15 @@ class InputTaskTest {
     val maps: List<Map<String, String>> =
       listOf(emptyMap(), mapOf("a" to "b"), mapOf("a" to "b", "c" to "d"))
 
-    for (privateInputLabels in maps) {
-      for (privateOutputLabels in maps) {
-        for (sharedInputLabels in maps) {
-          for (sharedOutputLabels in maps) {
-            runTest(
-              buildStep(
-                stepType = INPUT_STEP,
-                privateInputLabels = privateInputLabels,
-                privateOutputLabels = privateOutputLabels,
-                sharedInputLabels = sharedInputLabels,
-                sharedOutputLabels = sharedOutputLabels
-              )
-            )
+    for (inputLabels in maps) {
+      for (outputLabels in maps) {
+        runTest(
+          step {
+            inputStep = ExchangeWorkflow.Step.InputStep.getDefaultInstance()
+            this.inputLabels.putAll(inputLabels)
+            this.outputLabels.putAll(outputLabels)
           }
-        }
+        )
       }
     }
   }
