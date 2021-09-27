@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -60,7 +59,6 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
@@ -229,23 +227,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val dataProvider = insertDataProvider()
     val externalDataProviderId = dataProvider.externalDataProviderId
     val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-    val measurement =
-      Measurement.newBuilder()
-        .also {
-          it.detailsBuilder.apiVersion = "v2alpha"
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
-          it.putAllDataProviders(
-            mapOf(
-              externalDataProviderId to
-                Measurement.DataProviderValue.newBuilder()
-                  .also { it.externalDataProviderCertificateId = externalDataProviderCertificateId }
-                  .build()
-            )
-          )
-          it.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+    val measurement = measurement {
+      details = details { apiVersion = "v2alpha" }
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+      this.dataProviders[externalDataProviderId] =
+        dataProviderValue {
+          this.externalDataProviderCertificateId = externalDataProviderCertificateId
         }
-        .build()
+      this.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+    }
 
     val createdMeasurement = measurementsService.createMeasurement(measurement)
 

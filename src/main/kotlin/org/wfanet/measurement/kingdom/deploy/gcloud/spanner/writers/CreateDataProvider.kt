@@ -19,6 +19,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.copy
 
 class CreateDataProvider(private val dataProvider: DataProvider) :
   SpannerWriter<DataProvider, DataProvider>() {
@@ -46,16 +47,14 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       set("ExternalDataProviderCertificateId" to externalDataProviderCertificateId)
     }
 
-    return dataProvider
-      .toBuilder()
-      .also {
-        it.externalDataProviderId = externalDataProviderId.value
-        it.certificateBuilder.also {
-          it.externalDataProviderId = externalDataProviderId.value
-          it.externalCertificateId = externalDataProviderCertificateId.value
+    return dataProvider.copy {
+      this.externalDataProviderId = externalDataProviderId.value
+      certificate =
+        certificate.copy {
+          this.externalDataProviderId = externalDataProviderId.value
+          externalCertificateId = externalDataProviderCertificateId.value
         }
-      }
-      .build()
+    }
   }
 
   override fun ResultScope<DataProvider>.buildResult(): DataProvider {

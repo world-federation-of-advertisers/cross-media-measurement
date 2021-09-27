@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock

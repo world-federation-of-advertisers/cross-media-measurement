@@ -33,11 +33,9 @@ import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
-import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -53,7 +51,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private const val DEFAULT_PAGE_SIZE = 50

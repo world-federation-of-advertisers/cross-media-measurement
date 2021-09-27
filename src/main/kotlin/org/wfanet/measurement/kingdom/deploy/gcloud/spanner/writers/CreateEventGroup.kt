@@ -60,7 +60,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     }
   }
 
-  private suspend fun TransactionScope.createNewEventGroup(
+  private fun TransactionScope.createNewEventGroup(
     dataProviderId: Long,
     measurementConsumerId: Long
   ): EventGroup {
@@ -72,7 +72,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
       set("DataProviderId" to dataProviderId)
-      if (!eventGroup.providedEventGroupId.isBlank()) {
+      if (eventGroup.providedEventGroupId.isNotBlank()) {
         set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)

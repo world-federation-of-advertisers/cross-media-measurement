@@ -40,7 +40,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
