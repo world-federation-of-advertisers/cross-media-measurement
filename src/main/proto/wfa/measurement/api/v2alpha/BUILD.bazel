@@ -158,6 +158,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
     ],
 )
 
@@ -177,6 +178,7 @@ proto_library(
     deps = [
         ":exchange_workflow_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
     ],
 )
 

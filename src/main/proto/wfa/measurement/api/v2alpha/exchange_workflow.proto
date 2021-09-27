@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
+import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -149,4 +150,7 @@ message ExchangeWorkflow {
   }
 
   ExchangeIdentifiers exchange_identifiers = 2;
+
+  // The date of the first Exchange.
+  google.type.Date first_exchange_date = 3;
 }
