@@ -84,7 +84,6 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     val exchangeTaskMapper =
       ExchangeTaskMapperForJoinKeyExchange(
         deterministicCommutativeCryptor = JniDeterministicCommutativeCipher(),
-        sharedStorage = sharedStorage,
         privateStorage = privateStorage
       )
 
@@ -92,7 +91,6 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       ExchangeTaskExecutor(
         apiClient = grpcApiClient,
         timeout = flags.taskTimeout.asTimeout(),
-        sharedStorage = sharedStorage,
         privateStorage = privateStorage,
         getExchangeTaskForStep = exchangeTaskMapper::getExchangeTaskForStep
       )

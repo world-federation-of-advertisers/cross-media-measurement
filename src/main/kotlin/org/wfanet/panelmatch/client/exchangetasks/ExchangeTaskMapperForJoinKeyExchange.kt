@@ -26,7 +26,6 @@ import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 /** Maps join key exchange steps to exchange tasks */
 class ExchangeTaskMapperForJoinKeyExchange(
   private val deterministicCommutativeCryptor: DeterministicCommutativeCipher,
-  private val sharedStorage: VerifiedStorageClient,
   private val privateStorage: VerifiedStorageClient,
   private val throttler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100))
@@ -39,13 +38,7 @@ class ExchangeTaskMapperForJoinKeyExchange(
       StepCase.REENCRYPT_STEP ->
         CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
       StepCase.DECRYPT_STEP -> CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
-      StepCase.INPUT_STEP ->
-        InputTask(
-          sharedStorage = sharedStorage,
-          privateStorage = privateStorage,
-          step = step,
-          throttler = throttler
-        )
+      StepCase.INPUT_STEP -> InputTask(storage = privateStorage, step = step, throttler = throttler)
       StepCase.INTERSECT_AND_VALIDATE_STEP ->
         IntersectValidateTask(
           maxSize = step.intersectAndValidateStep.maxSize,

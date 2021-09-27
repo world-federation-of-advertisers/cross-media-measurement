@@ -22,6 +22,10 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStep.SignedExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKt.signedExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.inputStep
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.common.toByteString
@@ -72,11 +76,19 @@ fun buildMockCryptor(): DeterministicCommutativeCipher {
 }
 
 fun buildWorkflow(
-  testedStep: ExchangeWorkflow.Step,
+  testedStep: Step,
   dataProviderName: String,
   modelProviderName: String
 ): ExchangeWorkflow {
-  return exchangeWorkflow { steps += testedStep }
+  return exchangeWorkflow {
+    steps += testedStep
+
+    exchangeIdentifiers =
+      exchangeIdentifiers {
+        dataProvider = dataProviderName
+        modelProvider = modelProviderName
+      }
+  }
 }
 
 fun buildSignedExchangeWorkflow(exchangeWorkflow: ExchangeWorkflow): SignedExchangeWorkflow {
@@ -85,55 +97,24 @@ fun buildSignedExchangeWorkflow(exchangeWorkflow: ExchangeWorkflow): SignedExcha
   }
 }
 
-fun buildStep(
-  stepType: ExchangeWorkflow.Step.StepCase,
-  privateInputLabels: Map<String, String> = emptyMap(),
-  privateOutputLabels: Map<String, String> = emptyMap(),
-  sharedInputLabels: Map<String, String> = emptyMap(),
-  sharedOutputLabels: Map<String, String> = emptyMap(),
-  intersectMaxSize: Int = 0,
-  intersectMinimumOverlap: Float = 0.0f
-): ExchangeWorkflow.Step {
-  return ExchangeWorkflow.Step.newBuilder()
-    .putAllPrivateInputLabels(privateInputLabels)
-    .putAllPrivateOutputLabels(privateOutputLabels)
-    .putAllSharedInputLabels(sharedInputLabels)
-    .putAllSharedOutputLabels(sharedOutputLabels)
-    .apply {
-      when (stepType) {
-        ExchangeWorkflow.Step.StepCase.INPUT_STEP ->
-          inputStep = ExchangeWorkflow.Step.InputStep.getDefaultInstance()
-        ExchangeWorkflow.Step.StepCase.ENCRYPT_STEP ->
-          encryptStep = ExchangeWorkflow.Step.EncryptStep.getDefaultInstance()
-        ExchangeWorkflow.Step.StepCase.REENCRYPT_STEP ->
-          reencryptStep = ExchangeWorkflow.Step.ReEncryptStep.getDefaultInstance()
-        ExchangeWorkflow.Step.StepCase.DECRYPT_STEP ->
-          decryptStep = ExchangeWorkflow.Step.DecryptStep.getDefaultInstance()
-        ExchangeWorkflow.Step.StepCase.INTERSECT_AND_VALIDATE_STEP ->
-          intersectAndValidateStep =
-            ExchangeWorkflow.Step.IntersectAndValidateStep.newBuilder()
-              .apply {
-                maxSize = intersectMaxSize
-                minimumOverlap = intersectMinimumOverlap
-              }
-              .build()
-        else -> error("Unsupported step config")
-      }
-    }
-    .build()
-}
-
 fun buildExchangeStep(
   name: String,
   stepIndex: Int = 0,
   dataProviderName: String,
   modelProviderName: String,
-  testedStep: ExchangeWorkflow.Step
+  testedStep: Step
 ): ExchangeStep {
   return exchangeStep {
     this.stepIndex = stepIndex
     this.name = name
     this.signedExchangeWorkflow =
       buildSignedExchangeWorkflow(buildWorkflow(testedStep, dataProviderName, modelProviderName))
+  }
+}
+
+fun inputStep(label: Pair<String, String>): Step {
+  return step {
+    inputStep = inputStep {}
+    outputLabels[label.first] = label.second
   }
 }
