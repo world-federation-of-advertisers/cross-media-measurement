@@ -25,6 +25,7 @@ objectSets: [
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
+		kingdom.kingdom_internal_network_policies,
 		duchy_network
 ] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
 
@@ -160,12 +161,6 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 }
 
 duchies: {for d in #Duchies {"\(d.name)": #LocalDuchy & {_duchy: d}}}
-
-duchy_network: "nw": #NetworkPolicy & {
-		_name: "herald-and-mill"
-		_sourceMatchLabels: "liquid-legions-v2-mill-daemon-pod"
-		_destinationMatchLabels: "herald-daemon-pod"
-	}
 
 kingdom: #Kingdom & {
 	_duchy_ids: [ for d in #Duchies {"duchy-\(d.name)"}]
