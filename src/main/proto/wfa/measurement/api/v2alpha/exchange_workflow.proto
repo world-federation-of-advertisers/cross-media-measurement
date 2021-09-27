@@ -55,19 +55,23 @@ message ExchangeWorkflow {
     // the step-specific name to a label for the input. The step is ready to run
     // when, for each input label, there is a completed step with the same
     // output label.
+    map<string, string> input_labels = 3;
+    map<string, string> output_labels = 4;
+
+    // Copies blobs from private to shared storage.
     //
-    // Inputs to the protocol are provided via InputStep step types -- this
-    // ensures that all inputs to all steps appear as some output label.
-    map<string, string> private_input_labels = 3;
+    // The keys of input_labels and output_labels must be the same. For each
+    // input, it copies it to an output given by the value in the output_labels.
+    //
+    // For example, if input_labels maps "a" to "b" and output_labels maps "a"
+    // to "c", this would result in creating a shared blob with label "c". The
+    // only way to read "c" would be to use a `CopyFromSharedStorageStep` with
+    // input_labels and output_labels swapped.
+    message CopyToSharedStorageStep {}
 
-    // Inputs to be fetched from shared storage
-    map<string, string> shared_input_labels = 4;
-
-    // Outputs not shared
-    map<string, string> private_output_labels = 5;
-
-    // Outputs that are shared
-    map<string, string> shared_output_labels = 6;
+    // Copies blobs from shared storage to private storage. See documentation
+    // for `CopyToSharedStorageStep`.
+    message CopyFromSharedStorageStep {}
 
     // Compares the inputs to determine if they overlap sufficiently.
     message IntersectAndValidateStep {
@@ -115,6 +119,8 @@ message ExchangeWorkflow {
     }
 
     oneof step {
+      CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
+      CopyToSharedStorageStep copy_to_shared_storage_step = 6;
       IntersectAndValidateStep intersect_and_validate_step = 7;
       EncryptStep encrypt_step = 8;
       ReEncryptStep reencrypt_step = 9;

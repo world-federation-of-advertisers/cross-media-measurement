@@ -15,7 +15,27 @@ steps {
 
   input_step {}
 
-  shared_output_labels { key: "input" value: "hkdf-pepper" }
+  output_labels { key: "input" value: "edp-hkdf-pepper" }
+}
+
+steps {
+  step_id: "export-hkdf-pepper"
+  party: DATA_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "hkdf-pepper" value: "edp-hkdf-pepper" }
+  output_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
+}
+
+steps {
+  step_id: "import-hkdf-pepper"
+  party: MODEL_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
+  output_labels { key: "hkdf-pepper" value: "mp-hkdf-pepper" }
 }
 
 # EDP provides a pepper used in hashing encrypted identifiers.
@@ -25,7 +45,27 @@ steps {
 
   input_step {}
 
-  shared_output_labels { key: "input" value: "identifier-hash-pepper" }
+  output_labels { key: "input" value: "edp-identifier-hash-pepper" }
+}
+
+steps {
+  step_id: "export-identifier-hash-pepper"
+  party: DATA_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "identifier-hash-pepper" value: "edp-identifier-hash-pepper" }
+  output_labels { key: "identifier-hash-pepper" value: "identifier-hash-pepper" }
+}
+
+steps {
+  step_id: "import-identifier-hash-pepper"
+  party: MODEL_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "identifier-hash-pepper" value: "identifier-hash-pepper" }
+  output_labels { key: "identifier-hash-pepper" value: "mp-identifier-hash-pepper" }
 }
 
 # MP provides private key as input.
@@ -35,10 +75,7 @@ steps {
 
   input_step {}
 
-  private_output_labels {
-    key: "input"
-    value: "mp-commutative-deterministic-key"
-  }
+  output_labels { key: "input" value: "mp-commutative-deterministic-key" }
 }
 
 # MP provides unencrypted joinkeys as input.
@@ -48,7 +85,7 @@ steps {
 
   input_step {}
 
-  private_output_labels { key: "input" value: "raw-joinkeys" }
+  output_labels { key: "input" value: "mp-raw-joinkeys" }
 }
 
 # EDP provides private key as input.
@@ -58,10 +95,7 @@ steps {
 
   input_step {}
 
-  private_output_labels {
-    key: "input"
-    value: "edp-commutative-deterministic-key"
-  }
+  output_labels { key: "input" value: "edp-commutative-deterministic-key" }
 }
 
 # EDP provides symmetrically encrypted event data as input.
@@ -71,7 +105,7 @@ steps {
 
   input_step {}
 
-  shared_output_labels { key: "input" value: "encrypted-event-data" }
+  output_labels { key: "input" value: "edp-encrypted-event-data" }
 }
 
 # EDP provides the previous protocol execution's blinded joinkeys as input.
@@ -84,10 +118,7 @@ steps {
 
   input_step {}
 
-  private_output_labels {
-    key: "input"
-    value: "previous-single-blinded-joinkeys"
-  }
+  output_labels { key: "input" value: "edp-previous-single-blinded-joinkeys" }
 }
 
 # MP wraps their panelist identifiers in a layer of deterministic commutative
@@ -98,15 +129,30 @@ steps {
 
   encrypt_step {}
 
-  private_input_labels { key: "data" value: "raw-joinkeys" }
-  private_input_labels {
-    key: "crypto-key"
-    value: "mp-commutative-deterministic-key"
-  }
+  input_labels { key: "data" value: "mp-raw-joinkeys" }
+  input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
 
-  private_output_labels { key: "output" value: "single-blinded-joinkeys" }
+  output_labels { key: "output" value: "mp-single-blinded-joinkeys" }
+}
 
-  shared_output_labels { key: "output" value: "single-blinded-joinkeys" }
+steps {
+  step_id: "export-single-blinded-joinkeys"
+  party: MODEL_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "single-blinded-joinkeys" value: "mp-single-blinded-joinkeys" }
+  output_labels { key: "single-blinded-joinkeys" value: "single-blinded-joinkeys" }
+}
+
+steps {
+  step_id: "import-single-blinded-joinkeys"
+  party: DATA_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "single-blinded-joinkeys" value: "single-blinded-joinkeys" }
+  output_labels { key: "single-blinded-joinkeys" value: "edp-single-blinded-joinkeys" }
 }
 
 # EDP validates that the single-encrypted panelist identifiers are sufficiently
@@ -122,18 +168,11 @@ steps {
     minimum_overlap: 0.99
   }
 
-  private_input_labels {
-    key: "previous-data"
-    value: "previous-single-blinded-joinkeys"
-  }
-
-  shared_input_labels { key: "current-data" value: "single-blinded-joinkeys" }
+  input_labels { key: "previous-data" value: "edp-previous-single-blinded-joinkeys" }
+  input_labels { key: "current-data" value: "edp-single-blinded-joinkeys" }
 
   # Outputs "current-data" as a local copy for long-term auditing storage.
-  private_output_labels {
-    key: "output"
-    value: "single-blinded-joinkeys-edp-copy"
-  }
+  output_labels { key: "output" value: "edp-single-blinded-joinkeys-copy" }
 }
 
 # EDP wraps the single-encrypted panelist identifiers in another layer of
@@ -144,15 +183,30 @@ steps {
 
   reencrypt_step {}
 
-  private_input_labels { key: "data" value: "single-blinded-joinkeys-edp-copy" }
-  private_input_labels {
-    key: "crypto-key"
-    value: "edp-commutative-deterministic-key"
-  }
+  input_labels { key: "data" value: "edp-single-blinded-joinkeys-copy" }
+  input_labels { key: "crypto-key" value: "edp-commutative-deterministic-key" }
 
-  private_output_labels { key: "output" value: "double-blinded-joinkeys" }
+  output_labels { key: "output" value: "edp-double-blinded-joinkeys" }
+}
 
-  shared_output_labels { key: "output" value: "double-blinded-joinkeys" }
+steps {
+  step_id: "export-double-blinded-joinkeys"
+  party: DATA_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "double-blinded-joinkeys" value: "edp-double-blinded-joinkeys" }
+  output_labels { key: "double-blinded-joinkeys" value: "double-blinded-joinkeys" }
+}
+
+steps {
+  step_id: "import-double-blinded-joinkeys"
+  party: MODEL_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "double-blinded-joinkeys" value: "double-blinded-joinkeys" }
+  output_labels { key: "double-blinded-joinkeys" value: "mp-double-blinded-joinkeys" }
 }
 
 # MP removes their layer of commutative, deterministic encryption.
@@ -162,14 +216,10 @@ steps {
 
   decrypt_step {}
 
-  private_input_labels {
-    key: "crypto-key"
-    value: "mp-commutative-deterministic-key"
-  }
+  input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
+  input_labels { key: "data" value: "mp-double-blinded-joinkeys" }
 
-  shared_input_labels { key: "data" value: "double-blinded-joinkeys" }
-
-  private_output_labels { key: "output" value: "lookup-keys" }
+  output_labels { key: "output" value: "mp-lookup-keys" }
 }
 
 # MP encrypts their queries.
@@ -181,14 +231,53 @@ steps {
     serialized_parameters: "..."
   }
 
-  private_input_labels { key: "identifiers" value: "raw-joinkeys" }
-  private_input_labels { key: "identifiers" value: "lookup-keys" }
+  input_labels { key: "identifiers" value: "mp-raw-joinkeys" }
+  input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
 
-  private_output_labels { key: "serialized-rlwe-private-key" value: "serialized-rlwe-private-key" }
-  private_output_labels { key: "query-decryption-keys" value: "query-decryption-keys" }
+  output_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
+  output_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
+  output_labels { key: "query-decryption-keys" value: "mp-query-decryption-keys" }
+  output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
+}
 
-  shared_output_labels { key: "encrypted-queries" value: "encrypted-queries" }
-  shared_output_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+steps {
+  step_id: "export-serialized-rlwe-public-key"
+  party: MODEL_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
+  output_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+}
+
+steps {
+  step_id: "import-serialized-rlwe-public-key"
+  party: DATA_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+  output_labels { key: "serialized-rlwe-public-key" value: "edp-serialized-rlwe-public-key" }
+}
+
+steps {
+  step_id: "export-encrypted-queries"
+  party: MODEL_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
+  output_labels { key: "encrypted-queries" value: "encrypted-queries" }
+}
+
+steps {
+  step_id: "import-encrypted-queries"
+  party: DATA_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "encrypted-queries" value: "encrypted-queries" }
+  output_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
 }
 
 # EDP executes private membership queries
@@ -200,12 +289,31 @@ steps {
     serialized_parameters: "..."
   }
 
-  private_input_labels { key: "event-data" value: "event-data" }
+  input_labels { key: "event-data" value: "edp-event-data" }
+  input_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
+  input_labels { key: "serialized-rlwe-public-key" value: "edp-serialized-rlwe-public-key" }
 
-  shared_input_labels { key: "encrypted-queries" value: "encrypted-queries" }
-  shared_input_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
+  output_labels { key: "encrypted-results" value: "edp-encrypted-results" }
+}
 
-  shared_output_labels { key: "encrypted-results" value: "encrypted-results" }
+steps {
+  step_id: "export-encrypted-results"
+  party: DATA_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "encrypted-results" value: "edp-encrypted-results" }
+  output_labels { key: "encrypted-results" value: "encrypted-results" }
+}
+
+steps {
+  step_id: "import-encrypted-results"
+  party: MODEL_PROVIDER
+
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "encrypted-results" value: "encrypted-results" }
+  output_labels { key: "encrypted-results" value: "mp-encrypted-results" }
 }
 
 # MP decrypts the results
@@ -217,11 +325,10 @@ steps {
     serialized_parameters: "..."
   }
 
-  private_input_labels { key: "query-decryption-keys" value: "query-decryption-keys" }
-  private_input_labels { key: "serialized-rlwe-private-key" value: "serialized-rlwe-private-key" }
+  input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
+  input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
+  input_labels { key: "query-decryption-keys" value: "mp-query-decryption-keys" }
+  input_labels { key: "encrypted-results" value: "mp-encrypted-results" }
 
-  shared_input_labels { key: "encrypted-results" value: "encrypted-results" }
-  shared_input_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
-
-  private_output_labels { key: "results" value: "results" }
+  output_labels { key: "results" value: "results" }
 }

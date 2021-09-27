@@ -1,8 +1,9 @@
 # Bazel convenience symlinks.
-/bazel-*/
+/bazel-*
 
 # Bazel IntelliJ projects.
-.ijwb
+/.ijwb/
+/.clwb/
 
 # IntelliJ projects.
 .idea/
