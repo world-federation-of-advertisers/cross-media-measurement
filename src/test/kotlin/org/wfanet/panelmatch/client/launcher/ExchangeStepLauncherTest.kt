@@ -20,38 +20,45 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
-import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.verifyZeroInteractions
-import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKt.signedExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.MODEL_PROVIDER
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.exchangeStep
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidationKey
+import org.wfanet.panelmatch.common.SecretSet
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"
 private const val EXCHANGE_STEP_ID = "some-step-id"
 private const val EXCHANGE_STEP_ATTEMPT_ID = "some-attempt-id"
 
-private val EXCHANGE_STEP: ExchangeStep =
-  ExchangeStep.newBuilder()
-    .apply {
-      name =
-        ExchangeStepKey(
-            recurringExchangeId = RECURRING_EXCHANGE_ID,
-            exchangeId = EXCHANGE_ID,
-            exchangeStepId = EXCHANGE_STEP_ID
-          )
-          .toName()
-      state = ExchangeStep.State.READY_FOR_RETRY
+private val EXCHANGE_WORKFLOW = exchangeWorkflow {
+  steps += step { stepId = "step0" }
+  steps +=
+    step {
+      stepId = "step1"
+      party = MODEL_PROVIDER
     }
-    .build()
+  steps +=
+    step {
+      stepId = "step2"
+      party = DATA_PROVIDER
+    }
+}
+private val SERIALIZED_EXCHANGE_WORKFLOW = EXCHANGE_WORKFLOW.toByteString()
 
 private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
   ExchangeStepAttemptKey(
@@ -61,11 +68,33 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
     exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
   )
 
+private val EXCHANGE_STEP_KEY =
+  ExchangeStepKey(
+    recurringExchangeId = RECURRING_EXCHANGE_ID,
+    exchangeId = EXCHANGE_ID,
+    exchangeStepId = EXCHANGE_STEP_ID
+  )
+
+private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
+  name = EXCHANGE_STEP_KEY.toName()
+  state = ExchangeStep.State.READY_FOR_RETRY
+  stepIndex = 2
+  signedExchangeWorkflow =
+    signedExchangeWorkflow { serializedExchangeWorkflow = SERIALIZED_EXCHANGE_WORKFLOW }
+}
+
+private object ValidExchangeWorkflows : SecretSet<ValidationKey> {
+  override fun contains(item: ValidationKey): Boolean {
+    return item.serializedExchangeWork == SERIALIZED_EXCHANGE_WORKFLOW &&
+      item.recurringExchangeId == RECURRING_EXCHANGE_ID
+  }
+}
+
 @RunWith(JUnit4::class)
 class ExchangeStepLauncherTest {
   private val apiClient: ApiClient = mock()
-  private val validator: ExchangeStepValidator = mock()
   private val jobLauncher: JobLauncher = mock()
+  private val validator = ExchangeStepValidator(DATA_PROVIDER, ValidExchangeWorkflows)
 
   @Test
   fun `findAndRunExchangeStep with no ExchangeTask`() {
@@ -75,7 +104,6 @@ class ExchangeStepLauncherTest {
     runBlocking { launcher.findAndRunExchangeStep() }
 
     verifyBlocking(apiClient) { claimExchangeStep() }
-    verifyZeroInteractions(validator, jobLauncher)
   }
 
   @Test
@@ -90,11 +118,6 @@ class ExchangeStepLauncherTest {
 
     verifyBlocking(apiClient) { claimExchangeStep() }
 
-    argumentCaptor<ExchangeStep> {
-      verify(validator).validate(capture())
-      assertThat(firstValue).isEqualTo(EXCHANGE_STEP)
-    }
-
     val (exchangeStepCaptor, attemptCaptor) =
       argumentCaptor(ExchangeStep::class, ExchangeStepAttemptKey::class)
     verifyBlocking(jobLauncher) { execute(exchangeStepCaptor.capture(), attemptCaptor.capture()) }
@@ -103,14 +126,20 @@ class ExchangeStepLauncherTest {
   }
 
   @Test
-  fun `findAndRunExchangeStep with invalid ExchangeTask`() {
+  fun `findAndRunExchangeStep with unrecognized ExchangeWorkflow`() {
+    val invalidExchangeWorkflow = EXCHANGE_WORKFLOW.copy { steps += step {} }
+    val invalidExchangeStep =
+      EXCHANGE_STEP.copy {
+        signedExchangeWorkflow =
+          signedExchangeWorkflow {
+            serializedExchangeWorkflow = invalidExchangeWorkflow.toByteString()
+          }
+      }
+
     apiClient.stub {
       onBlocking { claimExchangeStep() }
-        .thenReturn(ClaimedExchangeStep(EXCHANGE_STEP, EXCHANGE_STEP_ATTEMPT_KEY))
+        .thenReturn(ClaimedExchangeStep(invalidExchangeStep, EXCHANGE_STEP_ATTEMPT_KEY))
     }
-
-    whenever(validator.validate(any()))
-      .thenThrow(InvalidExchangeStepException("Something went wrong"))
 
     val launcher = ExchangeStepLauncher(apiClient, validator, jobLauncher)
     runBlocking { launcher.findAndRunExchangeStep() }
@@ -130,12 +159,42 @@ class ExchangeStepLauncherTest {
 
       assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
       assertThat(stateCaptor.firstValue).isEqualTo(ExchangeStepAttempt.State.FAILED_STEP)
-      assertThat(messagesCaptor.firstValue).containsExactly("Something went wrong")
+      assertThat(messagesCaptor.firstValue)
+        .containsExactly("Serialized ExchangeWorkflow unrecognized")
     }
 
-    argumentCaptor<ExchangeStep> {
-      verify(validator).validate(capture())
-      assertThat(firstValue).isEqualTo(EXCHANGE_STEP)
+    verifyZeroInteractions(jobLauncher)
+  }
+
+  @Test
+  fun `findAndRunExchangeStep with wrong party`() {
+    val invalidExchangeStep = EXCHANGE_STEP.copy { stepIndex = 1 }
+
+    apiClient.stub {
+      onBlocking { claimExchangeStep() }
+        .thenReturn(ClaimedExchangeStep(invalidExchangeStep, EXCHANGE_STEP_ATTEMPT_KEY))
+    }
+
+    val launcher = ExchangeStepLauncher(apiClient, validator, jobLauncher)
+    runBlocking { launcher.findAndRunExchangeStep() }
+
+    verifyBlocking(apiClient) { claimExchangeStep() }
+
+    verifyBlocking(apiClient) {
+      val keyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+      val stateCaptor = argumentCaptor<ExchangeStepAttempt.State>()
+      val messagesCaptor = argumentCaptor<Iterable<String>>()
+
+      finishExchangeStepAttempt(
+        keyCaptor.capture(),
+        stateCaptor.capture(),
+        messagesCaptor.capture()
+      )
+
+      assertThat(keyCaptor.firstValue).isEqualTo(EXCHANGE_STEP_ATTEMPT_KEY)
+      assertThat(stateCaptor.firstValue).isEqualTo(ExchangeStepAttempt.State.FAILED_STEP)
+      assertThat(messagesCaptor.firstValue)
+        .containsExactly("Party for step 'step1' was not DATA_PROVIDER")
     }
 
     verifyZeroInteractions(jobLauncher)

@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import java.security.cert.X509Certificate
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
@@ -27,11 +26,12 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.launcher.Identity
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.common.SecretSet
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCipher
 import picocli.CommandLine
@@ -48,9 +48,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [VerifiedStorageClient] for payloads that should NOT shared with the other party. */
   abstract val privateStorage: VerifiedStorageClient
 
-  abstract val dataProviderCertificate: X509Certificate
-
-  abstract val modelProviderCertificate: X509Certificate
+  /** [SecretSet] containing all of the valid serialized ExchangeWorkflows. */
+  abstract val validExchangeWorkflows: SecretSet<ExchangeStepValidator.ValidationKey>
 
   override fun run() {
     val clientCerts =
@@ -100,12 +99,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = grpcApiClient,
-        validator =
-          ExchangeStepValidatorImpl(
-            flags.partyType,
-            dataProviderCertificate,
-            modelProviderCertificate
-          ),
+        validator = ExchangeStepValidator(flags.partyType, validExchangeWorkflows),
         jobLauncher = launcher
       )
 
