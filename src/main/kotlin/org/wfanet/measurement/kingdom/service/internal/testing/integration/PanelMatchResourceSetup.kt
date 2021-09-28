@@ -138,21 +138,21 @@ class PanelMatchResourceSetup(
   private fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
     val labelsMap = mutableMapOf<String, MutableSet<Int>>()
     for ((index, step) in stepsList.withIndex()) {
-      val outputLabels =
-        step.sharedOutputLabelsMap.values.toList() + step.privateOutputLabelsMap.values.toList()
-      for (outputLabel in outputLabels) {
+      for (outputLabel in step.outputLabelsMap.values) {
         labelsMap.getOrPut(outputLabel) { mutableSetOf() }.add(index)
       }
     }
     val internalSteps =
       stepsList.mapIndexed { index, step ->
-        val labels =
-          step.sharedInputLabelsMap.values.toList() + step.privateInputLabelsMap.values.toList()
         internalStep {
           stepIndex = index
           party = step.party.toInternal()
           prerequisiteStepIndices +=
-            labels.flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }.toSet()
+            step
+              .inputLabelsMap
+              .values
+              .flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }
+              .toSet()
         }
       }
 

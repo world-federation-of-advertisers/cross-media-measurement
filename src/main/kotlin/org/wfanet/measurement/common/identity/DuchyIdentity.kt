@@ -48,8 +48,9 @@ val duchyIdentityFromContext: DuchyIdentity
     }
 
 private const val KEY_NAME = "duchy-identity"
-private val DUCHY_IDENTITY_CONTEXT_KEY: Context.Key<DuchyIdentity> = Context.key(KEY_NAME)
-private val DUCHY_ID_METADATA_KEY = Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
+val DUCHY_IDENTITY_CONTEXT_KEY: Context.Key<DuchyIdentity> = Context.key(KEY_NAME)
+val DUCHY_ID_METADATA_KEY: Metadata.Key<String> =
+  Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
 
 /**
  * Add an interceptor that sets DuchyIdentity in the context.
