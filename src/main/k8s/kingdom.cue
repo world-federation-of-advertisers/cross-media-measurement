@@ -79,12 +79,12 @@ import ("strings")
 				#NetworkPolicy & {
 					_name: "public-api-server-to-system-api-server"
 					_sourceMatchLabels: "v2alpha-public-api-server-pod"
-					_destinationMatchLabels: "v2alpha-public-api-server-pod"
+					_destinationMatchLabels: "gcp-kingdom-data-server-pod"
 				},
 				#NetworkPolicy & {
 					_name: "system-api-server-to-spublic-api-server"
 					_sourceMatchLabels: "system-api-server-pod"
-					_destinationMatchLabels: "v2alpha-public-api-server-pod"
+					_destinationMatchLabels: "gcp-kingdom-data-server"
 				}
   	]
 
