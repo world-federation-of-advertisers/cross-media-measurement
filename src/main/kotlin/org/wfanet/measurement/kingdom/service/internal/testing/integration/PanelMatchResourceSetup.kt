@@ -45,9 +45,9 @@ import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 
 /** Prepares resources for Panel Match integration tests using internal APIs. */
 class PanelMatchResourceSetup(
-  private val dataProvidersServiceStub: DataProvidersCoroutineStub,
-  private val modelProvidersServiceStub: ModelProvidersCoroutineStub,
-  private val recurringExchangesServiceStub: RecurringExchangesCoroutineStub
+  private val dataProvidersStub: DataProvidersCoroutineStub,
+  private val modelProvidersStub: ModelProvidersCoroutineStub,
+  private val recurringExchangesStub: RecurringExchangesCoroutineStub
 ) {
 
   /** Process to create resources. */
@@ -82,7 +82,7 @@ class PanelMatchResourceSetup(
 
   private suspend fun createDataProvider(): Long {
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
-    return dataProvidersServiceStub.createDataProvider(
+    return dataProvidersStub.createDataProvider(
         internalDataProvider {
           certificate =
             certificate {
@@ -105,8 +105,7 @@ class PanelMatchResourceSetup(
   }
 
   private suspend fun createModelProvider(): Long {
-    return modelProvidersServiceStub.createModelProvider(internalModelProvider {})
-      .externalModelProviderId
+    return modelProvidersStub.createModelProvider(internalModelProvider {}).externalModelProviderId
   }
 
   private suspend fun createRecurringExchange(
@@ -117,7 +116,7 @@ class PanelMatchResourceSetup(
     publicApiVersion: String,
     exchangeWorkflow: ExchangeWorkflow
   ): Long {
-    return recurringExchangesServiceStub.createRecurringExchange(
+    return recurringExchangesStub.createRecurringExchange(
         createRecurringExchangeRequest {
           recurringExchange =
             internalRecurringExchange {
@@ -173,7 +172,7 @@ class PanelMatchResourceSetup(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    fun fromTargetFlags(flags: PanelMatchResourceSetupFlags): PanelMatchResourceSetup {
+    fun fromFlags(flags: PanelMatchResourceSetupFlags): PanelMatchResourceSetup {
       val clientCerts =
         SigningCerts.fromPemFiles(
           certificateFile = flags.tlsFlags.certFile,
@@ -181,7 +180,7 @@ class PanelMatchResourceSetup(
           trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
         )
       val channel: Channel =
-        buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
+        buildMutualTlsChannel(flags.internalApiTarget, clientCerts, flags.internalApiCertHost)
           .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
       return PanelMatchResourceSetup(

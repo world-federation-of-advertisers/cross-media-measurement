@@ -29,14 +29,14 @@ class PanelMatchResourceSetupFlags {
     description = ["Target for the Kingdom internal APIs"],
     required = true
   )
-  lateinit var target: String
+  lateinit var internalApiTarget: String
 
   @CommandLine.Option(
     names = ["--internal-api-cert-host"],
     description = ["The expected hostname in the Kingdom internal API Server's TLS certificate"],
     required = true
   )
-  lateinit var certHost: String
+  lateinit var internalApiCertHost: String
     private set
 
   @set:CommandLine.Option(
