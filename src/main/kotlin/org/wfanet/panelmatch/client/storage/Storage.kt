@@ -146,6 +146,8 @@ class VerifiedStorageClient(
     }
 
     suspend fun toByteString(): ByteString = this.read().flatten()
+
+    suspend fun toStringUtf8(): String = toByteString().toStringUtf8()
   }
 }
 

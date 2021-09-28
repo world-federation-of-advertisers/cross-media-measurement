@@ -34,7 +34,7 @@ object SignedFiles {
    */
   fun read(
     fileSpec: String,
-    certificate: X509Certificate
+    certificate: X509Certificate,
   ): PTransform<PBegin, PCollection<ByteString>> {
     return ReadSignedFiles(fileSpec, certificate)
   }
@@ -51,7 +51,7 @@ object SignedFiles {
   fun write(
     fileSpec: String,
     privateKey: PrivateKey,
-    certificate: X509Certificate
+    certificate: X509Certificate,
   ): PTransform<PCollection<ByteString>, WriteFilesResult<Void>> {
     return WriteSignedFiles(fileSpec, privateKey, certificate)
   }

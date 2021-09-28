@@ -32,7 +32,7 @@ import org.wfanet.measurement.common.crypto.jceProvider
 
 internal class ReadSignedFiles(
   private val fileSpec: String,
-  private val certificate: X509Certificate,
+  private val certificate: X509Certificate
 ) : PTransform<PBegin, PCollection<ByteString>>() {
   override fun expand(input: PBegin): PCollection<ByteString> {
     val files = input.apply(FileIO.match().filepattern(fileSpec)).apply(FileIO.readMatches())
@@ -48,9 +48,10 @@ internal class ReadSignedFiles(
 private class ReadFilesFn(
   private val fileSpec: String,
   private val fileCountView: PCollectionView<Long>,
-  private val certificate: X509Certificate
+  private val certificate: X509Certificate,
 ) : DoFn<ReadableFile?, ByteString?>() {
-  var fileCountIsVerified: Boolean = false
+  private var fileCountIsVerified: Boolean = false
+  private val fileName = fileSpec.substringAfterLast('/')
 
   /**
    * Throws if the actual file count (from [fileCountView]) does not match the given [fileSpec].
@@ -84,10 +85,10 @@ private class ReadFilesFn(
         context.output(bytes)
       }
 
-      val expectedFileSpec = codedInput.readBytes()
-      verifier.update(expectedFileSpec.asReadOnlyByteBuffer())
-      require(fileSpec == expectedFileSpec.toStringUtf8()) {
-        "Unexpected file specification: $fileSpec vs ${expectedFileSpec.toStringUtf8()}"
+      val observedFileName = codedInput.readBytes()
+      verifier.update(observedFileName.asReadOnlyByteBuffer())
+      require(observedFileName.toStringUtf8() == fileName) {
+        "Unexpected file name: '$fileName' does not match '${observedFileName.toStringUtf8()}'"
       }
 
       if (!verifier.verify(codedInput.readByteArray())) {
