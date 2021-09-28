@@ -186,6 +186,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
+// NetworkPolicy allows for selectively enabling traffic between pods
+// https://kubernetes.io/docs/concepts/services-networking/network-policies/#networkpolicy-resource
+//
+// This structure allows configuring a NetworkPolicy that selects on a pod name and it
+// will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
+//
 #NetworkPolicy: {
 	_name:        string
 	_sourceMatchLabels: string
