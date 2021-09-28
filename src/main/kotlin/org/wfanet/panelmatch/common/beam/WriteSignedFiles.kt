@@ -32,7 +32,7 @@ import org.wfanet.panelmatch.common.toByteString
 internal class WriteSignedFiles(
   private val fileSpec: String,
   private val privateKey: PrivateKey,
-  private val certificate: X509Certificate
+  private val certificate: X509Certificate,
 ) : PTransform<PCollection<ByteString>, WriteFilesResult<Void>>() {
   private val fileSpecBreakdown = FileSpecBreakdown(fileSpec)
 
@@ -48,13 +48,14 @@ internal class WriteSignedFiles(
 }
 
 private class SignedFileSink(
-  private val fileSpec: String,
+  fileSpec: String,
   private val privateKey: PrivateKey,
   private val certificate: X509Certificate
 ) : FileIO.Sink<ByteString> {
   private lateinit var outputStream: OutputStream
   private lateinit var codedOutput: CodedOutputStream
   private lateinit var signer: Signature
+  private val fileName = fileSpec.substringAfterLast('/')
 
   override fun open(channel: WritableByteChannel) {
     outputStream = Channels.newOutputStream(channel)
@@ -72,9 +73,9 @@ private class SignedFileSink(
   override fun flush() {
     codedOutput.writeBoolNoTag(false)
 
-    val fileSpecBytes = fileSpec.toByteString()
-    codedOutput.writeBytesNoTag(fileSpecBytes)
-    signer.update(fileSpecBytes.asReadOnlyByteBuffer())
+    val uniqueIdBytes = fileName.toByteString()
+    codedOutput.writeBytesNoTag(uniqueIdBytes)
+    signer.update(uniqueIdBytes.asReadOnlyByteBuffer())
 
     codedOutput.writeByteArrayNoTag(signer.sign())
   }
