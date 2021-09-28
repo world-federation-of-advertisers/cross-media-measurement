@@ -17,14 +17,12 @@ package org.wfanet.measurement.kingdom.service.internal.testing.integration
 import com.google.protobuf.ByteString
 import com.google.type.Date
 import io.grpc.Channel
+import io.grpc.ManagedChannel
 import java.time.Instant
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -49,6 +47,24 @@ class PanelMatchResourceSetup(
   private val modelProvidersStub: ModelProvidersCoroutineStub,
   private val recurringExchangesStub: RecurringExchangesCoroutineStub
 ) {
+
+  /** The Channel can be used in the in-process integration test. */
+  constructor(
+    kingdomInternalApiChannel: Channel
+  ) : this(
+    DataProvidersCoroutineStub(kingdomInternalApiChannel),
+    ModelProvidersCoroutineStub(kingdomInternalApiChannel),
+    RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
+  )
+
+  /** The ManagedChannel can be used in the deployed integration test. */
+  constructor(
+    kingdomInternalApiChannel: ManagedChannel
+  ) : this(
+    DataProvidersCoroutineStub(kingdomInternalApiChannel),
+    ModelProvidersCoroutineStub(kingdomInternalApiChannel),
+    RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
+  )
 
   /** Process to create resources. */
   suspend fun createResourcesForWorkflow(
@@ -171,24 +187,6 @@ class PanelMatchResourceSetup(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    fun fromFlags(flags: PanelMatchResourceSetupFlags): PanelMatchResourceSetup {
-      val clientCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile = flags.tlsFlags.certFile,
-          privateKeyFile = flags.tlsFlags.privateKeyFile,
-          trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
-        )
-      val channel: Channel =
-        buildMutualTlsChannel(flags.internalApiTarget, clientCerts, flags.internalApiCertHost)
-          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
-
-      return PanelMatchResourceSetup(
-        DataProvidersCoroutineStub(channel),
-        ModelProvidersCoroutineStub(channel),
-        RecurringExchangesCoroutineStub(channel)
-      )
-    }
   }
 }
 
