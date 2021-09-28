@@ -194,29 +194,29 @@ import ("strings")
 	}
 }
 
-duchy_network: "nw": [
+duchy_network: "duchy_network": [
 	#NetworkPolicy & {
-		_name: "herald-and-spanner"
+		_name: "herald-to-spanner-computations-server"
 		_sourceMatchLabels: "herald-daemon-pod"
 		_destinationMatchLabels: "spanner-computations-server-pod"
 	},
 	#NetworkPolicy & {
-		_name: "mill-and-spanner"
+		_name: "mill-and-spanner-computations-server"
 		_sourceMatchLabels: "liquid-legions-v2-mill-daemon-pod"
 		_destinationMatchLabels: "spanner-computations-server-pod"
 	},
 	#NetworkPolicy & {
-		_name: "computation-control-and-spanner"
+		_name: "computation-control-to-spanner-computations-server"
 		_sourceMatchLabels: "async-computation-control-server-pod"
 		_destinationMatchLabels: "spanner-computations-server-pod"
 	},
 	#NetworkPolicy & {
-		_name: "fulfillment-and-spanner"
+		_name: "fulfillment-to-spanner-computations-server"
 		_sourceMatchLabels: "requisition-fulfillment-server-pod"
 		_destinationMatchLabels: "spanner-computations-server-pod"
 	},
 	#NetworkPolicy & {
-		_name: "computation-control-and-async-computation-control"
+		_name: "computation-control-to-async-computation-control"
 		_sourceMatchLabels: "computation-control-server-pod"
 		_destinationMatchLabels: "async-computation-control-server-pod"
 	},
