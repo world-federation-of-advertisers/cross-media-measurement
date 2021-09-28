@@ -67,11 +67,32 @@ message ExchangeWorkflow {
     // to "c", this would result in creating a shared blob with label "c". The
     // only way to read "c" would be to use a `CopyFromSharedStorageStep` with
     // input_labels and output_labels swapped.
-    message CopyToSharedStorageStep {}
+    message CopyToSharedStorageStep {
+      CopyOptions copy_options = 1;
+    }
 
     // Copies blobs from shared storage to private storage. See documentation
     // for `CopyToSharedStorageStep`.
-    message CopyFromSharedStorageStep {}
+    message CopyFromSharedStorageStep {
+      CopyOptions copy_options = 1;
+    }
+
+    message CopyOptions {
+      enum LabelType {
+        BLOB_TYPE_UNKNOWN = 0;
+
+        // Indicates the blob should be treated as an opaque blob.
+        BLOB = 1;
+
+        // Indicates the blob for a label is a "manifest" -- the blob is treated
+        // as a UTF-8 plaintext file containing a file glob referencing other
+        // files that should be copied. The referenced files should be in the
+        // same directory as the manifest blob itself -- and thus the glob
+        // should not have any protocol specified or any directory separators.
+        MANIFEST = 2;
+      }
+      LabelType label_type = 1;
+    }
 
     // Compares the inputs to determine if they overlap sufficiently.
     message IntersectAndValidateStep {
