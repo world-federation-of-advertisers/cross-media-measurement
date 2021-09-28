@@ -16,21 +16,25 @@ package org.wfanet.measurement.kingdom.service.internal.testing.integration
 
 import com.google.protobuf.ByteString
 import com.google.type.Date
+import io.grpc.Channel
 import java.time.Instant
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step as internalStep
-import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange as InternalRecurringExchange
-import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
@@ -41,9 +45,9 @@ import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 
 /** Prepares resources for Panel Match integration tests using internal APIs. */
 class PanelMatchResourceSetup(
-  private val dataProvidersService: DataProvidersCoroutineImplBase,
-  private val modelProvidersService: ModelProvidersCoroutineImplBase,
-  private val recurringExchangesService: RecurringExchangesCoroutineImplBase
+  private val dataProvidersServiceStub: DataProvidersCoroutineStub,
+  private val modelProvidersServiceStub: ModelProvidersCoroutineStub,
+  private val recurringExchangesServiceStub: RecurringExchangesCoroutineStub
 ) {
 
   /** Process to create resources. */
@@ -78,7 +82,7 @@ class PanelMatchResourceSetup(
 
   private suspend fun createDataProvider(): Long {
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
-    return dataProvidersService.createDataProvider(
+    return dataProvidersServiceStub.createDataProvider(
         internalDataProvider {
           certificate =
             certificate {
@@ -101,7 +105,7 @@ class PanelMatchResourceSetup(
   }
 
   private suspend fun createModelProvider(): Long {
-    return modelProvidersService.createModelProvider(internalModelProvider {})
+    return modelProvidersServiceStub.createModelProvider(internalModelProvider {})
       .externalModelProviderId
   }
 
@@ -113,7 +117,7 @@ class PanelMatchResourceSetup(
     publicApiVersion: String,
     exchangeWorkflow: ExchangeWorkflow
   ): Long {
-    return recurringExchangesService.createRecurringExchange(
+    return recurringExchangesServiceStub.createRecurringExchange(
         createRecurringExchangeRequest {
           recurringExchange =
             internalRecurringExchange {
@@ -168,6 +172,24 @@ class PanelMatchResourceSetup(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    fun fromTargetFlags(flags: PanelMatchResourceSetupFlags): PanelMatchResourceSetup {
+      val clientCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile = flags.tlsFlags.certFile,
+          privateKeyFile = flags.tlsFlags.privateKeyFile,
+          trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+        )
+      val channel: Channel =
+        buildMutualTlsChannel(flags.target, clientCerts, flags.certHost)
+          .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+
+      return PanelMatchResourceSetup(
+        DataProvidersCoroutineStub(channel),
+        ModelProvidersCoroutineStub(channel),
+        RecurringExchangesCoroutineStub(channel)
+      )
+    }
   }
 }
 
