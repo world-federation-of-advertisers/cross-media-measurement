@@ -14,13 +14,35 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import com.google.protobuf.ByteString
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.panelmatch.common.SecretSet
 
 /** Indicates that an [ExchangeStep] is not valid to execute. */
 class InvalidExchangeStepException(message: String) : Exception(message)
 
 /** Determines whether an ExchangeStep is valid and can be safely executed. */
-interface ExchangeStepValidator {
+class ExchangeStepValidator(
+  private val party: ExchangeWorkflow.Party,
+  private val secretSet: SecretSet<ValidationKey>
+) {
+  data class ValidationKey(val recurringExchangeId: String, val serializedExchangeWork: ByteString)
+
   /** Throws [InvalidExchangeStepException] if [exchangeStep] is invalid. */
-  @Throws(InvalidExchangeStepException::class) fun validate(exchangeStep: ExchangeStep)
+  fun validate(exchangeStep: ExchangeStep) {
+    val serializedExchangeWorkflow = exchangeStep.signedExchangeWorkflow.serializedExchangeWorkflow
+    val recurringExchangeId =
+      requireNotNull(ExchangeStepKey.fromName(exchangeStep.name)).recurringExchangeId
+    if (ValidationKey(recurringExchangeId, serializedExchangeWorkflow) !in secretSet) {
+      throw InvalidExchangeStepException("Serialized ExchangeWorkflow unrecognized")
+    }
+
+    val workflow = ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
+    val step = workflow.getSteps(exchangeStep.stepIndex)
+    if (step.party != party) {
+      throw InvalidExchangeStepException("Party for step '${step.stepId}' was not ${party.name}")
+    }
+  }
 }
