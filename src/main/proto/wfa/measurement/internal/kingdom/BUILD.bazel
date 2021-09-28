@@ -56,6 +56,7 @@ proto_library(
 
 kt_jvm_grpc_and_java_proto_library(
     name = "data_providers_service_kt_jvm_grpc",
+    visibility = ["//visibility:public"],
     srcs = [":data_providers_service_proto"],
 )
 
@@ -76,6 +77,7 @@ proto_library(
 
 kt_jvm_grpc_and_java_proto_library(
     name = "model_providers_service_kt_jvm_grpc",
+    visibility = ["//visibility:public"],
     srcs = [":model_providers_service_proto"],
 )
 
@@ -425,6 +427,7 @@ proto_library(
 
 kt_jvm_grpc_and_java_proto_library(
     name = "recurring_exchanges_service_kt_jvm_grpc",
+    visibility = ["//visibility:public"],
     srcs = [":recurring_exchanges_service_proto"],
 )
 

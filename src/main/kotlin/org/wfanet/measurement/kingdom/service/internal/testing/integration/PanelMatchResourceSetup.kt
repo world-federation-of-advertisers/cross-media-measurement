@@ -17,13 +17,11 @@ package org.wfanet.measurement.kingdom.service.internal.testing.integration
 import com.google.protobuf.ByteString
 import com.google.type.Date
 import java.time.Instant
-import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
@@ -52,7 +50,8 @@ class PanelMatchResourceSetup(
   suspend fun createResourcesForWorkflow(
     exchangeSchedule: String,
     apiVersion: String,
-    exchangeWorkflow: ExchangeWorkflow
+    exchangeWorkflow: ExchangeWorkflow,
+    exchangeDate: Date
   ): RecurringExchangeParticipants {
 
     val externalDataProviderId = createDataProvider()
@@ -64,7 +63,7 @@ class PanelMatchResourceSetup(
       createRecurringExchange(
         externalDataProvider = externalDataProviderId,
         externalModelProvider = externalModelProviderId,
-        exchangeDate = LocalDate.now().toProtoDate(),
+        exchangeDate = exchangeDate,
         exchangeSchedule = exchangeSchedule,
         publicApiVersion = apiVersion,
         exchangeWorkflow = exchangeWorkflow
