@@ -172,6 +172,7 @@ import ("strings")
 			_dependencies: ["system-api-server", "\(_name)-spanner-computations-server"]
 		}
 	}
+
 	setup_job: "push-spanner-schema-job": {
 		apiVersion: "batch/v1"
 		kind:       "Job"
@@ -192,3 +193,32 @@ import ("strings")
 		}
 	}
 }
+
+duchy_network: "duchy_network": [
+	#NetworkPolicy & {
+		_name: "herald-to-spanner-computations-server"
+		_sourceMatchLabels: "herald-daemon-pod"
+		_destinationMatchLabels: "spanner-computations-server-pod"
+	},
+	#NetworkPolicy & {
+		_name: "mill-and-spanner-computations-server"
+		_sourceMatchLabels: "liquid-legions-v2-mill-daemon-pod"
+		_destinationMatchLabels: "spanner-computations-server-pod"
+	},
+	#NetworkPolicy & {
+		_name: "computation-control-to-spanner-computations-server"
+		_sourceMatchLabels: "async-computation-control-server-pod"
+		_destinationMatchLabels: "spanner-computations-server-pod"
+	},
+	#NetworkPolicy & {
+		_name: "fulfillment-to-spanner-computations-server"
+		_sourceMatchLabels: "requisition-fulfillment-server-pod"
+		_destinationMatchLabels: "spanner-computations-server-pod"
+	},
+	#NetworkPolicy & {
+		_name: "computation-control-to-async-computation-control"
+		_sourceMatchLabels: "computation-control-server-pod"
+		_destinationMatchLabels: "async-computation-control-server-pod"
+	},
+	]
+

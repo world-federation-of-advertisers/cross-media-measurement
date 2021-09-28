@@ -25,6 +25,8 @@ objectSets: [
 		kingdom.kingdom_service,
 		kingdom.kingdom_pod,
 		kingdom.kingdom_job,
+		kingdom.kingdom_internal_network_policies,
+		duchy_network
 ] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
 
 fake_service: "spanner-emulator": {
