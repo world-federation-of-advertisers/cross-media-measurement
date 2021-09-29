@@ -14,6 +14,8 @@
 
 package org.wfanet.panelmatch.client.storage.testing
 
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+
 class InMemoryVerifiedStorageTest : AbstractVerifiedStorageTest() {
   override val privateStorage = makeTestVerifiedStorageClient(InMemoryStorageClient())
   override val sharedStorage = makeTestVerifiedStorageClient(InMemoryStorageClient())
