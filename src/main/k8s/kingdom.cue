@@ -75,22 +75,7 @@ import ("strings")
 		_imagePullPolicy: _kingdom_image_pull_policy
 	}
 
-  kingdom_internal_network_policies: [
-				#NetworkPolicy & {
-					_name: "public-api-server-to-internal-data-server"
-					_sourceMatchLabels: "v2alpha-public-api-server-pod"
-					_destinationMatchLabels: "gcp-kingdom-data-server-pod"
-				},
-				#NetworkPolicy & {
-					_name: "system-api-server-to-internal-data-server"
-					_sourceMatchLabels: "system-api-server-pod"
-					_destinationMatchLabels: "gcp-kingdom-data-server"
-				}
-  	]
-
-
 	kingdom_pod: {
-
 		"gcp-kingdom-data-server-pod": #ServerPod & {
 			_args: [
 				_duchy_info_config_flag,
@@ -131,6 +116,19 @@ import ("strings")
 				"--port=8080",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
+		}
+	}
+
+	kingdom_internal_network_policies: [Name=_]: #NetworkPolicy & {
+		_name: Name
+	}
+	kingdom_internal_network_policies: {
+		"interal-data-server": #NetworkPolicy & {
+			_sourceMatchLabels: [
+				"v2alpha-public-api-server-app",
+				"system-api-server-app",
+			]
+			_destinationMatchLabels: "gcp-kingdom-data-server-app"
 		}
 	}
 }
