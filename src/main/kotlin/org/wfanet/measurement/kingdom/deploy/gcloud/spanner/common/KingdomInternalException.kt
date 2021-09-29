@@ -57,6 +57,21 @@ class KingdomInternalException : Exception {
     REQUISITION_NOT_FOUND,
 
     /** Requisition is in an illegal state for the operation. */
-    REQUISITION_STATE_ILLEGAL
+    REQUISITION_STATE_ILLEGAL,
+
+    /** Account resource queried could not be found. */
+    ACCOUNT_NOT_FOUND,
+
+    /** UsernameIdentity with the same username already exists. */
+    USERNAME_ALREADY_EXISTS,
+
+    /** Account has already been activated. */
+    ACCOUNT_ALREADY_ACTIVATED,
+
+    /** Account has not been activated yet. */
+    ACCOUNT_NOT_ACTIVATED,
+
+    /** Account does not own the measurement consumer. */
+    ACCOUNT_NOT_OWNER,
   }
 }

@@ -99,6 +99,11 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
           KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
           KingdomInternalException.Code.DUCHY_NOT_FOUND -> Status.FAILED_PRECONDITION
+          KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+          KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+          KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
+          KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
+          KingdomInternalException.Code.USERNAME_ALREADY_EXISTS,
           KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
           KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
           KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
@@ -131,6 +136,11 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
           KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
           KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL -> Status.FAILED_PRECONDITION
+          KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+          KingdomInternalException.Code.USERNAME_ALREADY_EXISTS,
+          KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
+          KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+          KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
           KingdomInternalException.Code.DUCHY_NOT_FOUND,
           KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
           KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,

@@ -18,6 +18,7 @@ import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.identity.RandomStringGenerator
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
@@ -37,9 +38,10 @@ class SpannerKingdomDataServer : KingdomDataServer() {
     spannerFlags.usingSpanner { spanner ->
       val clock = Clock.systemUTC()
       val idGenerator = RandomIdGenerator(clock)
+      val stringGenerator = RandomStringGenerator(clock)
       val client = spanner.databaseClient
 
-      run(SpannerDataServices(clock, idGenerator, client))
+      run(SpannerDataServices(clock, idGenerator, stringGenerator, client))
     }
   }
 }

@@ -1,0 +1,100 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Proto representation of the internal Account entity type.
+message Account {
+  enum View {
+    // The default/unset value.
+    //
+    // The API will default to the `BASIC` view unless otherwise specified by
+    // the method.
+    VIEW_UNSPECIFIED = 0;
+
+    // Basic view.
+    BASIC = 1;
+
+    // Full view.
+    FULL = 2;
+  }
+
+  fixed64 external_account_id = 1;
+
+  // External Id of the `Account` that created this one.
+  fixed64 external_creator_account_id = 2;
+
+  // Possible activation state of an `Account`.
+  enum ActivationState {
+    ACTIVATION_STATE_UNSPECIFIED = 0;
+    // The `Account` has not yet been activated.
+    UNACTIVATED = 1;
+    // The `Account` has been activated. Terminal state.
+    ACTIVATED = 2;
+  }
+  // Activation state of this `Account`.
+  ActivationState activation_state = 3;
+
+  // Parameters for activation of an `Account`.
+  message ActivationParams {
+    // External Id of the `MeasurementConsumer` that this `Account` will be an
+    // owner of upon activation.
+    //
+    // This can only be a `MeasurementConsumer` that `creator` is an owner of.
+    fixed64 external_owned_measurement_consumer_id = 1;
+
+    // Token that can be used to activate the account. Output-only.
+    string activation_token = 2;
+  }
+
+  // Parameters for activation of this `Account`.
+  //
+  // Only set when `activation_state` is `UNACTIVATED` in `FULL` view.
+  ActivationParams activation_params = 4;
+
+  // Token that can be used to create a `MeasurementConsumer` resource.
+  // Output-only. Immutable.
+  //
+  // Only set in `FULL` view.
+  string measurement_consumer_creation_token = 5;
+
+  // OpenID Connect identity.
+  message OpenIdConnectIdentity {
+    // Issuer (`iss` claim value). Required.
+    string issuer = 1;
+
+    // Subject Identifier (`subj` claim value). Required.
+    string subject = 2;
+  }
+
+  // An identity where the `Account` is identified by a unique username.
+  message UsernameIdentity {
+    // Unique username. Required.
+    string username = 1;
+  }
+
+  // Identity of the user for this `Account.
+  //
+  // This must be set when `activation_state` is `ACTIVATED`. The specified
+  // value is unique across all `Account` resources.
+  oneof identity {
+    OpenIdConnectIdentity open_id_identity = 6;
+    UsernameIdentity username_identity = 7;
+  }
+}
