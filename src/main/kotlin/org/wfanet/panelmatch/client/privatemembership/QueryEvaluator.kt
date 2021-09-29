@@ -19,5 +19,8 @@ import java.io.Serializable
 /** Provides core batch lookup operations. */
 interface QueryEvaluator : Serializable {
   /** Executes [queryBundles] on [shards]. */
-  fun executeQueries(shards: List<DatabaseShard>, queryBundles: List<QueryBundle>): List<Result>
+  fun executeQueries(
+    shards: List<DatabaseShard>,
+    queryBundles: List<EncryptedQueryBundle>
+  ): List<EncryptedQueryResult>
 }

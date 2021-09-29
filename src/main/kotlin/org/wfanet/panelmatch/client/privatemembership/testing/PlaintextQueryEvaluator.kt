@@ -17,16 +17,16 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.protobuf.ByteString
 import com.google.protobuf.ListValue
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
-import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.resultOf
 
 /**
  * Fake [QueryEvaluator] for testing purposes.
  *
- * Each [QueryBundle]'s payload is a serialized [ListValue] protocol buffer. Each element in the
- * list is a string -- the decimal string representation of a bucket to select.
+ * Each [EncryptedQueryBundle]'s payload is a serialized [ListValue] protocol buffer. Each element
+ * in the list is a string -- the decimal string representation of a bucket to select.
  *
  * For example, a [ListValue] to select buckets 10 and 14 might be:
  *
@@ -37,9 +37,9 @@ import org.wfanet.panelmatch.client.privatemembership.resultOf
 object PlaintextQueryEvaluator : QueryEvaluator {
   override fun executeQueries(
     shards: List<DatabaseShard>,
-    queryBundles: List<QueryBundle>
-  ): List<Result> {
-    val results = mutableListOf<Result>()
+    queryBundles: List<EncryptedQueryBundle>
+  ): List<EncryptedQueryResult> {
+    val results = mutableListOf<EncryptedQueryResult>()
     for (shard in shards) {
       for (bundle in queryBundles) {
         if (shard.shardId.id == bundle.shardId.id) {
@@ -50,10 +50,13 @@ object PlaintextQueryEvaluator : QueryEvaluator {
     return results
   }
 
-  private fun query(shard: DatabaseShard, bundle: QueryBundle): List<Result> {
+  private fun query(
+    shard: DatabaseShard,
+    bundle: EncryptedQueryBundle
+  ): List<EncryptedQueryResult> {
     val queriedBuckets = ListValue.parseFrom(bundle.serializedEncryptedQueries)
     require(queriedBuckets.valuesCount == bundle.queryIdsCount)
-    val results = mutableListOf<Result>()
+    val results = mutableListOf<EncryptedQueryResult>()
     for ((queryId, queriedBucket) in bundle.queryIdsList zip queriedBuckets.valuesList) {
       val result =
         shard

@@ -19,7 +19,7 @@ import com.google.protobuf.ByteString
 import org.junit.Test
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
 import org.wfanet.panelmatch.client.privatemembership.bucketOf
@@ -49,9 +49,12 @@ abstract class AbstractQueryEvaluatorTest {
       )
     val queryBundles =
       listOf(
-        queryBundleOf(shard = 100, queries = listOf(500 to 0, 501 to 1, 502 to 3)),
-        queryBundleOf(shard = 100, queries = listOf(503 to 9)),
-        queryBundleOf(shard = 101, queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3))
+        encryptedQueryBundleOf(shard = 100, queries = listOf(500 to 0, 501 to 1, 502 to 3)),
+        encryptedQueryBundleOf(shard = 100, queries = listOf(503 to 9)),
+        encryptedQueryBundleOf(
+          shard = 101,
+          queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3)
+        )
       )
     val results = evaluator.executeQueries(database, queryBundles)
     assertThat(results.map { it.queryId to helper.decodeResultData(it) })
@@ -77,8 +80,8 @@ abstract class AbstractQueryEvaluatorTest {
 
     val queryBundles =
       listOf(
-        queryBundleOf(shard = 100, queries = listOf(500 to 1)),
-        queryBundleOf(shard = 101, queries = listOf(501 to 1))
+        encryptedQueryBundleOf(shard = 100, queries = listOf(500 to 1)),
+        encryptedQueryBundleOf(shard = 101, queries = listOf(501 to 1))
       )
 
     val results = evaluator.executeQueries(database, queryBundles)
@@ -89,7 +92,10 @@ abstract class AbstractQueryEvaluatorTest {
       )
   }
 
-  private fun queryBundleOf(shard: Int, queries: List<Pair<Int, Int>>): QueryBundle {
+  private fun encryptedQueryBundleOf(
+    shard: Int,
+    queries: List<Pair<Int, Int>>
+  ): EncryptedQueryBundle {
     return helper.makeQueryBundle(
       shardIdOf(shard),
       queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }

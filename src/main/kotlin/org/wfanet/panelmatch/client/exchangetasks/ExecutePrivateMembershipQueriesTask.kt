@@ -21,9 +21,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluatorParameters
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.beam.SignedFiles
@@ -57,7 +57,7 @@ class ExecutePrivateMembershipQueriesTask(
     val queriesFileSpec = input.getValue("encrypted-queries").toStringUtf8()
     val queries =
       pipeline.apply(SignedFiles.read(queriesFileSpec, partnerCertificate)).map {
-        QueryBundle.parseFrom(it)
+        EncryptedQueryBundle.parseFrom(it)
       }
 
     val evaluateQueriesWorkflow =

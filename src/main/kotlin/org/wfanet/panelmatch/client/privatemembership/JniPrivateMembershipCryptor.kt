@@ -16,70 +16,53 @@ package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.privatemembership.batch.Shared.Parameters as ClientParameters
 import com.google.privatemembership.batch.Shared.PublicKey as ClientPublicKey
-import com.google.privatemembership.batch.client.Client.EncryptQueriesResponse as ClientEncryptQueriesResponse
-import com.google.privatemembership.batch.client.Client.GenerateKeysResponse as ClientGenerateKeysResponse
 import com.google.privatemembership.batch.client.Client.PrivateKey as ClientPrivateKey
-import com.google.privatemembership.batch.client.encryptQueriesRequest as clientEncryptQueriesRequest
-import com.google.privatemembership.batch.client.generateKeysRequest as clientGenerateKeysRequest
-import com.google.privatemembership.batch.client.plaintextQuery as clientPlaintextQuery
-import com.google.privatemembership.batch.queryMetadata as clientQueryMetadata
+import com.google.privatemembership.batch.client.encryptQueriesRequest
+import com.google.privatemembership.batch.client.generateKeysRequest
+import com.google.privatemembership.batch.client.plaintextQuery
+import com.google.privatemembership.batch.queryMetadata
+import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.loadLibraryFromResource
-import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapper
 
 /** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipWrapper]. */
-class JniPrivateMembershipCryptor : PrivateMembershipCryptor {
+class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) :
+  PrivateMembershipCryptor {
 
-  override fun generateKeys(request: GenerateKeysRequest): GenerateKeysResponse {
-    val clientRequest = clientGenerateKeysRequest {
-      parameters = ClientParameters.parseFrom(request.serializedParameters)
+  override fun generateKeys(): PrivateMembershipKeys {
+    val request = generateKeysRequest {
+      parameters = ClientParameters.parseFrom(serializedParameters)
     }
-    val keys = wrapJniException {
-      ClientGenerateKeysResponse.parseFrom(
-        PrivateMembershipWrapper.generateKeysWrapper(clientRequest.toByteArray())
-      )
-    }
-    return generateKeysResponse {
-      serializedPrivateKey = keys.privateKey.toByteString()
-      serializedPublicKey = keys.publicKey.toByteString()
-    }
+    val keys = JniPrivateMembership.generateKeys(request)
+    return PrivateMembershipKeys(
+      serializedPrivateKey = keys.privateKey.toByteString(),
+      serializedPublicKey = keys.publicKey.toByteString(),
+    )
   }
 
   override fun encryptQueries(
-    request: PrivateMembershipEncryptRequest
-  ): PrivateMembershipEncryptResponse {
+    unencryptedQueries: Iterable<UnencryptedQuery>,
+    keys: PrivateMembershipKeys,
+  ): ByteString {
     val plaintextQueries =
-      request.unencryptedQueriesList.map {
-        clientPlaintextQuery {
+      unencryptedQueries.map {
+        plaintextQuery {
           bucketId = it.bucketId.id
           queryMetadata =
-            clientQueryMetadata {
+            queryMetadata {
               queryId = it.queryId.id
               shardId = it.shardId.id
             }
         }
       }
-    val clientRequest = clientEncryptQueriesRequest {
-      parameters = ClientParameters.parseFrom(request.serializedParameters)
-      privateKey = ClientPrivateKey.parseFrom(request.serializedPrivateKey)
-      publicKey = ClientPublicKey.parseFrom(request.serializedPublicKey)
+    val request = encryptQueriesRequest {
+      parameters = ClientParameters.parseFrom(serializedParameters)
+      privateKey = ClientPrivateKey.parseFrom(keys.serializedPrivateKey)
+      publicKey = ClientPublicKey.parseFrom(keys.serializedPublicKey)
       this.plaintextQueries += plaintextQueries
     }
-    val clientResponse = wrapJniException {
-      ClientEncryptQueriesResponse.parseFrom(
-        PrivateMembershipWrapper.encryptQueriesWrapper(clientRequest.toByteArray())
-      )
-    }
-    val queryMetadata = clientResponse.encryptedQueries.queryMetadataList
-    val ciphertexts = clientResponse.encryptedQueries.encryptedQueriesList.map { it.toByteString() }
-    return privateMembershipEncryptResponse {
-      metadata = clientResponse.encryptedQueries.prngSeed
-      this.ciphertexts += ciphertexts
-      encryptedQuery +=
-        queryMetadata.map {
-          encryptedQueryOf(shardId = shardIdOf(it.shardId), queryId = queryIdOf(it.queryId))
-        }
-    }
+    val response = JniPrivateMembership.encryptQueries(request)
+    return response.toByteString()
   }
 
   companion object {

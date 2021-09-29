@@ -18,69 +18,100 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.privateMembershipDecryptRequest
-import org.wfanet.panelmatch.client.privatemembership.privateMembershipEncryptRequest
+import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.toByteString
 
+private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteString()
+
 @RunWith(JUnit4::class)
 class PlaintextPrivateMembershipCryptorTest {
-  val privateMembershipCryptor = PlaintextPrivateMembershipCryptor
-  private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
+  val privateMembershipCryptor = PlaintextPrivateMembershipCryptor(SERIALIZED_PARAMETERS)
+  val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 
   @Test
   fun `encryptQueries with multiple shards`() {
-    val privateMembershipEncryptRequest = privateMembershipEncryptRequest {
-      unencryptedQueries +=
+    val keys = privateMembershipCryptor.generateKeys()
+    val unencryptedQueriesList =
+      listOf(
         listOf(
           unencryptedQueryOf(100, 1, 1),
           unencryptedQueryOf(100, 2, 2),
+        ),
+        listOf(
           unencryptedQueryOf(101, 3, 1),
-          unencryptedQueryOf(101, 4, 5)
+          unencryptedQueryOf(101, 4, 5),
         )
-    }
-    val encryptedQueries = privateMembershipCryptor.encryptQueries(privateMembershipEncryptRequest)
-    assertThat(encryptedQueries.ciphertextsList.map { QueryBundle.parseFrom(it) })
+      )
+    val encryptedQueriesList =
+      unencryptedQueriesList.map { privateMembershipCryptor.encryptQueries(it, keys) }
+    assertThat(encryptedQueriesList.map { EncryptedQueryBundle.parseFrom(it) })
       .containsExactly(
-        queryBundleOf(shard = 100, listOf(1 to 1, 2 to 2)),
-        queryBundleOf(shard = 101, listOf(3 to 1, 4 to 5))
+        encryptedQueryBundleOf(shard = 100, listOf(1 to 1, 2 to 2)),
+        encryptedQueryBundleOf(shard = 101, listOf(3 to 1, 4 to 5))
       )
   }
 
   @Test
   fun decryptQueries() {
+    val keys = privateMembershipCryptor.generateKeys()
     val encryptedEventData =
       listOf(
-        encryptedEventDataOf("<some encrypted data a>".toByteString(), 1, 6),
-        encryptedEventDataOf("<some encrypted data b>".toByteString(), 2, 7),
-        encryptedEventDataOf("<some encrypted data c>".toByteString(), 3, 8),
-        encryptedEventDataOf("<some encrypted data d>".toByteString(), 4, 9),
-        encryptedEventDataOf("<some encrypted data e>".toByteString(), 5, 10)
+        encryptedEventDataSetOf(
+          listOf(
+            "<some encrypted data a>",
+            "<some encrypted data b>",
+          ),
+          1
+        ),
+        encryptedEventDataSetOf(
+          listOf(
+            "<some encrypted data c>",
+            "<some encrypted data d>",
+          ),
+          2
+        ),
+        encryptedEventDataSetOf(
+          listOf(
+            "<some encrypted data e>",
+          ),
+          3
+        ),
       )
-    val queriedEncryptedResults =
-      privateMembershipCryptorHelper.makeEncryptedQueryResults(encryptedEventData)
-    val decryptRequest = privateMembershipDecryptRequest {
-      encryptedQueryResults += queriedEncryptedResults
-    }
+    val encryptedQueryResults =
+      encryptedEventData.map { privateMembershipCryptorHelper.makeEncryptedQueryResult(keys, it) }
 
-    val decryptedQueries = privateMembershipCryptorHelper.decryptQueryResults(decryptRequest)
-    assertThat(decryptedQueries.decryptedQueryResultsList)
+    val decryptedQueries =
+      encryptedQueryResults.map { privateMembershipCryptorHelper.decodeEncryptedQueryResult(it) }
+    assertThat(
+        decryptedQueries
+          .map { decryptedQueryData ->
+            EncryptedEventData.parseFrom(decryptedQueryData.queryResult).ciphertextsList.map {
+              decryptedQueryOf(it, decryptedQueryData.queryId)
+            }
+          }
+          .flatten()
+      )
       .containsExactly(
-        decryptedQueryOf("<some encrypted data a>".toByteString(), 1, 6),
-        decryptedQueryOf("<some encrypted data b>".toByteString(), 2, 7),
-        decryptedQueryOf("<some encrypted data c>".toByteString(), 3, 8),
-        decryptedQueryOf("<some encrypted data d>".toByteString(), 4, 9),
-        decryptedQueryOf("<some encrypted data e>".toByteString(), 5, 10)
+        decryptedQueryOf("<some encrypted data a>".toByteString(), 1),
+        decryptedQueryOf("<some encrypted data b>".toByteString(), 1),
+        decryptedQueryOf("<some encrypted data c>".toByteString(), 2),
+        decryptedQueryOf("<some encrypted data d>".toByteString(), 2),
+        decryptedQueryOf("<some encrypted data e>".toByteString(), 3)
       )
   }
-}
 
-private fun queryBundleOf(shard: Int, queries: List<Pair<Int, Int>>): QueryBundle {
-  return PlaintextQueryEvaluatorTestHelper.makeQueryBundle(
-    shardIdOf(shard),
-    queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
-  )
+  private fun encryptedQueryBundleOf(
+    shard: Int,
+    queries: List<Pair<Int, Int>>
+  ): EncryptedQueryBundle {
+    return privateMembershipCryptorHelper.makeEncryptedQueryBundle(
+      shardIdOf(shard),
+      queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
+    )
+  }
 }

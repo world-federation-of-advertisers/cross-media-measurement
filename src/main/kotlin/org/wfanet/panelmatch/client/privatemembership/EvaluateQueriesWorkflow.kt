@@ -62,8 +62,8 @@ class EvaluateQueriesWorkflow(
   /** Evaluates [queryBundles] on [database]. */
   fun batchEvaluateQueries(
     database: PCollection<KV<DatabaseKey, Plaintext>>,
-    queryBundles: PCollection<QueryBundle>
-  ): PCollection<Result> {
+    queryBundles: PCollection<EncryptedQueryBundle>
+  ): PCollection<EncryptedQueryResult> {
     val shardedDatabase: PCollection<KV<ShardId, DatabaseShard>> = shardDatabase(database)
 
     val queriesByShard = queryBundles.keyBy("Key QueryBundles by Shard") { it.shardId }
@@ -74,12 +74,12 @@ class EvaluateQueriesWorkflow(
   /** Joins the inputs to execute the queries on the appropriate shards. */
   private fun queryShards(
     shardedDatabase: PCollection<KV<ShardId, DatabaseShard>>,
-    queriesByShard: PCollection<KV<ShardId, QueryBundle>>
-  ): PCollection<Result> {
+    queriesByShard: PCollection<KV<ShardId, EncryptedQueryBundle>>
+  ): PCollection<EncryptedQueryResult> {
     return shardedDatabase.join(queriesByShard, name = "Join Database and queryMetadata") {
       key: ShardId,
       shards: Iterable<DatabaseShard>,
-      queries: Iterable<QueryBundle> ->
+      queries: Iterable<EncryptedQueryBundle> ->
       val queriesList = queries.toList()
 
       val numQueries = queriesList.sumBy { it.queryIdsCount }

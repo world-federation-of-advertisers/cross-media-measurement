@@ -17,57 +17,45 @@ package org.wfanet.panelmatch.client.privatemembership
 import com.google.common.truth.Truth.assertThat
 import com.google.privatemembership.batch.ParametersKt.cryptoParameters
 import com.google.privatemembership.batch.ParametersKt.shardParameters
+import com.google.privatemembership.batch.client.Client.EncryptQueriesResponse
 import com.google.privatemembership.batch.parameters as clientParameters
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.privatemembership.testing.PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
 import org.wfanet.panelmatch.client.privatemembership.testing.encryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.testing.unencryptedQueryOf
 
-@OptIn(ExperimentalUnsignedTypes::class)
 @RunWith(JUnit4::class)
 class JniPrivateMembershipCryptorTest {
-  val privateMembershipCryptor = JniPrivateMembershipCryptor()
-  val parameters = clientParameters {
-    shardParameters =
-      shardParameters {
-        numberOfShards = 200
-        numberOfBucketsPerShard = 2000
+  val serializedParameters =
+    clientParameters {
+        shardParameters =
+          shardParameters {
+            numberOfShards = 200
+            numberOfBucketsPerShard = 2000
+          }
+        cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
       }
-    cryptoParameters =
-      cryptoParameters {
-        logDegree = 12
-        logT = 1
-        variance = 8
-        levelsOfRecursion = 2
-        logCompressionFactor = 4
-        logDecompositionModulus = 10
-        requestModulus += 18446744073708380161UL.toLong()
-        requestModulus += 137438953471UL.toLong()
-        responseModulus += 2056193UL.toLong()
-      }
-  }
+      .toByteString()
+  val privateMembershipCryptor = JniPrivateMembershipCryptor(serializedParameters)
 
   @Test
   fun `encryptQueries with multiple shards`() {
-    val generateKeysRequest = generateKeysRequest {
-      serializedParameters = parameters.toByteString()
-    }
-    val generateKeysResponse = privateMembershipCryptor.generateKeys(generateKeysRequest)
-    val encryptQueriesRequest = privateMembershipEncryptRequest {
-      unencryptedQueries +=
-        listOf(
-          unencryptedQueryOf(100, 1, 1),
-          unencryptedQueryOf(100, 2, 2),
-          unencryptedQueryOf(101, 3, 1),
-          unencryptedQueryOf(101, 4, 5)
-        )
-      serializedParameters = parameters.toByteString()
-      serializedPrivateKey = generateKeysResponse.serializedPrivateKey
-      serializedPublicKey = generateKeysResponse.serializedPublicKey
-    }
-    val encryptedQueries = privateMembershipCryptor.encryptQueries(encryptQueriesRequest)
-    assertThat(encryptedQueries.encryptedQueryList)
+    val keys = privateMembershipCryptor.generateKeys()
+    val unencryptedQueries =
+      listOf(
+        unencryptedQueryOf(100, 1, 1),
+        unencryptedQueryOf(100, 2, 2),
+        unencryptedQueryOf(101, 3, 1),
+        unencryptedQueryOf(101, 4, 5)
+      )
+    val encryptedQueries = privateMembershipCryptor.encryptQueries(unencryptedQueries, keys)
+    val encryptedQueryList =
+      EncryptQueriesResponse.parseFrom(encryptedQueries).encryptedQueries.queryMetadataList.map {
+        encryptedQueryOf(it.shardId, it.queryId)
+      }
+    assertThat(encryptedQueryList)
       .containsExactly(
         encryptedQueryOf(100, 1),
         encryptedQueryOf(100, 2),

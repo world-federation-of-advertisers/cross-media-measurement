@@ -37,7 +37,7 @@ using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
 using ::wfa::panelmatch::common::crypto::GetSha256Hkdf;
 using ::wfa::panelmatch::common::crypto::Hkdf;
 
-absl::StatusOr<DecryptEventDataResponse> DecryptEventData(
+absl::StatusOr<DecryptedEventDataSet> DecryptEventData(
     const DecryptEventDataRequest& request) {
   if (request.hkdf_pepper().empty()) {
     return absl::InvalidArgumentError("Empty HKDF Pepper");
@@ -48,21 +48,19 @@ absl::StatusOr<DecryptEventDataResponse> DecryptEventData(
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   const AesWithHkdf aes_hkdf = AesWithHkdf(std::move(hkdf), std::move(aes));
-  DecryptEventDataResponse response;
-  for (const std::string& encrypted_event :
-       request.encrypted_event_data().ciphertexts()) {
+  DecryptedEventDataSet response;
+  response.mutable_query_id()->set_id(
+      request.encrypted_event_data_set().query_id().id());
+  for (const std::string& encrypted_event : request.encrypted_event_data_set()
+                                                .encrypted_event_data()
+                                                .ciphertexts()) {
     absl::StatusOr<std::string> plaintext = aes_hkdf.Decrypt(
         encrypted_event,
         SecretDataFromStringView(request.single_blinded_joinkey().key()),
         SecretDataFromStringView(request.hkdf_pepper()));
     if (plaintext.ok()) {
-      DecryptedEventData* decrypted_event_data =
-          response.add_decrypted_event_data();
-      decrypted_event_data->set_plaintext(*std::move(plaintext));
-      *decrypted_event_data->mutable_query_id() =
-          request.encrypted_event_data().query_id();
-      *decrypted_event_data->mutable_shard_id() =
-          request.encrypted_event_data().shard_id();
+      Plaintext* decrypted_event_data = response.add_decrypted_event_data();
+      decrypted_event_data->set_payload(*std::move(plaintext));
     }
   }
   return response;

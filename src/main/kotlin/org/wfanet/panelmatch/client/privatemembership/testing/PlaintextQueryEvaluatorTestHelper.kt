@@ -18,9 +18,9 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.listValue
 import com.google.protobuf.value
 import org.wfanet.panelmatch.client.privatemembership.BucketId
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
@@ -29,17 +29,17 @@ import org.wfanet.panelmatch.client.privatemembership.resultOf
  * Helper with [PlaintextQueryEvaluator].
  *
  * See documentation for [PlaintextQueryEvaluator] for details on the internal format of the
- * [QueryBundle] payload.
+ * [EncryptedQueryBundle] payload.
  */
 object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
-  override fun decodeResultData(result: Result): ByteString {
+  override fun decodeResultData(result: EncryptedQueryResult): ByteString {
     return result.serializedEncryptedQueryResult
   }
 
   override fun makeQueryBundle(
     shard: ShardId,
     queries: List<Pair<QueryId, BucketId>>
-  ): QueryBundle {
+  ): EncryptedQueryBundle {
     return queryBundleOf(
       shard,
       queries.map { it.first },
@@ -52,11 +52,11 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
     )
   }
 
-  override fun makeResult(query: QueryId, rawPayload: ByteString): Result {
+  override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {
     return resultOf(query, rawPayload)
   }
 
-  override fun makeEmptyResult(query: QueryId): Result {
+  override fun makeEmptyResult(query: QueryId): EncryptedQueryResult {
     return makeResult(query, ByteString.EMPTY)
   }
 }
