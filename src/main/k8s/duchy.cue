@@ -105,11 +105,11 @@ import ("strings")
 				"--mill-id=\(_name)-liquid-legions-v2-mill-1",
 				"--polling-interval=1s",
 			] + _blob_storage_flags
-			_jvm_flags: "-Xmx4g -Xms256m"
+			_jvm_flags:             "-Xmx4g -Xms256m"
 			_resourceRequestMemory: "4Gi"
-			_resourceLimitMemory: "4Gi"
-			_resourceRequestCpu: "2"
-			_resourceLimitCpu: "2"
+			_resourceLimitMemory:   "4Gi"
+			_resourceRequestCpu:    "2"
+			_resourceLimitCpu:      "2"
 			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-pod": #ServerPod & {
@@ -192,33 +192,25 @@ import ("strings")
 			restartPolicy: "OnFailure"
 		}
 	}
+
+	duchy_internal_network_policy: [Name=_]: #NetworkPolicy & {
+		_name: _object_prefix + Name
+	}
+	duchy_internal_network_policy: {
+		"spanner-computations-server": #NetworkPolicy & {
+			_sourceMatchLabels: [
+				_object_prefix + "herald-daemon-app",
+				_object_prefix + "liquid-legions-v2-mill-daemon-app",
+				_object_prefix + "async-computation-control-server-app",
+				_object_prefix + "requisition-fulfillment-server-app",
+			]
+			_destinationMatchLabels: _object_prefix + "spanner-computations-server-app"
+		}
+		"async-computation-controls-server": #NetworkPolicy & {
+			_sourceMatchLabels: [
+				"computation-control-server-app",
+			]
+			_destinationMatchLabels: "async-computation-control-server-app"
+		}
+	}
 }
-
-duchy_network: "duchy_network": [
-	#NetworkPolicy & {
-		_name: "herald-to-spanner-computations-server"
-		_sourceMatchLabels: "herald-daemon-pod"
-		_destinationMatchLabels: "spanner-computations-server-pod"
-	},
-	#NetworkPolicy & {
-		_name: "mill-and-spanner-computations-server"
-		_sourceMatchLabels: "liquid-legions-v2-mill-daemon-pod"
-		_destinationMatchLabels: "spanner-computations-server-pod"
-	},
-	#NetworkPolicy & {
-		_name: "computation-control-to-spanner-computations-server"
-		_sourceMatchLabels: "async-computation-control-server-pod"
-		_destinationMatchLabels: "spanner-computations-server-pod"
-	},
-	#NetworkPolicy & {
-		_name: "fulfillment-to-spanner-computations-server"
-		_sourceMatchLabels: "requisition-fulfillment-server-pod"
-		_destinationMatchLabels: "spanner-computations-server-pod"
-	},
-	#NetworkPolicy & {
-		_name: "computation-control-to-async-computation-control"
-		_sourceMatchLabels: "computation-control-server-pod"
-		_destinationMatchLabels: "async-computation-control-server-pod"
-	},
-	]
-
