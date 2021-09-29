@@ -27,8 +27,9 @@ message Certificate {
   option (google.api.resource) = {
     type: "halo.wfanet.org/Certificate"
     pattern: "dataProviders/{data_provider}/certificates/{certificate}"
-    pattern: "measurementConsumers/{measurement_consumer}/certificates/{certificate}"
     pattern: "duchies/{duchy}/certificates/{certificate}"
+    pattern: "measurementConsumers/{measurement_consumer}/certificates/{certificate}"
+    pattern: "modelProviders/{model_provider}/certificates/{certificate}"
   };
 
   // Resource name.

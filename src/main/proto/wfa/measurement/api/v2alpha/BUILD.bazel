@@ -167,6 +167,7 @@ proto_library(
     srcs = ["model_provider.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":crypto_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
