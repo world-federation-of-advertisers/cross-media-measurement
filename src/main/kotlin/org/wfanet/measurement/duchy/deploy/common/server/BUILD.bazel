@@ -1,7 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
-load("//src/main/docker:java_image_base_nonroot.bzl", "java_image_base_nonroot")
 
 kt_jvm_library(
     name = "async_computation_control_server",
@@ -28,7 +27,7 @@ java_binary(
 
 java_image(
     name = "async_computation_control_server_image",
-    base = ":java_image_base_nonroot",
+    base = "//src/main/docker:java_image_base_nonroot",
     data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.server.AsyncComputationControlServerKt",
     visibility = ["//src:docker_image_deployment"],
@@ -72,7 +71,7 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_computation_control_server_image",
-    base = ":java_image_base_nonroot",
+    base = "//src/main/docker:java_image_base_nonroot",
     data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageComputationControlServerKt",
     visibility = [
@@ -134,7 +133,7 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_requisition_fulfillment_server_image",
-    base = ":java_image_base_nonroot",
+    base = "//src/main/docker:java_image_base_nonroot",
     data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageRequisitionFulfillmentServerKt",
     visibility = [
