@@ -100,7 +100,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun initService() {
     service = newService(idGeneratorA, stringGeneratorA)
     serviceWithSecondFixedGenerator = newService(idGeneratorB, stringGeneratorB)
-    newTestDataServices(idGeneratorA)
   }
 
   @Test
