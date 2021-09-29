@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -109,8 +109,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception.status.description).isEqualTo("Creator account not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.description).isEqualTo("Creator account not found")
   }
 
   @Test
@@ -125,8 +125,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    Truth.assertThat(exception.status.description).isEqualTo("Owned measurement consumer not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.description).isEqualTo("Owned measurement consumer not found")
   }
 
   @Test
@@ -160,8 +160,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
-    Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    Truth.assertThat(exception.status.description)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
       .isEqualTo("Caller does not own the owned measurement consumer")
   }
 
