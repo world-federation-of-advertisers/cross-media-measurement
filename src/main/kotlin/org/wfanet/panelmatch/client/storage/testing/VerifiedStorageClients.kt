@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 
 private val certificate: X509Certificate by lazy { readCertificate(FIXED_SERVER_CERT_PEM_FILE) }
