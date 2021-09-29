@@ -127,7 +127,7 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
       Parameters(
         serializedParameters = privateMembershipSerializedParameters,
         serializedPrivateKey = keys.serializedPrivateKey,
-        serializedPublicKey = keys.serializedPublicKey
+        serializedPublicKey = keys.serializedPublicKey,
       )
     val decryptedResults = runWorkflow(queryResultsDecryptor, parameters)
     assertThat(decryptedResults).satisfies {

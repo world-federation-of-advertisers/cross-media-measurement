@@ -40,7 +40,13 @@ class DecryptQueryResultsWorkflow(
   private val compressorFactory: CompressorFactory,
 ) : Serializable {
 
-  /** Tuning knobs for the [DecryptQueryResultsWorkflow]. */
+  /**
+   * @property serializedParameters Tuning knobs for the [DecryptQueryResultsWorkflow].
+   * @property serializedPublicKey A serialized Public Key used in RLWE previously generated using
+   * [serializedParameters]
+   * @property serializedPrivateKey A serialized Private Key used in RLWE previously generated using
+   * [serializedParameters]
+   */
   data class Parameters(
     val serializedParameters: ByteString,
     val serializedPublicKey: ByteString,

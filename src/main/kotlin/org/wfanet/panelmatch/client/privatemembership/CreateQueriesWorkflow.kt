@@ -56,7 +56,7 @@ class CreateQueriesWorkflow(
    * @property totalQueriesPerShard [Int?] pads the number of queries per shard to be this number.
    * If the number of queries is larger than [totalQueriesPerShard], then queries in that shard are
    * culled down to [totalQueriesPerShard]. Null signifies no additional padding/culling should take
-   * place. TODO: Implement totalQueriesPerShard
+   * place.
    */
   data class Parameters(
     val serializedParameters: ByteString,

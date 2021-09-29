@@ -26,11 +26,7 @@ import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapperJNI
 
-/**
- * Type-safe wrapper over [PrivateMembershipWrapperJNI].
- *
- * TODO(@efoxepstein): unify this with other JNI calls into Private Membership.
- */
+/** Type-safe wrapper over [PrivateMembershipWrapperJNI]. */
 object JniPrivateMembership {
   init {
     loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")
