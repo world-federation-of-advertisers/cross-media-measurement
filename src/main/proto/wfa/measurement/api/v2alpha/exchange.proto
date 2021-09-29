@@ -38,4 +38,12 @@ message Exchange {
 
   // SHA256 hash of the audit trail, if uploaded.
   bytes audit_trail_hash = 3;
+
+  // DOT language representation of the Exchange -- this gives the status and
+  // relationship between all steps.
+  //
+  // See https://graphviz.org/doc/info/lang.html for the language specification.
+  //
+  // Output only.
+  string graphviz_representation = 4;
 }
