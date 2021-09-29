@@ -44,7 +44,7 @@ class DecryptQueryResultsWorkflow(
   data class Parameters(
     val serializedParameters: ByteString,
     val serializedPublicKey: ByteString,
-    val serializedPrivateKey: ByteString
+    val serializedPrivateKey: ByteString,
   ) : Serializable
 
   /**
@@ -56,7 +56,7 @@ class DecryptQueryResultsWorkflow(
     encryptedQueryResults: PCollection<EncryptedQueryResult>,
     queryIdToJoinKey: PCollection<KV<QueryId, JoinKey>>,
     dictionary: PCollection<ByteString>,
-  ): PCollection<DecryptedEventData> {
+  ): PCollection<DecryptedEventDataSet> {
     val keyedEncryptedQueryResults =
       encryptedQueryResults.keyBy<EncryptedQueryResult, QueryId>("Key by Query Id") {
         requireNotNull(it.queryId)
@@ -65,7 +65,7 @@ class DecryptQueryResultsWorkflow(
       queryIdToJoinKey.strictOneToOneJoin<QueryId, JoinKey, EncryptedQueryResult>(
           keyedEncryptedQueryResults
         )
-        .parDo<KV<JoinKey, EncryptedQueryResult>, DecryptedEventData>(
+        .parDo<KV<JoinKey, EncryptedQueryResult>, DecryptedEventDataSet>(
           name = "Decrypt encrypted results"
         ) {
           val request = decryptQueryResultsRequest {
@@ -77,7 +77,7 @@ class DecryptQueryResultsWorkflow(
             this.hkdfPepper = hkdfPepper
           }
           val decryptedResults = queryResultsDecryptor.decryptQueryResults(request)
-          yieldAll(decryptedResults.decryptedEventDataList)
+          yieldAll(decryptedResults.eventDataSetsList)
         }
     return uncompressEvents(decryptedQueryResults, dictionary, compressorFactory)
   }

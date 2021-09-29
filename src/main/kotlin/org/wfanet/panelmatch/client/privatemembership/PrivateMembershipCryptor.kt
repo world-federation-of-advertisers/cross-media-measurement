@@ -14,7 +14,13 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.ByteString
 import java.io.Serializable
+
+data class PrivateMembershipKeys(
+  val serializedPublicKey: ByteString,
+  val serializedPrivateKey: ByteString,
+) : Serializable
 
 /**
  * Provides oblivious query compression encryption and decryption for use in private information
@@ -23,8 +29,11 @@ import java.io.Serializable
 interface PrivateMembershipCryptor : Serializable {
 
   /** Generates a public and private key for query compression and expansion */
-  fun generateKeys(request: GenerateKeysRequest): GenerateKeysResponse
+  fun generateKeys(): PrivateMembershipKeys
 
   /** encrypts a set of unencrypted queries */
-  fun encryptQueries(request: PrivateMembershipEncryptRequest): PrivateMembershipEncryptResponse
+  fun encryptQueries(
+    unencryptedQueries: Iterable<UnencryptedQuery>,
+    keys: PrivateMembershipKeys
+  ): ByteString
 }

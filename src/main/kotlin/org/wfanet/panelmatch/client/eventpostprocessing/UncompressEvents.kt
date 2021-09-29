@@ -18,8 +18,10 @@ import com.google.protobuf.ByteString
 import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.CombinedEvents
-import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
-import org.wfanet.panelmatch.client.privatemembership.decryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
+import org.wfanet.panelmatch.client.privatemembership.Plaintext
+import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
+import org.wfanet.panelmatch.client.privatemembership.plaintext
 import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.CompressorFactory
@@ -30,23 +32,26 @@ import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
  * generated using the [CompressorFactory] and dictionary.
  */
 fun uncompressEvents(
-  compressedEvents: PCollection<DecryptedEventData>,
+  compressedEventSet: PCollection<DecryptedEventDataSet>,
   dictionary: PCollection<ByteString>,
   compressorFactory: CompressorFactory
-): PCollection<DecryptedEventData> {
+): PCollection<DecryptedEventDataSet> {
 
-  return compressedEvents.parDoWithSideInput(dictionary.apply(View.asSingleton())) {
-    events: DecryptedEventData,
+  return compressedEventSet.parDoWithSideInput(dictionary.apply(View.asSingleton())) {
+    eventSet: DecryptedEventDataSet,
     dictionaryData: ByteString ->
     val compressor: Compressor = FactoryBasedCompressor(dictionaryData, compressorFactory)
-    CombinedEvents.parseFrom(compressor.uncompress(events.plaintext)).serializedEventsList.forEach {
-      yield(
-        decryptedEventData {
-          plaintext = it
-          queryId = events.queryId
-          shardId = events.shardId
+    val uncompressedEvents: List<Plaintext> =
+      eventSet.decryptedEventDataList.flatMap { events ->
+        CombinedEvents.parseFrom(compressor.uncompress(events.payload)).serializedEventsList.map {
+          plaintext { payload = it }
         }
-      )
-    }
+      }
+    yield(
+      decryptedEventDataSet {
+        queryId = eventSet.queryId
+        decryptedEventData += uncompressedEvents
+      }
+    )
   }
 }

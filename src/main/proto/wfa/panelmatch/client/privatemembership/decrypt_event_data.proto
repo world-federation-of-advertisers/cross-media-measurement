@@ -24,14 +24,19 @@ option java_multiple_files = true;
 // Removes the final layer of encryption for event data using the joinkey and
 // pepper.
 message DecryptEventDataRequest {
-  EncryptedEventData encrypted_event_data = 1;
+  message EncryptedEventDataSet {
+    QueryId query_id = 1;
+    EncryptedEventData encrypted_event_data = 2;
+  }
+  EncryptedEventDataSet encrypted_event_data_set = 1;
   JoinKey single_blinded_joinkey = 2;
   bytes hkdf_pepper = 3;
 }
 
 // Response of DecryptEventDataRequest
-message DecryptEventDataResponse {
-  repeated DecryptedEventData decrypted_event_data = 1;
+message DecryptedEventDataSet {
+  QueryId query_id = 1;
+  repeated Plaintext decrypted_event_data = 2;
 }
 
 // Removes in one step both the private membership encryption as well as the
@@ -47,5 +52,5 @@ message DecryptQueryResultsRequest {
 
 // Response of DecryptQueryResultsRequest
 message DecryptQueryResultsResponse {
-  repeated DecryptedEventData decrypted_event_data = 1;
+  repeated DecryptedEventDataSet event_data_sets = 1;
 }

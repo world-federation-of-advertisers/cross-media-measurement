@@ -23,7 +23,7 @@ import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflow
-import org.wfanet.panelmatch.client.privatemembership.DecryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
@@ -66,14 +66,14 @@ class DecryptPrivateMembershipResultsTask(
 
     val hkdfPepper = input.getValue("hkdf-pepper").toByteString()
 
-    val decryptedEventData: PCollection<DecryptedEventData> =
+    val decryptedEventDataSet: PCollection<DecryptedEventDataSet> =
       DecryptQueryResultsWorkflow(parameters, queryResultsDecryptor, hkdfPepper, compressorFactory)
         .batchDecryptQueryResults(encryptedQueryResults, queryToJoinKey, dictionary)
 
     // TODO: pick the number of shards dynamically.
     val numShards = 100
     val fileSpec = "$outputUriPrefix/decrypted-event-data-*-of-$numShards"
-    decryptedEventData
+    decryptedEventDataSet
       .map { it.toByteString() }
       .apply(SignedFiles.write(fileSpec, privateKey, localCertificate))
 

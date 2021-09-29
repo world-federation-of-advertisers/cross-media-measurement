@@ -16,9 +16,12 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class PlaintextCreateQueriesWorkflowTest : AbstractCreateQueriesWorkflowTest() {
-  override val privateMembershipCryptor = PlaintextPrivateMembershipCryptor
-  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
+  override val privateMembershipSerializedParameters = "some serialized parameters".toByteString()
+  override val privateMembershipCryptor =
+    PlaintextPrivateMembershipCryptor(privateMembershipSerializedParameters)
+  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 }

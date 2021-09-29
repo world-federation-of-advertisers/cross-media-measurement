@@ -43,11 +43,3 @@ message Bucket {
   BucketId bucket_id = 1;
   bytes payload = 2;
 }
-
-// A full or partial result for an oblivious query.
-message Result {
-  QueryId query_id = 1;
-
-  // Serialized encrypted query results.
-  bytes serialized_encrypted_query_result = 2;
-}

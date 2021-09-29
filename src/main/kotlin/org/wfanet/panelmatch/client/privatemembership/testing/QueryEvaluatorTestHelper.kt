@@ -17,9 +17,9 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.protobuf.ByteString
 import java.io.Serializable
 import org.wfanet.panelmatch.client.privatemembership.BucketId
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 
 interface QueryEvaluatorTestHelper : Serializable {
@@ -29,15 +29,15 @@ interface QueryEvaluatorTestHelper : Serializable {
     }
   }
 
-  fun decodeResult(result: Result): DecodedResult {
+  fun decodeResult(result: EncryptedQueryResult): DecodedResult {
     return DecodedResult(result.queryId.id, decodeResultData(result))
   }
 
-  fun decodeResultData(result: Result): ByteString
+  fun decodeResultData(result: EncryptedQueryResult): ByteString
 
-  fun makeQueryBundle(shard: ShardId, queries: List<Pair<QueryId, BucketId>>): QueryBundle
+  fun makeQueryBundle(shard: ShardId, queries: List<Pair<QueryId, BucketId>>): EncryptedQueryBundle
 
-  fun makeResult(query: QueryId, rawPayload: ByteString): Result
+  fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult
 
-  fun makeEmptyResult(query: QueryId): Result
+  fun makeEmptyResult(query: QueryId): EncryptedQueryResult
 }

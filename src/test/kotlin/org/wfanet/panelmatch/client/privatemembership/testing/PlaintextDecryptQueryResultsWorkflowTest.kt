@@ -14,18 +14,19 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
-import com.google.protobuf.ByteString
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.testing.FakeCompressorFactory
 import org.wfanet.panelmatch.client.common.testing.FakeEventCompressorTrainer
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class PlaintextDecryptQueryResultsWorkflowTest : AbstractDecryptQueryResultsWorkflowTest() {
+  override val privateMembershipSerializedParameters = "some serialized parameters".toByteString()
   override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
-  override val privateMembershipCryptor = PlaintextPrivateMembershipCryptor
-  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper
-  override val serializedParameters = ByteString.EMPTY
+  override val privateMembershipCryptor =
+    PlaintextPrivateMembershipCryptor(privateMembershipSerializedParameters)
+  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
   override val eventCompressorTrainer = FakeEventCompressorTrainer()
   override val compressorFactory = FakeCompressorFactory()
 }

@@ -28,26 +28,11 @@ message BucketId {
   int32 id = 1;
 }
 
+// A new id assigned to each individual query unique to that transaction.
 // These cannot be randomly generated. For 30k QueryIds, the odds of collision
 // in 32 bit space are 1/10.
 message QueryId {
   int32 id = 1;
-}
-
-// A set of oblivious queries for a single database shard.
-//
-// All of the queries for a specific shard need not fit into a single
-// QueryBundle -- this is just a way of packing multiple queries into multiple
-// ciphertexts to improve efficiency.
-//
-// The buckets within the shard that each query selects are encoded in the
-// serialized_encrypted_queries field.
-message QueryBundle {
-  ShardId shard_id = 1;
-  repeated QueryId query_ids = 2;
-
-  // Serialized, encrypted queries.
-  bytes serialized_encrypted_queries = 3;
 }
 
 // Some key maintained by a model provider to identify a panelist
@@ -58,6 +43,22 @@ message PanelistKey {
 // The agreed upon join key used for double blind exchange and query lookup
 message JoinKey {
   bytes key = 1;
+}
+
+// A set of oblivious queries for a single database shard.
+//
+// All of the queries for a specific shard need not fit into a single
+// QueryBundle -- this is just a way of packing multiple queries into multiple
+// ciphertexts to improve efficiency.
+//
+// The buckets within the shard that each query selects are encoded in the
+// serialized_encrypted_queries field.
+message EncryptedQueryBundle {
+  ShardId shard_id = 1;
+  repeated QueryId query_ids = 2;
+
+  // Serialized, encrypted queries.
+  bytes serialized_encrypted_queries = 3;
 }
 
 // Pair of QueryId and JoinKey
@@ -74,33 +75,23 @@ message QueryIdAndPanelistKey {
 
 // Generic message type holding an encrypted query result
 message EncryptedQueryResult {
-  ShardId shard_id = 1;
-  QueryId query_id = 2;
-  repeated bytes ciphertexts = 3;
-}
-
-// Generic message type holding an encrypted event data
-message EncryptedEventData {
   QueryId query_id = 1;
-  ShardId shard_id = 2;
-  repeated bytes ciphertexts = 3;
+
+  // Serialized encrypted query results.
+  bytes serialized_encrypted_query_result = 2;
 }
 
-// The underlying format for an encrypted query result
-message QueryResult {
+message EncryptedEventData {
   repeated bytes ciphertexts = 1;
 }
 
-// Generic message type holding an decrypted query result
+// Generic message type holding a decrypted query result
 message DecryptedQueryResult {
-  ShardId shard_id = 1;
   QueryId query_id = 2;
   bytes query_result = 3;
 }
 
-// Generic message type holding an decrypted query result
-message DecryptedEventData {
-  ShardId shard_id = 1;
-  QueryId query_id = 2;
-  bytes plaintext = 3;
+// Generic message type holding an unencrypted query result
+message Plaintext {
+  bytes payload = 1;
 }

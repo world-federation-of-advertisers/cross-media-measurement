@@ -39,21 +39,22 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
   }
 
   private fun runWorkflow(
-    queryBundles: List<QueryBundle>,
+    queryBundles: List<EncryptedQueryBundle>,
     parameters: Parameters
-  ): PCollection<Result> {
+  ): PCollection<EncryptedQueryResult> {
     return EvaluateQueriesWorkflow(parameters, PlaintextQueryEvaluator)
       .batchEvaluateQueries(database, pcollectionOf("Create Query Bundles", queryBundles))
   }
 
   @Test
-  fun `single QueryBundle`() {
+  fun `single EncryptedQueryBundle`() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "hij", 1 with "abc", and 2 with "klm"
     val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
 
-    val queryBundles = listOf(queryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
+    val queryBundles =
+      listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
 
     assertThat(runWorkflow(queryBundles, parameters))
       .containsInAnyOrder(resultOf(100, "hij"), resultOf(101, "hij"), resultOf(102, "abc"))
@@ -70,8 +71,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
 
     val queryBundles =
       listOf(
-        queryBundleOf(shard = 0, listOf(100 to 4)),
-        queryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1))
+        encryptedQueryBundleOf(shard = 0, listOf(100 to 4)),
+        encryptedQueryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1))
       )
 
     assertThat(runWorkflow(queryBundles, parameters))
@@ -94,9 +95,9 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
 
     val queryBundles =
       listOf(
-        queryBundleOf(shard = 1, listOf(100 to 0, 101 to 1, 102 to 2)),
-        queryBundleOf(shard = 1, listOf(103 to 0)),
-        queryBundleOf(shard = 1, listOf(104 to 1)),
+        encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 1, 102 to 2)),
+        encryptedQueryBundleOf(shard = 1, listOf(103 to 0)),
+        encryptedQueryBundleOf(shard = 1, listOf(104 to 1)),
       )
 
     assertThat(runWorkflow(queryBundles, parameters))
@@ -115,7 +116,7 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
   fun `repeated bucket`() {
     val parameters = Parameters(numShards = 1, numBucketsPerShard = 1, maxQueriesPerShard = 1)
 
-    val queryBundles = listOf(queryBundleOf(shard = 0, listOf(17 to 0)))
+    val queryBundles = listOf(encryptedQueryBundleOf(shard = 0, listOf(17 to 0)))
 
     assertThat(runWorkflow(queryBundles, parameters)).satisfies {
       val list = it.toList()
@@ -134,7 +135,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     //  - Shard 1 to have buckets 0 with "hij", 1 with "abc", and 2 with "klm"
     val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 2)
 
-    val queryBundles = listOf(queryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
+    val queryBundles =
+      listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
 
     runWorkflow(queryBundles, parameters)
 
@@ -165,11 +167,14 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
   }
 }
 
-private fun resultOf(query: Int, rawPayload: String): Result {
+private fun resultOf(query: Int, rawPayload: String): EncryptedQueryResult {
   return PlaintextQueryEvaluatorTestHelper.makeResult(queryIdOf(query), rawPayload.toByteString())
 }
 
-private fun queryBundleOf(shard: Int, queries: List<Pair<Int, Int>>): QueryBundle {
+private fun encryptedQueryBundleOf(
+  shard: Int,
+  queries: List<Pair<Int, Int>>
+): EncryptedQueryBundle {
   return PlaintextQueryEvaluatorTestHelper.makeQueryBundle(
     shardIdOf(shard),
     queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }

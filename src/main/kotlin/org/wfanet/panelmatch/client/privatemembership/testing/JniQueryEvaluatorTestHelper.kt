@@ -14,18 +14,18 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
-import com.google.privatemembership.batch.Shared.EncryptedQueryResult
+import com.google.privatemembership.batch.Shared.EncryptedQueryResult as ClientEncryptedQueryResult
 import com.google.privatemembership.batch.client.decryptQueriesRequest
 import com.google.privatemembership.batch.client.encryptQueriesRequest
 import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
 import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.client.privatemembership.BucketId
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembership
 import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.Result
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
 import org.wfanet.panelmatch.client.privatemembership.bucketOf
@@ -35,8 +35,9 @@ import org.wfanet.panelmatch.common.toByteString
 
 class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext) :
   QueryEvaluatorTestHelper {
-  override fun decodeResultData(result: Result): ByteString {
-    val encryptedQueryResult = EncryptedQueryResult.parseFrom(result.serializedEncryptedQueryResult)
+  override fun decodeResultData(result: EncryptedQueryResult): ByteString {
+    val encryptedQueryResult =
+      ClientEncryptedQueryResult.parseFrom(result.serializedEncryptedQueryResult)
     if (encryptedQueryResult.ciphertextsCount == 0) {
       // TODO(@efoxepstein): why is this required?
       return ByteString.EMPTY
@@ -54,7 +55,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
   override fun makeQueryBundle(
     shard: ShardId,
     queries: List<Pair<QueryId, BucketId>>
-  ): QueryBundle {
+  ): EncryptedQueryBundle {
     val request = encryptQueriesRequest {
       parameters = context.privateMembershipParameters
       publicKey = context.privateMembershipPublicKey
@@ -79,7 +80,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
     )
   }
 
-  override fun makeResult(query: QueryId, rawPayload: ByteString): Result {
+  override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {
     // TODO(@efoxepstein): have private-membership expose a helper for this.
     return JniQueryEvaluator(context.parameters)
       .executeQueries(
@@ -89,7 +90,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
       .single()
   }
 
-  override fun makeEmptyResult(query: QueryId): Result {
+  override fun makeEmptyResult(query: QueryId): EncryptedQueryResult {
     // TODO(@efoxepstein): have private-membership expose a helper for this.
     val databaseShard =
       databaseShardOf(

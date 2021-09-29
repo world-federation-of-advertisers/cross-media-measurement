@@ -21,11 +21,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.transforms.Create
+import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
-import org.wfanet.panelmatch.client.privatemembership.queryIdAndPanelistKey
+import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.beam.SignedFiles
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -53,26 +55,22 @@ class BuildPrivateMembershipQueriesTask(
         kvOf(PanelistKey.parseFrom(it.first), JoinKey.parseFrom(it.second))
       }
 
-    val (queryAndPanelistKeys, encryptedResponses) =
+    val (
+      queryIdAndPanelistKeys: PCollection<QueryIdAndPanelistKey>,
+      encryptedResponses: PCollection<EncryptedQueryBundle>) =
       CreateQueriesWorkflow(parameters, privateMembershipCryptor)
         .batchCreateQueries(pipeline.apply(Create.of(pairs)))
 
     // TODO: where are the RLWE keys?
 
     val queryDecryptionKeysFileSpec = "$outputUriPrefix/query-decryption-keys-*-of-10"
-    queryAndPanelistKeys
-      .map {
-        queryIdAndPanelistKey {
-            queryId = it.key
-            panelistKey = it.value
-          }
-          .toByteString()
-      }
+    queryIdAndPanelistKeys
+      .map { it.toByteString() }
       .apply(SignedFiles.write(queryDecryptionKeysFileSpec, privateKey, localCertificate))
 
     val encryptedQueriesFileSpec = "$outputUriPrefix/encrypted-queries-*-of-${numQueries / 10}"
     encryptedResponses
-      .map { it.toByteString() } // TODO: convert to QueryBundle
+      .map { it.toByteString() }
       .apply(SignedFiles.write(encryptedQueriesFileSpec, privateKey, localCertificate))
 
     pipeline.run()

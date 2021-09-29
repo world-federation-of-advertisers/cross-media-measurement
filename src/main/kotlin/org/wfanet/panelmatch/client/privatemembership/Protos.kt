@@ -26,22 +26,8 @@ fun bucketIdOf(id: Int): BucketId = bucketId { this.id = id }
 fun queryIdOf(id: Int): QueryId = queryId { this.id = id }
 
 /** Constructs a [EncryptedEventData]. */
-fun encryptedEventDataOf(
-  ciphertext: ByteString,
-  queryId: QueryId,
-  shardId: ShardId
-): EncryptedEventData = encryptedEventData {
-  ciphertexts += ciphertext
-  this.queryId = queryId
-  this.shardId = shardId
-}
-
-/** Constructs a [DecryptedEventData]. */
-fun plaintextOf(plaintext: ByteString, queryId: QueryId, shardId: ShardId): DecryptedEventData =
-    decryptedEventData {
-  this.plaintext = plaintext
-  this.queryId = queryId
-  this.shardId = shardId
+fun encryptedEventDataOf(ciphertexts: List<ByteString>): EncryptedEventData = encryptedEventData {
+  this.ciphertexts += ciphertexts
 }
 
 /** Constructs a [UnencryptedQuery]. */
@@ -53,19 +39,9 @@ fun unencryptedQueryOf(shardId: ShardId, bucketId: BucketId, queryId: QueryId): 
 }
 
 /** Constructs a [DecryptedQueryResult]. */
-fun decryptedQueryOf(
-  queryResult: ByteString,
-  queryId: QueryId,
-  shardId: ShardId
-): DecryptedQueryResult = decryptedQueryResult {
+fun decryptedQueryOf(queryResult: ByteString, queryId: QueryId): DecryptedQueryResult =
+    decryptedQueryResult {
   this.queryResult = queryResult
-  this.queryId = queryId
-  this.shardId = shardId
-}
-
-/** Constructs a [EncryptedQuery]. */
-fun encryptedQueryOf(shardId: ShardId, queryId: QueryId): EncryptedQuery = encryptedQuery {
-  this.shardId = shardId
   this.queryId = queryId
 }
 
@@ -82,17 +58,18 @@ fun bucketOf(bucketId: BucketId, payload: ByteString): Bucket = bucket {
 }
 
 /** Constructs a [Result]. */
-fun resultOf(queryId: QueryId, serializedEncryptedQueryResult: ByteString): Result = result {
+fun resultOf(queryId: QueryId, serializedEncryptedQueryResult: ByteString): EncryptedQueryResult =
+    encryptedQueryResult {
   this.queryId = queryId
   this.serializedEncryptedQueryResult = serializedEncryptedQueryResult
 }
 
-/** Constructs a [QueryBundle]. */
+/** Constructs a [EncryptedQueryBundle]. */
 fun queryBundleOf(
   shardId: ShardId,
   queryIds: Iterable<QueryId>,
   serializedEncryptedQueries: ByteString
-): QueryBundle = queryBundle {
+): EncryptedQueryBundle = encryptedQueryBundle {
   this.shardId = shardId
   this.queryIds += queryIds
   this.serializedEncryptedQueries = serializedEncryptedQueries

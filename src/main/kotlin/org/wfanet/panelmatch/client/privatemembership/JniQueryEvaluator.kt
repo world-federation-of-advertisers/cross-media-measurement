@@ -35,8 +35,8 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
 
   override fun executeQueries(
     shards: List<DatabaseShard>,
-    queryBundles: List<QueryBundle>
-  ): List<Result> {
+    queryBundles: List<EncryptedQueryBundle>
+  ): List<EncryptedQueryResult> {
     val presentDatabaseShards = shards.map { it.shardId.id }.toSet()
     val presentQueryShards = queryBundles.map { it.shardId.id }.toSet()
     require(presentDatabaseShards == presentQueryShards) {
@@ -47,7 +47,7 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
       parameters = privateMembershipParameters
       publicKey = privateMembershipPublicKey
       finalizeResults = true
-      queries += queryBundles.map(QueryBundle::encryptedQueries)
+      queries += queryBundles.map(EncryptedQueryBundle::encryptedQueries)
       rawDatabase =
         rawDatabase {
           this.shards += shards.map(DatabaseShard::toPrivateMembershipRawDatabaseShard)
@@ -71,7 +71,7 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
   }
 }
 
-private val QueryBundle.encryptedQueries: EncryptedQueries
+private val EncryptedQueryBundle.encryptedQueries: EncryptedQueries
   get() = EncryptedQueries.parseFrom(serializedEncryptedQueries)
 
 private fun DatabaseShard.toPrivateMembershipRawDatabaseShard(): RawDatabaseShard =

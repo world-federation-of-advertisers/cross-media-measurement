@@ -23,10 +23,10 @@ import org.junit.Test
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.Bucketing
 import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow.Parameters
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
-import org.wfanet.panelmatch.client.privatemembership.QueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
@@ -91,7 +91,7 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
     val bucketsAndShardsToQuery: List<Pair<Pair<ShardId, BucketId>, QueryId>> =
       rawQueries.map { bucketing.apply(it.first) to it.second }
 
-    val queryBundles: List<QueryBundle> =
+    val queryBundles: List<EncryptedQueryBundle> =
       bucketsAndShardsToQuery.groupBy { it.first.first }.map { (shard, entries) ->
         helper.makeQueryBundle(shard, entries.map { it.second to it.first.second })
       }
