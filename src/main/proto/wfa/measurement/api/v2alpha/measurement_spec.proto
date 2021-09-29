@@ -32,10 +32,6 @@ message MeasurementSpec {
   // `RequisitionSpec`.
   bytes measurement_public_key = 1;
 
-  // Hybrid encryption cipher suite for the `Measurement` that this
-  // `MeasurementSpec` is associated with. Required.
-  HybridCipherSuite cipher_suite = 2;
-
   message ReachAndFrequency {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1;
@@ -46,6 +42,6 @@ message MeasurementSpec {
 
   // Fields specific to the type of measurement.
   oneof measurement_type {
-    ReachAndFrequency reach_and_frequency = 3;
+    ReachAndFrequency reach_and_frequency = 2;
   }
 }

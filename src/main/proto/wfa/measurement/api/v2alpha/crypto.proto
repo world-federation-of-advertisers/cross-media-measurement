@@ -44,46 +44,24 @@ message SignedData {
 
 // A public key for asymmetric encryption.
 message EncryptionPublicKey {
-  enum Type {
-    TYPE_UNSPECIFIED = 0;
+  enum Format {
+    FORMAT_UNSPECIFIED = 0;
 
-    // Elliptic curve key on the NIST P-256 curve.
+    // Tink Keyset format.
     //
-    // Algorithm identifier:
-    //   id-ecPublicKey
-    //   prime256v1
-    EC_P256 = 1;
+    // `data` is a serialized google.crypto.tink.Keyset message. Encrypted
+    // message values use Tink's wire format.
+    //
+    // See https://github.com/google/tink/blob/master/docs/WIRE-FORMAT.md,
+    // https://github.com/google/tink/blob/master/proto/tink.proto.
+    TINK_KEYSET = 1;
   }
-  // Type of encryption key. Required.
-  Type type = 1;
+  // Encryption key format. Required.
+  Format format = 1;
 
-  // The ASN.1 SubjectPublicKeyInfo in DER format. Required.
+  // The format-specific key data. Required.
   //
-  // The AlgorithmIdentifier must match `key_type`.
-  bytes public_key_info = 2;
-}
-
-// Description of a cipher suite for hybrid encryption using the KEM/DEM
-// paradigm.
-//
-// Values encrypted using one of these cipher suites include the sender KEM
-// public key.
-message HybridCipherSuite {
-  enum KeyEncapsulationMechanism {
-    KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED = 0;
-
-    // ECDH over NIST P-256 with HKDF using HMAC-SHA256.
-    ECDH_P256_HKDF_HMAC_SHA256 = 1;
-  }
-  // The KEM for this cipher suite.
-  KeyEncapsulationMechanism kem = 1;
-
-  enum DataEncapsulationMechanism {
-    DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED = 0;
-
-    // AES-128 with GCM.
-    AES_128_GCM = 1;
-  }
-  // The DEM for this cipher suite.
-  DataEncapsulationMechanism dem = 2;
+  // `format` and `data` together must specify all necessary information to
+  // decrypt messages given a private key.
+  bytes data = 2;
 }
