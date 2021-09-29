@@ -22,7 +22,6 @@ import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapper
 
 /** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipWrapper]. */
@@ -63,11 +62,5 @@ class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) 
     }
     val response = JniPrivateMembership.encryptQueries(request)
     return response.toByteString()
-  }
-
-  companion object {
-    init {
-      loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")
-    }
   }
 }

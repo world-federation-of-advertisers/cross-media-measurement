@@ -41,7 +41,9 @@ class BuildPrivateMembershipQueriesTask(
   private val privateMembershipCryptor: PrivateMembershipCryptor,
   private val localCertificate: X509Certificate,
   private val outputUriPrefix: String,
-  private val privateKey: PrivateKey
+  private val privateKey: PrivateKey,
+  private val encryptedQueryBundleFileCount: Int,
+  private val queryIdAndPanelistKeysFileCount: Int,
 ) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, VerifiedStorageClient.VerifiedBlob>
@@ -61,14 +63,14 @@ class BuildPrivateMembershipQueriesTask(
       CreateQueriesWorkflow(parameters, privateMembershipCryptor)
         .batchCreateQueries(pipeline.apply(Create.of(pairs)))
 
-    // TODO: where are the RLWE keys?
-
-    val queryDecryptionKeysFileSpec = "$outputUriPrefix/query-decryption-keys-*-of-10"
+    val queryDecryptionKeysFileSpec =
+      "$outputUriPrefix/query-decryption-keys-*-of-$queryIdAndPanelistKeysFileCount"
     queryIdAndPanelistKeys
       .map { it.toByteString() }
       .apply(SignedFiles.write(queryDecryptionKeysFileSpec, privateKey, localCertificate))
 
-    val encryptedQueriesFileSpec = "$outputUriPrefix/encrypted-queries-*-of-${numQueries / 10}"
+    val encryptedQueriesFileSpec =
+      "$outputUriPrefix/encrypted-queries-*-of-$encryptedQueryBundleFileCount"
     encryptedResponses
       .map { it.toByteString() }
       .apply(SignedFiles.write(encryptedQueriesFileSpec, privateKey, localCertificate))

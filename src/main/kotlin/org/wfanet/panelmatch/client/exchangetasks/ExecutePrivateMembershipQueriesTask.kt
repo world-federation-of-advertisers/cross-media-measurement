@@ -20,8 +20,10 @@ import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
+import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluatorParameters
@@ -42,7 +44,8 @@ class ExecutePrivateMembershipQueriesTask(
   private val localCertificate: X509Certificate,
   private val partnerCertificate: X509Certificate,
   private val privateKey: PrivateKey,
-  private val outputUriPrefix: String
+  private val outputUriPrefix: String,
+  private val encryptedQueryResultFileCount: Int,
 ) : ExchangeTask {
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
     val pipeline = Pipeline.create()
@@ -62,13 +65,10 @@ class ExecutePrivateMembershipQueriesTask(
 
     val evaluateQueriesWorkflow =
       EvaluateQueriesWorkflow(workflowParameters, JniQueryEvaluator(queryEvaluatorParameters))
-    val results = evaluateQueriesWorkflow.batchEvaluateQueries(database, queries)
+    val results: PCollection<EncryptedQueryResult> =
+      evaluateQueriesWorkflow.batchEvaluateQueries(database, queries)
 
-    // TODO(@efoxepstein): rethink the number of shards
-    // Heuristic: put ~100 query results per file.
-    val numShards = minOf(1, with(workflowParameters) { numShards * maxQueriesPerShard } / 100)
-
-    val resultsSpec = "$outputUriPrefix/encrypted-results-*-of-$numShards"
+    val resultsSpec = "$outputUriPrefix/encrypted-results-*-of-$encryptedQueryResultFileCount"
     results
       .map { it.toByteString() }
       .apply(SignedFiles.write(resultsSpec, privateKey, localCertificate))
