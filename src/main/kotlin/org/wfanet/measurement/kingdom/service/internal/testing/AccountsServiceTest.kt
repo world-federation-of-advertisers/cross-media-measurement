@@ -131,7 +131,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   }
 
   @Test
-  fun `createAccount throws PERMISSION_DENIED when caller doesn't own owned measurement consumer`() =
+  fun `createAccount throws PERMISSION_DENIED when caller doesn't own measurement consumer`() =
       runBlocking {
     dataServices.measurementConsumersService.createMeasurementConsumer(
       measurementConsumer {
