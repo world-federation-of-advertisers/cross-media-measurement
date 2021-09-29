@@ -15,6 +15,8 @@
 """Provides convenience lists of proto targets from this Bazel package."""
 
 KINGDOM_INTERNAL_SERVICE_PROTOS = [
+    "//src/main/proto/wfa/measurement/internal/kingdom:accounts_service_kt_jvm_grpc",
+    "//src/main/proto/wfa/measurement/internal/kingdom:accounts_service_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:certificates_service_kt_jvm_grpc",
     "//src/main/proto/wfa/measurement/internal/kingdom:certificates_service_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:computation_participants_service_kt_jvm_grpc",
@@ -46,6 +48,7 @@ KINGDOM_INTERNAL_SERVICE_PROTOS = [
 ]
 
 KINGDOM_INTERNAL_ENTITY_PROTOS = [
+    "//src/main/proto/wfa/measurement/internal/kingdom:account_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:certificate_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:computation_participant_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:crypto_kt_jvm_proto",

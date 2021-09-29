@@ -19,6 +19,7 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.RandomStringGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
@@ -65,7 +66,12 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
   }
 
   private fun makeKingdomDataServices(idGenerator: IdGenerator): KingdomDataServices {
-    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
+    return SpannerDataServices(
+        clock,
+        idGenerator,
+        RandomStringGenerator(clock),
+        spannerDatabase.databaseClient
+      )
       .buildDataServices()
   }
 }

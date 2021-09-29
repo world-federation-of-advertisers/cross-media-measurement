@@ -13,6 +13,18 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "SpannerAccountsServiceTest",
+    srcs = ["SpannerAccountsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerAccountsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing:kingdom_data_services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "SpannerMeasurementsServiceTest",
     srcs = ["SpannerMeasurementsServiceTest.kt"],
     test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerMeasurementsServiceTest",

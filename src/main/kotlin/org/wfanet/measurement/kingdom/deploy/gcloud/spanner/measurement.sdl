@@ -16,6 +16,8 @@
 --
 -- Table hierarchy:
 --   Root
+--   ├── Accounts
+--   │   ├── UsernameIdentities
 --   ├── Certificates
 --   ├── DataProviders
 --   │   ├── DataProviderCertificates
@@ -58,6 +60,47 @@
 --
 -- Once all Requisitions for a Measurement have been fulfilled, the multi-party
 -- computation can begin.
+
+CREATE TABLE Accounts (
+  AccountId INT64 NOT NULL,
+
+  CreatorAccountId INT64,
+
+  ExternalAccountId INT64 NOT NULL,
+
+  -- org.wfanet.measurement.internal.kingdom.Account.ActivationState
+  -- protobuf enum encoded as an integer.
+  ActivationState INT64 NOT NULL,
+
+  OwnedMeasurementConsumerId INT64,
+  ActivationToken STRING(MAX) NOT NULL,
+
+  MeasurementConsumerCreationToken STRING(MAX) NOT NULL,
+
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+  UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+) PRIMARY KEY (AccountId);
+
+CREATE UNIQUE INDEX AccountsByExternalId
+  ON Accounts(ExternalAccountId);
+
+CREATE TABLE UsernameIdentities (
+  UsernameIdentityId INT64 NOT NULL,
+
+  AccountId INT64 NOT NULL,
+
+  Username STRING(MAX) NOT NULL,
+  Password STRING(MAX) NOT NULL,
+  Salt STRING(MAX) NOT NULL,
+
+  FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId),
+) PRIMARY KEY (UsernameIdentityId);
+
+CREATE UNIQUE INDEX UsernameIdentitiesByUsername
+  ON UsernameIdentities(Username);
+
+CREATE INDEX UsernameIdentitiesByAccountId
+  ON UsernameIdentities(AccountId);
 
 -- X.509 certificates used for consent signaling.
 CREATE TABLE Certificates (
