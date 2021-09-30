@@ -40,22 +40,21 @@ internal class WriteSignedFiles(
     return input.apply(
       FileIO.write<ByteString>()
         .to(fileSpecBreakdown.directoryUri)
-        .withPrefix(fileSpecBreakdown.prefix)
-        .withNumShards(fileSpecBreakdown.shardCount)
-        .via(SignedFileSink(fileSpec, privateKey, certificate))
+        .withPrefix(fileSpecBreakdown.shardedFileName.baseName)
+        .withNumShards(fileSpecBreakdown.shardedFileName.shardCount)
+        .via(SignedFileSink(fileSpecBreakdown.shardedFileName.spec, privateKey, certificate))
     )
   }
 }
 
 private class SignedFileSink(
-  fileSpec: String,
+  private val fileName: String,
   private val privateKey: PrivateKey,
   private val certificate: X509Certificate
 ) : FileIO.Sink<ByteString> {
   private lateinit var outputStream: OutputStream
   private lateinit var codedOutput: CodedOutputStream
   private lateinit var signer: Signature
-  private val fileName = fileSpec.substringAfterLast('/')
 
   override fun open(channel: WritableByteChannel) {
     outputStream = Channels.newOutputStream(channel)
