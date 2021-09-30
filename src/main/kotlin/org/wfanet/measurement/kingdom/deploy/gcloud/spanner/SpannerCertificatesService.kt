@@ -103,13 +103,38 @@ class SpannerCertificatesService(
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }
 
-    val certificateResult =  reader.execute(client.singleUse()).singleOrNull()
-      ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+    val certificateResult =
+      reader.execute(client.singleUse()).singleOrNull()
+        ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+
     return certificateResult.certificate
   }
 
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
-    return RevokeCertificate(request).execute(client, idGenerator)
+    grpcRequire(request.parentCase != RevokeCertificateRequest.ParentCase.PARENT_NOT_SET) {
+      "RevokeCertificateRequest is missing parent field"
+    }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
+    // accordingly.
+    try {
+      return RevokeCertificate(request).execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+      }
+    }
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
