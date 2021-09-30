@@ -41,7 +41,8 @@ private fun ByteArray.toLong(): Long {
  * 2. Limit the hash space: We limit the hash space to the input maxValue which is typically
  * numShards * numBuckets. A very small number of hashes will fall above the maximum multiple of
  * maxValue less than MAX_LONG. They represent such a small number of overall hashes, that we do not
- * recursively rehash them.
+ * recursively rehash them. TODO: Remove this in favor of JNI implementation or write tests to make
+ * sure they are the same.
  */
 fun hashSha256ToSpace(data: ByteString, maxValue: Long): Long {
   val sha256MessageDigest = MessageDigest.getInstance(HASH_ALGORITHM)

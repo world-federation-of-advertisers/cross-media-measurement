@@ -28,22 +28,21 @@ import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
+import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.beam.SignedFiles
-import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.toByteString
 import org.wfanet.panelmatch.protocol.SharedInputs
 
 class BuildPrivateMembershipQueriesTask(
-  private val numQueries: Int,
   private val parameters: CreateQueriesWorkflow.Parameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
   private val localCertificate: X509Certificate,
   private val outputUriPrefix: String,
   private val privateKey: PrivateKey,
   private val encryptedQueryBundleFileCount: Int,
-  private val queryIdAndPanelistKeysFileCount: Int,
+  private val queryIdAndPanelistKeyFileCount: Int,
 ) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, VerifiedStorageClient.VerifiedBlob>
@@ -52,19 +51,23 @@ class BuildPrivateMembershipQueriesTask(
 
     val identifiers = SharedInputs.parseFrom(input.getValue("identifiers").toByteString())
     val lookupKeys = SharedInputs.parseFrom(input.getValue("lookup-keys").toByteString())
-    val pairs =
+    // TODO: Consider having the MP zip these two lists themselves as input to this step.
+    val panelistKeyAndJoinKeys =
       (identifiers.dataList zip lookupKeys.dataList).map {
-        kvOf(PanelistKey.parseFrom(it.first), JoinKey.parseFrom(it.second))
+        panelistKeyAndJoinKey {
+          panelistKey = PanelistKey.parseFrom(it.first)
+          joinKey = JoinKey.parseFrom(it.second)
+        }
       }
 
     val (
       queryIdAndPanelistKeys: PCollection<QueryIdAndPanelistKey>,
       encryptedResponses: PCollection<EncryptedQueryBundle>) =
       CreateQueriesWorkflow(parameters, privateMembershipCryptor)
-        .batchCreateQueries(pipeline.apply(Create.of(pairs)))
+        .batchCreateQueries(pipeline.apply(Create.of(panelistKeyAndJoinKeys)))
 
     val queryDecryptionKeysFileSpec =
-      "$outputUriPrefix/query-decryption-keys-*-of-$queryIdAndPanelistKeysFileCount"
+      "$outputUriPrefix/query-decryption-keys-*-of-$queryIdAndPanelistKeyFileCount"
     queryIdAndPanelistKeys
       .map { it.toByteString() }
       .apply(SignedFiles.write(queryDecryptionKeysFileSpec, privateKey, localCertificate))

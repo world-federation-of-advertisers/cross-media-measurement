@@ -88,9 +88,9 @@ class CreateQueriesWorkflow(
 
   /** Creates [PrivateMembershipEncryptResponse] from [data]. */
   fun batchCreateQueries(
-    data: PCollection<KV<PanelistKey, JoinKey>>
+    panelistKeyAndJoinKey: PCollection<PanelistKeyAndJoinKey>,
   ): Pair<PCollection<QueryIdAndPanelistKey>, PCollection<EncryptedQueryBundle>> {
-    val shardedData = shardJoinKeys(data)
+    val shardedData = shardJoinKeys(panelistKeyAndJoinKey)
     val paddedData = addPaddedQueries(shardedData)
     val mappedData = mapToQueryId(paddedData)
     val unencryptedQueries = buildUnencryptedQueryRequest(mappedData)
@@ -99,11 +99,11 @@ class CreateQueriesWorkflow(
   }
 
   /** Determines shard and bucket for a [JoinKey]. */
-  private fun shardJoinKeys(data: PCollection<KV<PanelistKey, JoinKey>>): PCollection<ShardedData> {
+  private fun shardJoinKeys(data: PCollection<PanelistKeyAndJoinKey>): PCollection<ShardedData> {
     val bucketing = Bucketing(parameters.numShards, parameters.numBucketsPerShard)
     return data.map(name = "Map to ShardId") {
-      val (shardId, bucketId) = bucketing.hashAndApply(it.value)
-      ShardedData(shardId, bucketId, it.key, it.value)
+      val (shardId, bucketId) = bucketing.hashAndApply(it.joinKey)
+      ShardedData(shardId, bucketId, it.panelistKey, it.joinKey)
     }
   }
 

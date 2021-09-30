@@ -27,12 +27,12 @@ import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow.Parameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
-import org.wfanet.panelmatch.client.privatemembership.JoinKey
-import org.wfanet.panelmatch.client.privatemembership.PanelistKey
+import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
+import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.panelistKeyOf
 import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.beam.join
@@ -48,8 +48,15 @@ private val SERIALIZED_PARAMETERS = "some serialized parameters".toByteString()
 
 @RunWith(JUnit4::class)
 abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
-  private val database by lazy {
-    databaseOf(53L to "abc", 58L to "def", 71L to "hij", 85L to "klm", 95L to "nop", 99L to "qrs")
+  private val panelistKeyandJoinKey by lazy {
+    getPanelistKeyAndJoinKey(
+      53L to "abc",
+      58L to "def",
+      71L to "hij",
+      85L to "klm",
+      95L to "nop",
+      99L to "qrs"
+    )
   }
   abstract val privateMembershipSerializedParameters: ByteString
   abstract val privateMembershipCryptor: PrivateMembershipCryptor
@@ -63,7 +70,7 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
         parameters = parameters,
         privateMembershipCryptor = privateMembershipCryptor
       )
-      .batchCreateQueries(database)
+      .batchCreateQueries(panelistKeyandJoinKey)
   }
 
   @Test
@@ -174,13 +181,18 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
     return metrics.distributions.map { it.committed.max }.first()
   }
 
-  private fun databaseOf(
+  private fun getPanelistKeyAndJoinKey(
     vararg entries: Pair<Long, String>
-  ): PCollection<KV<PanelistKey, JoinKey>> {
+  ): PCollection<PanelistKeyAndJoinKey> {
     return pcollectionOf(
-      "Create Database",
+      "Create PanelistKeyandJoinKey",
       *entries
-        .map { kvOf(panelistKeyOf(it.first), joinKeyOf(it.second.toByteString())) }
+        .map {
+          panelistKeyAndJoinKey {
+            panelistKey = panelistKeyOf(it.first)
+            joinKey = joinKeyOf(it.second.toByteString())
+          }
+        }
         .toTypedArray()
     )
   }
