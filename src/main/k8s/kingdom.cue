@@ -84,7 +84,7 @@ import ("strings")
 				_kingdom_tls_key_file_flag,
 				_kingdom_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
-				"--port=8080",
+				"--port=8443",
 			] + _spanner_flags
 		}
 
@@ -98,7 +98,7 @@ import ("strings")
 				_kingdom_cert_collection_file_flag,
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
-				"--port=8080",
+				"--port=8443",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
@@ -113,7 +113,7 @@ import ("strings")
 				_kingdom_cert_collection_file_flag,
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
-				"--port=8080",
+				"--port=8443",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}

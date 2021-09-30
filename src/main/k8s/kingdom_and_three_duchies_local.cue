@@ -37,7 +37,6 @@ fake_service: "spanner-emulator": {
 	}
 	spec: {
 		selector: app: "spanner-emulator-app"
-		type: "NodePort"
 		ports: [{
 			name:       "grpc"
 			port:       9010
@@ -79,7 +78,7 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 	_system: "testing"
 	_args: [
 		"--debug-verbose-grpc-server-logging=true",
-		"--port=8080",
+		"--port=8443",
 	]
 	_replicas: 1 // We should have 1 and only 1 fake storage server.
 }
