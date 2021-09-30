@@ -25,7 +25,7 @@ package k8s
 	_simulator_image_pull_policy: string
 	_blob_storage_flags: [...string]
 
-	edp_simulator_pod: #Pod & {
+	edp_simulator_deployment: #Deployment & {
 		_name:            _edp_display_name + "-simulator"
 		_system:          "simulator"
 		_image:           _edp_simulator_image
