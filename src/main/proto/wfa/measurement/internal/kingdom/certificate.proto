@@ -26,6 +26,7 @@ message Certificate {
     fixed64 external_data_provider_id = 1;
     fixed64 external_measurement_consumer_id = 2;
     string external_duchy_id = 3;
+    fixed64 external_model_provider_id = 10;
   }
   fixed64 external_certificate_id = 4;
 

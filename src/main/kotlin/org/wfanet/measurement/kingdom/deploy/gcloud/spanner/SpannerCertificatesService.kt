@@ -58,6 +58,7 @@ class SpannerCertificatesService(
           }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
@@ -93,6 +94,8 @@ class SpannerCertificatesService(
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
         }
+        GetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
         GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }
