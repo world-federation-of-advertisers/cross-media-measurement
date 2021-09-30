@@ -62,16 +62,17 @@ import ("strings")
 		"requisition-fulfillment-server": _type: "NodePort"
 	}
 
-	duchy_pod: [Name=_]: #Pod & {
-		_unprefixed_name: strings.TrimSuffix(Name, "-pod")
+	duchy_deployment: [Name=_]: #Deployment & {
+		_unprefixed_name: strings.TrimSuffix(Name, "-deployment")
 		_name:            _object_prefix + _unprefixed_name
 		_system:          "duchy"
 		_image:           _images[_unprefixed_name]
 		_imagePullPolicy: _duchy_image_pull_policy
 	}
 
-	duchy_pod: {
-		"herald-daemon-pod": #Pod & {
+	duchy_deployment: {
+		"herald-daemon-deployment": #Deployment & {
+			_replicas: 1 // We should have 1 and only 1 herald.
 			_args: [
 				_computations_service_target_flag,
 				_computations_service_cert_host_flag,
@@ -87,23 +88,24 @@ import ("strings")
 			]
 			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server"]
 		}
-		"liquid-legions-v2-mill-daemon-pod": #Pod & {
-			_args: [
-				_computations_service_target_flag,
-				_computations_service_cert_host_flag,
-				_duchy_name_flag,
-				_duchy_info_config_flag,
-				_duchy_tls_cert_file_flag,
-				_duchy_tls_key_file_flag,
-				_duchy_cert_collection_file_flag,
-				_duchy_cs_cert_file_flag,
-				_duchy_cs_key_file_flag,
-				_duchy_cs_cert_rename_name_flag,
-				_system_api_target_flag,
-				_system_api_cert_host_flag,
-				"--channel-shutdown-timeout=3s",
-				"--mill-id=\(_name)-liquid-legions-v2-mill-1",
-				"--polling-interval=1s",
+		"liquid-legions-v2-mill-daemon-deployment": #Deployment & {
+			_replicas: 2
+			_args:     [
+					_computations_service_target_flag,
+					_computations_service_cert_host_flag,
+					_duchy_name_flag,
+					_duchy_info_config_flag,
+					_duchy_tls_cert_file_flag,
+					_duchy_tls_key_file_flag,
+					_duchy_cert_collection_file_flag,
+					_duchy_cs_cert_file_flag,
+					_duchy_cs_key_file_flag,
+					_duchy_cs_cert_rename_name_flag,
+					_system_api_target_flag,
+					_system_api_cert_host_flag,
+					"--channel-shutdown-timeout=3s",
+					"--mill-id=\(_name)-liquid-legions-v2-mill-1", //TODO(@wangyaopw): use different id at different replica
+					"--polling-interval=1s",
 			] + _blob_storage_flags
 			_jvm_flags:             "-Xmx4g -Xms256m"
 			_resourceRequestMemory: "4Gi"
@@ -112,7 +114,7 @@ import ("strings")
 			_resourceLimitCpu:      "2"
 			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server", "\(_name)-computation-control-server"]
 		}
-		"async-computation-control-server-pod": #ServerPod & {
+		"async-computation-control-server-deployment": #ServerDeployment & {
 			_args: [
 				_computations_service_target_flag,
 				_computations_service_cert_host_flag,
@@ -126,7 +128,7 @@ import ("strings")
 			]
 			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
-		"computation-control-server-pod": #ServerPod & {
+		"computation-control-server-deployment": #ServerDeployment & {
 			_args: [
 				_async_computations_control_service_target_flag,
 				_async_computations_control_service_cert_host_flag,
@@ -140,7 +142,7 @@ import ("strings")
 			] + _blob_storage_flags
 			_dependencies: ["\(_name)-async-computation-control-server"]
 		}
-		"spanner-computations-server-pod": #ServerPod & {
+		"spanner-computations-server-deployment": #ServerDeployment & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
@@ -156,7 +158,7 @@ import ("strings")
 			] + _spanner_flags
 			_dependencies: ["system-api-server"]
 		}
-		"requisition-fulfillment-server-pod": #ServerPod & {
+		"requisition-fulfillment-server-deployment": #ServerDeployment & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,

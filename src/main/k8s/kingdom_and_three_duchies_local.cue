@@ -23,7 +23,7 @@ objectSets: [
 		frontend_simulator,
 		resource_setup_job,
 		kingdom.kingdom_service,
-		kingdom.kingdom_pod,
+		kingdom.kingdom_deployment,
 		kingdom.kingdom_job,
 		kingdom.kingdom_internal_network_policies,
 ] + [ for d in duchies for v in d {v}] + [ for d in edp_simulators {}]
@@ -73,7 +73,7 @@ fake_pod: "spanner-emulator-pod": {
 	}]
 }
 
-fake_pod: "fake-storage-server-pod": #ServerPod & {
+fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 	_name:   "fake-storage-server"
 	_image:  "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
 	_system: "testing"
@@ -81,6 +81,7 @@ fake_pod: "fake-storage-server-pod": #ServerPod & {
 		"--debug-verbose-grpc-server-logging=true",
 		"--port=8080",
 	]
+	_replicas: 1 // We should have 1 and only 1 fake storage server.
 }
 
 #Edps: [
