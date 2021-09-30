@@ -43,7 +43,7 @@ platform(
 
 alias(
     name = "distroless",
-    actual = ":debian_buster",
+    actual = ":debian_bullseye",
 )
 
 platform(

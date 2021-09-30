@@ -10,6 +10,10 @@ build --javabase=@bazel_tools//tools/jdk:remote_jdk11
 # Target Java 8.
 build --java_toolchain=@bazel_tools//tools/jdk:toolchain_java8
 
+# Convenience platform configurations.
+build:debian-bullseye --platforms=//build/platforms:debian_bullseye
+build:ubuntu-bionic --platforms=//build/platforms:ubuntu_bionic
+
 import %workspace%/container.bazelrc
 import %workspace%/remote.bazelrc
 import %workspace%/results.bazelrc

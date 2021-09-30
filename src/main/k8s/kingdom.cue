@@ -68,30 +68,15 @@ import ("strings")
 		}
 	}
 
-	kingdom_pod: [Name=_]: #Pod & {
-		_name:            strings.TrimSuffix(Name, "-pod")
+	kingdom_deployment: [Name=_]: #Deployment & {
+		_name:            strings.TrimSuffix(Name, "-deployment")
 		_system:          "kingdom"
 		_image:           _images[_name]
 		_imagePullPolicy: _kingdom_image_pull_policy
 	}
 
-  kingdom_internal_network_policies: [
-				#NetworkPolicy & {
-					_name: "public-api-server-to-internal-data-server"
-					_sourceMatchLabels: "v2alpha-public-api-server-pod"
-					_destinationMatchLabels: "gcp-kingdom-data-server-pod"
-				},
-				#NetworkPolicy & {
-					_name: "system-api-server-to-internal-data-server"
-					_sourceMatchLabels: "system-api-server-pod"
-					_destinationMatchLabels: "gcp-kingdom-data-server"
-				}
-  	]
-
-
-	kingdom_pod: {
-
-		"gcp-kingdom-data-server-pod": #ServerPod & {
+	kingdom_deployment: {
+		"gcp-kingdom-data-server-deployment": #ServerDeployment & {
 			_args: [
 				_duchy_info_config_flag,
 				_duchy_id_config_flag,
@@ -103,7 +88,7 @@ import ("strings")
 			] + _spanner_flags
 		}
 
-		"system-api-server-pod": #ServerPod & {
+		"system-api-server-deployment": #ServerDeployment & {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
@@ -118,7 +103,7 @@ import ("strings")
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
 
-		"v2alpha-public-api-server-pod": #ServerPod & {
+		"v2alpha-public-api-server-deployment": #ServerDeployment & {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
@@ -131,6 +116,19 @@ import ("strings")
 				"--port=8080",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
+		}
+	}
+
+	kingdom_internal_network_policies: [Name=_]: #NetworkPolicy & {
+		_name: Name
+	}
+	kingdom_internal_network_policies: {
+		"interal-data-server": #NetworkPolicy & {
+			_sourceMatchLabels: [
+				"v2alpha-public-api-server-app",
+				"system-api-server-app",
+			]
+			_destinationMatchLabels: "gcp-kingdom-data-server-app"
 		}
 	}
 }

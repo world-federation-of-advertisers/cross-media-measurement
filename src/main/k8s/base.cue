@@ -65,9 +65,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
-#Pod: {
-	_name:  string
-	_image: string
+#Deployment: {
+	_name:     string
+	_replicas: int | *1
+	_image:    string
 	_args: [...string]
 	_ports:           [{containerPort: 8080}] | *[]
 	_restartPolicy:   string | *"Always"
@@ -79,10 +80,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceLimitCpu:      string | *"2"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
-	apiVersion: "v1"
-	kind:       "Pod"
+	apiVersion:             "apps/v1"
+	kind:                   "Deployment"
 	metadata: {
-		name: _name + "-pod"
+		name: _name + "-deployment"
 		labels: {
 			app:                      _name + "-app"
 			"app.kubernetes.io/name": #AppName
@@ -90,52 +91,59 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		annotations: system: _system
 	}
 	spec: {
-		containers: [{
-			name:            _name + "-container"
-			image:           _image
-			resources: requests: {
-				memory: _resourceRequestMemory
-				cpu:    _resourceRequestCpu
+		replicas: _replicas
+		selector: matchLabels: app: _name + "-app"
+		template: {
+			metadata: labels: app: _name + "-app"
+			spec: {
+				containers: [{
+					name:  _name + "-container"
+					image: _image
+					resources: requests: {
+						memory: _resourceRequestMemory
+						cpu:    _resourceRequestCpu
+					}
+					resources: limits: {
+						memory: _resourceLimitMemory
+						cpu:    _resourceLimitCpu
+					}
+					imagePullPolicy: _imagePullPolicy
+					args:            _args
+					ports:           _ports
+					env: [{
+						name:  "JAVA_TOOL_OPTIONS"
+						value: _jvm_flags
+					}]
+					volumeMounts: [{
+						name:      _name + "-files"
+						mountPath: "/var/run/secrets/files"
+						readOnly:  true
+					}]
+					readinessProbe?: {
+						exec: command: [...string]
+						periodSeconds: uint32
+					}
+				}]
+				volumes: [{
+					name: _name + "-files"
+					secret: {
+						secretName: #SecretName
+					}
+				}]
+				initContainers: [ for ds in _dependencies {
+					name:  "init-\(ds)"
+					image: "gcr.io/google-containers/busybox:1.27"
+					command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
+				}]
+				restartPolicy: _restartPolicy
 			}
-			resources: limits: {
-				memory: _resourceLimitMemory
-				cpu:    _resourceLimitCpu
-			}
-			imagePullPolicy: _imagePullPolicy
-			args:            _args
-			ports:           _ports
-			env: [{
-				name:  "JAVA_TOOL_OPTIONS"
-				value: _jvm_flags
-			}]
-			volumeMounts: [{
-				name:      _name + "-files"
-				mountPath: "/var/run/secrets/files"
-				readOnly:  true
-			}]
-			readinessProbe?: {
-				exec: command: [...string]
-				periodSeconds: uint32
-			}
-		}]
-		volumes: [{
-			name: _name + "-files"
-			secret: {
-				secretName: #SecretName
-			}
-		}]
-		initContainers: [ for ds in _dependencies {
-			name:  "init-\(ds)"
-			image: "gcr.io/google-containers/busybox:1.27"
-			command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
-		}]
-		restartPolicy: _restartPolicy
+		}
 	}
 }
 
-#ServerPod: #Pod & {
+#ServerDeployment: #Deployment & {
 	_ports: [{containerPort: 8080}]
-	spec: containers: [{
+	spec: template: spec: containers: [{
 		readinessProbe: {
 			exec: command: [
 				"/app/grpc_health_probe/file/grpc-health-probe",
@@ -193,18 +201,34 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
 //
 #NetworkPolicy: {
-	_name:        string
-	_sourceMatchLabels: string
+	_name: string
+	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: string
 
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
 	metadata: {
-		name: _name
+		name: _name + "-network-policy"
 	}
 	spec: {
-		podSelector: matchLabels:	role: _destinationMatchLabels
-    policyTypes: ["Ingress"]
-    ingress: from: podSelector: matchLabels: role: _sourceMatchLabels
+		podSelector: matchLabels: app: _destinationMatchLabels
+		policyTypes: ["Ingress"]
+		ingress: [{
+			from: [ for d in _sourceMatchLabels {
+				podSelector: matchLabels: app: d
+			}]
+		}]
 	}
 }
+
+// This policy will deny ingress traffic to all unconfigured pods.
+default_deny_ingress: [{
+	apiVersion: "networking.k8s.io/v1"
+	kind:       "NetworkPolicy"
+	metadata:
+		name: "default-deny-ingress"
+	spec: {
+		podSelector: {}
+		policyTypes: ["Ingress"]
+	}
+}]
