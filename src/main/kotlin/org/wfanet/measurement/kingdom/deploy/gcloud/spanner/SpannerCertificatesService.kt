@@ -122,7 +122,8 @@ class SpannerCertificatesService(
       when (e.code) {
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Certificate not found" }
-        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+         failGrpc(Status.NOT_FOUND) { "Certificate not found" }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
