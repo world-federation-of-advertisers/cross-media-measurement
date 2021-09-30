@@ -14,16 +14,14 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
@@ -56,7 +54,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(
-             requireNotNull(DuchyIds.getInternalId(request.externalDuchyId)) {
+              requireNotNull(DuchyIds.getInternalId(request.externalDuchyId)) {
                 "Duchy with external ID ${request.externalDuchyId} not found"
               }
             )
@@ -65,8 +63,8 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         }
         RevokeCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
-          "Certificate not found."
-        }
+            "Certificate not found."
+          }
       }
 
     val certificateResult =
@@ -79,7 +77,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       set("CertificateId" to certificateResult.certificateId)
       set("RevocationState" to request.revocationState)
     }
-    return certificateResult.certificate.copy{revocationState = request.revocationState}
+    return certificateResult.certificate.copy { revocationState = request.revocationState }
   }
 
   override fun ResultScope<Certificate>.buildResult(): Certificate {

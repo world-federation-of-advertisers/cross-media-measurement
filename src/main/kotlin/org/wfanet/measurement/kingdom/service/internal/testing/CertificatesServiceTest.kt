@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -33,11 +34,10 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -69,8 +69,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val dataProvidersService: DataProvidersCoroutineImplBase
   )
 
-  protected val idGenerator =
-    RandomIdGenerator(TestClockWithNamedInstants(TEST_INSTANT), Random(RANDOM_SEED))
+  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  private val population = Population(clock, idGenerator)
 
   protected lateinit var certificatesService: T
     private set
@@ -82,48 +83,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-
-  private suspend fun insertMeasurementConsumer(): Long {
-    return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = MC_CERTIFICATE_DER
-            }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
-      .externalMeasurementConsumerId
-  }
-
-  private suspend fun insertDataProvider(): Long {
-    return dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = DP_CERTIFICATE_DER
-            }
-            detailsBuilder.apply {
-              apiVersion = "v2alpha"
-              publicKey = PUBLIC_KEY
-              publicKeySignature = PUBLIC_KEY_SIGNATURE
-            }
-          }
-          .build()
-      )
-      .externalDataProviderId
-  }
 
   @Before
   fun initServices() {
@@ -285,7 +244,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -308,7 +269,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -332,7 +295,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
 
     val request =
       Certificate.newBuilder()
@@ -396,7 +361,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate suceeds for DataProviderCertificate`() = runBlocking {
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
     val certificate =
       Certificate.newBuilder()
         .also {
@@ -420,7 +386,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate succeeds for DataProviderCertificate`() = runBlocking {
-    val externalDataProviderId = insertDataProvider()
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
     val request =
       Certificate.newBuilder()
