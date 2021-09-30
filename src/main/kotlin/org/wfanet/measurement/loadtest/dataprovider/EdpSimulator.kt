@@ -59,8 +59,8 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.client.dataprovider.createParticipationSignature
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpecAndGenerateRequisitionFingerprint
+import org.wfanet.measurement.consent.client.dataprovider.signRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
@@ -148,18 +148,18 @@ class EdpSimulator(
       return
     }
 
-    val decryptedSignedDataRequisitionSpec =
-      decryptRequisitionSpec(
-        requisition.encryptedRequisitionSpec,
+    val requisitionSpecAndFingerprint =
+      decryptRequisitionSpecAndGenerateRequisitionFingerprint(
+        requisition,
         checkNotNull(keyStore.getPrivateKeyHandle(ENCRYPTION_PRIVATE_KEY_HANDLE_KEY)),
         HybridCipherSuite.getDefaultInstance(),
         ::fakeGetHybridCryptorForCipherSuite
       )
-    val decryptedRequisitionSpec =
-      RequisitionSpec.parseFrom(decryptedSignedDataRequisitionSpec.data)
+
+    val signedRequisitionSpec = requisitionSpecAndFingerprint.signedRequisitionSpec
     if (!verifyRequisitionSpec(
-        requisitionSpecSignature = decryptedSignedDataRequisitionSpec.signature,
-        requisitionSpec = decryptedRequisitionSpec,
+        requisitionSpecSignature = signedRequisitionSpec.signature,
+        requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data),
         measurementConsumerCertificate = readCertificate(measurementConsumerCertificate.x509Der),
         measurementSpec = measurementSpec,
       )
@@ -169,13 +169,10 @@ class EdpSimulator(
     }
 
     val participationSignature =
-      createParticipationSignature(
-        requisition,
-        checkNotNull(keyStore.getPrivateKeyHandle(edpData.encryptionPrivateKeyId)),
+      signRequisitionFingerprint(
+        requisitionSpecAndFingerprint.requisitionFingerprint,
         checkNotNull(keyStore.getPrivateKeyHandle(edpData.consentSignalingPrivateKeyId)),
-        readCertificate(edpData.consentSignalCertificateDer),
-        HybridCipherSuite.getDefaultInstance(),
-        ::fakeGetHybridCryptorForCipherSuite
+        readCertificate(edpData.consentSignalCertificateDer)
       )
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
