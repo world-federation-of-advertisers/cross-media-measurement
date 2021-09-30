@@ -39,12 +39,14 @@ class Bucketing(private val numShards: Int, private val numBucketsPerShard: Int)
     return apply(hashedValue)
   }
 
+  /** Computes a [ShardId] based on a [Long] */
   private fun shard(value: Long): ShardId {
     val remainder = remainderUnsigned(value, numShards.toLong())
     // The conversion here is safe because 0 <= remainder < numShards and numShards is an Int.
     return shardIdOf(remainder.toInt())
   }
 
+  /** Computes a [BucketId] based on a [Long] */
   private fun bucket(value: Long): BucketId {
     val quotient = divideUnsigned(value, numShards.toLong())
     val remainder = remainderUnsigned(quotient, numBucketsPerShard.toLong())

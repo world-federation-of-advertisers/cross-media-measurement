@@ -73,6 +73,12 @@ message QueryIdAndPanelistKey {
   PanelistKey panelist_key = 2;
 }
 
+// Pair of PanelistKey and JoinKey
+message PanelistKeyAndJoinKey {
+  PanelistKey panelist_key = 1;
+  JoinKey join_key = 2;
+}
+
 // Generic message type holding an encrypted query result
 message EncryptedQueryResult {
   QueryId query_id = 1;

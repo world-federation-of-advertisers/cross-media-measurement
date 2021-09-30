@@ -25,8 +25,7 @@ import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
-import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
-import org.wfanet.panelmatch.client.privatemembership.QueryEvaluatorParameters
+import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.beam.SignedFiles
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -40,7 +39,7 @@ import org.wfanet.panelmatch.common.toByteString
  */
 class ExecutePrivateMembershipQueriesTask(
   private val workflowParameters: EvaluateQueriesWorkflow.Parameters,
-  private val queryEvaluatorParameters: QueryEvaluatorParameters,
+  private val queryEvaluator: QueryEvaluator,
   private val localCertificate: X509Certificate,
   private val partnerCertificate: X509Certificate,
   private val privateKey: PrivateKey,
@@ -63,8 +62,7 @@ class ExecutePrivateMembershipQueriesTask(
         EncryptedQueryBundle.parseFrom(it)
       }
 
-    val evaluateQueriesWorkflow =
-      EvaluateQueriesWorkflow(workflowParameters, JniQueryEvaluator(queryEvaluatorParameters))
+    val evaluateQueriesWorkflow = EvaluateQueriesWorkflow(workflowParameters, queryEvaluator)
     val results: PCollection<EncryptedQueryResult> =
       evaluateQueriesWorkflow.batchEvaluateQueries(database, queries)
 
