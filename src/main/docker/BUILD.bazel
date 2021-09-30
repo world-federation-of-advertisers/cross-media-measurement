@@ -1,12 +1,7 @@
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_push")
+load("@io_bazel_rules_docker//container:container.bzl", "container_push")
 load(":images.bzl", "ALL_GKE_IMAGES")
 
-package(
-    default_testonly = True, #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
-    default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
-])
-
+package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
 
 # These rules push Docker images to the Google Cloud container registry.
 # 'bazel build' builds the tarball, 'bazel run' will actually push it.
@@ -20,11 +15,3 @@ package(
     )
     for image_spec in ALL_GKE_IMAGES
 ]
-
-
-container_image(
-    testonly = False,
-    name = "java_image_base_nonroot",
-    base = "@java_image_base//image",
-    user = "nonroot",
-)
