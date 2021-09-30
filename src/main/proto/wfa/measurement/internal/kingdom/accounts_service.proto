@@ -40,7 +40,7 @@ message UsernameCredentials {
 }
 
 message ActivateAccountRequest {
-  string activationToken = 1;
+  fixed64 activation_token = 1;
 
   fixed64 external_account_id = 2;
 

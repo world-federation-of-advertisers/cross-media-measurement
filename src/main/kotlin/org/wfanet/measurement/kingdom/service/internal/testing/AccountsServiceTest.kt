@@ -46,9 +46,6 @@ private const val FIXED_GENERATED_EXTERNAL_ID_A = 5678L
 private const val FIXED_GENERATED_INTERNAL_ID_B = 4321L
 private const val FIXED_GENERATED_EXTERNAL_ID_B = 8765L
 
-private val FIXED_GENERATED_STRING_A = ExternalId(FIXED_GENERATED_EXTERNAL_ID_A).apiId.value
-private val FIXED_GENERATED_STRING_B = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B).apiId.value
-
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
@@ -167,9 +164,9 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       .isEqualTo(
         account {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-          activationParams = activationParams { activationToken = FIXED_GENERATED_STRING_A }
+          activationParams = activationParams { activationToken = FIXED_GENERATED_EXTERNAL_ID_A }
           activationState = Account.ActivationState.UNACTIVATED
-          measurementConsumerCreationToken = FIXED_GENERATED_STRING_A
+          measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }
       )
   }
@@ -186,9 +183,9 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         account {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
           externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-          activationParams = activationParams { activationToken = FIXED_GENERATED_STRING_B }
+          activationParams = activationParams { activationToken = FIXED_GENERATED_EXTERNAL_ID_B }
           activationState = Account.ActivationState.UNACTIVATED
-          measurementConsumerCreationToken = FIXED_GENERATED_STRING_A
+          measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }
       )
   }

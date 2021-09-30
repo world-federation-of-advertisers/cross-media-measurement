@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
-import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -63,10 +62,7 @@ class CreateAccount(
           val measurementConsumerCreationToken =
             readCreatorAccountResult.account.measurementConsumerCreationToken
           this@account.measurementConsumerCreationToken = measurementConsumerCreationToken
-          set(
-            "MeasurementConsumerCreationToken" to
-              ApiId(measurementConsumerCreationToken).externalId.value
-          )
+          set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
 
           if (this@CreateAccount.externalOwnedMeasurementConsumerId != 0L) {
             val ownedMeasurementConsumerId: InternalId =
@@ -96,8 +92,7 @@ class CreateAccount(
           // for an account with no creator
         } else {
           val measurementConsumerCreationToken = idGenerator.generateExternalId()
-          this@account.measurementConsumerCreationToken =
-            measurementConsumerCreationToken.apiId.value
+          this@account.measurementConsumerCreationToken = measurementConsumerCreationToken.value
           set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
         }
         set("ActivationState" to Account.ActivationState.UNACTIVATED)
@@ -114,7 +109,7 @@ class CreateAccount(
       activationParams =
         activationParams {
           externalOwnedMeasurementConsumerId = this@CreateAccount.externalOwnedMeasurementConsumerId
-          this.activationToken = activationToken.apiId.value
+          this.activationToken = activationToken.value
         }
     }
   }

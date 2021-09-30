@@ -60,7 +60,7 @@ message Account {
     fixed64 external_owned_measurement_consumer_id = 1;
 
     // Token that can be used to activate the account. Output-only.
-    string activation_token = 2;
+    fixed64 activation_token = 2;
   }
 
   // Parameters for activation of this `Account`.
@@ -72,7 +72,7 @@ message Account {
   // Output-only. Immutable.
   //
   // Only set in `FULL` view.
-  string measurement_consumer_creation_token = 5;
+  fixed64 measurement_consumer_creation_token = 5;
 
   // OpenID Connect identity.
   message OpenIdConnectIdentity {
