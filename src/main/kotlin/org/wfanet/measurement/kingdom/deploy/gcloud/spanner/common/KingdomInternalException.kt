@@ -32,6 +32,9 @@ class KingdomInternalException : Exception {
     /** DataProvider resource queried could not be found. */
     DATA_PROVIDER_NOT_FOUND,
 
+    /** ModelProvider resource queried could not be found. */
+    MODEL_PROVIDER_NOT_FOUND,
+
     /** Duchy resource queried could not be found. */
     DUCHY_NOT_FOUND,
 
@@ -57,6 +60,6 @@ class KingdomInternalException : Exception {
     REQUISITION_NOT_FOUND,
 
     /** Requisition is in an illegal state for the operation. */
-    REQUISITION_STATE_ILLEGAL
+    REQUISITION_STATE_ILLEGAL,
   }
 }
