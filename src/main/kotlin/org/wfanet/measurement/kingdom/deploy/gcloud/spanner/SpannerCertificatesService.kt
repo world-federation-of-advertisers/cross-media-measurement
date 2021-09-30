@@ -52,6 +52,8 @@ class SpannerCertificatesService(
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
           failGrpc(Status.ALREADY_EXISTS) {
             "Certificate with the same subject key identifier (SKID) already exists."
@@ -93,6 +95,9 @@ class SpannerCertificatesService(
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
         }
+        GetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
+            .bindWhereClause(ExternalId(request.externalModelProviderId), externalCertificateId)
         GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }

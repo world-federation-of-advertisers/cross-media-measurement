@@ -19,8 +19,10 @@ import org.wfanet.measurement.common.ResourceNameParser
 private val parser = ResourceNameParser("dataProviders/{data_provider}/certificates/{certificate}")
 
 /** [ResourceKey] of a DataProvider Certificate. */
-data class DataProviderCertificateKey(val dataProviderId: String, val certificateId: String) :
-  ResourceKey {
+data class DataProviderCertificateKey(
+  val dataProviderId: String,
+  override val certificateId: String
+) : CertificateParentKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(IdVariable.DATA_PROVIDER to dataProviderId, IdVariable.CERTIFICATE to certificateId)
@@ -39,4 +41,8 @@ data class DataProviderCertificateKey(val dataProviderId: String, val certificat
       }
     }
   }
+}
+
+fun makeDataProviderCertificateName(dataProviderId: String, certificateId: String): String {
+  return DataProviderCertificateKey(dataProviderId, certificateId).toName()
 }
