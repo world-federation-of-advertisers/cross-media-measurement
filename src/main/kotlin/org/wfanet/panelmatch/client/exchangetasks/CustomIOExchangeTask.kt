@@ -12,17 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.beam
+package org.wfanet.panelmatch.client.exchangetasks
 
-import org.wfanet.panelmatch.common.ShardedFileName
+import com.google.protobuf.ByteString
+import kotlinx.coroutines.flow.Flow
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 
-internal class FileSpecBreakdown(fileSpecUri: String) {
-  val directoryUri: String
-  val shardedFileName: ShardedFileName
-
-  init {
-    val index = fileSpecUri.lastIndexOf('/')
-    directoryUri = fileSpecUri.substring(0, index + 1)
-    shardedFileName = ShardedFileName(fileSpecUri.substring(index + 1))
+/** [ExchangeTask] that reads its own inputs and writes its own outputs. */
+abstract class CustomIOExchangeTask : ExchangeTask {
+  final override suspend fun execute(
+    input: Map<String, VerifiedBlob>
+  ): Map<String, Flow<ByteString>> {
+    require(input.isEmpty())
+    execute()
+    return emptyMap()
   }
+
+  abstract suspend fun execute()
 }

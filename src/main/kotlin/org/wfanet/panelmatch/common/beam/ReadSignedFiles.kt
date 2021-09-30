@@ -62,7 +62,7 @@ private class ReadFilesFn(
   private fun verifyFileCount(context: ProcessContext) {
     if (!fileCountIsVerified) {
       val fileCount = context.sideInput(fileCountView)
-      require(FileSpecBreakdown(fileSpec).shardCount.toLong() == fileCount) {
+      require(FileSpecBreakdown(fileSpec).shardedFileName.shardCount.toLong() == fileCount) {
         "Unexpected file count ($fileCount) for fileSpec: $fileSpec "
       }
       fileCountIsVerified = true

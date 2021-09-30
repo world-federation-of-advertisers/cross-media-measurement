@@ -47,6 +47,8 @@ class ExchangeTaskMapperForJoinKeyExchange(
       StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> TODO()
       StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> TODO()
       StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> TODO()
+      StepCase.COPY_FROM_SHARED_STORAGE_STEP -> TODO()
+      StepCase.COPY_TO_SHARED_STORAGE_STEP -> TODO()
       else -> error("Unsupported step type")
     }
   }
