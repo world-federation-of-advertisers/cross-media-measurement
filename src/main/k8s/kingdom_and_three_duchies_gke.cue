@@ -27,12 +27,12 @@ _container_registry_prefix: _container_registry + "/" + _repository_prefix
 
 // Group 1
 objectSets: [
-		resource_setup_job,
-		kingdom.kingdom_service,
-		kingdom.kingdom_pod,
-		kingdom.kingdom_job,
-		kingdom.kingdom_internal_network_policies,
-		duchy_network
+	resource_setup_job,
+	default_deny_ingress,
+	kingdom.kingdom_service,
+	kingdom.kingdom_pod,
+	kingdom.kingdom_job,
+	kingdom.kingdom_internal_network_policies,
 ]
 
 // Group 2

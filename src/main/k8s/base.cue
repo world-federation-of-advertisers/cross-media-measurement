@@ -79,8 +79,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceLimitCpu:      string | *"2"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
-	apiVersion: "v1"
-	kind:       "Pod"
+	apiVersion:             "v1"
+	kind:                   "Pod"
 	metadata: {
 		name: _name + "-pod"
 		labels: {
@@ -91,8 +91,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	spec: {
 		containers: [{
-			name:            _name + "-container"
-			image:           _image
+			name:  _name + "-container"
+			image: _image
 			resources: requests: {
 				memory: _resourceRequestMemory
 				cpu:    _resourceRequestCpu
@@ -193,18 +193,34 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
 //
 #NetworkPolicy: {
-	_name:        string
-	_sourceMatchLabels: string
+	_name: string
+	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: string
 
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
 	metadata: {
-		name: _name
+		name: _name + "-network-policy"
 	}
 	spec: {
-		podSelector: matchLabels:	role: _destinationMatchLabels
-    policyTypes: ["Ingress"]
-    ingress: from: podSelector: matchLabels: role: _sourceMatchLabels
+		podSelector: matchLabels: app: _destinationMatchLabels
+		policyTypes: ["Ingress"]
+		ingress: [{
+			from: [ for d in _sourceMatchLabels {
+				podSelector: matchLabels: app: d
+			}]
+		}]
 	}
 }
+
+// This policy will deny ingress traffic to all unconfigured pods.
+default_deny_ingress: [{
+	apiVersion: "networking.k8s.io/v1"
+	kind:       "NetworkPolicy"
+	metadata:
+		name: "default-deny-ingress"
+	spec: {
+		podSelector: {}
+		policyTypes: ["Ingress"]
+	}
+}]
