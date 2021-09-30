@@ -52,11 +52,13 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
               externalCertificateId
             )
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
+          KingdomInternalException.Code.DUCHY_NOT_FOUND
           val duchyId =
             InternalId(
-              requireNotNull(DuchyIds.getInternalId(request.externalDuchyId)) {
-                "Duchy with external ID ${request.externalDuchyId} not found"
-              }
+              DuchyIds.getInternalId(request.externalDuchyId)
+                ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND) {
+                  " Duchy not found."
+                }
             )
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)

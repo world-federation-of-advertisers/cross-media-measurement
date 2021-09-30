@@ -32,12 +32,16 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.getCertificateRequest
+import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -97,9 +101,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply { externalCertificateId = EXTERNAL_CERTIFICATE_ID }
-            .build()
+          getCertificateRequest { externalCertificateId = EXTERNAL_CERTIFICATE_ID }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -107,14 +109,11 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val certificate = certificate {
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
@@ -127,12 +126,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply {
-              externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-              externalCertificateId = EXTERNAL_CERTIFICATE_ID
-            }
-            .build()
+          getCertificateRequest {
+            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalCertificateId = EXTERNAL_CERTIFICATE_ID
+          }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -140,15 +137,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate fails due to Duchy owner not_found `() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDuchyId = "non-existing-duchy-id"
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val certificate = certificate {
+      externalDuchyId = "non-existing-duchy-id"
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
@@ -159,15 +153,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate suceeds for DuchyCertificate`() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val certificate = certificate {
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val createdCertificate = certificatesService.createCertificate(certificate)
 
@@ -182,26 +173,21 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate succeeds for DuchyCertificate`() = runBlocking {
-    val request =
-      Certificate.newBuilder()
-        .also {
-          it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val request = certificate {
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val createdCertificate = certificatesService.createCertificate(request)
 
     val certificate =
       certificatesService.getCertificate(
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-            it.externalCertificateId = createdCertificate.externalCertificateId
-          }
-          .build()
+        getCertificateRequest {
+          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalCertificateId = createdCertificate.externalCertificateId
+        }
       )
 
     assertThat(certificate).isEqualTo(createdCertificate)
@@ -212,12 +198,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalCertificateId = EXTERNAL_CERTIFICATE_ID
-            }
-            .build()
+          getCertificateRequest {
+            externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+            externalCertificateId = EXTERNAL_CERTIFICATE_ID
+          }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -225,15 +209,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate fails due to MeasurementConsumer owner not_found `() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = 5678
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val certificate = certificate {
+      externalMeasurementConsumerId = 5678
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
@@ -247,15 +228,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer(measurementConsumersService)
         .externalMeasurementConsumerId
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+
+    val certificate = certificate {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     certificatesService.createCertificate(certificate)
     val exception =
@@ -272,15 +251,13 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer(measurementConsumersService)
         .externalMeasurementConsumerId
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+
+    val certificate = certificate {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val createdCertificate = certificatesService.createCertificate(certificate)
 
@@ -299,26 +276,21 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService)
         .externalMeasurementConsumerId
 
-    val request =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val request = certificate {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val createdCertificate = certificatesService.createCertificate(request)
 
     val certificate =
       certificatesService.getCertificate(
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalMeasurementConsumerId = externalMeasurementConsumerId
-            it.externalCertificateId = createdCertificate.externalCertificateId
-          }
-          .build()
+        getCertificateRequest {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          externalCertificateId = createdCertificate.externalCertificateId
+        }
       )
 
     assertThat(certificate).isEqualTo(createdCertificate)
@@ -329,12 +301,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply {
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              externalCertificateId = EXTERNAL_CERTIFICATE_ID
-            }
-            .build()
+          getCertificateRequest {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalCertificateId = EXTERNAL_CERTIFICATE_ID
+          }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -342,15 +312,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate fails due to DataProvider owner not_found `() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDataProviderId = 5678
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val certificate = certificate {
+      externalDataProviderId = 5678
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
@@ -363,23 +330,21 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   fun `createCertificate suceeds for DataProviderCertificate`() = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
 
-    val createdCertificate = certificatesService.createCertificate(certificate)
+    val request = certificate {
+      this.externalDataProviderId = externalDataProviderId
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
-    assertThat(createdCertificate)
+    val certificate = certificatesService.createCertificate(request)
+
+    assertThat(certificate)
       .isEqualTo(
-        certificate
+        request
           .toBuilder()
-          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
+          .also { it.externalCertificateId = certificate.externalCertificateId }
           .build()
       )
   }
@@ -389,28 +354,197 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val request =
-      Certificate.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val request = certificate {
+      this.externalDataProviderId = externalDataProviderId
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details = details { x509Der = X509_DER }
+    }
 
     val createdCertificate = certificatesService.createCertificate(request)
 
     val certificate =
       certificatesService.getCertificate(
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalDataProviderId = externalDataProviderId
-            it.externalCertificateId = createdCertificate.externalCertificateId
-          }
-          .build()
+        getCertificateRequest {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalCertificateId = createdCertificate.externalCertificateId
+        }
       )
 
     assertThat(certificate).isEqualTo(createdCertificate)
+  }
+
+  @Test
+  fun `revokeCertificate throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.revokeCertificate(
+          revokeCertificateRequest { revocationState = Certificate.RevocationState.REVOKED }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `revokeCertificate fails due to wrong DataProviderId`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDataProviderId = externalDataProviderId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = revokeCertificateRequest {
+      this.externalDataProviderId = 1234L // wrong externalDataProviderId
+      this.externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
+  }
+
+  @Test
+  fun `revokeCertificate succeeds for DataProviderCertificate`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDataProviderId = externalDataProviderId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = revokeCertificateRequest {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val revokedCertificate = certificatesService.revokeCertificate(request)
+
+    assertThat(revokedCertificate)
+      .isEqualTo(certificate.copy { revocationState = Certificate.RevocationState.REVOKED })
+  }
+
+  @Test
+  fun `revokeCertificate fails due to wrong MeasurementConsumerId`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = revokeCertificateRequest {
+      this.externalMeasurementConsumerId = 1234L // wrong MeasurementConsumerId
+      this.externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
+  }
+
+  @Test
+  fun `revokeCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = revokeCertificateRequest {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val revokedCertificate = certificatesService.revokeCertificate(request)
+
+    assertThat(revokedCertificate)
+      .isEqualTo(certificate.copy { revocationState = Certificate.RevocationState.REVOKED })
+  }
+
+  @Test
+  fun `revokeCertificate fails due to wrong DuchyId`() = runBlocking {
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = revokeCertificateRequest {
+      this.externalDuchyId = "non-existing-duchy-id" // wrong MeasurementConsumerId
+      this.externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
+  }
+
+  @Test
+  fun `revokeCertificate succeeds for DuchyCertificate`() = runBlocking {
+    val externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDuchyId = externalDuchyId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = revokeCertificateRequest {
+      this.externalDuchyId = externalDuchyId
+      this.externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val revokedCertificate = certificatesService.revokeCertificate(request)
+
+    assertThat(revokedCertificate)
+      .isEqualTo(certificate.copy { revocationState = Certificate.RevocationState.REVOKED })
   }
 }
