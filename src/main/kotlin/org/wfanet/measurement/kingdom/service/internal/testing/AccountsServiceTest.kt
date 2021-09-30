@@ -29,9 +29,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.identity.StringGenerator
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.common.identity.testing.FixedStringGenerator
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt.activationParams
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -48,8 +46,8 @@ private const val FIXED_GENERATED_EXTERNAL_ID_A = 5678L
 private const val FIXED_GENERATED_INTERNAL_ID_B = 4321L
 private const val FIXED_GENERATED_EXTERNAL_ID_B = 8765L
 
-private const val FIXED_GENERATED_STRING_A = "text"
-private const val FIXED_GENERATED_STRING_B = "text2"
+private val FIXED_GENERATED_STRING_A = ExternalId(FIXED_GENERATED_EXTERNAL_ID_A).apiId.value
+private val FIXED_GENERATED_STRING_B = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B).apiId.value
 
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
@@ -73,10 +71,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
     )
 
-  private val stringGeneratorA = FixedStringGenerator(FIXED_GENERATED_STRING_A)
-
-  private val stringGeneratorB = FixedStringGenerator(FIXED_GENERATED_STRING_B)
-
   private lateinit var dataServices: TestDataServices
 
   /**
@@ -89,7 +83,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   protected abstract fun newTestDataServices(idGenerator: IdGenerator): TestDataServices
 
   /** Constructs the service being tested. */
-  protected abstract fun newService(idGenerator: IdGenerator, stringGenerator: StringGenerator): T
+  protected abstract fun newService(idGenerator: IdGenerator): T
 
   @Before
   fun initDataServices() {
@@ -98,8 +92,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Before
   fun initService() {
-    service = newService(idGeneratorA, stringGeneratorA)
-    serviceWithSecondFixedGenerator = newService(idGeneratorB, stringGeneratorB)
+    service = newService(idGeneratorA)
+    serviceWithSecondFixedGenerator = newService(idGeneratorB)
   }
 
   @Test

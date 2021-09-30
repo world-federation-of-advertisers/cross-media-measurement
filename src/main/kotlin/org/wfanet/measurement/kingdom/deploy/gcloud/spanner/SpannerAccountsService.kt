@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.StringGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -28,7 +27,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccoun
 
 class SpannerAccountsService(
   private val idGenerator: IdGenerator,
-  private val stringGenerator: StringGenerator,
   private val client: AsyncDatabaseClient
 ) : AccountsCoroutineImplBase() {
 
@@ -38,7 +36,7 @@ class SpannerAccountsService(
           request.externalCreatorAccountId,
           request.activationParams.externalOwnedMeasurementConsumerId
         )
-        .execute(client, idGenerator, stringGenerator)
+        .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->

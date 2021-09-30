@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -45,7 +46,7 @@ class CreateAccount(
   override suspend fun TransactionScope.runTransaction(): Account {
     val internalAccountId = idGenerator.generateInternalId()
     val externalAccountId = idGenerator.generateExternalId()
-    val activationToken = stringGenerator.generateString()
+    val activationToken = idGenerator.generateExternalId()
 
     // to determine whether or not to actually insert
     var addMeasurementConsumerOwnersMutation: Mutation? = null
@@ -62,7 +63,10 @@ class CreateAccount(
           val measurementConsumerCreationToken =
             readCreatorAccountResult.account.measurementConsumerCreationToken
           this@account.measurementConsumerCreationToken = measurementConsumerCreationToken
-          set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
+          set(
+            "MeasurementConsumerCreationToken" to
+              ApiId(measurementConsumerCreationToken).externalId.value
+          )
 
           if (this@CreateAccount.externalOwnedMeasurementConsumerId != 0L) {
             val ownedMeasurementConsumerId: InternalId =
@@ -91,8 +95,9 @@ class CreateAccount(
 
           // for an account with no creator
         } else {
-          val measurementConsumerCreationToken = stringGenerator.generateString()
-          this@account.measurementConsumerCreationToken = measurementConsumerCreationToken
+          val measurementConsumerCreationToken = idGenerator.generateExternalId()
+          this@account.measurementConsumerCreationToken =
+            measurementConsumerCreationToken.apiId.value
           set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
         }
         set("ActivationState" to Account.ActivationState.UNACTIVATED)
@@ -109,7 +114,7 @@ class CreateAccount(
       activationParams =
         activationParams {
           externalOwnedMeasurementConsumerId = this@CreateAccount.externalOwnedMeasurementConsumerId
-          this.activationToken = activationToken
+          this.activationToken = activationToken.apiId.value
         }
     }
   }

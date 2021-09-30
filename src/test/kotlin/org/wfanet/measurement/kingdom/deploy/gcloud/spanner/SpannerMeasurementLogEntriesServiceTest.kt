@@ -19,7 +19,6 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomStringGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementLogEntriesServiceTest
@@ -35,13 +34,7 @@ class SpannerMeasurementLogEntriesServiceTest :
     idGenerator: IdGenerator
   ): Services<SpannerMeasurementLogEntriesService> {
     val spannerServices =
-      SpannerDataServices(
-          clock,
-          idGenerator,
-          RandomStringGenerator(clock),
-          spannerDatabase.databaseClient
-        )
-        .buildDataServices()
+      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
     return Services(
       spannerServices.measurementLogEntriesService as SpannerMeasurementLogEntriesService,

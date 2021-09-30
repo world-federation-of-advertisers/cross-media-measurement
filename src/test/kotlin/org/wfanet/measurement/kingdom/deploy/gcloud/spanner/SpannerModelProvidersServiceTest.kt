@@ -19,7 +19,6 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.RandomStringGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 import org.wfanet.measurement.kingdom.service.internal.testing.ModelProvidersServiceTest
@@ -31,12 +30,7 @@ class SpannerModelProvidersServiceTest : ModelProvidersServiceTest() {
   private val clock = Clock.systemUTC()
 
   override fun newService(idGenerator: IdGenerator): SpannerModelProvidersService {
-    return SpannerDataServices(
-        clock,
-        idGenerator,
-        RandomStringGenerator(clock),
-        spannerDatabase.databaseClient
-      )
+    return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
       .modelProvidersService as
       SpannerModelProvidersService

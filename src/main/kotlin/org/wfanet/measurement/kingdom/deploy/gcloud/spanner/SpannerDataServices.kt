@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import java.time.Clock
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.StringGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
@@ -24,12 +23,11 @@ import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 class SpannerDataServices(
   private val clock: Clock,
   private val idGenerator: IdGenerator,
-  private val stringGenerator: StringGenerator,
   private val client: AsyncDatabaseClient
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(
-      SpannerAccountsService(idGenerator, stringGenerator, client),
+      SpannerAccountsService(idGenerator, client),
       SpannerCertificatesService(idGenerator, client),
       SpannerDataProvidersService(idGenerator, client),
       SpannerModelProvidersService(idGenerator, client),

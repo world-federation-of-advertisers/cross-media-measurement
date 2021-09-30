@@ -74,9 +74,9 @@ CREATE TABLE Accounts (
   ActivationState INT64 NOT NULL,
 
   OwnedMeasurementConsumerId INT64,
-  ActivationToken STRING(MAX) NOT NULL,
+  ActivationToken INT64 NOT NULL,
 
-  MeasurementConsumerCreationToken STRING(MAX) NOT NULL,
+  MeasurementConsumerCreationToken INT64 NOT NULL,
 
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),

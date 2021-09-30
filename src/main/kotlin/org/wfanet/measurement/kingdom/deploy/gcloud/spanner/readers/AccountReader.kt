@@ -65,10 +65,11 @@ class AccountReader(private val view: Account.View) : SpannerReader<AccountReade
             if (!struct.isNull("ExternalMeasurementConsumerId")) {
               externalOwnedMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
             }
-            activationToken = struct.getString("ActivationToken")
+            activationToken = ExternalId(struct.getLong("ActivationToken")).apiId.value
           }
       }
-      measurementConsumerCreationToken = struct.getString("MeasurementConsumerCreationToken")
+      measurementConsumerCreationToken =
+        ExternalId(struct.getLong("MeasurementConsumerCreationToken")).apiId.value
     }
 
     if (activationState == Account.ActivationState.ACTIVATED && !struct.isNull("Username")) {
