@@ -16,28 +16,34 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("duchies/{duchy}/certificates/{certificate}")
+private val parser =
+  ResourceNameParser("modelProviders/{model_provider}/certificates/{certificate}")
 
-/** [ResourceKey] of a Duchy Certificate. */
-data class DuchyCertificateKey(val duchyId: String, override val certificateId: String) :
-  CertificateParentKey {
+/** [ResourceKey] of a ModelProvider Certificate. */
+data class ModelProviderCertificateKey(
+  val modelProviderId: String,
+  override val certificateId: String
+) : CertificateParentKey {
   override fun toName(): String {
     return parser.assembleName(
-      mapOf(IdVariable.DUCHY to duchyId, IdVariable.CERTIFICATE to certificateId)
+      mapOf(IdVariable.MODEL_PROVIDER to modelProviderId, IdVariable.CERTIFICATE to certificateId)
     )
   }
 
   companion object {
-    val defaultValue = DuchyCertificateKey("", "")
+    val defaultValue = ModelProviderCertificateKey("", "")
 
-    fun fromName(resourceName: String): DuchyCertificateKey? {
+    fun fromName(resourceName: String): ModelProviderCertificateKey? {
       return parser.parseIdVars(resourceName)?.let {
-        DuchyCertificateKey(it.getValue(IdVariable.DUCHY), it.getValue(IdVariable.CERTIFICATE))
+        ModelProviderCertificateKey(
+          it.getValue(IdVariable.MODEL_PROVIDER),
+          it.getValue(IdVariable.CERTIFICATE)
+        )
       }
     }
   }
 }
 
-fun makeDuchyCertificateName(duchyId: String, certificateId: String): String {
-  return DuchyCertificateKey(duchyId, certificateId).toName()
+fun makeModelProviderCertificateName(modelProviderId: String, certificateId: String): String {
+  return ModelProviderCertificateKey(modelProviderId, certificateId).toName()
 }

@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -32,32 +33,40 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProviderKt
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.getCertificateRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
-private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 234L
-private const val EXTERNAL_DATA_PROVIDER_ID = 345L
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
+private const val NOT_AN_ID = 13579L
 
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
-private val DP_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a DP certificate der.")
 
-private val MC_SUBJECT_KEY_IDENTIFIER =
-  ByteString.copyFromUtf8("This is a MC subject key identifier.")
-private val DP_SUBJECT_KEY_IDENTIFIER =
-  ByteString.copyFromUtf8("This is a DP subject key identifier.")
+private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
-private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
+private val CERTIFICATE = certificate {
+  notValidBefore = timestamp { seconds = 12345 }
+  notValidAfter = timestamp { seconds = 23456 }
+  subjectKeyIdentifier = ByteString.copyFromUtf8("This is an SKID")
+  details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+}
 
 @RunWith(JUnit4::class)
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
@@ -66,7 +75,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected data class Services<T>(
     val certificatesService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-    val dataProvidersService: DataProvidersCoroutineImplBase
+    val dataProvidersService: DataProvidersCoroutineImplBase,
+    val modelProvidersService: ModelProvidersCoroutineImplBase
   )
 
   protected val idGenerator =
@@ -81,48 +91,64 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
 
+  protected lateinit var modelProvidersService: ModelProvidersCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   private suspend fun insertMeasurementConsumer(): Long {
-    return measurementConsumersService.createMeasurementConsumer(
-        MeasurementConsumer.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = MC_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = MC_CERTIFICATE_DER
+    val measurementConsumer =
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          certificate =
+            CERTIFICATE.copy {
+              subjectKeyIdentifier = ByteString.copyFromUtf8("This is an MC SKID")
             }
-            detailsBuilder.apply {
+          details =
+            MeasurementConsumerKt.details {
               apiVersion = "v2alpha"
               publicKey = PUBLIC_KEY
               publicKeySignature = PUBLIC_KEY_SIGNATURE
             }
-          }
-          .build()
+        }
       )
-      .externalMeasurementConsumerId
+    return measurementConsumer.externalMeasurementConsumerId
   }
 
   private suspend fun insertDataProvider(): Long {
-    return dataProvidersService.createDataProvider(
-        DataProvider.newBuilder()
-          .apply {
-            certificateBuilder.apply {
-              notValidBeforeBuilder.seconds = 12345
-              notValidAfterBuilder.seconds = 23456
-              subjectKeyIdentifier = DP_SUBJECT_KEY_IDENTIFIER
-              detailsBuilder.x509Der = DP_CERTIFICATE_DER
-            }
-            detailsBuilder.apply {
+    val dataProvider =
+      dataProvidersService.createDataProvider(
+        dataProvider {
+          certificate =
+            CERTIFICATE.copy { subjectKeyIdentifier = ByteString.copyFromUtf8("This is a DP SKID") }
+          details =
+            DataProviderKt.details {
               apiVersion = "v2alpha"
               publicKey = PUBLIC_KEY
               publicKeySignature = PUBLIC_KEY_SIGNATURE
             }
-          }
-          .build()
+        }
       )
-      .externalDataProviderId
+    return dataProvider.externalDataProviderId
+  }
+
+  private suspend fun insertModelProvider(): Long {
+    val modelProvider =
+      modelProvidersService.createModelProvider(
+        modelProvider {
+          certificate =
+            CERTIFICATE.copy {
+              subjectKeyIdentifier = ByteString.copyFromUtf8("This is an MP SKID")
+            }
+          details =
+            ModelProviderKt.details {
+              apiVersion = "v2alpha"
+              publicKey = PUBLIC_KEY
+              publicKeySignature = PUBLIC_KEY_SIGNATURE
+            }
+        }
+      )
+    return modelProvider.externalModelProviderId
   }
 
   @Before
@@ -131,6 +157,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     certificatesService = services.certificatesService
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
+    modelProvidersService = services.modelProvidersService
   }
 
   @Test
@@ -138,9 +165,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply { externalCertificateId = EXTERNAL_CERTIFICATE_ID }
-            .build()
+          getCertificateRequest { externalCertificateId = EXTERNAL_CERTIFICATE_ID }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -148,14 +173,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+    val certificate = CERTIFICATE.copy { clearParent() }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
@@ -163,138 +181,135 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
-  @Test
-  fun `getCertificate fails for missing DuchyCertificate`() = runBlocking {
+  private fun assertGetFailsWithMissingCertificate(init: GetCertificateRequestKt.Dsl.() -> Unit) {
+    val request = getCertificateRequest {
+      init()
+      externalCertificateId = EXTERNAL_CERTIFICATE_ID
+    }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply {
-              externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-              externalCertificateId = EXTERNAL_CERTIFICATE_ID
-            }
-            .build()
-        )
+        runBlocking { certificatesService.getCertificate(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
-  fun `createCertificate fails due to Duchy owner not_found `() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDuchyId = "non-existing-duchy-id"
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+  fun `getCertificate fails for missing certificates`() = runBlocking {
+    assertGetFailsWithMissingCertificate { externalDuchyId = EXTERNAL_DUCHY_IDS[0] }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+    val dataProviderId = insertDataProvider()
+    assertGetFailsWithMissingCertificate { externalDataProviderId = dataProviderId }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Duchy not found")
+    val measurementConsumerId = insertMeasurementConsumer()
+    assertGetFailsWithMissingCertificate { externalMeasurementConsumerId = measurementConsumerId }
+
+    val modelProviderId = insertModelProvider()
+    assertGetFailsWithMissingCertificate { externalModelProviderId = modelProviderId }
   }
 
-  @Test
-  fun `createCertificate suceeds for DuchyCertificate`() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val createdCertificate = certificatesService.createCertificate(certificate)
-
-    assertThat(createdCertificate)
-      .isEqualTo(
-        certificate
-          .toBuilder()
-          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
-          .build()
-      )
-  }
-
-  @Test
-  fun `getCertificate succeeds for DuchyCertificate`() = runBlocking {
-    val request =
-      Certificate.newBuilder()
-        .also {
-          it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val createdCertificate = certificatesService.createCertificate(request)
-
-    val certificate =
-      certificatesService.getCertificate(
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-            it.externalCertificateId = createdCertificate.externalCertificateId
-          }
-          .build()
-      )
-
-    assertThat(certificate).isEqualTo(createdCertificate)
-  }
-
-  @Test
-  fun `getCertificate fails for missing MeasurementConsumerCertificate`() = runBlocking {
+  private fun assertCreateFailsWithMissingOwner(
+    expectedMessage: String,
+    init: CertificateKt.Dsl.() -> Unit
+  ) {
+    val certificate = CERTIFICATE.copy { init() }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalCertificateId = EXTERNAL_CERTIFICATE_ID
-            }
-            .build()
-        )
+        runBlocking { certificatesService.createCertificate(certificate) }
       }
+
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains(expectedMessage)
   }
 
   @Test
-  fun `createCertificate fails due to MeasurementConsumer owner not_found `() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = 5678
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+  fun `createCertificate fails due to owner not_found`() {
+    assertCreateFailsWithMissingOwner("Duchy not found") { externalDuchyId = "missing-duchy-id" }
+    assertCreateFailsWithMissingOwner("DataProvider not found") {
+      externalDataProviderId = NOT_AN_ID
+    }
+    assertCreateFailsWithMissingOwner("MeasurementConsumer not found") {
+      externalMeasurementConsumerId = NOT_AN_ID
+    }
+    assertCreateFailsWithMissingOwner("ModelProvider not found") {
+      externalModelProviderId = NOT_AN_ID
+    }
+  }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
+  private fun assertCreateCertificateSucceeds(init: CertificateKt.Dsl.() -> Unit) {
+    val requestCertificate =
+      CERTIFICATE.copy {
+        init()
+        subjectKeyIdentifier = ByteString.copyFromUtf8("Some unique SKID for $parentCase")
+      }
+    val createdCertificate = runBlocking {
+      certificatesService.createCertificate(requestCertificate)
+    }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+    val expectedCertificate =
+      requestCertificate.copy { externalCertificateId = createdCertificate.externalCertificateId }
+    assertThat(createdCertificate).isEqualTo(expectedCertificate)
+  }
+
+  @Test
+  fun `createCertificate succeeds`() = runBlocking {
+    assertCreateCertificateSucceeds { externalDuchyId = EXTERNAL_DUCHY_IDS[0] }
+
+    val dataProviderId = insertDataProvider()
+    assertCreateCertificateSucceeds { externalDataProviderId = dataProviderId }
+
+    val measurementConsumerId = insertMeasurementConsumer()
+    assertCreateCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
+
+    val modelProviderId = insertModelProvider()
+    assertCreateCertificateSucceeds { externalModelProviderId = modelProviderId }
+  }
+
+  private fun assertGetCertificateSucceeds(init: CertificateKt.Dsl.() -> Unit) = runBlocking {
+    val requestCertificate =
+      CERTIFICATE.copy {
+        init()
+        subjectKeyIdentifier = ByteString.copyFromUtf8("Some unique SKID for $parentCase")
+      }
+    val createdCertificate = certificatesService.createCertificate(requestCertificate)
+    val getRequest = getCertificateRequest {
+      externalCertificateId = createdCertificate.externalCertificateId
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+      when (requestCertificate.parentCase) {
+        Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+          externalDataProviderId = requestCertificate.externalDataProviderId
+        Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+          externalMeasurementConsumerId = requestCertificate.externalMeasurementConsumerId
+        Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
+          externalDuchyId = requestCertificate.externalDuchyId
+        Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          externalModelProviderId = requestCertificate.externalModelProviderId
+        Certificate.ParentCase.PARENT_NOT_SET -> error("Invalid parentCase")
+      }
+    }
+
+    assertThat(certificatesService.getCertificate(getRequest)).isEqualTo(createdCertificate)
+  }
+
+  @Test
+  fun `getCertificate succeeds`() = runBlocking {
+    assertGetCertificateSucceeds { externalDuchyId = EXTERNAL_DUCHY_IDS[0] }
+
+    val dataProviderId = insertDataProvider()
+    assertGetCertificateSucceeds { externalDataProviderId = dataProviderId }
+
+    val measurementConsumerId = insertMeasurementConsumer()
+    assertGetCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
+
+    val modelProviderId = insertModelProvider()
+    assertGetCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
   @Test
   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
     val externalMeasurementConsumerId = insertMeasurementConsumer()
     val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
+      CERTIFICATE.copy { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
 
     certificatesService.createCertificate(certificate)
     val exception =
@@ -304,146 +319,5 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertThat(exception)
       .hasMessageThat()
       .contains("Certificate with the same subject key identifier (SKID) already exists.")
-  }
-
-  @Test
-  fun `createCertificate suceeds for MeasurementConsumerCertificate`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val createdCertificate = certificatesService.createCertificate(certificate)
-
-    assertThat(createdCertificate)
-      .isEqualTo(
-        certificate
-          .toBuilder()
-          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
-          .build()
-      )
-  }
-
-  @Test
-  fun `getCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
-    val externalMeasurementConsumerId = insertMeasurementConsumer()
-
-    val request =
-      Certificate.newBuilder()
-        .also {
-          it.externalMeasurementConsumerId = externalMeasurementConsumerId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val createdCertificate = certificatesService.createCertificate(request)
-
-    val certificate =
-      certificatesService.getCertificate(
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalMeasurementConsumerId = externalMeasurementConsumerId
-            it.externalCertificateId = createdCertificate.externalCertificateId
-          }
-          .build()
-      )
-
-    assertThat(certificate).isEqualTo(createdCertificate)
-  }
-
-  @Test
-  fun `getCertificate fails for missing DataProviderCertificate`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        certificatesService.getCertificate(
-          GetCertificateRequest.newBuilder()
-            .apply {
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              externalCertificateId = EXTERNAL_CERTIFICATE_ID
-            }
-            .build()
-        )
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
-
-  @Test
-  fun `createCertificate fails due to DataProvider owner not_found `() = runBlocking {
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDataProviderId = 5678
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { certificatesService.createCertificate(certificate) }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("DataProvider not found")
-  }
-
-  @Test
-  fun `createCertificate suceeds for DataProviderCertificate`() = runBlocking {
-    val externalDataProviderId = insertDataProvider()
-    val certificate =
-      Certificate.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val createdCertificate = certificatesService.createCertificate(certificate)
-
-    assertThat(createdCertificate)
-      .isEqualTo(
-        certificate
-          .toBuilder()
-          .also { it.externalCertificateId = createdCertificate.externalCertificateId }
-          .build()
-      )
-  }
-
-  @Test
-  fun `getCertificate succeeds for DataProviderCertificate`() = runBlocking {
-    val externalDataProviderId = insertDataProvider()
-
-    val request =
-      Certificate.newBuilder()
-        .also {
-          it.externalDataProviderId = externalDataProviderId
-          it.notValidBeforeBuilder.seconds = 12345
-          it.notValidAfterBuilder.seconds = 23456
-          it.detailsBuilder.x509Der = X509_DER
-        }
-        .build()
-
-    val createdCertificate = certificatesService.createCertificate(request)
-
-    val certificate =
-      certificatesService.getCertificate(
-        GetCertificateRequest.newBuilder()
-          .also {
-            it.externalDataProviderId = externalDataProviderId
-            it.externalCertificateId = createdCertificate.externalCertificateId
-          }
-          .build()
-      )
-
-    assertThat(certificate).isEqualTo(createdCertificate)
   }
 }

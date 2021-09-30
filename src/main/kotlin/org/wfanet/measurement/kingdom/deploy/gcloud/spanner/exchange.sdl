@@ -17,6 +17,7 @@
 -- Table hierarchy:
 --   Root
 --   ├── ModelProviders
+--   │   └── ModelProviderCertificates
 --   └── RecurringExchanges
 --       └── Exchanges
 --           └── ExchangeSteps
@@ -44,6 +45,23 @@ CREATE TABLE ModelProviders (
 
 CREATE UNIQUE INDEX ModelProvidersByExternalId
   ON ModelProviders(ExternalModelProviderId);
+
+CREATE TABLE ModelProviderCertificates (
+  ModelProviderId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalModelProviderCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (ModelProviderId, CertificateId),
+  INTERLEAVE IN PARENT ModelProviders ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX ModelProviderCertificatesByExternalId
+  ON ModelProviderCertificates(ModelProviderId, ExternalModelProviderCertificateId);
+
+-- No Certificate should belong to more than one ModelProvider.
+CREATE UNIQUE INDEX ModelProviderCertificatesByCertificateId
+  ON ModelProviderCertificates(CertificateId);
 
 CREATE TABLE RecurringExchanges (
   RecurringExchangeId           INT64 NOT NULL,

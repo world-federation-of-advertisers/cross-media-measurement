@@ -22,8 +22,8 @@ private val parser =
 /** [ResourceKey] of a MeasurementConsumer Certificate. */
 data class MeasurementConsumerCertificateKey(
   val measurementConsumerId: String,
-  val certificateId: String
-) : ResourceKey {
+  override val certificateId: String
+) : CertificateParentKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
@@ -45,4 +45,11 @@ data class MeasurementConsumerCertificateKey(
       }
     }
   }
+}
+
+fun makeMeasurementConsumerCertificateName(
+  measurementConsumerId: String,
+  certificateId: String
+): String {
+  return MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
 }

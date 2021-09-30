@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.Certificate.RevocationState
+import org.wfanet.measurement.api.v2alpha.CertificateParentKey
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -26,10 +27,15 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
+import org.wfanet.measurement.api.v2alpha.makeDuchyCertificateName
+import org.wfanet.measurement.api.v2alpha.makeMeasurementConsumerCertificateName
+import org.wfanet.measurement.api.v2alpha.makeModelProviderCertificateName
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -51,19 +57,16 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
     val internalGetCertificateRequest = getCertificateRequest {
+      externalCertificateId = apiIdToExternalId(key.certificateId)
       when (key) {
-        is DataProviderCertificateKey -> {
+        is DataProviderCertificateKey ->
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
-        is DuchyCertificateKey -> {
-          externalDuchyId = key.duchyId
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
-        is MeasurementConsumerCertificateKey -> {
+        is DuchyCertificateKey -> externalDuchyId = key.duchyId
+        is MeasurementConsumerCertificateKey ->
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
+        is ModelProviderCertificateKey ->
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+        else -> failGrpc(Status.INTERNAL) { "Unsupported parent: ${key.toName()}" }
       }
     }
 
@@ -127,19 +130,15 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
     val internalReleaseCertificateHoldRequest = releaseCertificateHoldRequest {
+      externalCertificateId = apiIdToExternalId(key.certificateId)
       when (key) {
-        is DataProviderCertificateKey -> {
+        is DataProviderCertificateKey ->
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
-        is DuchyCertificateKey -> {
-          externalDuchyId = key.duchyId
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
-        is MeasurementConsumerCertificateKey -> {
+        is DuchyCertificateKey -> externalDuchyId = key.duchyId
+        is MeasurementConsumerCertificateKey ->
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
+        is ModelProviderCertificateKey ->
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
       }
     }
 
@@ -151,32 +150,31 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
 /** Converts an internal [InternalCertificate] to a public [Certificate]. */
 private fun InternalCertificate.toCertificate(): Certificate {
+  val certificateApiId = externalIdToApiId(externalCertificateId)
+
+  val name =
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (parentCase) {
+      InternalCertificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+        makeMeasurementConsumerCertificateName(
+          externalIdToApiId(externalMeasurementConsumerId),
+          certificateApiId
+        )
+      InternalCertificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+        makeDataProviderCertificateName(externalIdToApiId(externalDataProviderId), certificateApiId)
+      InternalCertificate.ParentCase.EXTERNAL_DUCHY_ID ->
+        makeDuchyCertificateName(externalDuchyId, certificateApiId)
+      InternalCertificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+        makeModelProviderCertificateName(
+          externalIdToApiId(externalModelProviderId),
+          certificateApiId
+        )
+      InternalCertificate.ParentCase.PARENT_NOT_SET ->
+        failGrpc(Status.INTERNAL) { "Parent missing" }
+    }
+
   return certificate {
-    name =
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (this@toCertificate.parentCase) {
-        InternalCertificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-          MeasurementConsumerCertificateKey(
-              measurementConsumerId =
-                externalIdToApiId(this@toCertificate.externalMeasurementConsumerId),
-              certificateId = externalIdToApiId(this@toCertificate.externalCertificateId)
-            )
-            .toName()
-        InternalCertificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-          DataProviderCertificateKey(
-              dataProviderId = externalIdToApiId(this@toCertificate.externalDataProviderId),
-              certificateId = externalIdToApiId(this@toCertificate.externalCertificateId)
-            )
-            .toName()
-        InternalCertificate.ParentCase.EXTERNAL_DUCHY_ID ->
-          DuchyCertificateKey(
-              duchyId = this@toCertificate.externalDuchyId,
-              certificateId = externalIdToApiId(this@toCertificate.externalCertificateId)
-            )
-            .toName()
-        InternalCertificate.ParentCase.PARENT_NOT_SET ->
-          failGrpc(Status.INTERNAL) { "Parent missing" }
-      }
+    this.name = name
     x509Der = this@toCertificate.details.x509Der
     revocationState = this@toCertificate.revocationState.toRevocationState()
   }
@@ -200,19 +198,18 @@ private fun RevocationState.toInternal(): InternalRevocationState =
       InternalRevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 
-/** Checks the resource name against multiple certificate [ResourceKey] to find the right one. */
-private fun createResourceKey(name: String): ResourceKey? {
-  val dataProviderCertificateKey = DataProviderCertificateKey.fromName(name)
-  if (dataProviderCertificateKey != null) {
-    return dataProviderCertificateKey
-  }
-  val duchyCertificateKey = DuchyCertificateKey.fromName(name)
-  if (duchyCertificateKey != null) {
-    return duchyCertificateKey
-  }
-  val measurementConsumerCertificateKey = MeasurementConsumerCertificateKey.fromName(name)
-  if (measurementConsumerCertificateKey != null) {
-    return measurementConsumerCertificateKey
+private val CERTIFICATE_PARENT_KEY_PARSERS: List<(String) -> CertificateParentKey?> =
+  listOf(
+    DataProviderCertificateKey::fromName,
+    DuchyCertificateKey::fromName,
+    MeasurementConsumerCertificateKey::fromName,
+    ModelProviderCertificateKey::fromName
+  )
+
+/** Checks the resource name against multiple certificate [ResourceKey]s to find the right one. */
+private fun createResourceKey(name: String): CertificateParentKey? {
+  for (parse in CERTIFICATE_PARENT_KEY_PARSERS) {
+    return parse(name) ?: continue
   }
   return null
 }
