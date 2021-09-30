@@ -8,9 +8,9 @@
 # * Each step is run on hardware controlled by the `party` given in each step. #
 ################################################################################
 
-# EDP provides a pepper used in generating AES keys.
+# EDP provides a previously generated pepper used in generating AES keys.
 steps {
-  step_id: "generate-hkdf-pepper"
+  step_id: "input-hkdf-pepper"
   party: DATA_PROVIDER
 
   input_step {}
@@ -18,6 +18,7 @@ steps {
   output_labels { key: "input" value: "edp-hkdf-pepper" }
 }
 
+# EDP exports its hkdf pepper.
 steps {
   step_id: "export-hkdf-pepper"
   party: DATA_PROVIDER
@@ -28,6 +29,7 @@ steps {
   output_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
 }
 
+# MP imports EDP's hkdf pepper.
 steps {
   step_id: "import-hkdf-pepper"
   party: MODEL_PROVIDER
@@ -38,9 +40,9 @@ steps {
   output_labels { key: "hkdf-pepper" value: "mp-hkdf-pepper" }
 }
 
-# EDP provides a pepper used in hashing encrypted identifiers.
+# EDP provides a previously generated identifier hash pepper used in hashing encrypted identifiers.
 steps {
-  step_id: "generate-identifier-hash-pepper"
+  step_id: "input-identifier-hash-pepper"
   party: DATA_PROVIDER
 
   input_step {}
@@ -48,6 +50,7 @@ steps {
   output_labels { key: "input" value: "edp-identifier-hash-pepper" }
 }
 
+# EDP exports its identifier hash pepper.
 steps {
   step_id: "export-identifier-hash-pepper"
   party: DATA_PROVIDER
@@ -58,6 +61,7 @@ steps {
   output_labels { key: "identifier-hash-pepper" value: "identifier-hash-pepper" }
 }
 
+# MP imports EDP's identifier hash pepper.
 steps {
   step_id: "import-identifier-hash-pepper"
   party: MODEL_PROVIDER
@@ -68,29 +72,29 @@ steps {
   output_labels { key: "identifier-hash-pepper" value: "mp-identifier-hash-pepper" }
 }
 
-# MP provides private key as input.
+# MP generates private commutative deterministic key.
 steps {
-  step_id: "mp-input-commutative-deterministic-key"
+  step_id: "generate-commutative-deterministic-key"
   party: MODEL_PROVIDER
 
-  input_step {}
+  generate_commutative_deterministic_key_step {}
 
   output_labels { key: "input" value: "mp-commutative-deterministic-key" }
 }
 
-# MP provides unencrypted joinkeys as input.
+# MP provides unencrypted joinkeys previously hashed using identifier hash pepper.
 steps {
-  step_id: "mp-input-raw-joinkeys"
+  step_id: "input-hashed-joinkeys"
   party: MODEL_PROVIDER
 
   input_step {}
 
-  output_labels { key: "input" value: "mp-raw-joinkeys" }
+  output_labels { key: "input" value: "mp-hashed-joinkeys" }
 }
 
-# EDP provides private key as input.
+# EDP provides previously generated private key as input.
 steps {
-  step_id: "edp-input-commutative-deterministic-key"
+  step_id: "input-commutative-deterministic-key"
   party: DATA_PROVIDER
 
   input_step {}
@@ -98,22 +102,12 @@ steps {
   output_labels { key: "input" value: "edp-commutative-deterministic-key" }
 }
 
-# EDP provides symmetrically encrypted event data as input.
-steps {
-  step_id: "edp-input-encrypted-event-data"
-  party: DATA_PROVIDER
-
-  input_step {}
-
-  output_labels { key: "input" value: "edp-encrypted-event-data" }
-}
-
-# EDP provides the previous protocol execution's blinded joinkeys as input.
+# EDP provides the previous protocol execution's single blinded joinkeys as input.
 #
 # These are used to validate that the new single-blinded joinkeys derived in
 # this protocol don't deviate too much.
 steps {
-  step_id: "edp-input-previous-single-blinded-joinkeys"
+  step_id: "input-previous-single-blinded-joinkeys"
   party: DATA_PROVIDER
 
   input_step {}
@@ -129,7 +123,7 @@ steps {
 
   encrypt_step {}
 
-  input_labels { key: "data" value: "mp-raw-joinkeys" }
+  input_labels { key: "data" value: "mp-hashed-joinkeys" }
   input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
 
   output_labels { key: "output" value: "mp-single-blinded-joinkeys" }
@@ -222,24 +216,48 @@ steps {
   output_labels { key: "output" value: "mp-lookup-keys" }
 }
 
+# MP generates rlwe private and public keys.
+steps {
+  step_id: "generate-serialized-rlwe-keys"
+  party: MODEL_PROVIDER
+
+  generate_serialized_rlwe_keys_step {
+    serialized_parameters: "..."
+  }
+
+  output_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
+  output_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
+}
+
+# MP provides previously generated panelist identifiers in the same order as original single joinkeys.
+steps {
+  step_id: "input-panelist-identifiers"
+  party: MODEL_PROVIDER
+
+  input_step {}
+
+  output_labels { key: "input" value: "mp-panelist-identifiers" }
+}
+
 # MP encrypts their queries.
 steps {
   step_id: "prepare-event-lookup-queries"
   party: MODEL_PROVIDER
 
-  build_private_membership_queries_step {
+  build_encrypted_queries_step {
     serialized_parameters: "..."
   }
 
-  input_labels { key: "identifiers" value: "mp-raw-joinkeys" }
   input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
+  input_labels { key: "panelist-identifiers" value: "mp-panelist-identifiers" }
+  input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
+  input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
 
-  output_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
-  output_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
   output_labels { key: "query-decryption-keys" value: "mp-query-decryption-keys" }
   output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
 }
 
+# MP exports its rlwe public key
 steps {
   step_id: "export-serialized-rlwe-public-key"
   party: MODEL_PROVIDER
@@ -250,6 +268,7 @@ steps {
   output_labels { key: "serialized-rlwe-public-key" value: "serialized-rlwe-public-key" }
 }
 
+# EDP imports MP's rlwe public key.
 steps {
   step_id: "import-serialized-rlwe-public-key"
   party: DATA_PROVIDER
@@ -260,6 +279,7 @@ steps {
   output_labels { key: "serialized-rlwe-public-key" value: "edp-serialized-rlwe-public-key" }
 }
 
+# MP exports their encrypted queries.
 steps {
   step_id: "export-encrypted-queries"
   party: MODEL_PROVIDER
@@ -270,6 +290,7 @@ steps {
   output_labels { key: "encrypted-queries" value: "encrypted-queries" }
 }
 
+# EDP imports MP's encrypted queries.
 steps {
   step_id: "import-encrypted-queries"
   party: DATA_PROVIDER
@@ -280,55 +301,100 @@ steps {
   output_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
 }
 
-# EDP executes private membership queries
+# EDP provides symmetrically encrypted compressed event data as input.
 steps {
-  step_id: "execute-private-membership-queries"
+  step_id: "input-encrypted-event-data"
   party: DATA_PROVIDER
 
-  execute_private_membership_queries_step {
-    serialized_parameters: "..."
-  }
+  input_step {}
 
-  input_labels { key: "event-data" value: "edp-event-data" }
-  input_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
-  input_labels { key: "serialized-rlwe-public-key" value: "edp-serialized-rlwe-public-key" }
-
-  output_labels { key: "encrypted-results" value: "edp-encrypted-results" }
+  output_labels { key: "input" value: "edp-encrypted-event-data" }
 }
 
+# EDP provides dictionary for compressed event data as input.
 steps {
-  step_id: "export-encrypted-results"
+  step_id: "input-event-data-dictionary"
+  party: DATA_PROVIDER
+
+  input_step {}
+
+  output_labels { key: "input" value: "edp-event-data-dictionary" }
+}
+
+# EDP exports its event data dictionary.
+steps {
+  step_id: "export-event-data-dictionary"
   party: DATA_PROVIDER
 
   copy_to_shared_storage_step {}
 
-  input_labels { key: "encrypted-results" value: "edp-encrypted-results" }
-  output_labels { key: "encrypted-results" value: "encrypted-results" }
+  input_labels { key: "event-data-dictionary" value: "edp-event-data-dictionary" }
+  output_labels { key: "event-data-dictionary" value: "event-data-dictionary" }
 }
 
+# MP imports EDP's event data dictionary.
 steps {
-  step_id: "import-encrypted-results"
+  step_id: "import-event-data-dictionary"
   party: MODEL_PROVIDER
 
   copy_from_shared_storage_step {}
 
-  input_labels { key: "encrypted-results" value: "encrypted-results" }
-  output_labels { key: "encrypted-results" value: "mp-encrypted-results" }
+  input_labels { key: "event-data-dictionary" value: "event-data-dictionary" }
+  output_labels { key: "event-data-dictionary" value: "mp-event-data-dictionary" }
 }
 
-# MP decrypts the results
+# EDP executes encrypted queries
 steps {
-  step_id: "decrypt-private-membership-results"
+  step_id: "execute-encrypted-queries"
+  party: DATA_PROVIDER
+
+  execute_encrypted_queries_step {
+    serialized_parameters: "..."
+  }
+
+  input_labels { key: "encrypted-event-data" value: "edp-encrypted-event-data" }
+  input_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
+  input_labels { key: "serialized-rlwe-public-key" value: "edp-serialized-rlwe-public-key" }
+
+  output_labels { key: "encrypted-results" value: "edp-encrypted-query-results" }
+}
+
+# EDP exports its encrypted query results.
+steps {
+  step_id: "export-encrypted-query-results"
+  party: DATA_PROVIDER
+
+  copy_to_shared_storage_step {}
+
+  input_labels { key: "encrypted-results" value: "edp-encrypted-query-results" }
+  output_labels { key: "encrypted-results" value: "encrypted-query-results" }
+}
+
+# MP imports EDP's encrypted query results.
+steps {
+  step_id: "import-encrypted-query-results"
   party: MODEL_PROVIDER
 
-  decrypt_private_membership_query_results_step {
+  copy_from_shared_storage_step {}
+
+  input_labels { key: "encrypted-results" value: "encrypted-query-results" }
+  output_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
+}
+
+# MP decrypts the encrypted query results.
+steps {
+  step_id: "decrypt-encrypted-query-results"
+  party: MODEL_PROVIDER
+
+  decrypt_encrypted_query_results_step {
     serialized_parameters: "..."
   }
 
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
+  input_labels { key: "event-data-dictionary" value: "mp-event-data-dictionary" }
   input_labels { key: "query-decryption-keys" value: "mp-query-decryption-keys" }
-  input_labels { key: "encrypted-results" value: "mp-encrypted-results" }
+  input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
 
   output_labels { key: "results" value: "results" }
 }
