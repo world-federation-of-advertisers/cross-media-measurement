@@ -157,6 +157,11 @@ message ExchangeWorkflow {
       int32 decrypt_event_data_set_file_count = 2;
     }
 
+    // Generates an X509 Certificate to use. This should take no inputs and
+    // produces a single output "certificate", which should be the
+    // serialization of the `Certificate` resource.
+    message GenerateCertificateStep {}
+
     oneof step {
       CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
       CopyToSharedStorageStep copy_to_shared_storage_step = 6;
@@ -174,6 +179,7 @@ message ExchangeWorkflow {
           15;
       DecryptPrivateMembershipQueryResultsStep
           decrypt_private_membership_query_results_step = 16;
+      GenerateCertificateStep generate_certificate_step = 17;
     }
   }
 
