@@ -39,7 +39,7 @@ class SpannerDataServices(
       SpannerRecurringExchangesService(idGenerator, client),
       SpannerExchangesService(idGenerator, client),
       SpannerExchangeStepsService(clock, idGenerator, client),
-      SpannerExchangeStepAttemptsService(idGenerator, client)
+      SpannerExchangeStepAttemptsService(clock, idGenerator, client)
     )
   }
 }
