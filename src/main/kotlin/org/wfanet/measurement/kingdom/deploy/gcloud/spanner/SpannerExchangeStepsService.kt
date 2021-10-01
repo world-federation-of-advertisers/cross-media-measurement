@@ -36,6 +36,8 @@ import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.externalDataProviderId
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.externalModelProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
@@ -87,16 +89,8 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val (externalModelProviderId, externalDataProviderId) =
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (request.provider.type) {
-        Provider.Type.DATA_PROVIDER -> Pair(null, request.provider.externalId)
-        Provider.Type.MODEL_PROVIDER -> Pair(request.provider.externalId, null)
-        Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
-          failGrpc(Status.INVALID_ARGUMENT) {
-            "external_data_provider_id or external_model_provider_id must be provided."
-          }
-      }
+    val externalModelProviderId = request.provider.externalModelProviderId
+    val externalDataProviderId = request.provider.externalDataProviderId
 
     CreateExchangesAndSteps(
         externalModelProviderId = externalModelProviderId,
@@ -126,7 +120,7 @@ class SpannerExchangeStepsService(
           // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
         }
       }
-      .collect { FinishExchangeStepAttempt(it).execute(client, idGenerator) }
+      .collect { FinishExchangeStepAttempt(it, clock).execute(client, idGenerator) }
 
     val result =
       ClaimReadyExchangeStep(

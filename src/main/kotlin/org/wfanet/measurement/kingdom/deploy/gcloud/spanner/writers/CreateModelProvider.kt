@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.internal.kingdom.ModelProvider
+import org.wfanet.measurement.internal.kingdom.modelProvider
 
 class CreateModelProvider : SpannerWriter<ExternalId, ModelProvider>() {
   override suspend fun TransactionScope.runTransaction(): ExternalId {
@@ -31,6 +32,6 @@ class CreateModelProvider : SpannerWriter<ExternalId, ModelProvider>() {
 
   override fun ResultScope<ExternalId>.buildResult(): ModelProvider {
     val externalModelProviderId = checkNotNull(transactionResult).value
-    return ModelProvider.newBuilder().setExternalModelProviderId(externalModelProviderId).build()
+    return modelProvider { this.externalModelProviderId = externalModelProviderId }
   }
 }
