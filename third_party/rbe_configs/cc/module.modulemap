@@ -2712,6 +2712,7 @@ module "crosstool" [system] {
   textual header "/usr/include/linux/ncp_fs.h"
   textual header "/usr/include/linux/ncp_mount.h"
   textual header "/usr/include/linux/ncp_no.h"
+  textual header "/usr/include/linux/ncsi.h"
   textual header "/usr/include/linux/ndctl.h"
   textual header "/usr/include/linux/neighbour.h"
   textual header "/usr/include/linux/net.h"
