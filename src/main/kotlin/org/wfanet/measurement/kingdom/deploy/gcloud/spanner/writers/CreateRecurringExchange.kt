@@ -22,6 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProviderReader
 
@@ -60,12 +61,9 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
       setJson("RecurringExchangeDetailsJson" to recurringExchange.details)
     }
 
-    return recurringExchange
-      .toBuilder()
-      .apply {
-        externalRecurringExchangeId = externalId.value
-        state = INITIAL_STATE
-      }
-      .build()
+    return recurringExchange.copy {
+      externalRecurringExchangeId = externalId.value
+      state = INITIAL_STATE
+    }
   }
 }

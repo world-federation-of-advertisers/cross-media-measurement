@@ -15,10 +15,11 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -31,8 +32,11 @@ import org.wfanet.measurement.internal.kingdom.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
+import org.wfanet.measurement.kingdom.service.internal.externalDataProviderId
+import org.wfanet.measurement.kingdom.service.internal.externalModelProviderId
 
 class SpannerExchangeStepAttemptsService(
+  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : ExchangeStepAttemptsCoroutineImplBase() {
@@ -56,22 +60,22 @@ class SpannerExchangeStepAttemptsService(
             Provider.Type.DATA_PROVIDER ->
               appendClause(
                 """
-                  AND ExchangeSteps.DataProviderId = (
-                    SELECT DataProviderId
-                    FROM DataProviders
-                    WHERE ExternalDataProviderId = @external_provider_id
-                  )
-                  """.trimIndent()
+                |  AND ExchangeSteps.DataProviderId = (
+                |    SELECT DataProviderId
+                |    FROM DataProviders
+                |    WHERE ExternalDataProviderId = @external_provider_id
+                |  )
+                """.trimMargin()
               )
             Provider.Type.MODEL_PROVIDER ->
               appendClause(
                 """
-                  AND ExchangeSteps.ModelProviderId = (
-                    SELECT ModelProviderId
-                    FROM ModelProviders
-                    WHERE ExternalModelProviderId = @external_provider_id
-                  )
-                  """.trimIndent()
+                |  AND ExchangeSteps.ModelProviderId = (
+                |    SELECT ModelProviderId
+                |    FROM ModelProviders
+                |    WHERE ExternalModelProviderId = @external_provider_id
+                |  )
+                """.trimMargin()
               )
             Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
               failGrpc(Status.INVALID_ARGUMENT) {
@@ -88,13 +92,25 @@ class SpannerExchangeStepAttemptsService(
         }
         .execute(client.singleUse())
         .singleOrNull()
-    return grpcRequireNotNull(result) { "Exchange Step Attempt not found." }.exchangeStepAttempt
+        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStepAttempt not found" }
+    return result.exchangeStepAttempt
   }
 
   override suspend fun finishExchangeStepAttempt(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
     grpcRequire(request.hasDate()) { "Date must be provided in the request." }
-    return FinishExchangeStepAttempt(request).execute(client, idGenerator)
+    return FinishExchangeStepAttempt(
+        externalModelProviderId = request.provider.externalModelProviderId,
+        externalDataProviderId = request.provider.externalDataProviderId,
+        externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId),
+        exchangeDate = request.date,
+        stepIndex = request.stepIndex,
+        attemptNumber = request.attemptNumber,
+        terminalState = request.state,
+        debugLogEntries = request.debugLogEntriesList,
+        clock = clock
+      )
+      .execute(client, idGenerator)
   }
 }

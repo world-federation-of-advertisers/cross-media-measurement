@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.ModelProvider
+import org.wfanet.measurement.internal.kingdom.modelProvider
 
 class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
   data class Result(val modelProvider: ModelProvider, val modelProviderId: Long)
@@ -49,8 +50,6 @@ class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
   }
 
   private fun buildModelProvider(struct: Struct): ModelProvider {
-    return ModelProvider.newBuilder()
-      .apply { externalModelProviderId = struct.getLong("ExternalModelProviderId") }
-      .build()
+    return modelProvider { externalModelProviderId = struct.getLong("ExternalModelProviderId") }
   }
 }

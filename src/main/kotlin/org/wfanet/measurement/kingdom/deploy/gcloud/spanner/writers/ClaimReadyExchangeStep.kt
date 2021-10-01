@@ -41,25 +41,19 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
 class ClaimReadyExchangeStep(
-  externalModelProviderId: Long?,
-  externalDataProviderId: Long?,
+  private val externalModelProviderId: ExternalId?,
+  private val externalDataProviderId: ExternalId?,
   private val clock: Clock,
 ) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
-
-  private val externalModelProviderIds =
-    if (externalModelProviderId == null) emptyList()
-    else listOf(ExternalId(externalModelProviderId))
-  private val externalDataProviderIds =
-    if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
 
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
     // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
     val exchangeStepResult =
       GetExchangeStep(
           getExchangeStepFilter(
-            externalModelProviderIds = externalModelProviderIds,
-            externalDataProviderIds = externalDataProviderIds,
+            externalModelProviderIds = listOfNotNull(externalModelProviderId),
+            externalDataProviderIds = listOfNotNull(externalDataProviderId),
             states = listOf(ExchangeStep.State.READY_FOR_RETRY, ExchangeStep.State.READY)
           )
         )
@@ -143,8 +137,8 @@ class ClaimReadyExchangeStep(
       SELECT IFNULL(MAX(AttemptIndex), 0) AS MaxAttemptIndex
       FROM ExchangeStepAttempts
       WHERE ExchangeStepAttempts.RecurringExchangeId = @recurring_exchange_id
-      AND ExchangeStepAttempts.Date = @date
-      AND ExchangeStepAttempts.StepIndex = @step_index
+        AND ExchangeStepAttempts.Date = @date
+        AND ExchangeStepAttempts.StepIndex = @step_index
       """.trimIndent()
 
     val statement: Statement =
