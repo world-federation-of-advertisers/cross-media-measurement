@@ -35,13 +35,10 @@ import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
-class CreateExchangesAndSteps(externalModelProviderId: Long?, externalDataProviderId: Long?) :
-  SimpleSpannerWriter<Unit>() {
-  private val externalModelProviderIds =
-    if (externalModelProviderId == null) emptyList()
-    else listOf(ExternalId(externalModelProviderId))
-  private val externalDataProviderIds =
-    if (externalDataProviderId == null) emptyList() else listOf(ExternalId(externalDataProviderId))
+class CreateExchangesAndSteps(
+  private val externalModelProviderId: ExternalId?,
+  private val externalDataProviderId: ExternalId?
+) : SimpleSpannerWriter<Unit>() {
 
   override suspend fun TransactionScope.runTransaction() {
     val recurringExchangeResult: RecurringExchangeReader.Result = getRecurringExchange() ?: return
@@ -86,8 +83,8 @@ class CreateExchangesAndSteps(externalModelProviderId: Long?, externalDataProvid
   private suspend fun TransactionScope.getRecurringExchange(): RecurringExchangeReader.Result? {
     val streamFilter =
       streamRecurringExchangesFilter(
-        externalModelProviderIds = externalModelProviderIds,
-        externalDataProviderIds = externalDataProviderIds,
+        externalModelProviderIds = listOfNotNull(externalModelProviderId),
+        externalDataProviderIds = listOfNotNull(externalDataProviderId),
         states = listOf(RecurringExchange.State.ACTIVE),
         nextExchangeDateBefore = LocalDate.now().plusDays(1).toProtoDate() // TOMORROW
       )

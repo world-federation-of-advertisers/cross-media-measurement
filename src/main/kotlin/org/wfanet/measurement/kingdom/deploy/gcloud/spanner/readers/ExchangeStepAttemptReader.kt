@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
@@ -74,21 +76,21 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")
 
     fun forExpiredAttempts(
-      externalModelProviderId: Long?,
-      externalDataProviderId: Long?,
+      externalModelProviderId: ExternalId?,
+      externalDataProviderId: ExternalId?,
       limit: Long = 10
     ): SpannerReader<Result> {
-      require((externalModelProviderId == null) != (externalDataProviderId == null)) {
+      grpcRequire((externalModelProviderId == null) != (externalDataProviderId == null)) {
         "Specify exactly one of `externalDataProviderId` and `externalModelProviderId`"
       }
 
       return ExchangeStepAttemptReader().fillStatementBuilder {
         appendClause(
           """
-            WHERE ExchangeSteps.State = @exchange_step_state
-              AND ExchangeStepAttempts.State = @exchange_step_attempt_state
-              AND ExchangeStepAttempts.ExpirationTime <= CURRENT_TIMESTAMP()
-            """.trimIndent()
+          WHERE ExchangeSteps.State = @exchange_step_state
+            AND ExchangeStepAttempts.State = @exchange_step_attempt_state
+            AND ExchangeStepAttempts.ExpirationTime <= CURRENT_TIMESTAMP()
+          """.trimIndent()
         )
         bind("exchange_step_state").toProtoEnum(ExchangeStep.State.IN_PROGRESS)
         bind("exchange_step_attempt_state").toProtoEnum(ExchangeStepAttempt.State.ACTIVE)
@@ -96,27 +98,27 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
         if (externalModelProviderId != null) {
           appendClause(
             """
-              AND ExchangeSteps.ModelProviderId = (
-                SELECT ModelProviderId
-                FROM ModelProviders
-                WHERE ExternalModelProviderId = @external_model_provider_id
-              )
-              """.trimIndent()
+            |  AND ExchangeSteps.ModelProviderId = (
+            |    SELECT ModelProviderId
+            |    FROM ModelProviders
+            |    WHERE ExternalModelProviderId = @external_model_provider_id
+            |  )
+            """.trimMargin()
           )
-          bind("external_model_provider_id").to(externalModelProviderId)
+          bind("external_model_provider_id").to(externalModelProviderId.value)
         }
 
         if (externalDataProviderId != null) {
           appendClause(
             """
-              AND ExchangeSteps.DataProviderId = (
-                SELECT DataProviderId
-                FROM DataProviders
-                WHERE ExternalDataProviderId = @external_data_provider_id
-              )
-              """.trimIndent()
+            |  AND ExchangeSteps.DataProviderId = (
+            |    SELECT DataProviderId
+            |    FROM DataProviders
+            |    WHERE ExternalDataProviderId = @external_data_provider_id
+            |  )
+            """.trimMargin()
           )
-          bind("external_data_provider_id").to(externalDataProviderId)
+          bind("external_data_provider_id").to(externalDataProviderId.value)
         }
 
         appendClause("LIMIT @limit")

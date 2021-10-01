@@ -17,7 +17,8 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import io.grpc.Status
+import io.grpc.Status.Code.INVALID_ARGUMENT
+import io.grpc.Status.Code.NOT_FOUND
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.test.assertFailsWith
@@ -185,14 +186,14 @@ abstract class ExchangeStepAttemptsServiceTest {
         exchangeStepAttemptsService.finishExchangeStepAttempt(finishExchangeStepAttemptRequest {})
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Date must be provided in the request.")
   }
 
   @Test
   fun `finishExchangeStepAttempt fails without exchange step attempt`() = runBlocking {
     val exception =
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<StatusRuntimeException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(
           finishExchangeStepAttemptRequest {
             externalRecurringExchangeId = 1L
@@ -203,7 +204,8 @@ abstract class ExchangeStepAttemptsServiceTest {
         )
       }
 
-    assertThat(exception).hasMessageThat().contains("Attempt for Step: $STEP_INDEX not found.")
+    assertThat(exception.status.code).isEqualTo(NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ExchangeStepAttempt not found")
   }
 
   @Test
@@ -260,8 +262,8 @@ abstract class ExchangeStepAttemptsServiceTest {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("Exchange Step Attempt not found.")
+    assertThat(exception.status.code).isEqualTo(NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ExchangeStepAttempt not found")
   }
 
   @Test
