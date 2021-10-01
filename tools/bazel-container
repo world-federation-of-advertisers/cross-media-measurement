@@ -2,10 +2,11 @@
 
 set -eEu -o pipefail
 
-readonly IMAGE='docker.io/wfameasurement/bazel@sha256:8ebf11a0db12c0c252c51518cc1f372f44ef978d01bafd7ff738b644fc49808c'
+readonly IMAGE='docker.io/wfameasurement/bazel@sha256:1f6d2be8e8abbb96d49bf77fded2ebdfd6242589d5a062493689acb773768700'
 readonly DOCKER="${DOCKER:-docker}"
 readonly USERNAME="$(id -un)"
 readonly OUTPUT_USER_ROOT="${HOME}/.cache/bazel/_bazel_${USERNAME}"
+readonly BAZELISK_CACHE_DIR='/root/.cache/bazelisk'
 
 is_podman() {
   [[ "$($DOCKER -v)" == *podman* ]]
@@ -40,20 +41,47 @@ get_host_output_user_root() {
   dirname "$(dirname "${install_base}")"
 }
 
+get_host_cache_dir() {
+  if [[ -v XDG_CACHE_HOME ]]; then
+    echo "$XDG_CACHE_HOME"
+  elif [[ "$OSTYPE" == 'darwin'* ]]; then
+    echo "$HOME/Library/Caches"
+  else
+    echo "$HOME/.cache"
+  fi
+}
+
+ensure_host_bazelisk_cache_dir() {
+  local host_cache_dir
+  host_cache_dir="$(get_host_cache_dir)"
+  readonly host_cache_dir
+
+  readonly bazelisk_cache_dir="${host_cache_dir}/bazelisk"
+  mkdir -p "${bazelisk_cache_dir}"
+  echo "${bazelisk_cache_dir}"
+}
+
 main() {
   local host_output_user_root
   host_output_user_root="$(get_host_output_user_root)"
   readonly host_output_user_root
-
   mkdir -p "${host_output_user_root}"
+
+  local host_bazelisk_cache_dir
+  host_bazelisk_cache_dir="$(ensure_host_bazelisk_cache_dir)"
+  readonly host_bazelisk_cache_dir
 
   local -a docker_options=(
     '-it'
     '--rm'
     '--network=host'
     '--entrypoint=/usr/bin/bazel'
-    "--volume=${PWD}:${PWD}"
-    "--volume=${host_output_user_root}:${OUTPUT_USER_ROOT}"
+    '--mount'
+      "type=bind,source=${PWD},target=${PWD}"
+    '--mount'
+      "type=bind,source=${host_output_user_root},target=${OUTPUT_USER_ROOT}"
+    '--mount'
+      "type=bind,source=${host_bazelisk_cache_dir},target=${BAZELISK_CACHE_DIR}"
     "--workdir=${PWD}"
   )
 
