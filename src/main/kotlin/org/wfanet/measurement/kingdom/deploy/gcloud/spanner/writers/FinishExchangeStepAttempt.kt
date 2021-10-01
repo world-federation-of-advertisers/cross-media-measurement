@@ -16,14 +16,16 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
-import com.google.cloud.spanner.Value
 import com.google.type.Date
 import io.grpc.Status
-import kotlinx.coroutines.flow.collect
+import java.time.Clock
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -35,26 +37,24 @@ import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
-import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.externalDataProviderId
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.externalModelProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
-class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRequest) :
-  SimpleSpannerWriter<ExchangeStepAttempt>() {
-  private val externalModelProviderIds =
-    if (request.provider.type == Provider.Type.MODEL_PROVIDER)
-      listOf(ExternalId(request.provider.externalId))
-    else emptyList()
-  private val externalDataProviderIds =
-    if (request.provider.type == Provider.Type.DATA_PROVIDER)
-      listOf(ExternalId(request.provider.externalId))
-    else emptyList()
+class FinishExchangeStepAttempt(
+  private val request: FinishExchangeStepAttemptRequest,
+  private val clock: Clock
+) : SimpleSpannerWriter<ExchangeStepAttempt>() {
+  private val externalModelProviderIds = listOfNotNull(request.provider.externalModelProviderId)
+  private val externalDataProviderIds = listOfNotNull(request.provider.externalDataProviderId)
   private val externalRecurringExchangeId = request.externalRecurringExchangeId
   private val reqDate = request.date
   private val reqStepIndex = request.stepIndex
@@ -62,36 +62,39 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
 
   override suspend fun TransactionScope.runTransaction(): ExchangeStepAttempt {
     val stepAttemptResult =
-      requireNotNull(
-        getExchangeStepAttempt(
-          externalRecurringExchangeId = externalRecurringExchangeId,
-          date = reqDate,
-          stepIndex = reqStepIndex,
-          attemptIndex = reqAttemptIndex,
-        )
-      ) { "Attempt for Step: $reqStepIndex not found." }
+      getExchangeStepAttempt(
+        externalRecurringExchangeId = externalRecurringExchangeId,
+        date = reqDate,
+        stepIndex = reqStepIndex,
+        attemptIndex = reqAttemptIndex,
+      )
+
+    // TODO: the above and below reads should be consolidated into a single query.
     val stepResult =
-      requireNotNull(
-        GetExchangeStep(
-            getExchangeStepFilter(
-              externalDataProviderIds = externalDataProviderIds,
-              externalModelProviderIds = externalModelProviderIds,
-              recurringExchangeId = stepAttemptResult.recurringExchangeId,
-              date = reqDate,
-              stepIndex = reqStepIndex.toLong(),
-            )
+      GetExchangeStep(
+          getExchangeStepFilter(
+            externalDataProviderIds = externalDataProviderIds,
+            externalModelProviderIds = externalModelProviderIds,
+            recurringExchangeId = stepAttemptResult.recurringExchangeId,
+            date = reqDate,
+            stepIndex = reqStepIndex.toLong(),
           )
-          .execute(transactionContext)
-          .singleOrNull()
-      ) { "Step: $reqStepIndex not found." }
+        )
+        .execute(transactionContext)
+        .singleOrNull()
+        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStepAttempt not found" }
+    // TODO: use a KingdomInternalException above
 
     // TODO(yunyeng): Think about an ACTIVE case for auto-fail scenario.
     // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/190.
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     return when (request.state) {
       ExchangeStepAttempt.State.SUCCEEDED -> succeed(stepResult, stepAttemptResult)
       ExchangeStepAttempt.State.FAILED -> temporarilyFail(stepResult, stepAttemptResult)
       ExchangeStepAttempt.State.FAILED_STEP -> permanentlyFail(stepResult, stepAttemptResult)
-      else -> throw IllegalArgumentException("Exchange Step Attempt State is not set.")
+      ExchangeStepAttempt.State.ACTIVE -> failGrpc { "Request state ACTIVE is not terminal" }
+      ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
+        failGrpc { "Invalid request state" }
     }
   }
 
@@ -118,7 +121,8 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
         ?.recurringExchange
         ?.details
         ?.exchangeWorkflow
-        ?: failGrpc(Status.PERMISSION_DENIED) { "Workflow not found" }
+        ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
+    // TODO: use a KingdomInternalException above
 
     val steps =
       findReadyExchangeSteps(
@@ -209,19 +213,15 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       ORDER BY ExchangeSteps.StepIndex
       """.trimIndent()
     val statement: Statement =
-      Statement.newBuilder(sql)
-        .bind("recurring_exchange_id")
-        .to(recurringExchangeId)
-        .bind("date")
-        .to(date.toCloudDate())
-        .bind("state")
-        .toProtoEnum(ExchangeStep.State.SUCCEEDED)
-        .build()
-    val result = mutableSetOf<Int>()
-    transactionContext.executeQuery(statement).collect {
-      result.add(it.getLong("StepIndex").toInt())
-    }
-    return result
+      statement(sql) {
+        bind("recurring_exchange_id").to(recurringExchangeId)
+        bind("date").to(date.toCloudDate())
+        bind("state").toProtoEnum(ExchangeStep.State.SUCCEEDED)
+      }
+    return transactionContext
+      .executeQuery(statement)
+      .map { it.getLong("StepIndex").toInt() }
+      .toSet()
   }
 
   private suspend fun TransactionScope.findReadyExchangeSteps(
@@ -241,15 +241,17 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
     date: Date,
     stepIndex: Int,
     attemptIndex: Int
-  ): ExchangeStepAttemptReader.Result? {
+  ): ExchangeStepAttemptReader.Result {
     return ExchangeStepAttemptReader()
       .fillStatementBuilder {
         appendClause(
-          "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
+          """
+          WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+            AND ExchangeStepAttempts.Date = @date
+            AND ExchangeStepAttempts.StepIndex = @step_index
+            AND ExchangeStepAttempts.AttemptIndex = @attempt_index
+          """.trimIndent()
         )
-        appendClause("AND ExchangeStepAttempts.Date = @date")
-        appendClause("AND ExchangeStepAttempts.StepIndex = @step_index")
-        appendClause("AND ExchangeStepAttempts.AttemptIndex = @attempt_index")
         bind("external_recurring_exchange_id").to(externalRecurringExchangeId)
         bind("date").to(date.toCloudDate())
         bind("step_index").to(stepIndex.toLong())
@@ -258,6 +260,8 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       }
       .execute(transactionContext)
       .singleOrNull()
+      ?: failGrpc(Status.NOT_FOUND) { "ExchangeStepAttempt not found" }
+    // TODO: use a KingdomInternalException above
   }
 
   private fun TransactionScope.updateExchangeState(
@@ -288,23 +292,16 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       logMessage = "Attempt for Step: ${exchangeStepAttempt.stepIndex} Succeeded."
     }
 
-    val updatedTime = Value.COMMIT_TIMESTAMP.toProto()
-    val debugLog =
-      ExchangeStepAttemptDetails.DebugLog.newBuilder()
-        .apply {
-          message = logMessage
-          time = updatedTime
-        }
-        .build()
+    val now = clock.instant().toProtoTime()
     val details =
-      exchangeStepAttempt
-        .details
-        .toBuilder()
-        .apply {
-          updateTime = updatedTime
-          addDebugLogEntries(debugLog)
-        }
-        .build()
+      exchangeStepAttempt.details.copy {
+        updateTime = now
+        debugLogEntries +=
+          debugLog {
+            message = logMessage
+            time = now
+          }
+      }
 
     transactionContext.bufferUpdateMutation("ExchangeStepAttempts") {
       set("RecurringExchangeId" to recurringExchangeId)
@@ -316,7 +313,10 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       setJson("ExchangeStepAttemptDetailsJson" to details)
     }
 
-    return exchangeStepAttempt.toBuilder().setState(state).setDetails(details).build()
+    return exchangeStepAttempt.copy {
+      this.state = state
+      this.details = details
+    }
   }
 
   private suspend fun TransactionScope.allStepsCompleted(
@@ -328,8 +328,8 @@ class FinishExchangeStepAttempt(private val request: FinishExchangeStepAttemptRe
       SELECT COUNT(*) AS NumberOfIncomplete
       FROM ExchangeSteps
       WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
-      AND ExchangeSteps.Date = @date
-      AND ExchangeSteps.State != @state
+        AND ExchangeSteps.Date = @date
+        AND ExchangeSteps.State != @state
       """.trimIndent()
 
     val statement: Statement =

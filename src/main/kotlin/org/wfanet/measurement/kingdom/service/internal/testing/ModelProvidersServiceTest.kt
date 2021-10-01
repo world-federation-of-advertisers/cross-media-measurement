@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.GetModelProviderRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.getModelProviderRequest
 
 private const val EXTERNAL_MODEL_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -60,9 +61,7 @@ abstract class ModelProvidersServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         modelProvidersService.getModelProvider(
-          GetModelProviderRequest.newBuilder()
-            .setExternalModelProviderId(EXTERNAL_MODEL_PROVIDER_ID)
-            .build()
+          getModelProviderRequest { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
         )
       }
 

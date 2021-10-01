@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
+import org.wfanet.measurement.internal.kingdom.recurringExchange
 
 /** Reads [Exchange] protos from Spanner. */
 class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
@@ -75,17 +76,15 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
   }
 
   private fun buildRecurringExchange(struct: Struct): RecurringExchange {
-    return RecurringExchange.newBuilder()
-      .apply {
-        externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
-        externalModelProviderId = struct.getLong("ExternalModelProviderId")
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        state = struct.getProtoEnum("State", RecurringExchange.State::forNumber)
-        nextExchangeDate = struct.getDate("NextExchangeDate").toProtoDate()
-        details =
-          struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
-      }
-      .build()
+    return recurringExchange {
+      externalRecurringExchangeId = struct.getLong("ExternalRecurringExchangeId")
+      externalModelProviderId = struct.getLong("ExternalModelProviderId")
+      externalDataProviderId = struct.getLong("ExternalDataProviderId")
+      state = struct.getProtoEnum("State", RecurringExchange.State::forNumber)
+      nextExchangeDate = struct.getDate("NextExchangeDate").toProtoDate()
+      details =
+        struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+    }
   }
 
   companion object {
