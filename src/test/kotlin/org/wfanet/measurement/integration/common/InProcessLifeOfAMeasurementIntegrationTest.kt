@@ -191,16 +191,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     }
   }
 
-  @After
-  fun stopAllEdpSimulators() {
-    edpSimulators.forEach { it.close() }
-  }
+  @After fun stopAllEdpSimulators() = runBlocking { edpSimulators.forEach { it.stop() } }
 
   @Test
   fun `create a measurement and check the result is equal to the expected result`() = runBlocking {
     // Wait until all EDPs finish creating eventGroups before the test starts.
     val eventGroupList =
-      pollFor(timeoutMillis = 2_000) {
+      pollFor(timeoutMillis = 10_000) {
         val eventGroups =
           publicEventGroupsClient.listEventGroups(
               listEventGroupsRequest {

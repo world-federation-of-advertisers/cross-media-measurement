@@ -17,14 +17,15 @@ package org.wfanet.measurement.integration.common
 import io.grpc.Channel
 import java.time.Clock
 import java.time.Duration
-import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.dataprovider.CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY
@@ -42,9 +43,9 @@ class InProcessEdpSimulator(
   private val storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
-) : AutoCloseable {
+) {
 
-  private val backgroundScope = CoroutineScope(EmptyCoroutineContext)
+  private val backgroundScope = CoroutineScope(Dispatchers.Default)
 
   private val eventGroupsClient by lazy { EventGroupsCoroutineStub(kingdomPublicApiChannel) }
   private val certificatesClient by lazy { CertificatesCoroutineStub(kingdomPublicApiChannel) }
@@ -53,33 +54,39 @@ class InProcessEdpSimulator(
     RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel)
   }
 
-  fun start(edpName: String, mcName: String) {
-    backgroundScope.launchAsAutoCloseable {
-      val edpData = createEdpData(displayName, edpName)
-      keyStore.storePrivateKeyDer(
-        edpData.encryptionPrivateKeyId,
-        loadTestCertDerFile("${displayName}_enc_private.der")
-      )
-      keyStore.storePrivateKeyDer(
-        edpData.consentSignalingPrivateKeyId,
-        loadTestCertDerFile("${displayName}_cs_private.der")
-      )
+  private lateinit var edpJob: Job
 
-      EdpSimulator(
-          edpData = edpData,
-          measurementConsumerName = mcName,
-          certificatesStub = certificatesClient,
-          eventGroupsStub = eventGroupsClient,
-          requisitionsStub = requisitionsClient,
-          requisitionFulfillmentStub = requisitionFulfillmentClient,
-          sketchStore = SketchStore(storageClient),
-          keyStore = keyStore,
-          sketchGenerationParams =
-            SketchGenerationParams(reach = 1000, universeSize = 1000_000_000),
-          throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+  fun start(edpName: String, mcName: String) {
+    edpJob =
+      backgroundScope.launch {
+        val edpData = createEdpData(displayName, edpName)
+        keyStore.storePrivateKeyDer(
+          edpData.encryptionPrivateKeyId,
+          loadTestCertDerFile("${displayName}_enc_private.der")
         )
-        .process()
-    }
+        keyStore.storePrivateKeyDer(
+          edpData.consentSignalingPrivateKeyId,
+          loadTestCertDerFile("${displayName}_cs_private.der")
+        )
+
+        EdpSimulator(
+            edpData = edpData,
+            measurementConsumerName = mcName,
+            certificatesStub = certificatesClient,
+            eventGroupsStub = eventGroupsClient,
+            requisitionsStub = requisitionsClient,
+            requisitionFulfillmentStub = requisitionFulfillmentClient,
+            sketchStore = SketchStore(storageClient),
+            keyStore = keyStore,
+            sketchGenerationParams = SketchGenerationParams(reach = 1000, universeSize = 10_000),
+            throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          )
+          .process()
+      }
+  }
+
+  suspend fun stop() {
+    edpJob.cancelAndJoin()
   }
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
@@ -90,8 +97,4 @@ class InProcessEdpSimulator(
       consentSignalingPrivateKeyId = CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
       consentSignalCertificateDer = loadTestCertDerFile("${displayName}_cs_cert.der")
     )
-
-  override fun close() {
-    backgroundScope.cancel("Simulator is shutting down.")
-  }
 }

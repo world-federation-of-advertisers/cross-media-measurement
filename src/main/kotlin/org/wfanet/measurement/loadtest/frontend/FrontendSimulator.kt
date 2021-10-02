@@ -156,7 +156,7 @@ class FrontendSimulator(
     (1L..maximumFrequency).forEach {
       val expected = expectedResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
       val actual = actualResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
-      assertThat(actual).isWithin(0.02).of(expected)
+      assertThat(actual).isWithin(0.05).of(expected)
     }
   }
 
