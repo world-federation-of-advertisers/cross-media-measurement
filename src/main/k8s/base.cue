@@ -45,22 +45,25 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcService: {
 	_name:      string
 	_system:    string
-	_type:      *"ClusterIP" | "NodePort"
+	_type:      "ClusterIP"
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
 		name: _name
-		annotations: system:              _system
+		annotations: {
+			system:                           _system
+			"cloud.google.com/app-protocols": '{"grpc-port":"HTTP2"}'
+		}
 		labels: "app.kubernetes.io/name": #AppName
 	}
 	spec: {
 		selector: app: _name + "-app"
 		type: _type
 		ports: [{
-			name:       "port"
-			port:       8080
+			name:       "grpc-port"
+			port:       8443
 			protocol:   "TCP"
-			targetPort: 8080
+			targetPort: 8443
 		}]
 	}
 }
@@ -70,7 +73,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_replicas: int | *1
 	_image:    string
 	_args: [...string]
-	_ports:           [{containerPort: 8080}] | *[]
+	_ports:           [{containerPort: 8443}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
 	_system:          string
@@ -142,12 +145,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #ServerDeployment: #Deployment & {
-	_ports: [{containerPort: 8080}]
+	_ports: [{containerPort: 8443}]
 	spec: template: spec: containers: [{
 		readinessProbe: {
 			exec: command: [
 				"/app/grpc_health_probe/file/grpc-health-probe",
-				"--addr=:8080",
+				"--addr=:8443",
 				"--tls=true",
 				"--tls-ca-cert=/var/run/secrets/files/all_root_certs.pem",
 				"--tls-client-cert=/var/run/secrets/files/aggregator_tls.pem",
@@ -232,3 +235,34 @@ default_deny_ingress: [{
 		policyTypes: ["Ingress"]
 	}
 }]
+
+// A simple fanout Ingress base definition (GKE version)
+#GkeIngress: {
+	_name:         string
+	_host:         string
+	_ingressClass: string
+	_services: [...{name: string, port: int, path: string}]
+	_pathType:  string
+	apiVersion: "networking.k8s.io/v1"
+	kind:       "Ingress"
+	metadata: {
+		name: _name + "ingress"
+		annotations: {
+			"kubernetes.io/ingress.class":      _ingressClass
+			"kubernetes.io/ingress.allow-http": "false"
+		}
+	}
+	spec: {
+		rules: [{
+			host: _host
+			http: paths: [ for s in _services {
+				path:     s.path
+				pathType: _pathType
+				backend: service: {
+					name: s.name
+					port: number: s.port
+				}
+			}]
+		}]
+	}
+}

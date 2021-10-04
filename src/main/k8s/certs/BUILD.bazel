@@ -1,0 +1,9 @@
+package(default_visibility = [
+    "//src/main/k8s:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+])
+
+filegroup(
+    name = "all_der_files",
+    srcs = glob(["*.der"]),
+)

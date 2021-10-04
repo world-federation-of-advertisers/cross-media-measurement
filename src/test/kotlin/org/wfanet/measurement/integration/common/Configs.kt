@@ -14,15 +14,18 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.nio.file.Files
 import java.nio.file.Paths
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.config.DuchyRpcConfig
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
+import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 val DUCHY_ID_CONFIG: DuchyIdConfig =
   loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
@@ -45,11 +48,30 @@ val LLV2_PROTOCOL_CONFIG_CONFIG: Llv2ProtocolConfigConfig =
   )
 val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
-val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
 
-private fun <T : Message> loadTextProto(fileName: String, default: T): T {
+val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
+val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
+const val MC_DISPLAY_NAME = "mc"
+
+fun <T : Message> loadTextProto(fileName: String, default: T): T {
   val runfilesRelativePath =
     Paths.get("wfa_measurement_system", "src", "main", "k8s", "configs", fileName)
   val path = checkNotNull(getRuntimePath(runfilesRelativePath))
   return Files.newBufferedReader(path).use { reader -> parseTextProto(reader, default) }
 }
+
+fun loadTestCertDerFile(fileName: String): ByteString {
+  val runfilesRelativePath =
+    Paths.get("wfa_measurement_system", "src", "main", "k8s", "certs", fileName)
+  val path = checkNotNull(getRuntimePath(runfilesRelativePath))
+  return path.toFile().readBytes().toByteString()
+}
+
+/** Builds a [EntityContent] for the entity with a certain [displayName]. */
+fun createEntityContent(displayName: String) =
+  EntityContent(
+    displayName = displayName,
+    consentSignalPrivateKeyDer = loadTestCertDerFile("${displayName}_cs_private.der"),
+    consentSignalCertificateDer = loadTestCertDerFile("${displayName}_cs_cert.der"),
+    encryptionPublicKeyDer = loadTestCertDerFile("${displayName}_enc_public.der")
+  )

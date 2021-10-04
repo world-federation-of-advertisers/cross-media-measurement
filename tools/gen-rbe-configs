@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+# Usage: tools/gen-rbe-configs <Bazel version> <container image>
+# e.g. tools/gen-rbe-configs 4.2.0 gcr.io/ads-open-measurement/bazel:latest
+
+readonly bazel_version="$1"
+readonly toolchain_container="$2"
+
+rbe_configs_gen \
+  --exec_os=linux \
+  --target_os=linux \
+  --output_src_root=. \
+  --output_config_path=third_party/rbe_configs \
+  --bazel_version="${bazel_version}" \
+  --toolchain_container="${toolchain_container}"

@@ -40,7 +40,7 @@ platform(
         "@bazel_tools//tools/cpp:clang",
     ],
     exec_properties = {
-        "container-image": "docker://gcr.io/ads-open-measurement/bazel@sha256:8ebf11a0db12c0c252c51518cc1f372f44ef978d01bafd7ff738b644fc49808c",
+        "container-image": "gcr.io/ads-open-measurement/bazel@sha256:1f6d2be8e8abbb96d49bf77fded2ebdfd6242589d5a062493689acb773768700",
         "OSFamily": "Linux",
     },
     parents = ["@local_config_platform//:host"],

@@ -59,7 +59,7 @@ import ("strings")
 		"async-computation-control-server": {}
 		"computation-control-server": {}
 		"spanner-computations-server": {}
-		"requisition-fulfillment-server": _type: "NodePort"
+		"requisition-fulfillment-server": {}
 	}
 
 	duchy_deployment: [Name=_]: #Deployment & {
@@ -124,7 +124,7 @@ import ("strings")
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
-				"--port=8080",
+				"--port=8443",
 			]
 			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
@@ -138,7 +138,7 @@ import ("strings")
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
-				"--port=8080",
+				"--port=8443",
 			] + _blob_storage_flags
 			_dependencies: ["\(_name)-async-computation-control-server"]
 		}
@@ -153,7 +153,7 @@ import ("strings")
 				_system_api_target_flag,
 				_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
-				"--port=8080",
+				"--port=8443",
 				"--spanner-database=\(_name)_duchy_computations",
 			] + _spanner_flags
 			_dependencies: ["system-api-server"]
@@ -169,7 +169,7 @@ import ("strings")
 				_computations_service_cert_host_flag,
 				_system_api_target_flag,
 				_system_api_cert_host_flag,
-				"--port=8080",
+				"--port=8443",
 			] + _blob_storage_flags
 			_dependencies: ["system-api-server", "\(_name)-spanner-computations-server"]
 		}
