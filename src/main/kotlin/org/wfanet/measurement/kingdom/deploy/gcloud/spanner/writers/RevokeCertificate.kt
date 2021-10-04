@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import java.lang.IllegalStateException
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -33,6 +34,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
  */
+// TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
+// associated active measurements if a certificate is revoked.
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
 
@@ -52,7 +55,6 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
               externalCertificateId
             )
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
-          KingdomInternalException.Code.DUCHY_NOT_FOUND
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
@@ -64,9 +66,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             .bindWhereClause(duchyId, externalCertificateId)
         }
         RevokeCertificateRequest.ParentCase.PARENT_NOT_SET ->
-          throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
-            "Certificate not found."
-          }
+          throw IllegalStateException("RevokeCertificateRequest is missing parent field.")
       }
 
     val certificateResult =
@@ -76,7 +76,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         }
 
     transactionContext.bufferUpdateMutation("Certificates") {
-      set("CertificateId" to certificateResult.certificateId)
+      set("CertificateId" to certificateResult.certificateId.value)
       set("RevocationState" to request.revocationState)
     }
     return certificateResult.certificate.copy { revocationState = request.revocationState }
