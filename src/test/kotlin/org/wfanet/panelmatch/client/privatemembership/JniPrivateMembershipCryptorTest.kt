@@ -15,10 +15,10 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
-import com.google.privatemembership.batch.ParametersKt.cryptoParameters
 import com.google.privatemembership.batch.ParametersKt.shardParameters
-import com.google.privatemembership.batch.client.Client.EncryptQueriesResponse
+import com.google.privatemembership.batch.Shared.EncryptedQueries
 import com.google.privatemembership.batch.parameters as clientParameters
+import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,19 +26,20 @@ import org.wfanet.panelmatch.client.privatemembership.testing.PRIVATE_MEMBERSHIP
 import org.wfanet.panelmatch.client.privatemembership.testing.encryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.testing.unencryptedQueryOf
 
+private val SERIALIZED_PARAMETERS: ByteString =
+  clientParameters {
+      shardParameters =
+        shardParameters {
+          numberOfShards = 200
+          numberOfBucketsPerShard = 2000
+        }
+      cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
+    }
+    .toByteString()
+
 @RunWith(JUnit4::class)
 class JniPrivateMembershipCryptorTest {
-  val serializedParameters =
-    clientParameters {
-        shardParameters =
-          shardParameters {
-            numberOfShards = 200
-            numberOfBucketsPerShard = 2000
-          }
-        cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
-      }
-      .toByteString()
-  val privateMembershipCryptor = JniPrivateMembershipCryptor(serializedParameters)
+  private val privateMembershipCryptor = JniPrivateMembershipCryptor(SERIALIZED_PARAMETERS)
 
   @Test
   fun `encryptQueries with multiple shards`() {
@@ -52,7 +53,7 @@ class JniPrivateMembershipCryptorTest {
       )
     val encryptedQueries = privateMembershipCryptor.encryptQueries(unencryptedQueries, keys)
     val encryptedQueryList =
-      EncryptQueriesResponse.parseFrom(encryptedQueries).encryptedQueries.queryMetadataList.map {
+      EncryptedQueries.parseFrom(encryptedQueries).queryMetadataList.map {
         encryptedQueryOf(it.shardId, it.queryId)
       }
     assertThat(encryptedQueryList)

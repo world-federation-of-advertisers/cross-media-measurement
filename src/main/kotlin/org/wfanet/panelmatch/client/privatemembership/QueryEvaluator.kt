@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.ByteString
 import java.io.Serializable
 
 /** Provides core batch lookup operations. */
@@ -21,6 +22,7 @@ interface QueryEvaluator : Serializable {
   /** Executes [queryBundles] on [shards]. */
   fun executeQueries(
     shards: List<DatabaseShard>,
-    queryBundles: List<EncryptedQueryBundle>
+    queryBundles: List<EncryptedQueryBundle>,
+    serializedPublicKey: ByteString
   ): List<EncryptedQueryResult>
 }

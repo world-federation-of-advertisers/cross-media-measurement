@@ -25,9 +25,9 @@ import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class BrotliCompressorTest : AbstractCompressorTest() {
-  val dictionary = ByteString.EMPTY
+  private val dictionary: ByteString = ByteString.EMPTY
   override val compressor = BrotliCompressor(dictionary)
-  private val eventList = listOf<String>("aaaaaaaaaaaaaaaa")
+  private val eventList = listOf("aaaaaaaaaaaaaaaa")
   override val events = combinedEvents { serializedEvents += eventList.map { it.toByteString() } }
 
   @Test

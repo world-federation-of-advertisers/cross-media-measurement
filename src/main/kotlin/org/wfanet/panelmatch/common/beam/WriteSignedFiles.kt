@@ -30,7 +30,7 @@ import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.panelmatch.common.toByteString
 
 internal class WriteSignedFiles(
-  private val fileSpec: String,
+  fileSpec: String,
   private val privateKey: PrivateKey,
   private val certificate: X509Certificate,
 ) : PTransform<PCollection<ByteString>, WriteFilesResult<Void>>() {

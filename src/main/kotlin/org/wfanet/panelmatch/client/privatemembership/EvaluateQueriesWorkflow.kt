@@ -14,12 +14,17 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.ByteString
 import java.io.Serializable
 import java.lang.IllegalArgumentException
+import org.apache.beam.sdk.coders.KvCoder
+import org.apache.beam.sdk.coders.ListCoder
+import org.apache.beam.sdk.extensions.protobuf.ProtoCoder
 import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.join
@@ -27,9 +32,12 @@ import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
+import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 
 /**
  * Implements a batch query engine in Apache Beam using homomorphic encryption.
+ *
+ * TODO: consider passing in `queryEvaluator` as a parameter to `batchEvaluateQueries`
  *
  * @param parameters tuning knobs for the workflow
  * @param queryEvaluator implementation of lower-level homomorphic operations
@@ -37,7 +45,7 @@ import org.wfanet.panelmatch.common.beam.parDo
 class EvaluateQueriesWorkflow(
   private val parameters: Parameters,
   private val queryEvaluator: QueryEvaluator
-) : Serializable {
+) {
 
   /**
    * Tuning knobs for the [EvaluateQueriesWorkflow].
@@ -62,38 +70,61 @@ class EvaluateQueriesWorkflow(
   /** Evaluates [queryBundles] on [database]. */
   fun batchEvaluateQueries(
     database: PCollection<KV<DatabaseKey, Plaintext>>,
-    queryBundles: PCollection<EncryptedQueryBundle>
+    queryBundles: PCollection<EncryptedQueryBundle>,
+    serializedPublicKey: PCollectionView<ByteString>
   ): PCollection<EncryptedQueryResult> {
     val shardedDatabase: PCollection<KV<ShardId, DatabaseShard>> = shardDatabase(database)
 
     val queriesByShard = queryBundles.keyBy("Key QueryBundles by Shard") { it.shardId }
 
-    return queryShards(shardedDatabase, queriesByShard)
+    return queryShards(shardedDatabase, queriesByShard, serializedPublicKey)
   }
 
   /** Joins the inputs to execute the queries on the appropriate shards. */
   private fun queryShards(
     shardedDatabase: PCollection<KV<ShardId, DatabaseShard>>,
-    queriesByShard: PCollection<KV<ShardId, EncryptedQueryBundle>>
+    queriesByShard: PCollection<KV<ShardId, EncryptedQueryBundle>>,
+    serializedPublicKey: PCollectionView<ByteString>
   ): PCollection<EncryptedQueryResult> {
-    return shardedDatabase.join(queriesByShard, name = "Join Database and queryMetadata") {
-      key: ShardId,
-      shards: Iterable<DatabaseShard>,
-      queries: Iterable<EncryptedQueryBundle> ->
-      val queriesList = queries.toList()
+    val shardsAndQueries: PCollection<KV<List<DatabaseShard>, List<EncryptedQueryBundle>>> =
+      shardedDatabase.join(queriesByShard, name = "Join Database and Queries") {
+        _: ShardId,
+        shards,
+        queries ->
+        yield(kvOf(shards.toList(), queries.toList()))
+      }
 
-      val numQueries = queriesList.sumBy { it.queryIdsCount }
-      require(numQueries <= parameters.maxQueriesPerShard) {
-        "Shard $key has $numQueries queries (${parameters.maxQueriesPerShard} allowed) $queriesList"
+    // shardsAndQueries requires an explicit coder to be set because of differences in how Java and
+    // Kotlin handle type inference around Lists/Iterables.
+    // TODO: investigate if @JvmWildcard can be used instead
+    @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
+    shardsAndQueries.coder =
+      KvCoder.of(
+        ListCoder.of(ProtoCoder.of(DatabaseShard::class.java)),
+        ListCoder.of(ProtoCoder.of(EncryptedQueryBundle::class.java))
+      )
+
+    // Local references because EvaluatorQueriesWorkflow is not serializable.
+    val maxQueriesPerShard = parameters.maxQueriesPerShard
+    val queryEvaluator = this.queryEvaluator
+
+    return shardsAndQueries.parDoWithSideInput(serializedPublicKey, name = "Execute Queries") {
+      kv: KV<List<DatabaseShard>, List<EncryptedQueryBundle>>,
+      publicKey: ByteString ->
+      val shards = kv.key
+      val queries = kv.value
+
+      val numQueries = queries.sumBy { it.queryIdsCount }
+      require(numQueries <= maxQueriesPerShard) {
+        "Shard has $numQueries queries ($maxQueriesPerShard allowed)"
       }
 
       if (numQueries > 0) {
-        val shardsList = shards.toList()
         // TODO(@efoxepstein): consider throwing an error when the size is 0, too.
-        when (shardsList.size) {
-          0 -> return@join
-          1 -> yieldAll(queryEvaluator.executeQueries(shardsList, queriesList))
-          else -> throw IllegalArgumentException("Too many DatabaseShards for shard $key")
+        when (shards.size) {
+          0 -> return@parDoWithSideInput
+          1 -> yieldAll(queryEvaluator.executeQueries(shards, queries, publicKey))
+          else -> throw IllegalArgumentException("Too many DatabaseShards for shard")
         }
       }
     }
@@ -105,18 +136,20 @@ class EvaluateQueriesWorkflow(
   ): PCollection<KV<ShardId, DatabaseShard>> {
     val bucketing = Bucketing(parameters.numShards, parameters.numBucketsPerShard)
     return database
-      .keyBy {
+      .keyBy("Key by Shard & Bucket") {
         val (shardId, bucketId) = bucketing.apply(it.key.id)
         kvOf(shardId, bucketId)
       }
       .groupByKey("Group by Shard and Bucket")
-      .map { kv ->
+      .map("Map Shard to Bucket") { kv ->
         val combinedValues = kv.value.map { it.value.payload }.flatten()
         kvOf(kv.key.key, bucketOf(kv.key.value, combinedValues))
       }
       .groupByKey("Group by Shard")
-      .map { kvOf(it.key, databaseShardOf(it.key, it.value.toList())) }
-      .parDo(DatabaseShardSizeObserver())
+      .map("Map Shard to DatabaseShard") {
+        kvOf(it.key, databaseShardOf(it.key, it.value.toList()))
+      }
+      .parDo(DatabaseShardSizeObserver(), name = "Observe shard sizes")
   }
 }
 

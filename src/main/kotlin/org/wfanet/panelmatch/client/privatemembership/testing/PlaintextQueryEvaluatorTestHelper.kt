@@ -24,6 +24,7 @@ import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
+import org.wfanet.panelmatch.common.toByteString
 
 /**
  * Helper with [PlaintextQueryEvaluator].
@@ -59,4 +60,6 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
   override fun makeEmptyResult(query: QueryId): EncryptedQueryResult {
     return makeResult(query, ByteString.EMPTY)
   }
+
+  override val serializedPublicKey: ByteString = "some-serialized-public-key".toByteString()
 }

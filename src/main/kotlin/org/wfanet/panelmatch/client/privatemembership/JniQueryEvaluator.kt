@@ -22,20 +22,16 @@ import com.google.privatemembership.batch.server.RawDatabaseShardKt.bucket
 import com.google.privatemembership.batch.server.Server.RawDatabaseShard
 import com.google.privatemembership.batch.server.applyQueriesRequest
 import com.google.privatemembership.batch.server.rawDatabaseShard
+import com.google.protobuf.ByteString
 
 /** [QueryEvaluator] that calls into C++ via JNI. */
-class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : QueryEvaluator {
-  private val privateMembershipParameters: Parameters by lazy {
-    Parameters.parseFrom(parameters.serializedPrivateMembershipParameters)
-  }
-
-  private val privateMembershipPublicKey: PublicKey by lazy {
-    PublicKey.parseFrom(parameters.serializedPublicKey)
-  }
+class JniQueryEvaluator(serializedParameters: ByteString) : QueryEvaluator {
+  private val privateMembershipParameters: Parameters = Parameters.parseFrom(serializedParameters)
 
   override fun executeQueries(
     shards: List<DatabaseShard>,
-    queryBundles: List<EncryptedQueryBundle>
+    queryBundles: List<EncryptedQueryBundle>,
+    serializedPublicKey: ByteString
   ): List<EncryptedQueryResult> {
     val presentDatabaseShards = shards.map { it.shardId.id }.toSet()
     val presentQueryShards = queryBundles.map { it.shardId.id }.toSet()
@@ -45,7 +41,7 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
 
     val request = applyQueriesRequest {
       parameters = privateMembershipParameters
-      publicKey = privateMembershipPublicKey
+      publicKey = PublicKey.parseFrom(serializedPublicKey)
       finalizeResults = true
       queries += queryBundles.map(EncryptedQueryBundle::encryptedQueries)
       rawDatabase =
@@ -53,6 +49,8 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
           this.shards += shards.map(DatabaseShard::toPrivateMembershipRawDatabaseShard)
         }
     }
+
+    check(request.queriesList.all { !it.prngSeed.isEmpty })
 
     val response = JniPrivateMembership.applyQueries(request)
 
@@ -74,14 +72,15 @@ class JniQueryEvaluator(private val parameters: QueryEvaluatorParameters) : Quer
 private val EncryptedQueryBundle.encryptedQueries: EncryptedQueries
   get() = EncryptedQueries.parseFrom(serializedEncryptedQueries)
 
-private fun DatabaseShard.toPrivateMembershipRawDatabaseShard(): RawDatabaseShard =
-    rawDatabaseShard {
-  shardIndex = shardId.id
-  buckets +=
-    bucketsList.map {
-      bucket {
-        bucketId = it.bucketId.id
-        bucketContents = it.payload
+private fun DatabaseShard.toPrivateMembershipRawDatabaseShard(): RawDatabaseShard {
+  return rawDatabaseShard {
+    shardIndex = shardId.id
+    buckets +=
+      bucketsList.map {
+        bucket {
+          bucketId = it.bucketId.id
+          bucketContents = it.payload
+        }
       }
-    }
+  }
 }

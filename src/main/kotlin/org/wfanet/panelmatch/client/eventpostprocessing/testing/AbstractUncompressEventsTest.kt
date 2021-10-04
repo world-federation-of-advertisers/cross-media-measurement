@@ -29,6 +29,7 @@ import org.wfanet.panelmatch.client.privatemembership.queryId
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 
 @RunWith(JUnit4::class)
@@ -48,16 +49,14 @@ abstract class AbstractUncompressEventsTest : BeamTestBase() {
         }
       }
     val uncompressedEvents =
-      uncompressEvents(eventData, compressedEvents.dictionary, compressorFactory)
+      uncompressEvents(eventData, compressedEvents.dictionary.toSingletonView(), compressorFactory)
     assertThat(uncompressedEvents).satisfies {
       assertThat(
-          it
-            .map { dataset ->
-              dataset.decryptedEventDataList.map { plaintext ->
-                dataset.queryId.id to plaintext.payload.toStringUtf8()
-              }
+          it.flatMap { dataset ->
+            dataset.decryptedEventDataList.map { plaintext ->
+              dataset.queryId.id to plaintext.payload.toStringUtf8()
             }
-            .flatten()
+          }
         )
         .containsExactly(
           65 to "W1",

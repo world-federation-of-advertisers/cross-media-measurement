@@ -26,6 +26,8 @@ private val SPEC_REGEX = """^([\w-.]+)-(\*|\?+)-of-(\d+)$""".toRegex()
  * number of base-10 digits in X.
  */
 data class ShardedFileName(val spec: String) {
+  constructor(baseName: String, shardCount: Int) : this("$baseName-*-of-$shardCount")
+
   val baseName: String
   val shardCount: Int
 

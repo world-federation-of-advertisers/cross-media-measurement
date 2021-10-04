@@ -25,6 +25,7 @@ import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.transforms.Partition
 import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.transforms.Values
+import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.transforms.join.CoGroupByKey
 import org.apache.beam.sdk.transforms.join.KeyedPCollectionTuple
 import org.apache.beam.sdk.values.KV
@@ -54,7 +55,7 @@ fun <KeyT, ValueT> PCollection<KV<KeyT, ValueT>>.values(
 /** Kotlin convenience helper for [ParDo]. */
 inline fun <InT, reified OutT> PCollection<InT>.parDo(
   doFn: DoFn<InT, OutT>,
-  name: String = "ParDO"
+  name: String = "ParDo"
 ): PCollection<OutT> {
   return apply(name, ParDo.of(doFn))
 }
@@ -196,6 +197,14 @@ inline fun <InT, reified SideT, reified OutT> PCollection<InT>.parDoWithSideInpu
   return apply(name, ParDo.of(doFn).withSideInputs(sideInput))
 }
 
+inline fun <InT, reified SideT, reified OutT> PCollection<InT>.mapWithSideInput(
+  sideInput: PCollectionView<SideT>,
+  name: String = "MapWithSideInput",
+  crossinline processElement: (InT, SideT) -> OutT
+): PCollection<OutT> {
+  return parDoWithSideInput(sideInput, name) { e, side -> yield(processElement(e, side)) }
+}
+
 /** Groups receiver by key and then combines all values into one with [combiner]. */
 inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.combinePerKey(
   name: String = "CombinePerKey",
@@ -209,6 +218,10 @@ inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
   name: String = "GroupByKey"
 ): PCollection<KV<KeyT, Iterable<ValueT>>> {
   return apply(name, GroupByKey.create())
+}
+
+fun <T> PCollection<T>.toSingletonView(name: String = "ToView"): PCollectionView<T> {
+  return apply(name, View.asSingleton())
 }
 
 /** Convenient way to get a [TypeDescriptor] for the receiver. */

@@ -25,7 +25,7 @@ import org.wfanet.panelmatch.common.toByteString
 @RunWith(JUnit4::class)
 class NoOpCompressorTest : AbstractCompressorTest() {
   override val compressor = NoOpCompressor()
-  private val eventList = listOf<String>("a", "b", "c")
+  private val eventList = listOf("a", "b", "c")
   override val events = combinedEvents { serializedEvents += eventList.map { it.toByteString() } }
 
   @Test

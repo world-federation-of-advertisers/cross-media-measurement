@@ -99,7 +99,12 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
     val queryBundlesPCollection = pipeline.apply("Create QueryBundles", Create.of(queryBundles))
 
     val workflow = EvaluateQueriesWorkflow(parameters, queryEvaluator)
-    val results = workflow.batchEvaluateQueries(databasePCollection, queryBundlesPCollection)
+    val results =
+      workflow.batchEvaluateQueries(
+        databasePCollection,
+        queryBundlesPCollection,
+        pcollectionViewOf("Create SerializedPublicKey", helper.serializedPublicKey)
+      )
 
     assertThat(results).satisfies {
       // First, we decode each result and then split each bucket up into individual values.

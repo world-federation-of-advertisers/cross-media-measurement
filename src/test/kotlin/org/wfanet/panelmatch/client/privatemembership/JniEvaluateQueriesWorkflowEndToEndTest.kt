@@ -30,7 +30,7 @@ class JniEvaluateQueriesWorkflowEndToEndTest : AbstractEvaluateQueriesWorkflowEn
   }
 
   override fun makeQueryEvaluator(parameters: Parameters): QueryEvaluator {
-    return JniQueryEvaluator(getContext(parameters).parameters)
+    return JniQueryEvaluator(getContext(parameters).privateMembershipParameters.toByteString())
   }
 
   override fun makeHelper(parameters: Parameters): QueryEvaluatorTestHelper {

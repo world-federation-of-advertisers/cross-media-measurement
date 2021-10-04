@@ -23,11 +23,13 @@ import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.common.beam.filter
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
 
@@ -39,6 +41,8 @@ private const val DEFAULT_TOTAL_QUERIES = 100000
  * Implements a query creation engine in Apache Beam that encrypts a query so that it can later be
  * expanded by another party using oblivious query expansion.
  *
+ * TODO: consider passing in `privateMembershipCryptor` as a parameter
+ *
  * @param parameters tuning knobs for the workflow
  * @param privateMembershipCryptor implementation of lower-level oblivious query expansion and
  * result decryption
@@ -46,7 +50,7 @@ private const val DEFAULT_TOTAL_QUERIES = 100000
 class CreateQueriesWorkflow(
   private val parameters: Parameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor
-) : Serializable {
+) {
 
   /**
    * Tuning knobs for the [CreateQueriesWorkflow].
@@ -59,9 +63,6 @@ class CreateQueriesWorkflow(
    * place.
    */
   data class Parameters(
-    val serializedParameters: ByteString,
-    val serializedPublicKey: ByteString,
-    val serializedPrivateKey: ByteString,
     val numShards: Int,
     val numBucketsPerShard: Int,
     val totalQueriesPerShard: Int?
@@ -79,29 +80,23 @@ class CreateQueriesWorkflow(
     }
   }
 
-  private data class ShardedData(
-    val shardId: ShardId,
-    val bucketId: BucketId,
-    val panelistKey: PanelistKey,
-    val joinKey: JoinKey
-  ) : Serializable
-
-  /** Creates [PrivateMembershipEncryptResponse] from [data]. */
+  /** Creates encrypted queries for a collection of panelists. */
   fun batchCreateQueries(
     panelistKeyAndJoinKey: PCollection<PanelistKeyAndJoinKey>,
+    privateMembershipKeys: PCollectionView<PrivateMembershipKeys>
   ): Pair<PCollection<QueryIdAndPanelistKey>, PCollection<EncryptedQueryBundle>> {
     val shardedData = shardJoinKeys(panelistKeyAndJoinKey)
     val paddedData = addPaddedQueries(shardedData)
     val mappedData = mapToQueryId(paddedData)
     val unencryptedQueries = buildUnencryptedQueryRequest(mappedData)
-    val panelistToQueryIdMapping = getPanelistToQueryMapping(mappedData)
-    return Pair(panelistToQueryIdMapping, getPrivateMembershipQueries(unencryptedQueries))
+    val panelistToQueryIdMapping = convertToQueryIdAndPanelistKeys(mappedData)
+    return panelistToQueryIdMapping to encryptQueries(unencryptedQueries, privateMembershipKeys)
   }
 
   /** Determines shard and bucket for a [JoinKey]. */
   private fun shardJoinKeys(data: PCollection<PanelistKeyAndJoinKey>): PCollection<ShardedData> {
     val bucketing = Bucketing(parameters.numShards, parameters.numBucketsPerShard)
-    return data.map(name = "Map to ShardId") {
+    return data.map("Map to ShardId") {
       val (shardId, bucketId) = bucketing.hashAndApply(it.joinKey)
       ShardedData(shardId, bucketId, it.panelistKey, it.joinKey)
     }
@@ -109,58 +104,11 @@ class CreateQueriesWorkflow(
 
   /** Wrapper function to add in the necessary number of padded queries */
   private fun addPaddedQueries(data: PCollection<ShardedData>): PCollection<ShardedData> {
-    if (parameters.totalQueriesPerShard == null) return data
+    val totalQueriesPerShard = parameters.totalQueriesPerShard ?: return data
     return data
-      .keyBy { it.shardId }
-      .groupByKey("Group into shards")
-      .parDo(
-        doFn = EqualizeQueriesPerShardFn(requireNotNull(parameters.totalQueriesPerShard)),
-        name = "Equalize queries per shard"
-      )
-  }
-
-  /**
-   * Adds or deletes queries from sharded data until it is the desired size. We keep track of which
-   * queries are fake so we don't need to decrypt them in the end.
-   */
-  private class EqualizeQueriesPerShardFn(
-    private val totalQueriesPerShard: Int,
-  ) : DoFn<KV<ShardId, Iterable<@JvmWildcard ShardedData>>, ShardedData>() {
-    /**
-     * Metric to track number of discarded Queries. If unacceptably high, the totalQueriesPerShard
-     * parameter should be increased.
-     */
-    private val discardedQueriesMetric =
-      Metrics.distribution(CreateQueriesWorkflow::class.java, "discarded-queries")
-
-    @ProcessElement
-    fun processElement(context: ProcessContext) {
-      val data = context.element()
-      var total: Int = 0
-      var discardedQueries: Long = 0
-      /** Filter out any real queries above the limit */
-      for (shardedData in data.value) {
-        if (total < totalQueriesPerShard) {
-          total += 1
-          context.output(shardedData)
-        } else {
-          discardedQueries += 1
-        }
-      }
-      discardedQueriesMetric.update(discardedQueries)
-      /** Add queries to get to the limit */
-      for (i in total until totalQueriesPerShard) {
-        // TODO If we add in query mitigation, the BucketId should be set to the fake bucket
-        context.output(
-          ShardedData(
-            data.key,
-            bucketIdOf(0),
-            panelistKeyOf(FAKE_PANELIST_ID),
-            joinKeyOf(FAKE_JOIN_KEY)
-          )
-        )
-      }
-    }
+      .keyBy("Key by Shard") { it.shardId }
+      .groupByKey("Group by Shard")
+      .parDo(EqualizeQueriesPerShardFn(totalQueriesPerShard), name = "Equalize Queries per Shard")
   }
 
   /**
@@ -170,11 +118,12 @@ class CreateQueriesWorkflow(
    * the mapped space to 16 bits.
    */
   private fun mapToQueryId(data: PCollection<ShardedData>): PCollection<KV<QueryId, ShardedData>> {
-    return data.keyBy { 1 }.groupByKey().values().parDo { shardedDatas ->
+    val numQueries = parameters.numQueries
+    return data.keyBy { 1 }.groupByKey().values().parDo("Add QueryIds") { shardedDatas ->
       val queryIds: Iterator<Int> = iterator {
-        // TODO - find a better way to do this. It uses too much memory.
+        // TODO: find a better way to do this. It uses too much memory.
         val seen = BitSet()
-        while (seen.cardinality() < parameters.numQueries) {
+        while (seen.cardinality() < numQueries) {
           val id = abs(Random.nextInt())
           if (!seen.get(id)) {
             seen.set(id)
@@ -182,18 +131,16 @@ class CreateQueriesWorkflow(
           }
         }
       }
-      shardedDatas
-        .asSequence()
-        .mapIndexed { index, value ->
-          require(index < parameters.numQueries) { "Too many queries" }
-          kvOf(queryIdOf(queryIds.next()), value)
-        }
-        .also { yieldAll(it) }
+
+      for ((index, shardedData) in shardedDatas.withIndex()) {
+        require(index < numQueries) { "Too many queries" }
+        yield(kvOf(queryIdOf(queryIds.next()), shardedData))
+      }
     }
   }
 
-  /** Maps each [PanelistKey] to a unique [QueryId]. We also filter out all the fake queryIds. */
-  private fun getPanelistToQueryMapping(
+  /** Filter out fake queries and return [QueryIdAndPanelistKey]s. */
+  private fun convertToQueryIdAndPanelistKeys(
     data: PCollection<KV<QueryId, ShardedData>>
   ): PCollection<QueryIdAndPanelistKey> {
     return data
@@ -208,7 +155,7 @@ class CreateQueriesWorkflow(
       }
   }
 
-  /** Builds [EncryptedQuery] from the encrypted data join keys of [JoinKey]. */
+  /** Builds [UnencryptedQuery] from the encrypted data join keys of [JoinKey]. */
   private fun buildUnencryptedQueryRequest(
     data: PCollection<KV<QueryId, ShardedData>>
   ): PCollection<KV<ShardId, UnencryptedQuery>> {
@@ -218,23 +165,75 @@ class CreateQueriesWorkflow(
   }
 
   /** Batch gets the oblivious queries grouped by [ShardId]. */
-  private fun getPrivateMembershipQueries(
-    data: PCollection<KV<ShardId, UnencryptedQuery>>
+  private fun encryptQueries(
+    unencryptedQueries: PCollection<KV<ShardId, UnencryptedQuery>>,
+    privateMembershipKeys: PCollectionView<PrivateMembershipKeys>
   ): PCollection<EncryptedQueryBundle> {
-    return data.groupByKey("Group by Shard").map<
-        KV<ShardId, Iterable<UnencryptedQuery>>, EncryptedQueryBundle>(
-        name = "Map to EncryptQueriesResponse"
-      ) {
-      val keys =
-        PrivateMembershipKeys(
-          serializedPrivateKey = parameters.serializedPrivateKey,
-          serializedPublicKey = parameters.serializedPublicKey,
-        )
+    // Local reference because DecryptQueryResultsWorkflow is not serializable.
+    val privateMembershipCryptor = privateMembershipCryptor
+    return unencryptedQueries.groupByKey("Group by Shard").mapWithSideInput(
+        privateMembershipKeys,
+        "Map to EncryptQueriesResponse"
+      ) { kv, keys ->
       encryptedQueryBundle {
-        shardId = it.key
-        queryIds += it.value.map { it.queryId }
-        serializedEncryptedQueries = privateMembershipCryptor.encryptQueries(it.value, keys)
+        shardId = kv.key
+        queryIds += kv.value.map { it.queryId }
+        serializedEncryptedQueries = privateMembershipCryptor.encryptQueries(kv.value, keys)
       }
+    }
+  }
+}
+
+// TODO: rename this to something more meaningful.
+private data class ShardedData(
+  val shardId: ShardId,
+  val bucketId: BucketId,
+  val panelistKey: PanelistKey,
+  val joinKey: JoinKey
+) : Serializable
+
+/**
+ * Adds or deletes queries from sharded data until it is the desired size. We keep track of which
+ * queries are fake so we don't need to decrypt them in the end.
+ */
+private class EqualizeQueriesPerShardFn(
+  private val totalQueriesPerShard: Int,
+) : DoFn<KV<ShardId, Iterable<@JvmWildcard ShardedData>>, ShardedData>() {
+  /**
+   * Metric to track number of discarded Queries. If unacceptably high, the totalQueriesPerShard
+   * parameter should be increased.
+   */
+  private val discardedQueriesMetric =
+    Metrics.distribution(CreateQueriesWorkflow::class.java, "discarded-queries")
+
+  @ProcessElement
+  fun processElement(context: ProcessContext) {
+    val data = context.element()
+    var total = 0
+    var discardedQueries = 0L
+
+    // Filter out any real queries above the limit
+    for (shardedData in data.value) {
+      if (total < totalQueriesPerShard) {
+        total += 1
+        context.output(shardedData)
+      } else {
+        discardedQueries += 1
+      }
+    }
+    discardedQueriesMetric.update(discardedQueries)
+
+    // Add queries to get to the limit
+    for (i in total until totalQueriesPerShard) {
+      // TODO If we add in query mitigation, the BucketId should be set to the fake bucket
+      context.output(
+        ShardedData(
+          data.key,
+          bucketIdOf(0),
+          panelistKeyOf(FAKE_PANELIST_ID),
+          joinKeyOf(FAKE_JOIN_KEY)
+        )
+      )
     }
   }
 }

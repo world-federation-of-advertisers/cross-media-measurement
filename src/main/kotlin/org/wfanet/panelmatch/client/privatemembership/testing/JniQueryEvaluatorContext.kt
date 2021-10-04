@@ -22,7 +22,6 @@ import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.parameters
 import java.io.Serializable
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembership
-import org.wfanet.panelmatch.client.privatemembership.queryEvaluatorParameters
 
 class JniQueryEvaluatorContext(shardCount: Int, bucketsPerShardCount: Int) : Serializable {
   val privateMembershipParameters: Shared.Parameters = parameters {
@@ -43,10 +42,5 @@ class JniQueryEvaluatorContext(shardCount: Int, bucketsPerShardCount: Int) : Ser
       )
     privateMembershipPublicKey = response.publicKey
     privateMembershipPrivateKey = response.privateKey
-  }
-
-  val parameters = queryEvaluatorParameters {
-    serializedPrivateMembershipParameters = privateMembershipParameters.toByteString()
-    serializedPublicKey = privateMembershipPublicKey.toByteString()
   }
 }

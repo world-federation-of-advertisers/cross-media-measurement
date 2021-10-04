@@ -82,10 +82,11 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
 
   override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {
     // TODO(@efoxepstein): have private-membership expose a helper for this.
-    return JniQueryEvaluator(context.parameters)
+    return JniQueryEvaluator(context.privateMembershipParameters.toByteString())
       .executeQueries(
         listOf(databaseShardOf(shardIdOf(0), listOf(bucketOf(bucketIdOf(0), rawPayload)))),
-        listOf(makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0))))
+        listOf(makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))),
+        serializedPublicKey
       )
       .single()
   }
@@ -99,8 +100,10 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
       )
     val queryBundle = makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))
 
-    return JniQueryEvaluator(context.parameters)
-      .executeQueries(listOf(databaseShard), listOf(queryBundle))
+    return JniQueryEvaluator(context.privateMembershipParameters.toByteString())
+      .executeQueries(listOf(databaseShard), listOf(queryBundle), serializedPublicKey)
       .single()
   }
+
+  override val serializedPublicKey: ByteString = context.privateMembershipPublicKey.toByteString()
 }

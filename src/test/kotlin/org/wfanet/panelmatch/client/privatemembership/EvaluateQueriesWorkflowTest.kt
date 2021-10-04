@@ -43,7 +43,14 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     parameters: Parameters
   ): PCollection<EncryptedQueryResult> {
     return EvaluateQueriesWorkflow(parameters, PlaintextQueryEvaluator)
-      .batchEvaluateQueries(database, pcollectionOf("Create Query Bundles", queryBundles))
+      .batchEvaluateQueries(
+        database,
+        pcollectionOf("Create Query Bundles", queryBundles),
+        pcollectionViewOf(
+          "Create SerializedPublicKey",
+          PlaintextQueryEvaluatorTestHelper.serializedPublicKey
+        )
+      )
   }
 
   @Test
