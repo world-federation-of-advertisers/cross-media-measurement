@@ -32,11 +32,8 @@ import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
-import org.wfanet.panelmatch.common.beam.map
-import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.crypto.SymmetricCryptor
 import org.wfanet.panelmatch.common.crypto.testing.FakeSymmetricCryptor
-import org.wfanet.panelmatch.common.toByteString
 
 class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
 

@@ -27,52 +27,51 @@ import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
-import org.wfanet.panelmatch.common.beam.SignedFiles
+import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.toByteString
 
-/**
- * Runs [EvaluateQueriesWorkflow].
- *
- * TODO(@efoxepstein): this needs to be completed. For now it's just an example.
- */
+/** Runs [EvaluateQueriesWorkflow]. */
 class ExecutePrivateMembershipQueriesTask(
+  override val uriPrefix: String,
+  override val privateKey: PrivateKey,
+  override val localCertificate: X509Certificate,
   private val workflowParameters: EvaluateQueriesWorkflow.Parameters,
   private val queryEvaluator: QueryEvaluator,
-  private val localCertificate: X509Certificate,
   private val partnerCertificate: X509Certificate,
-  private val privateKey: PrivateKey,
-  private val outputUriPrefix: String,
   private val encryptedQueryResultFileCount: Int,
-) : ExchangeTask {
+) : ApacheBeamTask() {
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
     val pipeline = Pipeline.create()
 
-    val eventDataFileSpec = input.getValue("event-data").toStringUtf8()
+    val databaseManifest = input.getValue("event-data")
     val database =
-      pipeline.apply(SignedFiles.read(eventDataFileSpec, localCertificate)).map {
+      readFromManifest(databaseManifest, localCertificate).map {
         val databaseEntry = DatabaseEntry.parseFrom(it)
         kvOf(databaseEntry.databaseKey, databaseEntry.plaintext)
       }
 
-    val queriesFileSpec = input.getValue("encrypted-queries").toStringUtf8()
+    val queriesManifest = input.getValue("encrypted-queries")
     val queries =
-      pipeline.apply(SignedFiles.read(queriesFileSpec, partnerCertificate)).map {
+      readFromManifest(queriesManifest, partnerCertificate).map {
         EncryptedQueryBundle.parseFrom(it)
       }
 
+    val publicKeyManifest = input.getValue("private-membership-public-key")
+    val privateMembershipPublicKey =
+      readFromManifest(publicKeyManifest, localCertificate).toSingletonView()
+
     val evaluateQueriesWorkflow = EvaluateQueriesWorkflow(workflowParameters, queryEvaluator)
     val results: PCollection<EncryptedQueryResult> =
-      evaluateQueriesWorkflow.batchEvaluateQueries(database, queries)
+      evaluateQueriesWorkflow.batchEvaluateQueries(database, queries, privateMembershipPublicKey)
 
-    val resultsSpec = "$outputUriPrefix/encrypted-results-*-of-$encryptedQueryResultFileCount"
-    results
-      .map { it.toByteString() }
-      .apply(SignedFiles.write(resultsSpec, privateKey, localCertificate))
+    val resultsFileName = ShardedFileName("encrypted-results", encryptedQueryResultFileCount)
+    results.map { it.toByteString() }.write(resultsFileName)
 
     pipeline.run()
 
-    return mapOf("encrypted-results" to flowOf(resultsSpec.toByteString()))
+    return mapOf("encrypted-results" to flowOf(resultsFileName.spec.toByteString()))
   }
 }

@@ -40,4 +40,6 @@ interface QueryEvaluatorTestHelper : Serializable {
   fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult
 
   fun makeEmptyResult(query: QueryId): EncryptedQueryResult
+
+  val serializedPublicKey: ByteString
 }

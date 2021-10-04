@@ -25,8 +25,8 @@ private const val HASH_ALGORITHM = "SHA-256"
  */
 private fun ByteArray.toLong(): Long {
   require(this.size >= 8)
-  var result: Long = 0
-  var bitCount: Int = 0
+  var result = 0L
+  var bitCount = 0
   for (byte in this.takeLast(8).toByteArray()) {
     result = result or (byte.toLong() shl bitCount)
     bitCount += 8

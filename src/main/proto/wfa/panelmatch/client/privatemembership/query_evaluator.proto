@@ -22,16 +22,6 @@ option java_package = "org.wfanet.panelmatch.client.privatemembership";
 option java_multiple_files = true;
 option java_outer_classname = "QueryEvaluatorProto";
 
-// An argument in every Request proto. It contains various knobs for tuning the
-// system.
-message QueryEvaluatorParameters {
-  // Serialized private_membership.batch.Parameters message.
-  bytes serialized_private_membership_parameters = 1;
-
-  // Serialized private_membership.batch.PublicKey message.
-  bytes serialized_public_key = 2;
-}
-
 // A full or partial set of buckets in a batch lookup database.
 message DatabaseShard {
   ShardId shard_id = 1;

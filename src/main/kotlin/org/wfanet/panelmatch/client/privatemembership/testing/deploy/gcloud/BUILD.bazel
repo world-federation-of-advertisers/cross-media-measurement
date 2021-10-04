@@ -1,0 +1,27 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+kt_jvm_library(
+    name = "dataflow_round_trip_test_main",
+    srcs = ["DataflowRoundTripTestMain.kt"],
+    runtime_deps = ["//imports/java/org/slf4j:simple"],
+    deps = [
+        "//imports/java/com/google/api/services:cloud_bigquery",
+        "//imports/java/com/google/api/services:services_bigquery",
+        "//imports/java/org/apache/beam:core",
+        "//imports/java/org/apache/beam/extensions:google_cloud_platform_core",
+        "//imports/java/org/apache/beam/extensions:protobuf",
+        "//imports/java/org/apache/beam/io:google_cloud_platform",
+        "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+    ],
+)
+
+java_binary(
+    name = "dataflow_round_trip_test",
+    main_class = "org.wfanet.panelmatch.client.privatemembership.testing.deploy.gcloud.DataflowRoundTripTestMainKt",
+    tags = ["manual"],
+    runtime_deps = [":dataflow_round_trip_test_main"],
+)

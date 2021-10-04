@@ -26,7 +26,8 @@ class JniQueryEvaluatorTest : AbstractQueryEvaluatorTest() {
   private val context: JniQueryEvaluatorContext =
     JniQueryEvaluatorContext(shardCount, bucketsPerShardCount)
 
-  override val evaluator: QueryEvaluator = JniQueryEvaluator(context.parameters)
+  override val evaluator: QueryEvaluator =
+    JniQueryEvaluator(context.privateMembershipParameters.toByteString())
 
   override val helper: QueryEvaluatorTestHelper = JniQueryEvaluatorTestHelper(context)
 }

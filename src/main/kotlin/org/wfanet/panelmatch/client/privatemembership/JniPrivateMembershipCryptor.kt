@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.privatemembership.batch.Shared.Parameters as ClientParameters
 import com.google.privatemembership.batch.Shared.PublicKey as ClientPublicKey
+import com.google.privatemembership.batch.client.Client.EncryptQueriesResponse
 import com.google.privatemembership.batch.client.Client.PrivateKey as ClientPrivateKey
 import com.google.privatemembership.batch.client.encryptQueriesRequest
 import com.google.privatemembership.batch.client.generateKeysRequest
@@ -60,7 +61,7 @@ class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) 
       publicKey = ClientPublicKey.parseFrom(keys.serializedPublicKey)
       this.plaintextQueries += plaintextQueries
     }
-    val response = JniPrivateMembership.encryptQueries(request)
-    return response.toByteString()
+    val response: EncryptQueriesResponse = JniPrivateMembership.encryptQueries(request)
+    return response.encryptedQueries.toByteString()
   }
 }

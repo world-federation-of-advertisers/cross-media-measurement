@@ -37,7 +37,8 @@ import org.wfanet.panelmatch.client.privatemembership.resultOf
 object PlaintextQueryEvaluator : QueryEvaluator {
   override fun executeQueries(
     shards: List<DatabaseShard>,
-    queryBundles: List<EncryptedQueryBundle>
+    queryBundles: List<EncryptedQueryBundle>,
+    serializedPublicKey: ByteString
   ): List<EncryptedQueryResult> {
     val results = mutableListOf<EncryptedQueryResult>()
     for (shard in shards) {

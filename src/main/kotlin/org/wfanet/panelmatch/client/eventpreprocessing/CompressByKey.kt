@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.protobuf.ByteString
 import org.apache.beam.sdk.transforms.Sample
-import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.combinedEvents
@@ -27,7 +26,8 @@ import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapValues
-import org.wfanet.panelmatch.common.beam.parDoWithSideInput
+import org.wfanet.panelmatch.common.beam.mapWithSideInput
+import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
@@ -50,17 +50,17 @@ fun EventCompressorTrainer.compressByKey(
       .values()
       .apply("Rough Sample", Sample.any(OVERSAMPLING_FACTOR * preferredSampleSize))
       .apply("Uniform Sample", Sample.fixedSizeGlobally(preferredSampleSize))
-      .map { train(it) }
+      .map("Train Compressor") { train(it) }
       .setCoder(FactoryBasedCompressorCoder.of())
 
   val compressedEvents: PCollection<KV<ByteString, ByteString>> =
     events
       .groupByKey()
       .mapValues { combinedEvents { serializedEvents += it }.toByteString() }
-      .parDoWithSideInput(compressor.apply(View.asSingleton())) {
+      .mapWithSideInput(compressor.toSingletonView(), name = "Compress") {
         keyAndEvents: KV<ByteString, ByteString>,
         compressorSideInput: FactoryBasedCompressor ->
-        yield(kvOf(keyAndEvents.key, compressorSideInput.compress(keyAndEvents.value)))
+        kvOf(keyAndEvents.key, compressorSideInput.compress(keyAndEvents.value))
       }
 
   return CompressedEvents(compressedEvents, compressor.map { it.dictionary })

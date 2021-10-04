@@ -23,7 +23,6 @@ import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
-import org.wfanet.panelmatch.client.privatemembership.plaintextOf
 import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.common.toByteString
 
@@ -39,12 +38,12 @@ private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteString()
 
 @RunWith(JUnit4::class)
 class PlaintextQueryResultsDecryptorTest {
-  val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
-  val privateMembershipCryptor = PlaintextPrivateMembershipCryptor(SERIALIZED_PARAMETERS)
-  val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
+  private val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
+  private val privateMembershipCryptor = PlaintextPrivateMembershipCryptor(SERIALIZED_PARAMETERS)
+  private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 
   @Test
-  fun `decryptQueries`() {
+  fun decryptQueries() {
     val keys = privateMembershipCryptor.generateKeys()
 
     val encryptedEventData: List<EncryptedEventDataSet> =

@@ -20,69 +20,75 @@ import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
-import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
-import org.wfanet.panelmatch.client.privatemembership.JoinKey
-import org.wfanet.panelmatch.client.privatemembership.PanelistKey
+import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
-import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.common.beam.SignedFiles
+import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.mapWithSideInput
+import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.toByteString
-import org.wfanet.panelmatch.protocol.SharedInputs
 
 class BuildPrivateMembershipQueriesTask(
+  override val localCertificate: X509Certificate,
+  override val uriPrefix: String,
+  override val privateKey: PrivateKey,
   private val parameters: CreateQueriesWorkflow.Parameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
-  private val localCertificate: X509Certificate,
-  private val outputUriPrefix: String,
-  private val privateKey: PrivateKey,
   private val encryptedQueryBundleFileCount: Int,
   private val queryIdAndPanelistKeyFileCount: Int,
-) : ExchangeTask {
+) : ApacheBeamTask() {
+
   override suspend fun execute(
     input: Map<String, VerifiedStorageClient.VerifiedBlob>
   ): Map<String, Flow<ByteString>> {
     val pipeline = Pipeline.create()
 
-    val identifiers = SharedInputs.parseFrom(input.getValue("identifiers").toByteString())
-    val lookupKeys = SharedInputs.parseFrom(input.getValue("lookup-keys").toByteString())
-    // TODO: Consider having the MP zip these two lists themselves as input to this step.
+    // TODO: previous steps need to output in this format.
+    // TODO: need to update all file names to translate labels via step.inputsMap/outputsMap
+    val panelistKeyAndJoinKeysManifest = input.getValue("panelists-and-joinkeys")
     val panelistKeyAndJoinKeys =
-      (identifiers.dataList zip lookupKeys.dataList).map {
-        panelistKeyAndJoinKey {
-          panelistKey = PanelistKey.parseFrom(it.first)
-          joinKey = JoinKey.parseFrom(it.second)
-        }
+      readFromManifest(panelistKeyAndJoinKeysManifest, localCertificate).map {
+        PanelistKeyAndJoinKey.parseFrom(it)
       }
+
+    val privateKeys =
+      readFileAsSingletonPCollection("rlwe-serialized-private-key", localCertificate)
+    val publicKeyView =
+      readFileAsSingletonPCollection("rlwe-serialized-public-key", localCertificate)
+        .toSingletonView()
+    val privateMembershipKeys: PCollectionView<PrivateMembershipKeys> =
+      privateKeys
+        .mapWithSideInput(publicKeyView, "Make PrivateMembershipKeys") { privateKey, publicKey ->
+          PrivateMembershipKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
+        }
+        .toSingletonView()
 
     val (
       queryIdAndPanelistKeys: PCollection<QueryIdAndPanelistKey>,
       encryptedResponses: PCollection<EncryptedQueryBundle>) =
       CreateQueriesWorkflow(parameters, privateMembershipCryptor)
-        .batchCreateQueries(pipeline.apply(Create.of(panelistKeyAndJoinKeys)))
+        .batchCreateQueries(panelistKeyAndJoinKeys, privateMembershipKeys)
 
     val queryDecryptionKeysFileSpec =
-      "$outputUriPrefix/query-decryption-keys-*-of-$queryIdAndPanelistKeyFileCount"
-    queryIdAndPanelistKeys
-      .map { it.toByteString() }
-      .apply(SignedFiles.write(queryDecryptionKeysFileSpec, privateKey, localCertificate))
+      ShardedFileName("query-decryption-keys", queryIdAndPanelistKeyFileCount)
+    queryIdAndPanelistKeys.map { it.toByteString() }.write(queryDecryptionKeysFileSpec)
 
     val encryptedQueriesFileSpec =
-      "$outputUriPrefix/encrypted-queries-*-of-$encryptedQueryBundleFileCount"
-    encryptedResponses
-      .map { it.toByteString() }
-      .apply(SignedFiles.write(encryptedQueriesFileSpec, privateKey, localCertificate))
+      ShardedFileName("encrypted-queries", encryptedQueryBundleFileCount)
+    encryptedResponses.map { it.toByteString() }.write(encryptedQueriesFileSpec)
 
     pipeline.run()
 
     return mapOf(
-      "query-decryption-keys" to flowOf(queryDecryptionKeysFileSpec.toByteString()),
-      "encrypted-queries" to flowOf(encryptedQueriesFileSpec.toByteString())
+      "query-decryption-keys" to flowOf(queryDecryptionKeysFileSpec.spec.toByteString()),
+      "encrypted-queries" to flowOf(encryptedQueriesFileSpec.spec.toByteString())
     )
   }
 }

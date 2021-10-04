@@ -15,76 +15,70 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.protobuf.ByteString
-import java.io.Serializable
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.client.eventpostprocessing.uncompressEvents
 import org.wfanet.panelmatch.common.beam.keyBy
-import org.wfanet.panelmatch.common.beam.parDo
+import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.beam.strictOneToOneJoin
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 
 /**
  * Implements a query result decryption engine in Apache Beam that decrypts a query result
  *
- * @param parameters tuning knobs for the workflow
+ * TODO: consider passing in `queryResultsDecryptor` as a parameter to `batchDecryptQueryResults`
+ *
+ * @param serializedParameters tuning knobs for the workflow
  * @param queryResultsDecryptor implementation of lower-level query result decryption and encrypted
  * event decryption
  * @param hkdfPepper used with joinkey to generate AES key
  * @param compressorFactory used to build Compressor
  */
 class DecryptQueryResultsWorkflow(
-  private val parameters: Parameters,
+  private val serializedParameters: ByteString,
   private val queryResultsDecryptor: QueryResultsDecryptor,
   private val hkdfPepper: ByteString,
   private val compressorFactory: CompressorFactory,
-) : Serializable {
+) {
 
   /**
-   * @property serializedParameters Tuning knobs for the [DecryptQueryResultsWorkflow].
-   * @property serializedPublicKey A serialized Public Key used in RLWE previously generated using
-   * [serializedParameters]
-   * @property serializedPrivateKey A serialized Private Key used in RLWE previously generated using
-   * [serializedParameters]
-   */
-  data class Parameters(
-    val serializedParameters: ByteString,
-    val serializedPublicKey: ByteString,
-    val serializedPrivateKey: ByteString,
-  ) : Serializable
-
-  /**
-   * Decrypts [EncryptedQueryResult] into [DecryptedEventData]. Currently assumes that each
+   * Decrypts [EncryptedQueryResult] into [DecryptedEventDataSet]. Currently assumes that each
    * [QueryId] is unique across each [PCollection] and that each [QueryId] uniquely maps to a single
    * [JoinKey]. Uses the dictionary to decompress the data.
    */
   fun batchDecryptQueryResults(
     encryptedQueryResults: PCollection<EncryptedQueryResult>,
     queryIdToJoinKey: PCollection<KV<QueryId, JoinKey>>,
-    dictionary: PCollection<ByteString>,
+    dictionary: PCollectionView<ByteString>,
+    privateMembershipKeys: PCollectionView<PrivateMembershipKeys>
   ): PCollection<DecryptedEventDataSet> {
     val keyedEncryptedQueryResults =
-      encryptedQueryResults.keyBy<EncryptedQueryResult, QueryId>("Key by Query Id") {
-        requireNotNull(it.queryId)
-      }
-    val decryptedQueryResults =
-      queryIdToJoinKey.strictOneToOneJoin<QueryId, JoinKey, EncryptedQueryResult>(
-          keyedEncryptedQueryResults
-        )
-        .parDo<KV<JoinKey, EncryptedQueryResult>, DecryptedEventDataSet>(
+      encryptedQueryResults.keyBy("Key by Query Id") { requireNotNull(it.queryId) }
+
+    // Local references because DecryptQueryResultsWorkflow is not serializable.
+    val serializedParameters = this.serializedParameters
+    val hkdfPepper = this.hkdfPepper
+    val queryResultsDecryptor = this.queryResultsDecryptor
+
+    val decryptedQueryResults: PCollection<DecryptedEventDataSet> =
+      queryIdToJoinKey.strictOneToOneJoin(keyedEncryptedQueryResults).parDoWithSideInput(
+          privateMembershipKeys,
           name = "Decrypt encrypted results"
-        ) {
-          val request = decryptQueryResultsRequest {
-            singleBlindedJoinkey = it.key
-            this.encryptedQueryResults += it.value
-            serializedParameters = parameters.serializedParameters
-            serializedPublicKey = parameters.serializedPublicKey
-            serializedPrivateKey = parameters.serializedPrivateKey
-            this.hkdfPepper = hkdfPepper
-          }
-          val decryptedResults = queryResultsDecryptor.decryptQueryResults(request)
-          yieldAll(decryptedResults.eventDataSetsList)
+        ) { kv, keys ->
+        val request = decryptQueryResultsRequest {
+          singleBlindedJoinkey = kv.key
+          this.encryptedQueryResults += kv.value
+          serializedPublicKey = keys.serializedPublicKey
+          serializedPrivateKey = keys.serializedPrivateKey
+
+          this.serializedParameters = serializedParameters
+          this.hkdfPepper = hkdfPepper
         }
+        val decryptedResults = queryResultsDecryptor.decryptQueryResults(request)
+        yieldAll(decryptedResults.eventDataSetsList)
+      }
+
     return uncompressEvents(decryptedQueryResults, dictionary, compressorFactory)
   }
 }

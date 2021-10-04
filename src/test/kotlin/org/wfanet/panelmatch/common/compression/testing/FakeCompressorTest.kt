@@ -18,7 +18,7 @@ import org.wfanet.panelmatch.client.combinedEvents
 import org.wfanet.panelmatch.common.toByteString
 
 class FakeCompressorTest : AbstractCompressorTest() {
-  private val eventList = listOf<String>("a", "b", "c")
+  private val eventList = listOf("a", "b", "c")
   override val events = combinedEvents { serializedEvents += eventList.map { it.toByteString() } }
   override val compressor = FakeCompressor()
 }

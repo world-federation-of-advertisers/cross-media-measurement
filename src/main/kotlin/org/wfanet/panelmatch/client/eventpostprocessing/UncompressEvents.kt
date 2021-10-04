@@ -15,14 +15,14 @@
 package org.wfanet.panelmatch.client.eventpostprocessing
 
 import com.google.protobuf.ByteString
-import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.client.CombinedEvents
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.plaintext
-import org.wfanet.panelmatch.common.beam.parDoWithSideInput
+import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
@@ -33,11 +33,10 @@ import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
  */
 fun uncompressEvents(
   compressedEventSet: PCollection<DecryptedEventDataSet>,
-  dictionary: PCollection<ByteString>,
+  dictionary: PCollectionView<ByteString>,
   compressorFactory: CompressorFactory
 ): PCollection<DecryptedEventDataSet> {
-
-  return compressedEventSet.parDoWithSideInput(dictionary.apply(View.asSingleton())) {
+  return compressedEventSet.mapWithSideInput(dictionary) {
     eventSet: DecryptedEventDataSet,
     dictionaryData: ByteString ->
     val compressor: Compressor = FactoryBasedCompressor(dictionaryData, compressorFactory)
@@ -47,11 +46,9 @@ fun uncompressEvents(
           plaintext { payload = it }
         }
       }
-    yield(
-      decryptedEventDataSet {
-        queryId = eventSet.queryId
-        decryptedEventData += uncompressedEvents
-      }
-    )
+    decryptedEventDataSet {
+      queryId = eventSet.queryId
+      decryptedEventData += uncompressedEvents
+    }
   }
 }

@@ -35,10 +35,10 @@ abstract class AbstractQueryEvaluatorTest {
   protected val bucketsPerShardCount: Int = 16
 
   /** Provides a test subject. */
-  abstract val evaluator: QueryEvaluator
+  protected abstract val evaluator: QueryEvaluator
 
   /** Provides a helper for the test subject. */
-  abstract val helper: QueryEvaluatorTestHelper
+  protected abstract val helper: QueryEvaluatorTestHelper
 
   @Test
   fun `executeQueries on multiple shards with multiple QueryBundles`() {
@@ -56,7 +56,7 @@ abstract class AbstractQueryEvaluatorTest {
           queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3)
         )
       )
-    val results = evaluator.executeQueries(database, queryBundles)
+    val results = evaluator.executeQueries(database, queryBundles, helper.serializedPublicKey)
     assertThat(results.map { it.queryId to helper.decodeResultData(it) })
       .containsExactly(
         queryIdOf(500) to makeFakeBucketData(bucket = 0, shard = 100),
@@ -84,7 +84,7 @@ abstract class AbstractQueryEvaluatorTest {
         encryptedQueryBundleOf(shard = 101, queries = listOf(501 to 1))
       )
 
-    val results = evaluator.executeQueries(database, queryBundles)
+    val results = evaluator.executeQueries(database, queryBundles, helper.serializedPublicKey)
     assertThat(results.map { helper.decodeResult(it) })
       .containsExactly(
         DecodedResult(500, makeFakeBucketData(bucket = 1, shard = 100)),
