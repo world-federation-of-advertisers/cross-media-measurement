@@ -60,9 +60,12 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 7499c463 (continuing)
 =======
 import org.wfanet.measurement.internal.kingdom.copy
+=======
+>>>>>>> 8cf0ae13 (addressed comments)
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 >>>>>>> 68aa2cfb (revoke done)
@@ -90,16 +93,16 @@ private val CERTIFICATE = certificate {
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
+  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  private val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  private val population = Population(clock, idGenerator)
+
   protected data class Services<T>(
     val certificatesService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val modelProvidersService: ModelProvidersCoroutineImplBase
   )
-
-  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
-  protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
-  private val population = Population(clock, idGenerator)
 
   protected lateinit var certificatesService: T
     private set
@@ -570,7 +573,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       certificatesService.getCertificate(
         getCertificateRequest {
           this.externalDataProviderId = externalDataProviderId
-          this.externalCertificateId = createdCertificate.externalCertificateId
+          externalCertificateId = createdCertificate.externalCertificateId
         }
       )
 
@@ -608,7 +611,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     val request = revokeCertificateRequest {
       this.externalDataProviderId = 1234L // wrong externalDataProviderId
-      this.externalCertificateId = certificate.externalCertificateId
+      externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
 
@@ -636,14 +639,23 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     val request = revokeCertificateRequest {
       this.externalDataProviderId = externalDataProviderId
-      this.externalCertificateId = certificate.externalCertificateId
+      externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
 
     val revokedCertificate = certificatesService.revokeCertificate(request)
 
     assertThat(revokedCertificate)
-      .isEqualTo(certificate.copy { revocationState = Certificate.RevocationState.REVOKED })
+      .isEqualTo(
+        certificatesService.getCertificate(
+          getCertificateRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalCertificateId = certificate.externalCertificateId
+          }
+        )
+      )
+
+    assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
   }
 
   @Test
@@ -664,7 +676,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     val request = revokeCertificateRequest {
       this.externalMeasurementConsumerId = 1234L // wrong MeasurementConsumerId
-      this.externalCertificateId = certificate.externalCertificateId
+      externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
 
@@ -693,14 +705,23 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     val request = revokeCertificateRequest {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      this.externalCertificateId = certificate.externalCertificateId
+      externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
 
     val revokedCertificate = certificatesService.revokeCertificate(request)
 
     assertThat(revokedCertificate)
-      .isEqualTo(certificate.copy { revocationState = Certificate.RevocationState.REVOKED })
+      .isEqualTo(
+        certificatesService.getCertificate(
+          getCertificateRequest {
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            externalCertificateId = certificate.externalCertificateId
+          }
+        )
+      )
+
+    assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
   }
 
   @Test
@@ -717,7 +738,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     val request = revokeCertificateRequest {
       this.externalDuchyId = "non-existing-duchy-id" // wrong MeasurementConsumerId
-      this.externalCertificateId = certificate.externalCertificateId
+      externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
 
@@ -725,7 +746,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Certificate not found")
+    assertThat(exception).hasMessageThat().contains("Duchy not found")
   }
 
   @Test
@@ -744,14 +765,23 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     val request = revokeCertificateRequest {
       this.externalDuchyId = externalDuchyId
-      this.externalCertificateId = certificate.externalCertificateId
+      externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
 
     val revokedCertificate = certificatesService.revokeCertificate(request)
 
     assertThat(revokedCertificate)
-      .isEqualTo(certificate.copy { revocationState = Certificate.RevocationState.REVOKED })
+      .isEqualTo(
+        certificatesService.getCertificate(
+          getCertificateRequest {
+            this.externalDuchyId = externalDuchyId
+            externalCertificateId = certificate.externalCertificateId
+          }
+        )
+      )
+
+    assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
   }
 >>>>>>> 68aa2cfb (revoke done)
 }

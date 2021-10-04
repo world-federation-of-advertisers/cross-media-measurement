@@ -123,10 +123,9 @@ class SpannerCertificatesService(
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Certificate not found" }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
-         failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,

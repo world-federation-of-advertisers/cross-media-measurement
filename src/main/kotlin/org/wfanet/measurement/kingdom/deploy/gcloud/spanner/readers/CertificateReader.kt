@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
@@ -30,7 +31,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class CertificateReader(private val parentType: ParentType) :
   BaseSpannerReader<CertificateReader.Result>() {
-  data class Result(val certificate: Certificate, val certificateId: Long)
+  data class Result(val certificate: Certificate, val certificateId: InternalId)
 
   enum class ParentType(private val prefix: String) {
     DATA_PROVIDER("DataProvider"),
@@ -97,7 +98,7 @@ class CertificateReader(private val parentType: ParentType) :
   }
 
   override suspend fun translate(struct: Struct): Result {
-    val certificateId = struct.getLong("CertificateId")
+    val certificateId = struct.getInternalId("CertificateId")
     return when (parentType) {
       ParentType.DATA_PROVIDER -> Result(buildDataProviderCertificate(struct), certificateId)
       ParentType.MEASUREMENT_CONSUMER ->
