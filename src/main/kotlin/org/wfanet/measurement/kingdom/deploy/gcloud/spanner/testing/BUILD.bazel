@@ -3,6 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
     ],
 )
 
