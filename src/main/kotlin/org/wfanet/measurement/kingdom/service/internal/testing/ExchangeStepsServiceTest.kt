@@ -190,9 +190,7 @@ abstract class ExchangeStepsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("external_data_provider_id or external_model_provider_id must be provided.")
+    assertThat(exception).hasMessageThat().contains("Invalid Provider")
   }
 
   @Test

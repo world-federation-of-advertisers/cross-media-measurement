@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
@@ -35,13 +36,14 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeSteps
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
-import org.wfanet.measurement.internal.kingdom.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchangesAndSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
+import org.wfanet.measurement.kingdom.service.internal.externalDataProviderId
+import org.wfanet.measurement.kingdom.service.internal.externalModelProviderId
 
 class SpannerExchangeStepsService(
   private val clock: Clock,
@@ -87,16 +89,8 @@ class SpannerExchangeStepsService(
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val (externalModelProviderId, externalDataProviderId) =
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (request.provider.type) {
-        Provider.Type.DATA_PROVIDER -> Pair(null, request.provider.externalId)
-        Provider.Type.MODEL_PROVIDER -> Pair(request.provider.externalId, null)
-        Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
-          failGrpc(Status.INVALID_ARGUMENT) {
-            "external_data_provider_id or external_model_provider_id must be provided."
-          }
-      }
+    val externalModelProviderId = request.provider.externalModelProviderId
+    val externalDataProviderId = request.provider.externalDataProviderId
 
     CreateExchangesAndSteps(
         externalModelProviderId = externalModelProviderId,
@@ -104,29 +98,32 @@ class SpannerExchangeStepsService(
       )
       .execute(client, idGenerator)
 
+    // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
+    val debugLogEntry = debugLog {
+      message = "Automatically FAILED because of expiration"
+      time = clock.instant().toProtoTime()
+    }
+
     ExchangeStepAttemptReader.forExpiredAttempts(
         externalModelProviderId = externalModelProviderId,
         externalDataProviderId = externalDataProviderId
       )
       .execute(client.singleUse())
       .map { it.exchangeStepAttempt }
-      .map { attempt ->
-        finishExchangeStepAttemptRequest {
-          externalRecurringExchangeId = attempt.externalRecurringExchangeId
-          date = attempt.date
-          stepIndex = attempt.stepIndex
-          attemptNumber = attempt.attemptNumber
-          state = ExchangeStepAttempt.State.FAILED
-          provider = request.provider
-          debugLogEntries +=
-            debugLog {
-              message = "Automatically FAILED because of expiration"
-              time = clock.instant().toProtoTime()
-            }
-          // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
-        }
+      .collect { attempt: ExchangeStepAttempt ->
+        FinishExchangeStepAttempt(
+            externalModelProviderId = request.provider.externalModelProviderId,
+            externalDataProviderId = request.provider.externalDataProviderId,
+            externalRecurringExchangeId = ExternalId(attempt.externalRecurringExchangeId),
+            exchangeDate = attempt.date,
+            stepIndex = attempt.stepIndex,
+            attemptNumber = attempt.attemptNumber,
+            terminalState = ExchangeStepAttempt.State.FAILED,
+            debugLogEntries = listOf(debugLogEntry),
+            clock = clock
+          )
+          .execute(client, idGenerator)
       }
-      .collect { FinishExchangeStepAttempt(it).execute(client, idGenerator) }
 
     val result =
       ClaimReadyExchangeStep(
