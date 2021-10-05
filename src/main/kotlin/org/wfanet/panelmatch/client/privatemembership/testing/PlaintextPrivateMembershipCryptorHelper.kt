@@ -94,7 +94,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
         encryptedEventData {
           ciphertexts +=
             plaintext.decryptedEventDataList.map {
-              symmetricCryptor.encrypt(joinkey.second.key, it.payload)
+              symmetricCryptor.encrypt(joinkey.second.key, listOf(it.payload)).single()
             }
         }
     }

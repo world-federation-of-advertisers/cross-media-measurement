@@ -12,31 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.protocol.common
+package org.wfanet.panelmatch.common.crypto
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import kotlin.test.assertFailsWith
-import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.common.JniException
+import org.wfanet.panelmatch.common.crypto.testing.AbstractDeterministicCommutativeCipherTest
 import org.wfanet.panelmatch.common.toByteString
-import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
-import org.wfanet.panelmatch.protocol.common.testing.AbstractDeterministicCommutativeCipherTest
 
 @RunWith(JUnit4::class)
 class JniDeterministicCommutativeCipherTest : AbstractDeterministicCommutativeCipherTest() {
   override val cipher: DeterministicCommutativeCipher = JniDeterministicCommutativeCipher()
   override val invalidKey: ByteString = "this key is too large to be valid".toByteString()
-
-  @Test
-  fun `invalid proto throws JniException`() {
-    val missingKeyException =
-      assertFailsWith(JniException::class) {
-        val request = CryptorReEncryptRequest.getDefaultInstance()
-        cipher.reEncrypt(request)
-      }
-    assertThat(missingKeyException.message).contains("key is out of bounds")
-  }
+  override val privateKey1 = cipher.generateKey()
+  override val privateKey2 = cipher.generateKey()
 }

@@ -25,6 +25,9 @@
 // commutative_encryption methods.
 namespace wfa::panelmatch::protocol::crypto {
 
+absl::StatusOr<std::string> DeterministicCommutativeGenerateKeyWrapper(
+    const std::string& serialized_request);
+
 absl::StatusOr<std::string> DeterministicCommutativeEncryptWrapper(
     const std::string& serialized_request);
 

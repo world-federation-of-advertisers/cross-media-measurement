@@ -16,9 +16,12 @@
 #define SRC_MAIN_CC_WFA_PANELMATCH_PROTOCOL_CRYPTO_DETERMINISTIC_COMMUTATIVE_ENCRYPTION_UTILITY_H_
 
 #include "absl/status/statusor.h"
-#include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
+#include "wfa/panelmatch/protocol/crypto/deterministic_commutative_cryptor.pb.h"
 
 namespace wfa::panelmatch::protocol::crypto {
+
+absl::StatusOr<CryptorGenerateKeyResponse> DeterministicCommutativeGenerateKey(
+    const CryptorGenerateKeyRequest& request);
 
 absl::StatusOr<wfa::panelmatch::protocol::CryptorEncryptResponse>
 DeterministicCommutativeEncrypt(

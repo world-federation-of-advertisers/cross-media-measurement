@@ -28,16 +28,27 @@
 #include "common_cpp/time/started_thread_cpu_timer.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
+#include "wfa/panelmatch/common/crypto/ec_commutative_cipher_key_generator.h"
 #include "wfa/panelmatch/common/crypto/key_loader.h"
-#include "wfa/panelmatch/protocol/crypto/cryptor.pb.h"
 
 namespace wfa::panelmatch::protocol::crypto {
 namespace {
 using ::crypto::tink::util::SecretData;
+using ::crypto::tink::util::SecretDataAsStringView;
 using ::crypto::tink::util::SecretDataFromStringView;
+using ::wfa::panelmatch::common::crypto::EcCommutativeCipherKeyGenerator;
 using ::wfa::panelmatch::common::crypto::LoadKey;
 using ::wfa::panelmatch::common::crypto::NewDeterministicCommutativeCipher;
 }  // namespace
+
+absl::StatusOr<CryptorGenerateKeyResponse> DeterministicCommutativeGenerateKey(
+    const CryptorGenerateKeyRequest& request) {
+  EcCommutativeCipherKeyGenerator generator;
+  ASSIGN_OR_RETURN(SecretData key, generator.GenerateKey());
+  CryptorGenerateKeyResponse response;
+  response.set_key(std::string(SecretDataAsStringView(key)).data());
+  return response;
+}
 
 absl::StatusOr<CryptorEncryptResponse> DeterministicCommutativeEncrypt(
     const CryptorEncryptRequest& request) {
@@ -48,8 +59,7 @@ absl::StatusOr<CryptorEncryptResponse> DeterministicCommutativeEncrypt(
   ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
 
   for (absl::string_view plaintext : request.plaintexts()) {
-    ASSIGN_OR_RETURN(*response.add_encrypted_texts(),
-                     cipher->Encrypt(plaintext));
+    ASSIGN_OR_RETURN(*response.add_ciphertexts(), cipher->Encrypt(plaintext));
   }
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
@@ -64,7 +74,7 @@ absl::StatusOr<CryptorDecryptResponse> DeterministicCommutativeDecrypt(
   ASSIGN_OR_RETURN(SecretData key, LoadKey(request.encryption_key()));
   ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
 
-  for (absl::string_view ciphertext : request.encrypted_texts()) {
+  for (absl::string_view ciphertext : request.ciphertexts()) {
     ASSIGN_OR_RETURN(*response.add_decrypted_texts(),
                      cipher->Decrypt(ciphertext));
   }
@@ -81,8 +91,8 @@ absl::StatusOr<CryptorReEncryptResponse> DeterministicCommutativeReEncrypt(
   ASSIGN_OR_RETURN(SecretData key, LoadKey(request.encryption_key()));
   ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
 
-  for (absl::string_view ciphertext : request.encrypted_texts()) {
-    ASSIGN_OR_RETURN(*response.add_reencrypted_texts(),
+  for (absl::string_view ciphertext : request.ciphertexts()) {
+    ASSIGN_OR_RETURN(*response.add_ciphertexts(),
                      cipher->ReEncrypt(ciphertext));
   }
 

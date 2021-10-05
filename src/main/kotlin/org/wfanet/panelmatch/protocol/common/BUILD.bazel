@@ -6,10 +6,7 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/protocol/exchangesteps:exchangesteps_kt_jvm_proto",
-        "//src/main/swig/wfanet/panelmatch/protocol/crypto:deterministic_commutative_encryption",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

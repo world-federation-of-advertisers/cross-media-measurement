@@ -8,23 +8,23 @@ package(default_visibility = [
 ])
 
 proto_library(
-    name = "cryptor_proto",
-    srcs = ["cryptor.proto"],
+    name = "deterministic_commutative_cryptor_proto",
+    srcs = ["deterministic_commutative_cryptor.proto"],
     strip_import_prefix = "/src/main/proto",
 )
 
 cc_proto_library(
-    name = "cryptor_cc_proto",
-    deps = [":cryptor_proto"],
+    name = "deterministic_commutative_cryptor_cc_proto",
+    deps = [":deterministic_commutative_cryptor_proto"],
 )
 
 java_proto_library(
-    name = "cryptor_java_proto",
-    deps = [":cryptor_proto"],
+    name = "deterministic_commutative_cryptor_java_proto",
+    deps = [":deterministic_commutative_cryptor_proto"],
 )
 
 kt_jvm_proto_library(
-    name = "cryptor_kt_jvm_proto",
-    srcs = [":cryptor_proto"],
-    deps = [":cryptor_java_proto"],
+    name = "deterministic_commutative_cryptor_kt_jvm_proto",
+    srcs = [":deterministic_commutative_cryptor_proto"],
+    deps = [":deterministic_commutative_cryptor_java_proto"],
 )

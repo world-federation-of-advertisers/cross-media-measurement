@@ -14,6 +14,10 @@
 
 package org.wfanet.panelmatch.common.crypto.testing
 
+import org.wfanet.panelmatch.common.toByteString
+
 class FakeSymmetricCryptorTest : AbstractSymmetricCryptorTest() {
-  override val symmetricCryptor = FakeSymmetricCryptor()
+  override val cipher = FakeSymmetricCryptor()
+  override val privateKey1 = "some private key".toByteString()
+  override val privateKey2 = "some other private key".toByteString()
 }

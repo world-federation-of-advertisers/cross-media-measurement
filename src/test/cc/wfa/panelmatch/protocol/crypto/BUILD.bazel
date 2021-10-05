@@ -7,7 +7,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:deterministic_commutative_encryption_utility",
-        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:deterministic_commutative_cryptor_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",

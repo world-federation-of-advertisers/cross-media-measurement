@@ -16,6 +16,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
         "//src/main/kotlin/org/wfanet/panelmatch/protocol/common",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:database_kt_jvm_proto",

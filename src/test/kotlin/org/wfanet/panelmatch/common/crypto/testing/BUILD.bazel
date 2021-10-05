@@ -6,7 +6,22 @@ kt_jvm_test(
     srcs = ["FakeSymmetricCryptorTest.kt"],
     test_class = "org.wfanet.panelmatch.common.crypto.testing.FakeSymmetricCryptorTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto:symmetriccryptor",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "FakeDeterministicCommutativeCipherTest",
+    timeout = "short",
+    srcs = ["FakeDeterministicCommutativeCipherTest.kt"],
+    test_class = "org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipherTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto/testing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

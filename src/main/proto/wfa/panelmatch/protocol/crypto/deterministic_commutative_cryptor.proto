@@ -19,6 +19,14 @@ package wfa.panelmatch.protocol;
 option java_package = "org.wfanet.panelmatch.protocol";
 option java_multiple_files = true;
 
+// Request to Generate Key
+message CryptorGenerateKeyRequest {}
+
+// Response to Generate Key
+message CryptorGenerateKeyResponse {
+  bytes key = 1;
+}
+
 // The request to encrypt.
 message CryptorEncryptRequest {
   repeated bytes plaintexts = 1;
@@ -27,25 +35,25 @@ message CryptorEncryptRequest {
 
 // Response of the CryptorEncryptRequest method.
 message CryptorEncryptResponse {
-  repeated bytes encrypted_texts = 1;
+  repeated bytes ciphertexts = 1;
   int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to reencrypt.
 message CryptorReEncryptRequest {
-  repeated bytes encrypted_texts = 1;
+  repeated bytes ciphertexts = 1;
   bytes encryption_key = 2;
 }
 
 // Response of the CryptorReEncryptRequest method.
 message CryptorReEncryptResponse {
-  repeated bytes reencrypted_texts = 1;
+  repeated bytes ciphertexts = 1;
   int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to decrypt.
 message CryptorDecryptRequest {
-  repeated bytes encrypted_texts = 1;
+  repeated bytes ciphertexts = 1;
   bytes encryption_key = 2;
 }
 

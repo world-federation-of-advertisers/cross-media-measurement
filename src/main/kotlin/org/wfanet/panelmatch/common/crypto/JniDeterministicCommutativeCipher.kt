@@ -12,52 +12,83 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.protocol.common
+package org.wfanet.panelmatch.common.crypto
 
+import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import org.wfanet.panelmatch.common.loadLibrary
 import org.wfanet.panelmatch.common.wrapJniException
-import org.wfanet.panelmatch.protocol.CryptorDecryptRequest
 import org.wfanet.panelmatch.protocol.CryptorDecryptResponse
-import org.wfanet.panelmatch.protocol.CryptorEncryptRequest
 import org.wfanet.panelmatch.protocol.CryptorEncryptResponse
-import org.wfanet.panelmatch.protocol.CryptorReEncryptRequest
+import org.wfanet.panelmatch.protocol.CryptorGenerateKeyResponse
 import org.wfanet.panelmatch.protocol.CryptorReEncryptResponse
 import org.wfanet.panelmatch.protocol.crypto.DeterministicCommutativeEncryptionWrapper
+import org.wfanet.panelmatch.protocol.cryptorDecryptRequest
+import org.wfanet.panelmatch.protocol.cryptorEncryptRequest
+import org.wfanet.panelmatch.protocol.cryptorGenerateKeyRequest
+import org.wfanet.panelmatch.protocol.cryptorReEncryptRequest
 
 /**
  * A [DeterministicCommutativeCipher] implementation using the JNI
  * [DeterministicCommutativeEncryptionWrapper].
  */
 class JniDeterministicCommutativeCipher : DeterministicCommutativeCipher {
-  override fun encrypt(request: CryptorEncryptRequest): CryptorEncryptResponse {
-    return wrapJniException {
+
+  override fun generateKey(): ByteString {
+    val request = cryptorGenerateKeyRequest {}
+    val response = wrapJniException {
+      CryptorGenerateKeyResponse.parseFrom(
+        DeterministicCommutativeEncryptionWrapper.deterministicCommutativeGenerateKeyWrapper(
+          request.toByteArray()
+        )
+      )
+    }
+    return response.key
+  }
+
+  override fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString> {
+    val request = cryptorEncryptRequest {
+      encryptionKey = privateKey
+      this.plaintexts += plaintexts
+    }
+    val response = wrapJniException {
       CryptorEncryptResponse.parseFrom(
         DeterministicCommutativeEncryptionWrapper.deterministicCommutativeEncryptWrapper(
           request.toByteArray()
         )
       )
     }
+    return response.ciphertextsList
   }
 
-  override fun reEncrypt(request: CryptorReEncryptRequest): CryptorReEncryptResponse {
-    return wrapJniException {
+  override fun reEncrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString> {
+    val request = cryptorReEncryptRequest {
+      encryptionKey = privateKey
+      this.ciphertexts += ciphertexts
+    }
+    val response = wrapJniException {
       CryptorReEncryptResponse.parseFrom(
         DeterministicCommutativeEncryptionWrapper.deterministicCommutativeReEncryptWrapper(
           request.toByteArray()
         )
       )
     }
+    return response.ciphertextsList
   }
 
-  override fun decrypt(request: CryptorDecryptRequest): CryptorDecryptResponse {
-    return wrapJniException {
+  override fun decrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString> {
+    val request = cryptorDecryptRequest {
+      encryptionKey = privateKey
+      this.ciphertexts += ciphertexts
+    }
+    val response = wrapJniException {
       CryptorDecryptResponse.parseFrom(
         DeterministicCommutativeEncryptionWrapper.deterministicCommutativeDecryptWrapper(
           request.toByteArray()
         )
       )
     }
+    return response.decryptedTextsList
   }
 
   companion object {

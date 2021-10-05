@@ -20,6 +20,7 @@ import java.lang.Exception
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.signFlow
 import org.wfanet.measurement.common.crypto.verifySignedFlow
 import org.wfanet.measurement.common.flatten
@@ -115,6 +116,9 @@ class VerifiedStorageClient(
     storageClient.createBlob(blobKey = getSigPath(blobKey), content = signature)
     return VerifiedBlob(sourceBlob, signature, blobKey, writeCert)
   }
+
+  suspend fun createBlob(blobKey: String, content: ByteString): VerifiedBlob =
+    createBlob(blobKey, content.asBufferedFlow(defaultBufferSizeBytes))
 
   class VerifiedBlob(
     private val sourceBlob: Blob,
