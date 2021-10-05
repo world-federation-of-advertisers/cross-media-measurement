@@ -6,8 +6,8 @@ kt_jvm_library(
     srcs = glob(["*Service*.kt"]),
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/gcloud:deployment",
-        "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
     deps = KINGDOM_INTERNAL_PROTOS + [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/db",
