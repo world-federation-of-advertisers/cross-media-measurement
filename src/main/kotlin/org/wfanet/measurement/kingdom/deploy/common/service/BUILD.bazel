@@ -5,8 +5,8 @@ kt_jvm_library(
     name = "data_services",
     srcs = ["DataServices.kt"],
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
     ],
     deps = KINGDOM_INTERNAL_PROTOS + [
         "@wfa_common_jvm//imports/java/io/grpc:api",
