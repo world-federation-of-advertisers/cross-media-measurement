@@ -21,20 +21,6 @@ option java_multiple_files = true;
 
 // Proto representation of the internal Account entity type.
 message Account {
-  enum View {
-    // The default/unset value.
-    //
-    // The API will default to the `BASIC` view unless otherwise specified by
-    // the method.
-    VIEW_UNSPECIFIED = 0;
-
-    // Basic view.
-    BASIC = 1;
-
-    // Full view.
-    FULL = 2;
-  }
-
   fixed64 external_account_id = 1;
 
   // External Id of the `Account` that created this one.
@@ -51,42 +37,36 @@ message Account {
   // Activation state of this `Account`.
   ActivationState activation_state = 3;
 
-  // Parameters for activation of an `Account`.
-  message ActivationParams {
-    // External Id of the `MeasurementConsumer` that this `Account` will be an
-    // owner of upon activation.
-    //
-    // This can only be a `MeasurementConsumer` that `creator` is an owner of.
-    fixed64 external_owned_measurement_consumer_id = 1;
-
-    // Token that can be used to activate the account. Output-only.
-    fixed64 activation_token = 2;
-  }
-
-  // Parameters for activation of this `Account`.
+  // External Id of the `MeasurementConsumer` that this `Account` will be an
+  // owner of upon activation.
   //
-  // Only set when `activation_state` is `UNACTIVATED` in `FULL` view.
-  ActivationParams activation_params = 4;
+  // This can only be a `MeasurementConsumer` that `creator` is an owner of.
+  fixed64 external_owned_measurement_consumer_id = 4;
+
+  // Token that can be used to activate the account. Output-only.
+  fixed64 activation_token = 5;
 
   // Token that can be used to create a `MeasurementConsumer` resource.
   // Output-only. Immutable.
-  //
-  // Only set in `FULL` view.
-  fixed64 measurement_consumer_creation_token = 5;
+  fixed64 measurement_consumer_creation_token = 6;
 
   // OpenID Connect identity.
   message OpenIdConnectIdentity {
+    fixed64 external_open_id_connect_id = 1;
+
     // Issuer (`iss` claim value). Required.
-    string issuer = 1;
+    string issuer = 2;
 
     // Subject Identifier (`subj` claim value). Required.
-    string subject = 2;
+    string subject = 3;
   }
 
   // An identity where the `Account` is identified by a unique username.
   message UsernameIdentity {
+    fixed64 external_username_identity_id = 1;
+
     // Unique username. Required.
-    string username = 1;
+    string username = 2;
   }
 
   // Identity of the user for this `Account.
@@ -94,7 +74,7 @@ message Account {
   // This must be set when `activation_state` is `ACTIVATED`. The specified
   // value is unique across all `Account` resources.
   oneof identity {
-    OpenIdConnectIdentity open_id_identity = 6;
-    UsernameIdentity username_identity = 7;
+    OpenIdConnectIdentity open_id_identity = 7;
+    UsernameIdentity username_identity = 8;
   }
 }

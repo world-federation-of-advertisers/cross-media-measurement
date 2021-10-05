@@ -84,6 +84,7 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
+-- TODO: add MeasurementConsumerCreationToken and a unique index on it
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId INT64 NOT NULL,
 
@@ -398,9 +399,10 @@ CREATE UNIQUE INDEX UsernameIdentitiesByUsername
   ON UsernameIdentities(Username);
 
 CREATE TABLE MeasurementConsumerOwners (
-  AccountId INT64 NOT NULL,
   MeasurementConsumerId INT64 NOT NULL,
+  AccountId INT64 NOT NULL,
 
-  FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId),
   FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers(MeasurementConsumerId),
-) PRIMARY KEY (AccountId, MeasurementConsumerId);
+  FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId),
+) PRIMARY KEY (MeasurementConsumerId, AccountId),
+INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
