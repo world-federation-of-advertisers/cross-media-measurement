@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
-import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
+import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 

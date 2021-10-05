@@ -11,8 +11,9 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
+        "//src/main/cc/wfa/panelmatch/common/crypto:ec_commutative_cipher_key_generator",
         "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
-        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:deterministic_commutative_cryptor_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -32,7 +33,6 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":deterministic_commutative_encryption_utility",
-        "//src/main/proto/wfa/panelmatch/protocol/crypto:cryptor_cc_proto",
         "@com_google_absl//absl/status:statusor",
         "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
     ],

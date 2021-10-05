@@ -5,14 +5,23 @@ package(default_visibility = [
     "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
 ])
 
-kt_jvm_library(
-    name = "hashing",
-    srcs = ["Hashing.kt"],
-    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+# TODO: Drop this if rules_swig gains support for embedding the native shared library as a resource
+java_library(
+    name = "swig_resources",
+    resources = [
+        "//src/main/swig/wfanet/panelmatch/protocol/crypto:libdeterministic_commutative_encryption.so",
+    ],
 )
 
 kt_jvm_library(
-    name = "symmetriccryptor",
-    srcs = ["SymmetricCryptor.kt"],
-    deps = ["@wfa_common_jvm//imports/java/com/google/protobuf"],
+    name = "crypto",
+    srcs = glob(["*.kt"]),
+    runtime_deps = [":swig_resources"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/protocol/crypto:deterministic_commutative_cryptor_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/protocol/exchangesteps:exchangesteps_kt_jvm_proto",
+        "//src/main/swig/wfanet/panelmatch/protocol/crypto:deterministic_commutative_encryption",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
 )

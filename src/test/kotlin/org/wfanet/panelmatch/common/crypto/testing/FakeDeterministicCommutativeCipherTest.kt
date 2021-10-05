@@ -12,20 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.crypto
+package org.wfanet.panelmatch.common.crypto.testing
 
 import com.google.protobuf.ByteString
-import java.io.Serializable
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
-/** Performs symmetric encryption using a private key. */
-interface SymmetricCryptor : Serializable {
-
-  /** Generates symmetric key */
-  fun generateKey(): ByteString
-
-  /** Encrypts texts */
-  fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString>
-
-  /** Decrypts text */
-  fun decrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString>
+@RunWith(JUnit4::class)
+class FakeDeterministicCommutativeCipherTest : AbstractDeterministicCommutativeCipherTest() {
+  override val cipher: DeterministicCommutativeCipher = FakeDeterministicCommutativeCipher()
+  override val invalidKey: ByteString = FakeDeterministicCommutativeCipher.INVALID_KEY
+  override val privateKey1 = cipher.generateKey()
+  override val privateKey2 = cipher.generateKey()
 }

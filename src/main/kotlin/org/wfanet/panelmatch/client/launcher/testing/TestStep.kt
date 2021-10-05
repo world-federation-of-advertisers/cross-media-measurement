@@ -15,9 +15,6 @@
 package org.wfanet.panelmatch.client.launcher.testing
 
 import com.google.protobuf.ByteString
-import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStep.SignedExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKt.signedExchangeWorkflow
@@ -29,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.common.toByteString
-import org.wfanet.panelmatch.protocol.common.DeterministicCommutativeCipher
 
 val MP_0_SECRET_KEY: ByteString = "random-mp-string-0".toByteString()
 
@@ -66,14 +62,6 @@ val LOOKUP_KEYS =
     "some lookup3".toByteString(),
     "some lookup4".toByteString()
   )
-
-fun buildMockCryptor(): DeterministicCommutativeCipher {
-  val mockCryptor: DeterministicCommutativeCipher = mock()
-  whenever(mockCryptor.encrypt(any(), any())).thenReturn(SINGLE_BLINDED_KEYS)
-  whenever(mockCryptor.reEncrypt(any(), any())).thenReturn(DOUBLE_BLINDED_KEYS)
-  whenever(mockCryptor.decrypt(any(), any())).thenReturn(LOOKUP_KEYS)
-  return mockCryptor
-}
 
 fun buildWorkflow(
   testedStep: Step,

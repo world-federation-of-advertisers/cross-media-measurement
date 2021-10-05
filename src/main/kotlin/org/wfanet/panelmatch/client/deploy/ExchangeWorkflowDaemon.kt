@@ -33,7 +33,7 @@ import org.wfanet.panelmatch.client.launcher.Identity
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.SecretSet
 import org.wfanet.panelmatch.common.asTimeout
-import org.wfanet.panelmatch.protocol.common.JniDeterministicCommutativeCipher
+import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import picocli.CommandLine
 
 /** Executes ExchangeWorkflows. */

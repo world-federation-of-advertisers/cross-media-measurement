@@ -15,17 +15,19 @@
 package org.wfanet.panelmatch.common.crypto
 
 import com.google.protobuf.ByteString
-import java.io.Serializable
 
-/** Performs symmetric encryption using a private key. */
-interface SymmetricCryptor : Serializable {
+/** Core deterministic, commutative cryptographic operations. */
+interface DeterministicCommutativeCipher : SymmetricCryptor {
 
-  /** Generates symmetric key */
-  fun generateKey(): ByteString
+  /** Generates privateKey. */
+  override fun generateKey(): ByteString
 
-  /** Encrypts texts */
-  fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString>
+  /** Encrypts plaintexts. */
+  override fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString>
 
-  /** Decrypts text */
-  fun decrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString>
+  /** Adds an additional layer of encryption to ciphertexts. */
+  fun reEncrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString>
+
+  /** Removes a layer of encryption from ciphertexts. */
+  override fun decrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString>
 }
