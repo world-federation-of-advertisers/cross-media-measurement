@@ -46,6 +46,7 @@ proto_and_java_proto_library(
 
 proto_and_java_proto_library(
     name = "model_provider",
+    deps = [":certificate_proto"],
 )
 
 proto_library(

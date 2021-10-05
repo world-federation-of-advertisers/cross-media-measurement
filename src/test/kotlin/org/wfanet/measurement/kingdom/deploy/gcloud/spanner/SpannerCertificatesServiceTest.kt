@@ -33,10 +33,11 @@ class SpannerCertificatesServiceTest : CertificatesServiceTest<SpannerCertificat
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
-    return Services<SpannerCertificatesService>(
+    return Services(
       spannerServices.certificatesService as SpannerCertificatesService,
       spannerServices.measurementConsumersService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
+      spannerServices.modelProvidersService
     )
   }
 }
