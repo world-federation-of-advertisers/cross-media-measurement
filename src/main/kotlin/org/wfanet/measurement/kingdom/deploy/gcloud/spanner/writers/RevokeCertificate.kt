@@ -54,6 +54,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
               ExternalId(request.externalMeasurementConsumerId),
               externalCertificateId
             )
+        RevokeCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
+            .bindWhereClause(ExternalId(request.externalModelProviderId), externalCertificateId)
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(

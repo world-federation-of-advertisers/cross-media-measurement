@@ -23,7 +23,10 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
@@ -41,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.internal.kingdom.modelProvider
 
 private const val API_VERSION = "v2alpha"
 
@@ -101,6 +105,29 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           }
       }
     )
+  }
+
+ suspend fun createModelProvider(
+    modelProvidersService: ModelProvidersCoroutineImplBase
+  ): ModelProvider {
+    val modelProvider =
+      modelProvidersService.createModelProvider(
+        modelProvider {
+          certificate =
+              buildRequestCertificate(
+            "MC cert",
+            "MP SKID " + idGenerator.generateExternalId().value,
+            clock.instant()
+          )
+          details =
+            ModelProviderKt.details {
+              apiVersion = "v2alpha"
+              publicKey = ByteString.copyFromUtf8("ModelProvider public key")
+              publicKeySignature =ByteString.copyFromUtf8("ModelProvider public key signature")
+            }
+        }
+      )
+    return modelProvider
   }
 
   suspend fun createMeasurement(

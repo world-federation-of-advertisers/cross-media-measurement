@@ -111,7 +111,7 @@ class CertificateReader(private val parentType: ParentType) :
           }
         Result(buildDuchyCertificate(externalDuchyId, struct), certificateId)
       }
-      ParentType.MODEL_PROVIDER -> buildModelProviderCertificate(struct)
+      ParentType.MODEL_PROVIDER -> Result(buildModelProviderCertificate(struct), certificateId)
     }
   }
 
