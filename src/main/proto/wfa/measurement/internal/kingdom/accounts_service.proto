@@ -25,14 +25,15 @@ option java_multiple_files = true;
 service Accounts {
   rpc CreateAccount(Account) returns (Account);
 
-  // Credentials for new identity will be passed-in via call credentials
+  // Credentials for new identity will be passed-in via call credentials.
   rpc ActivateAccount(ActivateAccountRequest) returns (Account);
 
   // Credentials for old and new identities will be passed-in via call
-  // credentials
+  // credentials.
   rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account);
 
-  // Credentials to authenticate will be passed-in via call credentials
+  // Credentials to authenticate will be passed-in via call credentials and
+  // returns the authenticated Account for the call credentials.
   rpc AuthenticateAccount(AuthenticateAccountRequest) returns (Account);
 }
 
