@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -79,7 +80,19 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           "Certificate not found."
         }
 
-    return certificateResult.certificate.copy {}
+    if (certificateResult.certificate.revocationState == RevocationState.REVOKED) {
+      throw KingdomInternalException(
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL
+      ) { "Certificate is in REVOKED state, cannot release hold." }
+    }
+
+    transactionContext.bufferUpdateMutation("Certificates") {
+      set("CertificateId" to certificateResult.certificateId.value)
+      set("RevocationState" to RevocationState.REVOCATION_STATE_UNSPECIFIED)
+    }
+    return certificateResult.certificate.copy {
+      revocationState = RevocationState.REVOCATION_STATE_UNSPECIFIED
+    }
   }
 
   override fun ResultScope<Certificate>.buildResult(): Certificate {
