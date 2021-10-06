@@ -38,7 +38,6 @@ class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerR
       measurementConsumerId = struct.getLong("MeasurementConsumerId")
     )
 
-  // TODO("Change this to use external measurementconsumerid")
   suspend fun checkOwnershipExist(
     readContext: AsyncDatabaseClient.ReadContext,
     internalAccountId: InternalId,
@@ -47,8 +46,8 @@ class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerR
     return fillStatementBuilder {
         appendClause(
           """
-            LEFT JOIN MeasurementConsumers
-              ON (MeasurementConsumerOwners.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId)
+            JOIN MeasurementConsumers
+              USING (MeasurementConsumerId)
             WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
               AND AccountId = @internalAccountId
             """
