@@ -36,7 +36,8 @@ class SpannerCertificatesServiceTest : CertificatesServiceTest<SpannerCertificat
     return Services(
       spannerServices.certificatesService as SpannerCertificatesService,
       spannerServices.measurementConsumersService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
+      spannerServices.modelProvidersService
     )
   }
 }

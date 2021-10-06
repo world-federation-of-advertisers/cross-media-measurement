@@ -47,6 +47,7 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
         KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
         KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,

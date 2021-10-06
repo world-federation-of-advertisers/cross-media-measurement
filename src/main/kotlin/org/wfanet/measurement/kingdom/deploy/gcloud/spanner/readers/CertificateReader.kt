@@ -32,25 +32,26 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
   enum class ParentType(private val prefix: String) {
     DATA_PROVIDER("DataProvider"),
     MEASUREMENT_CONSUMER("MeasurementConsumer"),
-    DUCHY("Duchy");
+    DUCHY("Duchy"),
+    MODEL_PROVIDER("ModelProvider");
 
     val idColumnName: String = "${prefix}Id"
     val externalCertificateIdColumnName: String = "External${prefix}CertificateId"
     val certificatesTableName: String = "${prefix}Certificates"
 
-    val externalIdColumnName: String?
-      get() =
-        when (this) {
-          DATA_PROVIDER, MEASUREMENT_CONSUMER -> "External${prefix}Id"
-          DUCHY -> null
-        }
+    val externalIdColumnName: String? by lazy {
+      when (this) {
+        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
+        DUCHY -> null
+      }
+    }
 
-    val tableName: String?
-      get() =
-        when (this) {
-          DATA_PROVIDER, MEASUREMENT_CONSUMER -> "${prefix}s"
-          DUCHY -> null
-        }
+    val tableName: String? by lazy {
+      when (this) {
+        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
+        DUCHY -> null
+      }
+    }
   }
 
   override val builder: Statement.Builder = Statement.newBuilder(buildBaseSql(parentType))
@@ -104,13 +105,15 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
           }
         buildDuchyCertificate(externalDuchyId, struct)
       }
+      ParentType.MODEL_PROVIDER -> buildModelProviderCertificate(struct)
     }
   }
 
   companion object {
     private fun buildBaseSql(parentType: ParentType): String {
       return when (parentType) {
-        ParentType.DATA_PROVIDER, ParentType.MEASUREMENT_CONSUMER -> buildExternalIdSql(parentType)
+        ParentType.DATA_PROVIDER, ParentType.MEASUREMENT_CONSUMER, ParentType.MODEL_PROVIDER ->
+          buildExternalIdSql(parentType)
         ParentType.DUCHY -> buildInternalIdSql(parentType)
       }
     }
@@ -155,6 +158,14 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
 
       val parentType = ParentType.DATA_PROVIDER
       externalDataProviderId = struct.getLong(parentType.externalIdColumnName)
+      externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
+    }
+
+    private fun buildModelProviderCertificate(struct: Struct) = certificate {
+      fillCommon(struct)
+
+      val parentType = ParentType.MODEL_PROVIDER
+      externalModelProviderId = struct.getLong(parentType.externalIdColumnName)
       externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
     }
 
