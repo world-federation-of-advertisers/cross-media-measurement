@@ -518,7 +518,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
-  fun `releaseCertificateHold fails due to revoked Certificate`() = runBlocking {
+  fun `releaseCertificateHold fails due to revoked DataProviderCertificate`() = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
@@ -581,6 +581,112 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         certificatesService.getCertificate(
           getCertificateRequest {
             this.externalDataProviderId = externalDataProviderId
+            externalCertificateId = certificate.externalCertificateId
+          }
+        )
+      )
+
+    assertThat(releasedCertificate.revocationState)
+      .isEqualTo(Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED)
+  }
+
+  @Test
+  fun `releaseCertificateHold fails due to wrong MeasurementConsumerId`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalMeasurementConsumerId = 1234L // wrong externalMeasurementConsumerId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.releaseCertificateHold(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
+  }
+
+  @Test
+  fun `releaseCertificateHold fails due to revoked measurementConsumersCertificate`() =
+      runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        externalCertificateId = certificate.externalCertificateId
+        revocationState = Certificate.RevocationState.REVOKED
+      }
+    )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.releaseCertificateHold(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is in REVOKED State.")
+  }
+
+  @Test
+  fun `releaseCertificateHold succeeds for MeasurementConsumerCertificate`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService)
+        .externalMeasurementConsumerId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val releasedCertificate = certificatesService.releaseCertificateHold(request)
+
+    assertThat(releasedCertificate)
+      .isEqualTo(
+        certificatesService.getCertificate(
+          getCertificateRequest {
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
             externalCertificateId = certificate.externalCertificateId
           }
         )
