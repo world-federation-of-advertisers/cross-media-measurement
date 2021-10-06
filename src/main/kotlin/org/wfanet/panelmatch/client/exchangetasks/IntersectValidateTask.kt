@@ -31,8 +31,8 @@ class IntersectValidateTask(val maxSize: Int, val minimumOverlap: Float) : Excha
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
 
     // Flatten the Blob's underlying Flow and record the buffer size for output creation.
-    val currentData: ByteString = requireNotNull(input["current-data"]).read().flatten()
-    val bufferSize: Int = requireNotNull(input["current-data"]).defaultBufferSizeBytes
+    val currentData: ByteString = input.getValue("current-data").read().flatten()
+    val bufferSize: Int = input.getValue("current-data").defaultBufferSizeBytes
     val currentSetData: Set<ByteString> = parseSerializedSharedInputs(currentData).toSet()
     val currentDataSize: Int = currentSetData.size
 
@@ -42,7 +42,7 @@ class IntersectValidateTask(val maxSize: Int, val minimumOverlap: Float) : Excha
     require(currentDataSize > 0)
 
     val oldData: Set<ByteString> =
-      parseSerializedSharedInputs(requireNotNull(input["previous-data"]).toByteString()).toSet()
+      parseSerializedSharedInputs(input.getValue("previous-data").toByteString()).toSet()
     val overlapItemsCount: Int = currentSetData.count { it in oldData }
     val currentOverlap: Float = overlapItemsCount.toFloat() / currentDataSize
 

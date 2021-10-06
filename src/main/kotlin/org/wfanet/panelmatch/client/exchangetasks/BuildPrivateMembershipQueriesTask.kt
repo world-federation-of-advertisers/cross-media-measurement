@@ -28,7 +28,7 @@ import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
@@ -41,13 +41,17 @@ class BuildPrivateMembershipQueriesTask(
   override val privateKey: PrivateKey,
   private val parameters: CreateQueriesWorkflow.Parameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
-  private val encryptedQueryBundleFileCount: Int,
-  private val queryIdAndPanelistKeyFileCount: Int,
+  private val outputs: BuildPrivateMembershipQueriesTask.Outputs
 ) : ApacheBeamTask() {
 
-  override suspend fun execute(
-    input: Map<String, VerifiedStorageClient.VerifiedBlob>
-  ): Map<String, Flow<ByteString>> {
+  data class Outputs(
+    val encryptedQueriesFileName: String,
+    val encryptedQueriesFileCount: Int,
+    val queryIdAndPanelistKeyFileName: String,
+    val queryIdAndPanelistKeyFileCount: Int
+  )
+
+  override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
     val pipeline = Pipeline.create()
 
     // TODO: previous steps need to output in this format.
@@ -59,9 +63,15 @@ class BuildPrivateMembershipQueriesTask(
       }
 
     val privateKeys =
-      readFileAsSingletonPCollection("rlwe-serialized-private-key", localCertificate)
+      readFileAsSingletonPCollection(
+        input.getValue("rlwe-serialized-private-key").toStringUtf8(),
+        localCertificate
+      )
     val publicKeyView =
-      readFileAsSingletonPCollection("rlwe-serialized-public-key", localCertificate)
+      readFileAsSingletonPCollection(
+          input.getValue("rlwe-serialized-public-key").toStringUtf8(),
+          localCertificate
+        )
         .toSingletonView()
     val privateMembershipKeys: PCollectionView<PrivateMembershipKeys> =
       privateKeys
@@ -77,11 +87,13 @@ class BuildPrivateMembershipQueriesTask(
         .batchCreateQueries(panelistKeyAndJoinKeys, privateMembershipKeys)
 
     val queryDecryptionKeysFileSpec =
-      ShardedFileName("query-decryption-keys", queryIdAndPanelistKeyFileCount)
+      ShardedFileName(outputs.queryIdAndPanelistKeyFileName, outputs.queryIdAndPanelistKeyFileCount)
+    require(queryDecryptionKeysFileSpec.shardCount == outputs.queryIdAndPanelistKeyFileCount)
     queryIdAndPanelistKeys.map { it.toByteString() }.write(queryDecryptionKeysFileSpec)
 
     val encryptedQueriesFileSpec =
-      ShardedFileName("encrypted-queries", encryptedQueryBundleFileCount)
+      ShardedFileName(outputs.encryptedQueriesFileName, outputs.encryptedQueriesFileCount)
+    require(encryptedQueriesFileSpec.shardCount == outputs.encryptedQueriesFileCount)
     encryptedResponses.map { it.toByteString() }.write(encryptedQueriesFileSpec)
 
     pipeline.run()

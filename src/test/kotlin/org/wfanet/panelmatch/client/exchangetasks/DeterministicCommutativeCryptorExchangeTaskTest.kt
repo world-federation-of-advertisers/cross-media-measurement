@@ -90,7 +90,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 
   @Test
   fun `decrypt with missing inputs`() = withTestContext {
-    assertFailsWith(IllegalArgumentException::class) {
+    assertFailsWith(NoSuchElementException::class) {
       CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
         .execute(
           mapOf(
@@ -102,7 +102,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
           )
         )
     }
-    assertFailsWith(IllegalArgumentException::class) {
+    assertFailsWith(NoSuchElementException::class) {
       CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
         .execute(mapOf("encryption-key" to storage.createBlob("encryption-key", mpSecretKey)))
     }
@@ -148,7 +148,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 
   @Test
   fun `encrypt with missing inputs`() = withTestContext {
-    assertFailsWith(IllegalArgumentException::class) {
+    assertFailsWith(NoSuchElementException::class) {
       CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
         .execute(
           mapOf(
@@ -160,7 +160,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
           )
         )
     }
-    assertFailsWith(IllegalArgumentException::class) {
+    assertFailsWith(NoSuchElementException::class) {
       CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
         .execute(mapOf("encryption-key" to storage.createBlob("encryption-key", mpSecretKey)))
     }
@@ -206,7 +206,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 
   @Test
   fun `reEncryptTask with missing inputs`() = withTestContext {
-    assertFailsWith(IllegalArgumentException::class) {
+    assertFailsWith(NoSuchElementException::class) {
       CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
         .execute(
           mapOf(
@@ -218,7 +218,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
           )
         )
     }
-    assertFailsWith(IllegalArgumentException::class) {
+    assertFailsWith(NoSuchElementException::class) {
       CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
         .execute(mapOf("encryption-key" to storage.createBlob("encryption-key", mpSecretKey)))
     }
