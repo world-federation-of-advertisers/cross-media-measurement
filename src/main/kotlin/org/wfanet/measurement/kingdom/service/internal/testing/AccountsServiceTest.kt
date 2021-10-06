@@ -31,7 +31,6 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.AccountKt.activationParams
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
@@ -105,19 +104,21 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   }
 
   @Test
-  fun `createAccount throws NOT_FOUND when owned measurement consumer not found`() = runBlocking {
+  fun `createAccount throws PERMISSION_DENIED when owned measurement consumer not found`() =
+      runBlocking {
     service.createAccount(account {})
 
     val createAccountRequest = account {
       externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-      activationParams = activationParams { externalOwnedMeasurementConsumerId = 1L }
+      externalOwnedMeasurementConsumerId = 1L
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.status.description).isEqualTo("Owned measurement consumer not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Caller does not own the owned measurement consumer")
   }
 
   @Test
@@ -144,8 +145,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
     val createAccountRequest = account {
       externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-      activationParams =
-        activationParams { externalOwnedMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID_A }
+      externalOwnedMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID_A
     }
 
     val exception =
@@ -164,7 +164,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       .isEqualTo(
         account {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-          activationParams = activationParams { activationToken = FIXED_GENERATED_EXTERNAL_ID_A }
+          activationToken = FIXED_GENERATED_EXTERNAL_ID_A
           activationState = Account.ActivationState.UNACTIVATED
           measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }
@@ -183,7 +183,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         account {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
           externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-          activationParams = activationParams { activationToken = FIXED_GENERATED_EXTERNAL_ID_B }
+          activationToken = FIXED_GENERATED_EXTERNAL_ID_B
           activationState = Account.ActivationState.UNACTIVATED
           measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }

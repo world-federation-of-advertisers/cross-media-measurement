@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
@@ -24,7 +23,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.AccountKt.activationParams
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -34,7 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates an account in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * * [KingdomInternalException.Code.ACCOUNT_NOT_OWNER]
  * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
  */
 class CreateAccount(
@@ -65,28 +63,23 @@ class CreateAccount(
           set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
 
           if (this@CreateAccount.externalOwnedMeasurementConsumerId != 0L) {
-            val ownedMeasurementConsumerId: InternalId =
-              readMeasurementConsumerId(
+            MeasurementConsumerOwnerReader()
+              .checkOwnershipExist(
+                transactionContext,
+                InternalId(readCreatorAccountResult.accountId),
                 ExternalId(this@CreateAccount.externalOwnedMeasurementConsumerId)
               )
-            if (MeasurementConsumerOwnerReader()
-                .checkOwnershipExist(
-                  transactionContext,
-                  InternalId(readCreatorAccountResult.accountId),
-                  ownedMeasurementConsumerId
-                ) == null
-            ) {
-              throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_OWNER)
-            }
+              ?.let {
+                // builds the mutation for after the account is created
+                addMeasurementConsumerOwnersMutation =
+                  insertMutation("MeasurementConsumerOwners") {
+                    set("MeasurementConsumerId" to it.measurementConsumerId)
+                    set("AccountId" to internalAccountId)
+                  }
 
-            // builds the mutation for after the account is created
-            addMeasurementConsumerOwnersMutation =
-              insertMutation("MeasurementConsumerOwners") {
-                set("AccountId" to internalAccountId)
-                set("MeasurementConsumerId" to ownedMeasurementConsumerId)
+                set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
               }
-
-            set("OwnedMeasurementConsumerId" to ownedMeasurementConsumerId)
+              ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_OWNER)
           }
 
           // for an account with no creator
@@ -106,32 +99,12 @@ class CreateAccount(
       this.externalAccountId = externalAccountId.value
       externalCreatorAccountId = this@CreateAccount.externalCreatorAccountId
       activationState = Account.ActivationState.UNACTIVATED
-      activationParams =
-        activationParams {
-          externalOwnedMeasurementConsumerId = this@CreateAccount.externalOwnedMeasurementConsumerId
-          this.activationToken = activationToken.value
-        }
+      externalOwnedMeasurementConsumerId = this@CreateAccount.externalOwnedMeasurementConsumerId
+      this.activationToken = activationToken.value
     }
   }
 
   private suspend fun TransactionScope.readAccount(externalAccountId: Long): AccountReader.Result =
-    AccountReader(Account.View.FULL)
-      .readByExternalAccountId(transactionContext, ExternalId(externalAccountId))
+    AccountReader().readByExternalAccountId(transactionContext, ExternalId(externalAccountId))
       ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
-
-  private suspend fun TransactionScope.readMeasurementConsumerId(
-    externalMeasurementConsumerId: ExternalId
-  ): InternalId {
-    val column = "MeasurementConsumerId"
-    return transactionContext.readRowUsingIndex(
-        "MeasurementConsumers",
-        "MeasurementConsumersByExternalId",
-        Key.of(externalMeasurementConsumerId.value),
-        column
-      )
-      ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw KingdomInternalException(
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-      )
-  }
 }

@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ActivateAccountRequest
+import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
@@ -34,15 +35,13 @@ class SpannerAccountsService(
     try {
       return CreateAccount(
           request.externalCreatorAccountId,
-          request.activationParams.externalOwnedMeasurementConsumerId
+          request.externalOwnedMeasurementConsumerId
         )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Creator account not found" }
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Owned measurement consumer not found" }
         KingdomInternalException.Code.ACCOUNT_NOT_OWNER ->
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
@@ -54,6 +53,8 @@ class SpannerAccountsService(
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
@@ -69,6 +70,10 @@ class SpannerAccountsService(
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
+    TODO("Not yet implemented")
+  }
+
+  override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {
     TODO("Not yet implemented")
   }
 }

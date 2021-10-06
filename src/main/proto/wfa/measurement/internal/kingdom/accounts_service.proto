@@ -25,36 +25,25 @@ option java_multiple_files = true;
 service Accounts {
   rpc CreateAccount(Account) returns (Account);
 
+  // Credentials for new identity will be passed-in via call credentials
   rpc ActivateAccount(ActivateAccountRequest) returns (Account);
 
+  // Credentials for old and new identities will be passed-in via call
+  // credentials
   rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account);
-}
 
-message OpenIdConnectCredentials {
-  string identity_bearer_token = 1;
-}
-
-message UsernameCredentials {
-  string username = 1;
-  string password = 2;
+  // Credentials to authenticate will be passed-in via call credentials
+  rpc AuthenticateAccount(AuthenticateAccountRequest) returns (Account);
 }
 
 message ActivateAccountRequest {
-  fixed64 activation_token = 1;
+  fixed64 external_account_id = 1;
 
-  fixed64 external_account_id = 2;
-
-  oneof credentials {
-    OpenIdConnectCredentials open_id_connect_credentials = 3;
-    UsernameCredentials username_credentials = 4;
-  }
+  fixed64 activation_token = 2;
 }
 
 message ReplaceAccountIdentityRequest {
   fixed64 external_account_id = 1;
-
-  oneof credentials {
-    OpenIdConnectCredentials open_id_connect_credentials = 2;
-    UsernameCredentials username_credentials = 3;
-  }
 }
+
+message AuthenticateAccountRequest {}

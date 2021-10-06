@@ -21,11 +21,10 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.AccountKt.activationParams
 import org.wfanet.measurement.internal.kingdom.AccountKt.usernameIdentity
 import org.wfanet.measurement.internal.kingdom.account
 
-class AccountReader(private val view: Account.View) : SpannerReader<AccountReader.Result>() {
+class AccountReader() : SpannerReader<AccountReader.Result>() {
   data class Result(val account: Account, val accountId: Long)
 
   override val baseSql: String =
@@ -58,20 +57,13 @@ class AccountReader(private val view: Account.View) : SpannerReader<AccountReade
     }
     activationState = struct.getProtoEnum("ActivationState", Account.ActivationState::forNumber)
 
-    if (view == Account.View.FULL) {
-      if (activationState == Account.ActivationState.UNACTIVATED) {
-        activationParams =
-          activationParams {
-            if (!struct.isNull("ExternalMeasurementConsumerId")) {
-              externalOwnedMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-            }
-            activationToken = struct.getLong("ActivationToken")
-          }
-      }
-      measurementConsumerCreationToken = struct.getLong("MeasurementConsumerCreationToken")
+    if (!struct.isNull("ExternalMeasurementConsumerId")) {
+      externalOwnedMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
     }
+    activationToken = struct.getLong("ActivationToken")
+    measurementConsumerCreationToken = struct.getLong("MeasurementConsumerCreationToken")
 
-    if (activationState == Account.ActivationState.ACTIVATED && !struct.isNull("Username")) {
+    if (!struct.isNull("Username")) {
       usernameIdentity = usernameIdentity { this.username = struct.getString("Username") }
     }
   }

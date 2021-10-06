@@ -16,12 +16,13 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
 class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerReader.Result>() {
-  data class Result(val exist: Boolean)
+  data class Result(val accountId: Long, val measurementConsumerId: Long)
 
   override val baseSql: String =
     """
@@ -31,21 +32,28 @@ class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerR
     FROM MeasurementConsumerOwners
     """.trimIndent()
 
-  override suspend fun translate(struct: Struct): Result = Result(true)
+  override suspend fun translate(struct: Struct): Result =
+    Result(
+      accountId = struct.getLong("AccountId"),
+      measurementConsumerId = struct.getLong("MeasurementConsumerId")
+    )
 
+  // TODO("Change this to use external measurementconsumerid")
   suspend fun checkOwnershipExist(
     readContext: AsyncDatabaseClient.ReadContext,
     internalAccountId: InternalId,
-    internalMeasurementConsumerId: InternalId,
+    externalMeasurementConsumerId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
           """
-            WHERE MeasurementConsumerId = @internalMeasurementConsumerId
+            LEFT JOIN MeasurementConsumers
+              ON (MeasurementConsumerOwners.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId)
+            WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
               AND AccountId = @internalAccountId
             """
         )
-        bind("internalMeasurementConsumerId").to(internalMeasurementConsumerId.value)
+        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
         bind("internalAccountId").to(internalAccountId.value)
         appendClause("LIMIT 1")
       }
