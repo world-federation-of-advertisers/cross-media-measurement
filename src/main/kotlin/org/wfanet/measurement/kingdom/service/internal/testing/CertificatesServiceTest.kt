@@ -695,4 +695,65 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertThat(releasedCertificate.revocationState)
       .isEqualTo(Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED)
   }
+
+  @Test
+  fun `releaseCertificateHold fails due to wrong DuchyId`() = runBlocking {
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalDuchyId = "non-existing-duchy-id" // wrong MeasurementConsumerId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.releaseCertificateHold(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Duchy not found")
+  }
+
+  @Test
+  fun `releaseCertificateHold succeeds for DuchyCertificate`() = runBlocking {
+    val externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDuchyId = externalDuchyId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalDuchyId = externalDuchyId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val releasedCertificate = certificatesService.releaseCertificateHold(request)
+
+    assertThat(releasedCertificate)
+      .isEqualTo(
+        certificatesService.getCertificate(
+          getCertificateRequest {
+            this.externalDuchyId = externalDuchyId
+            externalCertificateId = certificate.externalCertificateId
+          }
+        )
+      )
+
+    assertThat(releasedCertificate.revocationState)
+      .isEqualTo(Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED)
+  }
 }
