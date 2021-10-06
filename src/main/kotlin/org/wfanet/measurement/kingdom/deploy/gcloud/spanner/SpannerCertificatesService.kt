@@ -155,6 +155,8 @@ class SpannerCertificatesService(
           failGrpc(Status.NOT_FOUND) { "Certificate not found" }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL->
+          failGrpc(Status.FAILED_PRECONDITION) { "Certificate is in REVOKED State." }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
@@ -164,7 +166,6 @@ class SpannerCertificatesService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }

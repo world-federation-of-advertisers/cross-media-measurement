@@ -41,12 +41,11 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
-import org.wfanet.measurement.internal.kingdom.modelProvider
+import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -97,7 +96,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-
 
   @Before
   fun initServices() {
@@ -153,7 +151,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .externalMeasurementConsumerId
     assertGetFailsWithMissingCertificate { externalMeasurementConsumerId = measurementConsumerId }
 
-    val modelProviderId = population.createModelProvider(modelProvidersService).externalModelProviderId
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
     assertGetFailsWithMissingCertificate { externalModelProviderId = modelProviderId }
   }
 
@@ -212,7 +211,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .externalMeasurementConsumerId
     assertCreateCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
 
-    val modelProviderId = population.createModelProvider(modelProvidersService).externalModelProviderId
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
     assertCreateCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
@@ -255,7 +255,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .externalMeasurementConsumerId
     assertGetCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
 
-    val modelProviderId = population.createModelProvider(modelProvidersService).externalModelProviderId
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
     assertGetCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
@@ -276,6 +277,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .hasMessageThat()
       .contains("Certificate with the same subject key identifier (SKID) already exists.")
   }
+
   @Test
   fun `revokeCertificate throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
     val exception =
@@ -475,5 +477,116 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       )
 
     assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
+  }
+
+  @Test
+  fun `releaseCertificateHold throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.releaseCertificateHold(releaseCertificateHoldRequest {})
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `releaseCertificateHold fails due to wrong DataProviderId`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDataProviderId = externalDataProviderId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalDataProviderId = 1234L // wrong externalDataProviderId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.releaseCertificateHold(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
+  }
+
+  @Test
+  fun `releaseCertificateHold fails due to revoked Certificate`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDataProviderId = externalDataProviderId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
+        this.externalDataProviderId = externalDataProviderId
+        externalCertificateId = certificate.externalCertificateId
+        revocationState = Certificate.RevocationState.REVOKED
+      }
+    )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalDataProviderId = externalDataProviderId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        certificatesService.releaseCertificateHold(request)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is in REVOKED State.")
+  }
+
+  @Test
+  fun `releaseCertificateHold succeeds for DataProviderCertificate`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDataProviderId = externalDataProviderId
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    val request = releaseCertificateHoldRequest {
+      this.externalDataProviderId = externalDataProviderId
+      externalCertificateId = certificate.externalCertificateId
+    }
+
+    val releasedCertificate = certificatesService.releaseCertificateHold(request)
+
+    assertThat(releasedCertificate)
+      .isEqualTo(
+        certificatesService.getCertificate(
+          getCertificateRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalCertificateId = certificate.externalCertificateId
+          }
+        )
+      )
+
+    assertThat(releasedCertificate.revocationState)
+      .isEqualTo(Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED)
   }
 }
