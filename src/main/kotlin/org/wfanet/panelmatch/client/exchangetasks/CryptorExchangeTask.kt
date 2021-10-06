@@ -39,9 +39,9 @@ internal constructor(
     // TODO See if it is worth updating this to not collect the inputs entirely at this step.
     //  It should be possible to process batches of them to balance memory usage and execution
     //  efficiency. If the inputs turn out to be small enough this shouldn't be an issue.
-    val key = requireNotNull(input[inputKeyLabel]).toByteString()
-    val outBufferSize = requireNotNull(input[inputDataLabel]).defaultBufferSizeBytes
-    val serializedInputs = requireNotNull(input[inputDataLabel]).toByteString()
+    val key = input.getValue(inputKeyLabel).toByteString()
+    val outBufferSize = input.getValue(inputDataLabel).defaultBufferSizeBytes
+    val serializedInputs = input.getValue(inputDataLabel).toByteString()
 
     val inputs = parseSerializedSharedInputs(serializedInputs)
     val result = operation(key, inputs)

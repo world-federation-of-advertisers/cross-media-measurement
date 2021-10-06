@@ -45,8 +45,14 @@ class DecryptPrivateMembershipResultsTask(
   private val queryResultsDecryptor: QueryResultsDecryptor,
   private val compressorFactory: CompressorFactory,
   private val partnerCertificate: X509Certificate,
-  private val decryptedEventDataSetFileCount: Int,
+  private val outputs: DecryptPrivateMembershipResultsTask.Outputs
 ) : ApacheBeamTask() {
+
+  data class Outputs(
+    val decryptedEventDataSetFileName: String,
+    val decryptedEventDataSetFileCount: Int
+  )
+
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
     val pipeline = Pipeline.create()
 
@@ -63,14 +69,24 @@ class DecryptPrivateMembershipResultsTask(
       }
 
     val dictionary =
-      readFileAsSingletonPCollection("compression-dictionary", partnerCertificate).toSingletonView()
+      readFileAsSingletonPCollection(
+          input.getValue("compression-dictionary").toStringUtf8(),
+          partnerCertificate
+        )
+        .toSingletonView()
 
     val hkdfPepper = input.getValue("hkdf-pepper").toByteString()
 
     val privateKeys =
-      readFileAsSingletonPCollection("rlwe-serialized-private-key", localCertificate)
+      readFileAsSingletonPCollection(
+        input.getValue("rlwe-serialized-private-key").toStringUtf8(),
+        localCertificate
+      )
     val publicKeyView =
-      readFileAsSingletonPCollection("rlwe-serialized-public-key", localCertificate)
+      readFileAsSingletonPCollection(
+          input.getValue("rlwe-serialized-public-key").toStringUtf8(),
+          localCertificate
+        )
         .toSingletonView()
     val privateMembershipKeys: PCollectionView<PrivateMembershipKeys> =
       privateKeys
@@ -93,11 +109,15 @@ class DecryptPrivateMembershipResultsTask(
           privateMembershipKeys
         )
 
-    val fileSpec = ShardedFileName("decrypted-event-data", decryptedEventDataSetFileCount)
-    decryptedEventDataSet.map { it.toByteString() }.write(fileSpec)
+    val decryptedEventDataSetFileSpec =
+      ShardedFileName(outputs.decryptedEventDataSetFileName, outputs.decryptedEventDataSetFileCount)
+    decryptedEventDataSet.map { it.toByteString() }.write(decryptedEventDataSetFileSpec)
+    require(decryptedEventDataSetFileSpec.shardCount == outputs.decryptedEventDataSetFileCount)
 
     pipeline.run()
 
-    return mapOf("decrypted-event-data" to flowOf(fileSpec.spec.toByteString()))
+    return mapOf(
+      "decrypted-event-data" to flowOf(decryptedEventDataSetFileSpec.spec.toByteString())
+    )
   }
 }
