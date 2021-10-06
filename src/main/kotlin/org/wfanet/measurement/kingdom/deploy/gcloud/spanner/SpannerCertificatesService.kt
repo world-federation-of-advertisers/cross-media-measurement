@@ -34,6 +34,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReleaseCertificateHold
 
 class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
@@ -139,6 +140,30 @@ class SpannerCertificatesService(
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
-    TODO("not implemented yet")
+     grpcRequire(request.parentCase != ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET) {
+      "ReleaseCertificateHoldRequest is missing parent field"
+    }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
+    // accordingly.
+    try {
+      return ReleaseCertificateHold(request).execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+      }
+    }
   }
 }
