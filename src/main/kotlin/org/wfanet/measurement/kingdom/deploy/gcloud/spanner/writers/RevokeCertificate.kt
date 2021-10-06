@@ -33,9 +33,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
+ * associated active measurements if a certificate is revoked
  */
-// TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
-// associated active measurements if a certificate is revoked.
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
 
