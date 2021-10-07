@@ -15,27 +15,24 @@
 package org.wfanet.measurement.integration.deploy.gcloud
 
 import java.time.Clock
-import org.junit.rules.TestRule
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.InProcessKingdom
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
-private fun buildKingdomSpannerEmulatorDatabaseRule(): SpannerEmulatorDatabaseRule {
+fun buildKingdomSpannerEmulatorDatabaseRule(): SpannerEmulatorDatabaseRule {
   return SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 }
 
-fun buildSpannerInProcessKingdom(clock: Clock = Clock.systemUTC()): InProcessKingdomWithRule {
-  val rule = buildKingdomSpannerEmulatorDatabaseRule()
-  val kingdom =
-    InProcessKingdom(
-      dataServicesProvider = {
-        SpannerDataServices(clock, RandomIdGenerator(clock), rule.databaseClient)
-      },
-      verboseGrpcLogging = false,
-    )
-  return InProcessKingdomWithRule(kingdom, rule)
+fun buildSpannerInProcessKingdom(
+  databaseRule: SpannerEmulatorDatabaseRule,
+  clock: Clock = Clock.systemUTC()
+): InProcessKingdom {
+  return InProcessKingdom(
+    dataServicesProvider = {
+      SpannerDataServices(clock, RandomIdGenerator(clock), databaseRule.databaseClient)
+    },
+    verboseGrpcLogging = false,
+  )
 }
-
-data class InProcessKingdomWithRule(val kingdom: InProcessKingdom, val rule: TestRule)
