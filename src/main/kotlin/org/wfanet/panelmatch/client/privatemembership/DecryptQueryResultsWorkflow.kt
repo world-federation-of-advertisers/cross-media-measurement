@@ -23,6 +23,7 @@ import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.beam.strictOneToOneJoin
 import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 
 /**
  * Implements a query result decryption engine in Apache Beam that decrypts a query result
@@ -51,7 +52,7 @@ class DecryptQueryResultsWorkflow(
     encryptedQueryResults: PCollection<EncryptedQueryResult>,
     queryIdToJoinKey: PCollection<KV<QueryId, JoinKey>>,
     dictionary: PCollectionView<ByteString>,
-    privateMembershipKeys: PCollectionView<PrivateMembershipKeys>
+    privateMembershipKeys: PCollectionView<AsymmetricKeys>
   ): PCollection<DecryptedEventDataSet> {
     val keyedEncryptedQueryResults =
       encryptedQueryResults.keyBy("Key by Query Id") { requireNotNull(it.queryId) }

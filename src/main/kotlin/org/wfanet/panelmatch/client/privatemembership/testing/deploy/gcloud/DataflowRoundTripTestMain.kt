@@ -52,7 +52,6 @@ import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCrypto
 import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.databaseKeyOf
 import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
 import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
@@ -63,6 +62,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.toSingletonView
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.toByteString
 
 interface Options : DataflowPipelineOptions {
@@ -108,10 +108,10 @@ fun main(args: Array<String>) {
 
   val privateMembershipKeys =
     pipeline.apply(
-      "Create PrivateMembershipKeys",
+      "Create Private Membership Keys",
       Create.ofProvider(
         PrivateMembershipKeysValueProvider(),
-        SerializableCoder.of(PrivateMembershipKeys::class.java)
+        SerializableCoder.of(AsymmetricKeys::class.java)
       )
     )
 
@@ -182,7 +182,7 @@ fun main(args: Array<String>) {
   results
     .mapWithSideInput(privateMembershipKeys.toSingletonView(), name = "Decrypt to TableRows") {
       encryptedQueryResult: EncryptedQueryResult,
-      keys: PrivateMembershipKeys ->
+      keys: AsymmetricKeys ->
       val response =
         JniPrivateMembership.decryptQueries(
           decryptQueriesRequest {
@@ -206,7 +206,7 @@ fun main(args: Array<String>) {
   check(pipelineResult.waitUntilFinish() == PipelineResult.State.DONE)
 }
 
-private class PrivateMembershipKeysValueProvider : ValueProvider<PrivateMembershipKeys> {
+private class PrivateMembershipKeysValueProvider : ValueProvider<AsymmetricKeys> {
   private val value by lazy {
     val generateKeysResponse =
       JniPrivateMembership.generateKeys(
@@ -214,13 +214,13 @@ private class PrivateMembershipKeysValueProvider : ValueProvider<PrivateMembersh
       )
     val publicKey: PublicKey = generateKeysResponse.publicKey
     val privateKey: PrivateKey = generateKeysResponse.privateKey
-    PrivateMembershipKeys(
+    AsymmetricKeys(
       serializedPublicKey = publicKey.toByteString(),
       serializedPrivateKey = privateKey.toByteString()
     )
   }
 
-  override fun get(): PrivateMembershipKeys = value
+  override fun get(): AsymmetricKeys = value
 
   override fun isAccessible(): Boolean = true
 }

@@ -25,7 +25,6 @@ import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsWorkflow
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
@@ -35,6 +34,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.toByteString
 
 class DecryptPrivateMembershipResultsTask(
@@ -88,10 +88,10 @@ class DecryptPrivateMembershipResultsTask(
           localCertificate
         )
         .toSingletonView()
-    val privateMembershipKeys: PCollectionView<PrivateMembershipKeys> =
+    val privateMembershipKeys: PCollectionView<AsymmetricKeys> =
       privateKeys
-        .mapWithSideInput(publicKeyView, "Make PrivateMembershipKeys") { privateKey, publicKey ->
-          PrivateMembershipKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
+        .mapWithSideInput(publicKeyView, "Make AsymmetricKeys") { privateKey, publicKey ->
+          AsymmetricKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
         }
         .toSingletonView()
 

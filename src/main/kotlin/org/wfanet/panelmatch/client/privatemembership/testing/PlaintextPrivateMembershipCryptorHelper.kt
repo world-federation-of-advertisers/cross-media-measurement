@@ -25,7 +25,6 @@ import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.JoinKey
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
@@ -33,6 +32,7 @@ import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
 import org.wfanet.panelmatch.client.privatemembership.resultOf
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.crypto.SymmetricCryptor
 import org.wfanet.panelmatch.common.crypto.testing.FakeSymmetricCryptor
 
@@ -68,7 +68,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
   }
 
   override fun makeEncryptedQueryResult(
-    keys: PrivateMembershipKeys,
+    keys: AsymmetricKeys,
     encryptedEventDataSet: EncryptedEventDataSet
   ): EncryptedQueryResult {
     return resultOf(

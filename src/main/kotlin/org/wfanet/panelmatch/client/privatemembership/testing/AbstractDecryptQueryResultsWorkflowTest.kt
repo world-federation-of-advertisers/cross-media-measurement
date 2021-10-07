@@ -31,7 +31,6 @@ import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
@@ -47,6 +46,7 @@ import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
@@ -152,7 +152,7 @@ abstract class AbstractDecryptQueryResultsWorkflowTest : BeamTestBase() {
 
   private fun makeEncryptedResults(
     privateMembershipCryptorHelper: PrivateMembershipCryptorHelper,
-    keys: PrivateMembershipKeys,
+    keys: AsymmetricKeys,
     joinkeyCollection: PCollection<KV<QueryId, JoinKey>>,
     events: PCollection<KV<ByteString, ByteString>>
   ): PCollection<EncryptedQueryResult> {
