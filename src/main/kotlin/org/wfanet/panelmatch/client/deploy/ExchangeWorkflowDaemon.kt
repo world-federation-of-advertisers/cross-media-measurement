@@ -30,6 +30,7 @@ import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.launcher.Identity
+import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.SecretSet
 import org.wfanet.panelmatch.common.asTimeout
@@ -82,7 +83,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
 
     val exchangeTaskMapper =
       ExchangeTaskMapperForJoinKeyExchange(
-        deterministicCommutativeCryptor = JniDeterministicCommutativeCipher(),
+        getDeterministicCommutativeCryptor = ::JniDeterministicCommutativeCipher,
+        getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor,
         privateStorage = privateStorage
       )
 

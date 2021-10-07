@@ -26,13 +26,13 @@ import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
-import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.toByteString
 
 class BuildPrivateMembershipQueriesTask(
@@ -73,10 +73,10 @@ class BuildPrivateMembershipQueriesTask(
           localCertificate
         )
         .toSingletonView()
-    val privateMembershipKeys: PCollectionView<PrivateMembershipKeys> =
+    val privateMembershipKeys: PCollectionView<AsymmetricKeys> =
       privateKeys
-        .mapWithSideInput(publicKeyView, "Make PrivateMembershipKeys") { privateKey, publicKey ->
-          PrivateMembershipKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
+        .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
+          AsymmetricKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
         }
         .toSingletonView()
 

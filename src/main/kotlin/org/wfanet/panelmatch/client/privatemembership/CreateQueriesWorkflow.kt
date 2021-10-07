@@ -32,6 +32,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 
 private const val FAKE_PANELIST_ID: Long = 0
 private val FAKE_JOIN_KEY = ByteString.EMPTY
@@ -83,7 +84,7 @@ class CreateQueriesWorkflow(
   /** Creates encrypted queries for a collection of panelists. */
   fun batchCreateQueries(
     panelistKeyAndJoinKey: PCollection<PanelistKeyAndJoinKey>,
-    privateMembershipKeys: PCollectionView<PrivateMembershipKeys>
+    privateMembershipKeys: PCollectionView<AsymmetricKeys>
   ): Pair<PCollection<QueryIdAndPanelistKey>, PCollection<EncryptedQueryBundle>> {
     val shardedData = shardJoinKeys(panelistKeyAndJoinKey)
     val paddedData = addPaddedQueries(shardedData)
@@ -167,7 +168,7 @@ class CreateQueriesWorkflow(
   /** Batch gets the oblivious queries grouped by [ShardId]. */
   private fun encryptQueries(
     unencryptedQueries: PCollection<KV<ShardId, UnencryptedQuery>>,
-    privateMembershipKeys: PCollectionView<PrivateMembershipKeys>
+    privateMembershipKeys: PCollectionView<AsymmetricKeys>
   ): PCollection<EncryptedQueryBundle> {
     // Local reference because DecryptQueryResultsWorkflow is not serializable.
     val privateMembershipCryptor = privateMembershipCryptor

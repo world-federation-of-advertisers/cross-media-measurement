@@ -23,18 +23,19 @@ import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapper
 
 /** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipWrapper]. */
 class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) :
   PrivateMembershipCryptor {
 
-  override fun generateKeys(): PrivateMembershipKeys {
+  override fun generateKeys(): AsymmetricKeys {
     val request = generateKeysRequest {
       parameters = ClientParameters.parseFrom(serializedParameters)
     }
     val keys = JniPrivateMembership.generateKeys(request)
-    return PrivateMembershipKeys(
+    return AsymmetricKeys(
       serializedPrivateKey = keys.privateKey.toByteString(),
       serializedPublicKey = keys.publicKey.toByteString(),
     )
@@ -42,7 +43,7 @@ class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) 
 
   override fun encryptQueries(
     unencryptedQueries: Iterable<UnencryptedQuery>,
-    keys: PrivateMembershipKeys,
+    keys: AsymmetricKeys,
   ): ByteString {
     val plaintextQueries =
       unencryptedQueries.map {

@@ -20,16 +20,21 @@ import kotlinx.coroutines.flow.flowOf
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 
-private const val OUTPUT_DATA_LABEL = "symmetric-key"
+private const val PRIVATE_KEY_LABEL = "private-key"
+private const val PUBLIC_KEY_LABEL = "public-key"
 
-class GenerateSymmetricKeyTask(private val generateKey: () -> ByteString) : ExchangeTask {
+class GenerateAsymmetricKeysTask(private val generateKeys: () -> AsymmetricKeys) : ExchangeTask {
 
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
-    logger.addToTaskLog("Executing generate symmetric key")
+    logger.addToTaskLog("Executing generate asymmetric keys")
 
-    val key = generateKey()
-    return mapOf(OUTPUT_DATA_LABEL to flowOf(key))
+    val key = generateKeys()
+    return mapOf(
+      PUBLIC_KEY_LABEL to flowOf(key.serializedPublicKey),
+      PRIVATE_KEY_LABEL to flowOf(key.serializedPrivateKey)
+    )
   }
 
   companion object {

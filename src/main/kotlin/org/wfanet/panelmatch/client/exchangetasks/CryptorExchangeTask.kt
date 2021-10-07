@@ -23,23 +23,22 @@ import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
-private const val DEFAULT_INPUT_KEY_LABEL: String = "encryption-key"
+private const val INPUT_KEY_LABEL = "encryption-key"
 
 class CryptorExchangeTask
 internal constructor(
   private val operation: (ByteString, List<ByteString>) -> List<ByteString>,
   private val inputDataLabel: String,
-  private val outputDataLabel: String,
-  private val inputKeyLabel: String = DEFAULT_INPUT_KEY_LABEL
+  private val outputDataLabel: String
 ) : ExchangeTask {
 
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
-    logger.addToTaskLog("Executing operation: $operation")
+    logger.addToTaskLog("Executing crypto operation")
 
     // TODO See if it is worth updating this to not collect the inputs entirely at this step.
     //  It should be possible to process batches of them to balance memory usage and execution
     //  efficiency. If the inputs turn out to be small enough this shouldn't be an issue.
-    val key = input.getValue(inputKeyLabel).toByteString()
+    val key = input.getValue(INPUT_KEY_LABEL).toByteString()
     val outBufferSize = input.getValue(inputDataLabel).defaultBufferSizeBytes
     val serializedInputs = input.getValue(inputDataLabel).toByteString()
 

@@ -12,24 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership
+package org.wfanet.panelmatch.common.crypto
 
 import com.google.protobuf.ByteString
 import java.io.Serializable
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 
-/**
- * Provides oblivious query compression encryption and decryption for use in private information
- * retrieval
- */
-interface PrivateMembershipCryptor : Serializable {
-
-  /** Generates a public and private key for query compression and expansion */
-  fun generateKeys(): AsymmetricKeys
-
-  /** encrypts a set of unencrypted queries */
-  fun encryptQueries(
-    unencryptedQueries: Iterable<UnencryptedQuery>,
-    keys: AsymmetricKeys
-  ): ByteString
-}
+data class AsymmetricKeys(
+  val serializedPublicKey: ByteString,
+  val serializedPrivateKey: ByteString,
+) : Serializable
