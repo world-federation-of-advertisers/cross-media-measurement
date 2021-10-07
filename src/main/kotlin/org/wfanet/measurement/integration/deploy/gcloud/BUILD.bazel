@@ -9,11 +9,9 @@ kt_jvm_library(
     name = "gcloud",
     srcs = [
         "InProcessKingdom.kt",
-        "SpannerInProcessKingdomRule.kt",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_kingdom",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
