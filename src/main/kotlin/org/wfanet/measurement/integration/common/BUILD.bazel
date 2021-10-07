@@ -24,19 +24,45 @@ KINGDOM_SYSTEM_API_SERVICES = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/system/v1alpha:requisitions_service",
 ]
 
-ALL_KINGDOM_SERVICES = KINGDOM_PUBLIC_API_SERVICES + KINGDOM_SYSTEM_API_SERVICES + KINGDOM_INTERNAL_PROTOS
+DUCHY_SERVICES = [
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
+    "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
+]
+
+ALL_CMMS_SERVICES = DUCHY_SERVICES + KINGDOM_PUBLIC_API_SERVICES + KINGDOM_SYSTEM_API_SERVICES + KINGDOM_INTERNAL_PROTOS
 
 kt_jvm_library(
-    name = "in_process_kingdom",
+    name = "in_process_components",
     srcs = [
+        "InProcessDuchy.kt",
+        "InProcessEdpSimulator.kt",
         "InProcessKingdom.kt",
+        "InProcessLifeOfAMeasurementIntegrationTest.kt",
     ],
     deps = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_java_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/core:util",
+        "@wfa_common_jvm//imports/java/io/grpc/inprocess",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ] + ALL_KINGDOM_SERVICES,
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/keystore/testing",
+    ] + ALL_CMMS_SERVICES,
 )
