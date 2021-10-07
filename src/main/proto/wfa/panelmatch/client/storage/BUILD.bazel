@@ -1,0 +1,22 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//src:__subpackages__"])
+
+proto_library(
+    name = "storage_details_proto",
+    srcs = ["storage_details.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+java_proto_library(
+    name = "storage_details_java_proto",
+    deps = [":storage_details_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "storage_details_kt_jvm_proto",
+    srcs = [":storage_details_proto"],
+    deps = [":storage_details_java_proto"],
+)

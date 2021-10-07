@@ -1,0 +1,58 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.storage;
+
+option java_package = "org.wfanet.panelmatch.client.storage";
+option java_multiple_files = true;
+option java_outer_classname = "StorageDetailsProto";
+
+message StorageDetails {
+  // When using cloud storage, it may desirable to either rotate the bucket
+  // frequently or use a static bucket.
+  enum BucketType {
+    // Default failure statue when unset. We expect this to be agreed-on by
+    // parties when building an exchange.
+    UNKNOWN_TYPE = 0;
+    // The bucket name in this proto is the exact bucket name.
+    STATIC_BUCKET = 1;
+    // The bucket name in this proto will be factored in with exchange info
+    // to create a custom bucket name not known by any other party at exchange
+    // runtime.
+    ROTATING_BUCKET = 2;
+  }
+
+  // TODO(): Stub. Implement this when S3 Storage Client is ready.
+  message AwsStorage {
+    string bucket = 1;
+  }
+
+  message GcsStorage {
+    string bucket = 1;
+    string project_name = 2;
+    BucketType bucket_type = 3;
+  }
+
+  message FileStorage {
+    string path = 1;
+  }
+
+  oneof platform {
+    AwsStorage aws = 1;
+    GcsStorage gcs = 2;
+    FileStorage file = 3;
+  }
+}
