@@ -93,11 +93,15 @@ message EncryptedEventData {
 
 // Generic message type holding a decrypted query result
 message DecryptedQueryResult {
-  QueryId query_id = 2;
-  bytes query_result = 3;
+  QueryId query_id = 1;
+  BucketContents query_result = 2;
 }
 
 // Generic message type holding an unencrypted query result
 message Plaintext {
   bytes payload = 1;
+}
+
+message BucketContents {
+  repeated bytes items = 1;
 }

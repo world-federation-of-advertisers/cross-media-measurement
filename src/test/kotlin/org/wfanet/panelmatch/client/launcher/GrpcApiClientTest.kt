@@ -35,11 +35,11 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLog
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
@@ -48,6 +48,12 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCorou
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.appendLogEntryRequest
+import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.exchangeStep
+import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
@@ -59,19 +65,17 @@ private const val MODEL_PROVIDER_ID = "some-model-provider-id"
 private val DATA_PROVIDER_IDENTITY = Identity(DATA_PROVIDER_ID, Party.DATA_PROVIDER)
 private val MODEL_PROVIDER_IDENTITY = Identity(MODEL_PROVIDER_ID, Party.MODEL_PROVIDER)
 
-private val EXCHANGE_STEP: ExchangeStep =
-  ExchangeStep.newBuilder()
-    .apply {
-      name =
-        ExchangeStepKey(
-            recurringExchangeId = RECURRING_EXCHANGE_ID,
-            exchangeId = EXCHANGE_ID,
-            exchangeStepId = EXCHANGE_STEP_ID
-          )
-          .toName()
-      state = ExchangeStep.State.READY_FOR_RETRY
-    }
-    .build()
+private val EXCHANGE_STEP_KEY =
+  ExchangeStepKey(
+    recurringExchangeId = RECURRING_EXCHANGE_ID,
+    exchangeId = EXCHANGE_ID,
+    exchangeStepId = EXCHANGE_STEP_ID
+  )
+
+private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
+  name = EXCHANGE_STEP_KEY.toName()
+  state = ExchangeStep.State.READY_FOR_RETRY
+}
 
 private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
   ExchangeStepAttemptKey(
@@ -81,16 +85,12 @@ private val EXCHANGE_STEP_ATTEMPT_KEY: ExchangeStepAttemptKey =
     exchangeStepAttemptId = EXCHANGE_STEP_ATTEMPT_ID
   )
 
-private val FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE =
-  ClaimReadyExchangeStepResponse.newBuilder()
-    .apply {
-      exchangeStep = EXCHANGE_STEP
-      exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-    }
-    .build()
+private val FULL_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {
+  exchangeStep = EXCHANGE_STEP
+  exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+}
 
-private val EMPTY_CLAIM_READY_EXCHANGE_STEP_RESPONSE =
-  ClaimReadyExchangeStepResponse.getDefaultInstance()
+private val EMPTY_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepResponse {}
 
 @RunWith(JUnit4::class)
 class GrpcApiClientTest {
@@ -117,12 +117,10 @@ class GrpcApiClientTest {
   }
 
   private fun makeLogEntry(message: String): ExchangeStepAttempt.DebugLog {
-    return ExchangeStepAttempt.DebugLog.newBuilder()
-      .also {
-        it.time = clock.instant().toProtoTime()
-        it.message = message
-      }
-      .build()
+    return debugLog {
+      time = clock.instant().toProtoTime()
+      this.message = message
+    }
   }
 
   @Test
@@ -145,9 +143,9 @@ class GrpcApiClientTest {
       verifyBlocking(exchangeStepsServiceMock) { claimReadyExchangeStep(capture()) }
       assertThat(firstValue)
         .isEqualTo(
-          ClaimReadyExchangeStepRequest.newBuilder()
-            .apply { dataProvider = DataProviderKey(DATA_PROVIDER_ID).toName() }
-            .build()
+          claimReadyExchangeStepRequest {
+            dataProvider = DataProviderKey(DATA_PROVIDER_ID).toName()
+          }
         )
     }
   }
@@ -185,9 +183,9 @@ class GrpcApiClientTest {
       verifyBlocking(exchangeStepsServiceMock) { claimReadyExchangeStep(capture()) }
       assertThat(firstValue)
         .isEqualTo(
-          ClaimReadyExchangeStepRequest.newBuilder()
-            .apply { modelProvider = ModelProviderKey(MODEL_PROVIDER_ID).toName() }
-            .build()
+          claimReadyExchangeStepRequest {
+            modelProvider = ModelProviderKey(MODEL_PROVIDER_ID).toName()
+          }
         )
     }
   }
@@ -195,7 +193,7 @@ class GrpcApiClientTest {
   @Test
   fun appendLogEntry() {
     exchangeStepsAttemptsServiceMock.stub {
-      onBlocking { appendLogEntry(any()) }.thenReturn(ExchangeStepAttempt.getDefaultInstance())
+      onBlocking { appendLogEntry(any()) }.thenReturn(exchangeStepAttempt {})
     }
 
     runBlocking {
@@ -207,13 +205,11 @@ class GrpcApiClientTest {
       assertThat(firstValue)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
-          AppendLogEntryRequest.newBuilder()
-            .apply {
-              name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-              addLogEntries(makeLogEntry("message-1"))
-              addLogEntries(makeLogEntry("message-2"))
-            }
-            .build()
+          appendLogEntryRequest {
+            name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+            logEntries += makeLogEntry("message-1")
+            logEntries += makeLogEntry("message-2")
+          }
         )
     }
   }
@@ -221,8 +217,7 @@ class GrpcApiClientTest {
   @Test
   fun finishExchangeStepAttempt() {
     exchangeStepsAttemptsServiceMock.stub {
-      onBlocking { finishExchangeStepAttempt(any()) }
-        .thenReturn(ExchangeStepAttempt.getDefaultInstance())
+      onBlocking { finishExchangeStepAttempt(any()) }.thenReturn(exchangeStepAttempt {})
     }
 
     runBlocking {
@@ -242,23 +237,19 @@ class GrpcApiClientTest {
       }
       assertThat(firstValue)
         .isEqualTo(
-          FinishExchangeStepAttemptRequest.newBuilder()
-            .apply {
-              name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-              finalState = ExchangeStepAttempt.State.SUCCEEDED
-              addLogEntries(makeLogEntry("message-1"))
-              addLogEntries(makeLogEntry("message-2"))
-            }
-            .build()
+          finishExchangeStepAttemptRequest {
+            name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+            finalState = ExchangeStepAttempt.State.SUCCEEDED
+            logEntries += makeLogEntry("message-1")
+            logEntries += makeLogEntry("message-2")
+          }
         )
       assertThat(secondValue)
         .isEqualTo(
-          FinishExchangeStepAttemptRequest.newBuilder()
-            .apply {
-              name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
-              finalState = ExchangeStepAttempt.State.FAILED_STEP
-            }
-            .build()
+          finishExchangeStepAttemptRequest {
+            name = EXCHANGE_STEP_ATTEMPT_KEY.toName()
+            finalState = ExchangeStepAttempt.State.FAILED_STEP
+          }
         )
     }
   }

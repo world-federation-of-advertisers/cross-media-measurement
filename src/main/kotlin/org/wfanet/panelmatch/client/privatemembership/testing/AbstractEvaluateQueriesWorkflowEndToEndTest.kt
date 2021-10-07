@@ -81,7 +81,7 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
     assertThat(rawQueries.map { it.first }).containsNoDuplicates() // Sanity check
 
     val expectedResults: List<String> =
-      rawMatchingQueries.map { rawDatabase[it.first]!!.toStringUtf8() }
+      rawMatchingQueries.map { rawDatabase.getValue(it.first).toStringUtf8() }
 
     val bucketing =
       Bucketing(
@@ -116,8 +116,8 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
       // Finally, we compare the unique results with the expected results.
       val uniqueResults =
         it
-          .map { result -> helper.decodeResultData(result).toStringUtf8() }
-          .flatMap { decodedResult -> splitConcatenatedPayloads(decodedResult) }
+          .flatMap { result -> helper.decodeResultData(result).itemsList }
+          .map { item -> item.toStringUtf8() }
           .toSet()
       assertWithMessage("with $parameters")
         .that(uniqueResults)
@@ -125,13 +125,4 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
       null
     }
   }
-}
-
-/**
- * Splits [combinedPayloads] into individual payloads.
- *
- * We assume that each individual payload's first and last characters are '<' and '>', respectively.
- */
-private fun splitConcatenatedPayloads(combinedPayloads: String): List<String> {
-  return Regex("(<[^>]+>)").findAll(combinedPayloads).map { match -> match.groupValues[1] }.toList()
 }

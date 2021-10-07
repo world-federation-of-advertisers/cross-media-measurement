@@ -90,18 +90,18 @@ class PlaintextPrivateMembershipCryptorTest {
     assertThat(
         decryptedQueries
           .map { decryptedQueryData ->
-            EncryptedEventData.parseFrom(decryptedQueryData.queryResult).ciphertextsList.map {
-              decryptedQueryOf(it, decryptedQueryData.queryId)
-            }
+            EncryptedEventData.parseFrom(decryptedQueryData.queryResult.itemsList.single())
+              .ciphertextsList
+              .map { decryptedQueryOf(decryptedQueryData.queryId, listOf(it)) }
           }
           .flatten()
       )
       .containsExactly(
-        decryptedQueryOf("<some encrypted data a>".toByteString(), 1),
-        decryptedQueryOf("<some encrypted data b>".toByteString(), 1),
-        decryptedQueryOf("<some encrypted data c>".toByteString(), 2),
-        decryptedQueryOf("<some encrypted data d>".toByteString(), 2),
-        decryptedQueryOf("<some encrypted data e>".toByteString(), 3)
+        decryptedQueryOf(1, "<some encrypted data a>".toByteString()),
+        decryptedQueryOf(1, "<some encrypted data b>".toByteString()),
+        decryptedQueryOf(2, "<some encrypted data c>".toByteString()),
+        decryptedQueryOf(2, "<some encrypted data d>".toByteString()),
+        decryptedQueryOf(3, "<some encrypted data e>".toByteString())
       )
   }
 

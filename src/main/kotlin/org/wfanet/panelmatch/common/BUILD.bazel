@@ -9,6 +9,7 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",

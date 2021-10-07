@@ -63,7 +63,7 @@ object PlaintextQueryEvaluator : QueryEvaluator {
         shard
           .bucketsList
           .filter { it.bucketId.id == queriedBucket.stringValue.toInt() }
-          .map { resultOf(queryId, it.payload) }
+          .map { resultOf(queryId, it.contents.toByteString()) }
           .ifEmpty { listOf(resultOf(queryId, ByteString.EMPTY)) }
           .single()
       results.add(result)

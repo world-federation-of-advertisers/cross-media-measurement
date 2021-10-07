@@ -50,7 +50,8 @@ class PlaintextQueryResultsDecryptor(
     return decryptQueryResultsResponse {
       eventDataSets +=
         decryptedQueryResults.map { decryptedResult ->
-          val eventData = EncryptedEventData.parseFrom(decryptedResult.queryResult)
+          val eventData =
+            EncryptedEventData.parseFrom(decryptedResult.queryResult.itemsList.single())
           decryptedEventDataSet {
             queryId = decryptedResult.queryId
             decryptedEventData +=

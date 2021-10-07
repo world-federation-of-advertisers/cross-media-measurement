@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.protobuf.ByteString
 import com.google.protobuf.listValue
 import com.google.protobuf.value
+import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
@@ -33,8 +34,8 @@ import org.wfanet.panelmatch.common.toByteString
  * [EncryptedQueryBundle] payload.
  */
 object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
-  override fun decodeResultData(result: EncryptedQueryResult): ByteString {
-    return result.serializedEncryptedQueryResult
+  override fun decodeResultData(result: EncryptedQueryResult): BucketContents {
+    return BucketContents.parseFrom(result.serializedEncryptedQueryResult)
   }
 
   override fun makeQueryBundle(

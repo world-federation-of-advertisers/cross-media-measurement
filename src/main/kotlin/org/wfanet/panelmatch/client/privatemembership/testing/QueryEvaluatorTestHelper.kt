@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
 import java.io.Serializable
+import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
@@ -23,9 +24,9 @@ import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 
 interface QueryEvaluatorTestHelper : Serializable {
-  data class DecodedResult(val queryId: Int, val data: ByteString) : Serializable {
+  data class DecodedResult(val queryId: Int, val data: BucketContents) : Serializable {
     override fun toString(): String {
-      return "DecodedResult(query=$queryId, data=${data.toStringUtf8()})"
+      return "DecodedResult(query=$queryId, data=$data)"
     }
   }
 
@@ -33,7 +34,7 @@ interface QueryEvaluatorTestHelper : Serializable {
     return DecodedResult(result.queryId.id, decodeResultData(result))
   }
 
-  fun decodeResultData(result: EncryptedQueryResult): ByteString
+  fun decodeResultData(result: EncryptedQueryResult): BucketContents
 
   fun makeQueryBundle(shard: ShardId, queries: List<Pair<QueryId, BucketId>>): EncryptedQueryBundle
 

@@ -28,6 +28,7 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -111,7 +112,7 @@ class InputTaskTest {
       for (outputLabels in maps) {
         runTest(
           step {
-            inputStep = ExchangeWorkflow.Step.InputStep.getDefaultInstance()
+            inputStep = StepKt.inputStep {}
             this.inputLabels.putAll(inputLabels)
             this.outputLabels.putAll(outputLabels)
           }
