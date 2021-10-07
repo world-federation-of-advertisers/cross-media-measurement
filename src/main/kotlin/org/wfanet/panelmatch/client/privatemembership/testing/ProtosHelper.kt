@@ -52,8 +52,8 @@ fun encryptedEventDataSetOf(ciphertexts: List<String>, query: Int): EncryptedEve
 }
 
 /** Constructs a [DecryptedQueryResult]. */
-fun decryptedQueryOf(queryResult: ByteString, query: Int): DecryptedQueryResult =
-  decryptedQueryOf(queryResult, queryIdOf(query))
+fun decryptedQueryOf(query: Int, queryResult: ByteString): DecryptedQueryResult =
+  decryptedQueryOf(queryIdOf(query), listOf(queryResult))
 
 fun plaintextOf(payload: String): Plaintext = plaintextOf(payload.toByteString())
 

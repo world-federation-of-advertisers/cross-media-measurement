@@ -18,10 +18,11 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.panelmatch.protocol.SharedInputs
+import org.wfanet.panelmatch.protocol.sharedInputs
 
 /** Insert [data] into a [SharedInputs] proto and then serializes it. */
 fun makeSerializedSharedInputs(data: List<ByteString>): ByteString {
-  return SharedInputs.newBuilder().addAllData(data).build().toByteString()
+  return sharedInputs { this.data += data }.toByteString()
 }
 
 /**

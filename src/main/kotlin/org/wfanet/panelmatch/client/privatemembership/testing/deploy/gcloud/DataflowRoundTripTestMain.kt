@@ -25,6 +25,7 @@ import com.google.privatemembership.batch.client.Client.PrivateKey
 import com.google.privatemembership.batch.client.decryptQueriesRequest
 import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.parameters
+import com.google.protobuf.ByteString
 import java.lang.Long.parseUnsignedLong
 import java.util.Base64
 import kotlin.random.Random
@@ -71,7 +72,7 @@ interface Options : DataflowPipelineOptions {
 }
 
 private const val SHARD_COUNT = 100
-private const val BUCKETS_PER_SHARD_COUNT = 1 shl 10
+private const val BUCKETS_PER_SHARD_COUNT = 1 shl 11
 private const val QUERIES_PER_SHARD_COUNT = 16
 private const val JOINKEY_UNIVERSE_SIZE = SHARD_COUNT * BUCKETS_PER_SHARD_COUNT
 
@@ -150,13 +151,15 @@ fun main(args: Array<String>) {
   val queryEvaluator = JniQueryEvaluator(PRIVATE_MEMBERSHIP_PARAMETERS.toByteString())
 
   val database: PCollection<KV<DatabaseKey, Plaintext>> =
-    pipeline.apply("Create Database", Create.of(0 until SHARD_COUNT)).parDo("Populate Database") { i
-      ->
+    pipeline.apply("Create Database Shards", Create.of(0 until SHARD_COUNT)).parDo(
+        "Populate Database"
+      ) { i ->
       for (j in 0 until BUCKETS_PER_SHARD_COUNT / 2) {
+        val uniqueQueryId = i + j * SHARD_COUNT
         yield(
           kvOf(
             databaseKeyOf(Random.nextLong()),
-            plaintextOf("small-payload-${i + j * SHARD_COUNT}".toByteString())
+            plaintextOf(makeFakeUserDataPayload(uniqueQueryId.toString()))
           )
         )
       }
@@ -235,4 +238,9 @@ private fun PCollection<TableRow>.toBigQuery(outputTable: String, tableSchema: T
 
 private fun makeOptions(args: Array<String>): Options {
   return PipelineOptionsFactory.fromArgs(*args).withValidation().`as`(Options::class.java)
+}
+
+private fun makeFakeUserDataPayload(suffix: String): ByteString {
+  val prefix = (0 until 2000).joinToString { " " }
+  return "$prefix-$suffix".toByteString()
 }

@@ -12,24 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package org.wfanet.panelmatch.common
 
-package wfa.panelmatch.client.privatemembership;
+import com.google.common.base.Stopwatch
+import java.time.Duration
 
-import "wfa/panelmatch/client/privatemembership/query.proto";
-
-option java_package = "org.wfanet.panelmatch.client.privatemembership";
-option java_multiple_files = true;
-option java_outer_classname = "QueryEvaluatorProto";
-
-// A full or partial set of buckets in a batch lookup database.
-message DatabaseShard {
-  ShardId shard_id = 1;
-  repeated Bucket buckets = 2;
-}
-
-// A bucket in a batch lookup database.
-message Bucket {
-  BucketId bucket_id = 1;
-  BucketContents contents = 2;
+inline fun <reified T> withTime(crossinline block: () -> T): Pair<T, Duration> {
+  val stopwatch = Stopwatch.createStarted()
+  val result = block()
+  return result to stopwatch.elapsed()
 }

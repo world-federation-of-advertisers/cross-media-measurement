@@ -28,6 +28,7 @@ import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipKeys
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
+import org.wfanet.panelmatch.client.privatemembership.bucketContents
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.queryBundleOf
@@ -79,7 +80,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
   override fun decodeEncryptedQueryResult(result: EncryptedQueryResult): DecryptedQueryResult {
     return decryptedQueryResult {
       queryId = result.queryId
-      queryResult = result.serializedEncryptedQueryResult
+      queryResult = bucketContents { items += result.serializedEncryptedQueryResult }
     }
   }
 

@@ -79,7 +79,7 @@ private fun DatabaseShard.toPrivateMembershipRawDatabaseShard(): RawDatabaseShar
       bucketsList.map {
         bucket {
           bucketId = it.bucketId.id
-          bucketContents = it.payload
+          bucketContents = it.contents.toByteString()
         }
       }
   }
