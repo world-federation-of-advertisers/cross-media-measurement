@@ -14,24 +14,11 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
-import java.time.Clock
-import org.junit.Rule
-import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.InProcessKingdom
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
-@get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
-
-fun buildSpannerInProcessKingdom(
-  idGenerator: IdGenerator,
-  clock: Clock = Clock.systemUTC()
-): InProcessKingdom {
+fun buildSpannerInProcessKingdom(rule: SpannerInProcessKingdomRule): InProcessKingdom {
   return InProcessKingdom(
-    dataServicesProvider = {
-      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
-    },
+    dataServicesProvider = { rule.value },
     verboseGrpcLogging = false,
   )
 }
