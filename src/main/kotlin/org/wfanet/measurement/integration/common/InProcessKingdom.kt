@@ -55,7 +55,7 @@ class InProcessKingdom(
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
-  private val internalApiChannel by lazy { internalDataServer.channel }
+  val internalApiChannel by lazy { internalDataServer.channel }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
   }

@@ -6,9 +6,10 @@ package(
 )
 
 kt_jvm_library(
-    name = "in_process_kingdom",
+    name = "gcloud",
     srcs = [
         "InProcessKingdom.kt",
+        "SpannerInProcessKingdomRule.kt"
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_kingdom",
