@@ -6,8 +6,8 @@ package(
         test_target(":__pkg__"),
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/duchy/testing:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
     ],
 )
 
