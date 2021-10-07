@@ -9,25 +9,6 @@ package(
     ],
 )
 
-kt_jvm_library(
-    name = "configs",
-    srcs = ["Configs.kt"],
-    data = [
-        "//src/main/k8s/certs:all_der_files",
-        "//src/main/k8s/configs:all_configs",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
-        "//src/main/proto/wfa/measurement/config:duchy_rpc_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:duchy_id_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:llv2_protocol_config_config_kt_jvm_proto",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ],
-)
-
-
 KINGDOM_PUBLIC_API_SERVICES = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
@@ -55,6 +36,24 @@ DUCHY_SERVICES = [
 ]
 
 ALL_CMMS_SERVICES = DUCHY_SERVICES + KINGDOM_PUBLIC_API_SERVICES + KINGDOM_SYSTEM_API_SERVICES + KINGDOM_INTERNAL_PROTOS
+
+kt_jvm_library(
+    name = "configs",
+    srcs = ["Configs.kt"],
+    data = [
+        "//src/main/k8s/certs:all_der_files",
+        "//src/main/k8s/configs:all_configs",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "//src/main/proto/wfa/measurement/config:duchy_rpc_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:duchy_id_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:llv2_protocol_config_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
 
 kt_jvm_library(
     name = "in_process_components",
