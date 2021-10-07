@@ -551,7 +551,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("Certificate is in REVOKED State.")
+    assertThat(exception).hasMessageThat().contains("Certificate is in wrong State.")
   }
 
   @Test
@@ -568,6 +568,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           details = details { x509Der = X509_DER }
         }
       )
+
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
+        this.externalDataProviderId = externalDataProviderId
+        externalCertificateId = certificate.externalCertificateId
+        revocationState = Certificate.RevocationState.HOLD
+      }
+    )
 
     val request = releaseCertificateHoldRequest {
       this.externalDataProviderId = externalDataProviderId
@@ -656,7 +664,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("Certificate is in REVOKED State.")
+    assertThat(exception).hasMessageThat().contains("Certificate is in wrong State.")
   }
 
   @Test
@@ -674,6 +682,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           details = details { x509Der = X509_DER }
         }
       )
+
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        externalCertificateId = certificate.externalCertificateId
+        revocationState = Certificate.RevocationState.HOLD
+      }
+    )
 
     val request = releaseCertificateHoldRequest {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -735,6 +751,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           details = details { x509Der = X509_DER }
         }
       )
+
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
+        this.externalDuchyId = externalDuchyId
+        externalCertificateId = certificate.externalCertificateId
+        revocationState = Certificate.RevocationState.HOLD
+      }
+    )
 
     val request = releaseCertificateHoldRequest {
       this.externalDuchyId = externalDuchyId

@@ -42,7 +42,6 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
   SpannerWriter<Certificate, Certificate>() {
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
-
     val externalCertificateId = ExternalId(request.externalCertificateId)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     val reader: BaseSpannerReader<CertificateReader.Result> =
@@ -80,18 +79,24 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           "Certificate not found."
         }
 
-    if (certificateResult.certificate.revocationState == RevocationState.REVOKED) {
-      throw KingdomInternalException(
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL
-      ) { "Certificate is in REVOKED state, cannot release hold." }
-    }
-
-    transactionContext.bufferUpdateMutation("Certificates") {
-      set("CertificateId" to certificateResult.certificateId.value)
-      set("RevocationState" to RevocationState.REVOCATION_STATE_UNSPECIFIED)
-    }
-    return certificateResult.certificate.copy {
-      revocationState = RevocationState.REVOCATION_STATE_UNSPECIFIED
+    val certificateRevocationState = certificateResult.certificate.revocationState
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (certificateRevocationState) {
+      RevocationState.HOLD -> {
+        transactionContext.bufferUpdateMutation("Certificates") {
+          set("CertificateId" to certificateResult.certificateId.value)
+          set("RevocationState" to RevocationState.REVOCATION_STATE_UNSPECIFIED)
+        }
+        certificateResult.certificate.copy {
+          revocationState = RevocationState.REVOCATION_STATE_UNSPECIFIED
+        }
+      }
+      RevocationState.REVOKED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+        throw KingdomInternalException(
+          KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL
+        ) { "Certificate is in $certificateRevocationState state, cannot release hold." }
+      RevocationState.UNRECOGNIZED ->
+        throw IllegalStateException("Certificate RevocationState field is unrecognized.")
     }
   }
 
