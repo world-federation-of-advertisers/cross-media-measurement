@@ -14,12 +14,15 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha.testing
 
+import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
+import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import org.wfanet.measurement.kingdom.service.api.v2alpha.Principal
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipal
@@ -51,3 +54,7 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
     return Contexts.interceptCall(context, call, headers, next)
   }
 }
+
+/** Convenience helper for [withMetadataPrincipalIdentities]. */
+fun BindableService.withMetadataPrincipalIdentities(): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(this, MetadataPrincipalServerInterceptor())

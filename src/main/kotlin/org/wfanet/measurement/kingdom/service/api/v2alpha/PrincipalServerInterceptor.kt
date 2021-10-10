@@ -45,7 +45,14 @@ sealed class Principal<T : ResourceKey> {
 
   companion object {
     fun fromName(name: String): Principal<*>? {
-      TODO()
+      val dataProviderKey = DataProviderKey.fromName(name)
+      val modelProviderKey = ModelProviderKey.fromName(name)
+      if (dataProviderKey != null) {
+        return DataProvider(dataProviderKey)
+      } else if (modelProviderKey != null) {
+        return ModelProvider(modelProviderKey)
+      }
+      return null
     }
   }
 }
