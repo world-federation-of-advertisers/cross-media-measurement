@@ -125,7 +125,11 @@ class InProcessKingdom(
         MeasurementConsumersService(internalMeasurementConsumersClient),
         RequisitionsService(internalRequisitionsClient)
       )
-        .forEach { addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging)) }
+        .forEach {
+          addService(
+            it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging)
+          )
+        }
     }
 
   /** Provides a gRPC channel to the Kingdom's public API. */
