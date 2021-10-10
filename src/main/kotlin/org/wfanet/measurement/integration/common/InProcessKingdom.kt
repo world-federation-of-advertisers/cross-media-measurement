@@ -126,9 +126,7 @@ class InProcessKingdom(
         RequisitionsService(internalRequisitionsClient)
       )
         .forEach {
-          addService(
-            it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging)
-          )
+          addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
         }
     }
 
