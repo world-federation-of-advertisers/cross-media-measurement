@@ -55,7 +55,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
-import org.wfanet.measurement.common.BYTES_PER_MIB
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.loadLibrary
@@ -183,8 +182,7 @@ class EdpSimulator(
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
     val sketch = generateSketch(sketchConfig, sketchGenerationParams)
 
-    // TODO(wangyaopw): call write(ByteString) directly rather than write(flow(ByteString))
-    sketchStore.write(requisition.name, sketch.toByteString().asBufferedFlow(BYTES_PER_MIB))
+    sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
     fulfillRequisition(requisition.name, participationSignature.signature, sketchChunks)
