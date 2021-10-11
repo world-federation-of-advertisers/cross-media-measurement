@@ -7,7 +7,11 @@ package(default_visibility = [
 
 kt_jvm_library(
     name = "identity",
-    srcs = glob(["*.kt"]),
+    srcs = [
+        "AuthorityKeyServerInterceptor.kt",
+        "DuchyIdentity.kt",
+        "DuchyInfo.kt",
+    ],
     deps = [
         "//src/main/proto/wfa/measurement/config:duchy_rpc_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -15,5 +19,16 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+# TODO(yunyeng): Move this to common-jvm.
+kt_jvm_library(
+    name = "principal_identity",
+    srcs = ["PrincipalIdentity.kt"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
     ],
 )
