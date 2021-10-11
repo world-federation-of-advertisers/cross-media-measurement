@@ -126,7 +126,13 @@ class InProcessKingdom(
         RequisitionsService(internalRequisitionsClient)
       )
         .forEach {
-          addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
+          when (it) {
+            is ExchangeStepsService, is ExchangeStepAttemptsService ->
+              addService(
+                it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging)
+              )
+            else -> addService(it.withVerboseLogging(verboseGrpcLogging))
+          }
         }
     }
 
