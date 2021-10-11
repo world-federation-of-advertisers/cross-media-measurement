@@ -28,7 +28,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.Principal
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipal
 
 private const val KEY_NAME = "principal"
-val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
+private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
   Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
 
 class MetadataPrincipalServerInterceptor : ServerInterceptor {
