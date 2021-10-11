@@ -126,6 +126,7 @@ class InProcessKingdom(
         RequisitionsService(internalRequisitionsClient)
       )
         .forEach {
+          // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
           when (it) {
             is ExchangeStepsService, is ExchangeStepAttemptsService ->
               addService(
