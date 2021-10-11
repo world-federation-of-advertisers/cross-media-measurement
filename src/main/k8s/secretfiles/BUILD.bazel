@@ -8,3 +8,8 @@ filegroup(
     name = "all_der_files",
     srcs = glob(["*.der"]),
 )
+
+filegroup(
+    name = "all_configs",
+    srcs = glob(["*.textproto"]),
+)

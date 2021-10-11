@@ -26,8 +26,7 @@ listObject: {
 
 objects: [ for objectSet in objectSets for object in objectSet {object}]
 
-#AppName:    "measurement-system"
-#SecretName: "all-test-certs-m64b868cg4"
+#AppName: "measurement-system"
 
 #Target: {
 	name:   string
@@ -69,9 +68,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #Deployment: {
-	_name:     string
-	_replicas: int | *1
-	_image:    string
+	_name:       string
+	_replicas:   int | *1
+	_secretName: string | *""
+	_image:      string
 	_args: [...string]
 	_ports:           [{containerPort: 8443}] | *[]
 	_restartPolicy:   string | *"Always"
@@ -130,7 +130,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				volumes: [{
 					name: _name + "-files"
 					secret: {
-						secretName: #SecretName
+						secretName: _secretName
 					}
 				}]
 				initContainers: [ for ds in _dependencies {
@@ -162,6 +162,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #Job: {
 	_name:            string
+	_secretName:      string | *""
 	_image:           string | *""
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
@@ -189,7 +190,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			{
 				name: _name + "-files"
 				secret: {
-					secretName: #SecretName
+					secretName: _secretName
 				}
 			},
 		]

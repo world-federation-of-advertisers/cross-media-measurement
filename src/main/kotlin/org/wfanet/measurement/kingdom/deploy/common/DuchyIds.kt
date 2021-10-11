@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.common
 
+import java.io.File
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
@@ -63,7 +64,7 @@ class DuchyIdsFlags {
     description = ["DuchyIdConfig proto message in text format."],
     required = true
   )
-  lateinit var config: String
+  lateinit var config: File
     private set
 }
 

@@ -24,10 +24,11 @@ import ("strings")
 
 	_images: [Name=_]: string
 	_kingdom_image_pull_policy: string
+	_kingdom_secret_name:       string
 
-	_duchy_info_config_flag:                 "--duchy-info-config=" + #DuchyInfoConfig
-	_duchy_id_config_flag:                   "--duchy-id-config=" + #DuchyIdConfig
-	_llv2_protocol_config_config:            "--llv2-protocol-config-config=" + #Llv2ProtocolConfigConfig
+	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config.textproto"
+	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
+	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -70,6 +71,7 @@ import ("strings")
 
 	kingdom_deployment: [Name=_]: #Deployment & {
 		_name:            strings.TrimSuffix(Name, "-deployment")
+		_secretName:      _kingdom_secret_name
 		_system:          "kingdom"
 		_image:           _images[_name]
 		_imagePullPolicy: _kingdom_image_pull_policy
