@@ -113,17 +113,17 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 #Duchies: [
 	{
 		name:                   "aggregator"
-		protocols_setup_config: #AggregatorProtocolsSetupConfig
+		protocols_setup_config: "TBD"
 		cs_cert_resource_name:  "duchies/aggregator/certificates/TBD"
 	},
 	{
 		name:                   "worker1"
-		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		protocols_setup_config: "TBD"
 		cs_cert_resource_name:  "duchies/worker-1/certificates/TBD"
 	},
 	{
 		name:                   "worker2"
-		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		protocols_setup_config: "TBD"
 		cs_cert_resource_name:  "duchies/worker-2/certificates/TBD"
 	},
 ]

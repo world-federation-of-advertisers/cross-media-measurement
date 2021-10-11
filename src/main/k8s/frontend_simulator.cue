@@ -16,23 +16,25 @@ package k8s
 
 #FrontendSimulator: {
 	_mc_resource_name: string
+	_mc_secret_name:   string
 	_simulator_image:  string
 	_blob_storage_flags: [...string]
 
 	frontend_simulator_job: #Job & {
-		_name:  "frontend-simulator"
-		_image: _simulator_image
-		_args:  [
-			"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
-			"--tls-key-file=/var/run/secrets/files/mc_tls.key",
-			"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-			"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
-			"--kingdom-public-api-cert-host=localhost",
-			"--mc-resource-name=\(_mc_resource_name)",
-			"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
-			"--mc-encryption-private-key-der-file=var/run/secrets/files/mc_enc_private.der",
-			"--output-differential-privacy-epsilon=0.1",
-			"--output-differential-privacy-delta=0.000001",
+		_name:       "frontend-simulator"
+		_secretName: _mc_secret_name
+		_image:      _simulator_image
+		_args:       [
+				"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
+				"--tls-key-file=/var/run/secrets/files/mc_tls.key",
+				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+				"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
+				"--kingdom-public-api-cert-host=localhost",
+				"--mc-resource-name=\(_mc_resource_name)",
+				"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
+				"--mc-encryption-private-key-der-file=var/run/secrets/files/mc_enc_private.der",
+				"--output-differential-privacy-epsilon=0.1",
+				"--output-differential-privacy-delta=0.000001",
 		] + _blob_storage_flags
 	}
 }

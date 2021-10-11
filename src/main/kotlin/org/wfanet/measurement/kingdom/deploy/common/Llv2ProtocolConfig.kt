@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.common
 
+import java.io.File
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
@@ -55,6 +56,6 @@ class Llv2ProtocolConfigFlags {
     description = ["Llv2ProtocolConfigConfig proto message in text format."],
     required = true
   )
-  lateinit var config: String
+  lateinit var config: File
     private set
 }

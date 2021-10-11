@@ -17,6 +17,7 @@ package k8s
 #EdpSimulator: {
 	_edp: {display_name: string, resource_name: string}
 	_mc_resource_name: string
+	_edp_secret_name:  string
 
 	_edp_display_name:  _edp.display_name
 	_edp_resource_name: _edp.resource_name
@@ -27,6 +28,7 @@ package k8s
 
 	edp_simulator_deployment: #Deployment & {
 		_name:            _edp_display_name + "-simulator"
+		_secretName:      _edp_secret_name
 		_system:          "simulator"
 		_image:           _edp_simulator_image
 		_imagePullPolicy: _simulator_image_pull_policy

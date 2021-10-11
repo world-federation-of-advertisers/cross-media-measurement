@@ -18,6 +18,7 @@ import ("strings")
 
 #Duchy: {
 	_duchy: {name: string, protocols_setup_config: string, cs_cert_resource_name: string}
+	_duchy_secret_name: string
 	_spanner_schema_push_flags: [...string]
 	_spanner_flags: [...string]
 	_blob_storage_flags: [...string]
@@ -38,8 +39,8 @@ import ("strings")
 	_computations_service_target_flag:                  "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
 	_computations_service_cert_host_flag:               "--computations-service-cert-host=localhost"
 	_duchy_name_flag:                                   "--duchy-name=\(_name)"
-	_duchy_info_config_flag:                            "--duchy-info-config=" + #DuchyInfoConfig
-	_duchy_protocols_setup_config_flag:                 "--protocols-setup-config=\(_protocols_setup_config)"
+	_duchy_info_config_flag:                            "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config.textproto"
+	_duchy_protocols_setup_config_flag:                 "--protocols-setup-config=/var/run/secrets/files/\(_protocols_setup_config)"
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
@@ -65,6 +66,7 @@ import ("strings")
 	duchy_deployment: [Name=_]: #Deployment & {
 		_unprefixed_name: strings.TrimSuffix(Name, "-deployment")
 		_name:            _object_prefix + _unprefixed_name
+		_secretName:      _duchy_secret_name
 		_system:          "duchy"
 		_image:           _images[_unprefixed_name]
 		_imagePullPolicy: _duchy_image_pull_policy
