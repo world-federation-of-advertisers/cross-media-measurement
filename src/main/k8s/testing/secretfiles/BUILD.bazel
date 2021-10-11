@@ -1,0 +1,18 @@
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/k8s:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "all_der_files",
+    srcs = glob(["*.der"]),
+)
+
+filegroup(
+    name = "all_configs",
+    srcs = glob(["*.textproto"]),
+)

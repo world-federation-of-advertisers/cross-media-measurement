@@ -59,8 +59,8 @@ kt_jvm_library(
     name = "configs",
     srcs = ["Configs.kt"],
     data = [
-        "//src/main/k8s/certs:all_der_files",
-        "//src/main/k8s/configs:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_der_files",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",

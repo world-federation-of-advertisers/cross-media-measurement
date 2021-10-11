@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.herald
 
+import java.io.File
 import java.time.Clock
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
@@ -72,7 +73,7 @@ private class Flags {
     description = ["ProtocolsSetupConfig proto message in text format."],
     required = true
   )
-  lateinit var protocolsSetupConfig: String
+  lateinit var protocolsSetupConfig: File
     private set
 }
 

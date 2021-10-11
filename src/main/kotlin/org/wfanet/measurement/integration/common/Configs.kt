@@ -55,14 +55,14 @@ const val MC_DISPLAY_NAME = "mc"
 
 fun <T : Message> loadTextProto(fileName: String, default: T): T {
   val runfilesRelativePath =
-    Paths.get("wfa_measurement_system", "src", "main", "k8s", "configs", fileName)
+    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles", fileName)
   val path = checkNotNull(getRuntimePath(runfilesRelativePath))
   return Files.newBufferedReader(path).use { reader -> parseTextProto(reader, default) }
 }
 
 fun loadTestCertDerFile(fileName: String): ByteString {
   val runfilesRelativePath =
-    Paths.get("wfa_measurement_system", "src", "main", "k8s", "certs", fileName)
+    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles", fileName)
   val path = checkNotNull(getRuntimePath(runfilesRelativePath))
   return path.toFile().readBytes().toByteString()
 }
