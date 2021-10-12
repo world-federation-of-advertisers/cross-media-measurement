@@ -13,9 +13,9 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
-        "//src/test/kotlin/org/wfanet/measurement/integration/common:in_process_components",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
@@ -30,6 +30,6 @@ spanner_emulator_test(
     test_class = "org.wfanet.measurement.integration.gcloud.GCloudInProcessLifeOfAMeasurementIntegrationTest",
     deps = [
         ":gcloud",
-        "//src/test/kotlin/org/wfanet/measurement/integration/common:in_process_components",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
     ],
 )

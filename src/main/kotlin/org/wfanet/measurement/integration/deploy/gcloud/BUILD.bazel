@@ -1,0 +1,20 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+kt_jvm_library(
+    name = "gcloud",
+    srcs = [
+        "InProcessKingdom.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

@@ -5,6 +5,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     test_target(":__pkg__"),
+    "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
