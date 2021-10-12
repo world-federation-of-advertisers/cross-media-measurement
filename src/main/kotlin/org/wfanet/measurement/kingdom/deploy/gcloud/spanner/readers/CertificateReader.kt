@@ -43,19 +43,19 @@ class CertificateReader(private val parentType: ParentType) :
     val externalCertificateIdColumnName: String = "External${prefix}CertificateId"
     val certificatesTableName: String = "${prefix}Certificates"
 
-    val externalIdColumnName: String? by lazy {
-      when (this) {
-        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
-        DUCHY -> null
-      }
-    }
+    val externalIdColumnName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
+          DUCHY -> null
+        }
 
-    val tableName: String? by lazy {
-      when (this) {
-        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
-        DUCHY -> null
-      }
-    }
+    val tableName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
+          DUCHY -> null
+        }
   }
 
   override val builder: Statement.Builder = Statement.newBuilder(buildBaseSql(parentType))
