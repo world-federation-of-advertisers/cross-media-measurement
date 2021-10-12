@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,8 +38,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidationKey
-import org.wfanet.panelmatch.common.SecretSet
+import org.wfanet.panelmatch.common.secrets.SecretMap
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"
@@ -83,10 +83,9 @@ private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
     signedExchangeWorkflow { serializedExchangeWorkflow = SERIALIZED_EXCHANGE_WORKFLOW }
 }
 
-private object ValidExchangeWorkflows : SecretSet<ValidationKey> {
-  override fun contains(item: ValidationKey): Boolean {
-    return item.serializedExchangeWork == SERIALIZED_EXCHANGE_WORKFLOW &&
-      item.recurringExchangeId == RECURRING_EXCHANGE_ID
+private object ValidExchangeWorkflows : SecretMap {
+  override suspend fun get(key: String): ByteString? {
+    return if (key == RECURRING_EXCHANGE_ID) SERIALIZED_EXCHANGE_WORKFLOW else null
   }
 }
 

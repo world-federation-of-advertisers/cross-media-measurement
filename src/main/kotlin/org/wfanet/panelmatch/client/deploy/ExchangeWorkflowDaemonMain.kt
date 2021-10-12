@@ -15,9 +15,8 @@
 package org.wfanet.panelmatch.client.deploy
 
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidationKey
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.common.SecretSet
+import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -36,8 +35,8 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromF
   override val privateStorage: VerifiedStorageClient
     get() = TODO("Not yet implemented")
 
-  override val validExchangeWorkflows: SecretSet<ValidationKey> by lazy {
-    approvedWorkflowFlags.secretSet
+  override val validExchangeWorkflows: SecretMap by lazy {
+    approvedWorkflowFlags.approvedExchangeWorkflows
   }
 }
 
