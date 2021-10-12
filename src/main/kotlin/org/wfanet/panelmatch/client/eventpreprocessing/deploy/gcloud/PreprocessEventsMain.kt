@@ -33,7 +33,7 @@ import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.Validation
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.panelmatch.client.common.BrotliEventCompressorTrainer
+import org.wfanet.panelmatch.client.common.BrotliDictionaryBuilder
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
@@ -102,16 +102,18 @@ fun main(args: Array<String>) {
       HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteString()),
       HardCodedHkdfPepperProvider(options.hkdfPepper.toByteString()),
       HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteString()),
-      BrotliEventCompressorTrainer()
+      BrotliDictionaryBuilder()
     )
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)
 
   val dictionaryFileNaming = FileNaming { _, _, _, _, _ -> options.dictionaryOutputPath }
-  dictionary.apply(
-    "Write",
-    FileIO.write<ByteString>().withNumShards(1).withNaming(dictionaryFileNaming)
-  )
+  dictionary
+    .map { it.toByteString() }
+    .apply(
+      "Write Dictionary",
+      FileIO.write<ByteString>().withNumShards(1).withNaming(dictionaryFileNaming)
+    )
 
   val pipelineResult = pipeline.run()
   check(pipelineResult.waitUntilFinish() == PipelineResult.State.DONE)

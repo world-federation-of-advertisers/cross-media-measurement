@@ -17,17 +17,17 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import org.junit.Test
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.bucketOf
+import org.wfanet.panelmatch.client.common.databaseShardOf
+import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
-import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.bucketOf
-import org.wfanet.panelmatch.client.privatemembership.databaseShardOf
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.testing.QueryEvaluatorTestHelper.DecodedResult
 import org.wfanet.panelmatch.common.toByteString
 

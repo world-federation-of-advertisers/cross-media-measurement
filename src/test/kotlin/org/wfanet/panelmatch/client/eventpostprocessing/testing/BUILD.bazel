@@ -1,10 +1,10 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "FakeCompressorUncompressEventsTest",
+    name = "FakeCompressorUncompressEventsFnTest",
     timeout = "short",
-    srcs = ["FakeCompressorUncompressEventsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpostprocessing.testing.FakeCompressorUncompressEventsTest",
+    srcs = ["FakeCompressorUncompressEventsFnTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpostprocessing.testing.FakeCompressorUncompressEventsFnTest",
     deps = [
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",

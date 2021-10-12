@@ -14,22 +14,18 @@
 
 package org.wfanet.panelmatch.client.common
 
-import com.google.protobuf.ByteString
-import java.io.Serializable
+import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
+import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
+import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.compression.Dictionary
 
-/**
- * [Compressor] factory that supports training.
- *
- * This is to enable dictionary-based compression. The output dictionary should be provided to
- * whichever library needs to decompress.
- */
-interface EventCompressorTrainer : Serializable {
-
-  /** Hint suggesting how many elements should be in the sample. */
-  val preferredSampleSize: Int
-
-  /** Builds a dictionary and an [Compressor] that uses it. */
-  fun train(eventsSample: Iterable<ByteString>): FactoryBasedCompressor
+fun CompressorFactory.buildAsPCollectionView(
+  dictionary: PCollection<Dictionary>
+): PCollectionView<Compressor> {
+  return dictionary
+    .map("Make Compressor") { this.build(it) }
+    .toSingletonView("Make Compressor View")
 }

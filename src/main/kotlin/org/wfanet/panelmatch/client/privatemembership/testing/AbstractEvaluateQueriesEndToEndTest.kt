@@ -19,38 +19,40 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.protobuf.ByteString
 import kotlin.random.Random
 import org.apache.beam.sdk.transforms.Create
+import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
+import org.wfanet.panelmatch.client.common.databaseKeyOf
+import org.wfanet.panelmatch.client.common.plaintextOf
+import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.Bucketing
 import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
-import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
-import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow.Parameters
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
-import org.wfanet.panelmatch.client.privatemembership.databaseKeyOf
-import org.wfanet.panelmatch.client.privatemembership.plaintextOf
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
+import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.toByteString
 
 /** Base test class for testing the full pipeline, including a specific [QueryEvaluator]. */
-abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
+abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
   /** Provides a test subject. */
-  abstract fun makeQueryEvaluator(parameters: Parameters): QueryEvaluator
+  abstract fun makeQueryEvaluator(parameters: EvaluateQueriesParameters): QueryEvaluator
 
   /** Provides a helper for the test subject. */
-  abstract fun makeHelper(parameters: Parameters): QueryEvaluatorTestHelper
+  abstract fun makeHelper(parameters: EvaluateQueriesParameters): QueryEvaluatorTestHelper
 
   @Test
   fun endToEnd() {
     for (numShards in listOf(1, 10, 100)) {
       for (numBucketsPerShard in listOf(1, 10, 1000)) {
         val parameters =
-          Parameters(
+          EvaluateQueriesParameters(
             numShards = numShards,
             numBucketsPerShard = numBucketsPerShard,
             maxQueriesPerShard = 1000
@@ -60,7 +62,7 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
     }
   }
 
-  private fun runEndToEndTest(parameters: Parameters) {
+  private fun runEndToEndTest(parameters: EvaluateQueriesParameters) {
     val queryEvaluator = makeQueryEvaluator(parameters)
     val helper = makeHelper(parameters)
 
@@ -98,12 +100,13 @@ abstract class AbstractEvaluateQueriesWorkflowEndToEndTest : BeamTestBase() {
 
     val queryBundlesPCollection = pipeline.apply("Create QueryBundles", Create.of(queryBundles))
 
-    val workflow = EvaluateQueriesWorkflow(parameters, queryEvaluator)
-    val results =
-      workflow.batchEvaluateQueries(
+    val results: PCollection<EncryptedQueryResult> =
+      evaluateQueries(
         databasePCollection,
         queryBundlesPCollection,
-        pcollectionViewOf("Create SerializedPublicKey", helper.serializedPublicKey)
+        pcollectionViewOf("Create SerializedPublicKey", helper.serializedPublicKey),
+        parameters,
+        queryEvaluator
       )
 
     assertThat(results).satisfies {

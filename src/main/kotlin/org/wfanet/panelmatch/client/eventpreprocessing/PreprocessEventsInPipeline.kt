@@ -18,8 +18,9 @@ import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.common.CompressedEvents
-import org.wfanet.panelmatch.client.common.EventCompressorTrainer
+import org.wfanet.panelmatch.client.common.DictionaryBuilder
 import org.wfanet.panelmatch.common.beam.parDo
+import org.wfanet.panelmatch.common.compression.Dictionary
 
 /**
  * Output of [preprocessEventsInPipeline].
@@ -29,7 +30,7 @@ import org.wfanet.panelmatch.common.beam.parDo
  */
 data class PreprocessedEvents(
   val events: PCollection<KV<Long, ByteString>>,
-  val dictionary: PCollection<ByteString>
+  val dictionary: PCollection<Dictionary>
 )
 
 /**
@@ -37,7 +38,7 @@ data class PreprocessedEvents(
  *
  * The basic steps are:
  *
- * 1. Compress values per key using [eventCompressorTrainer].
+ * 1. Compress values per key using [dictionaryBuilder].
  * 2. Batch these into collections of at most [maxByteSize] bytes.
  * 3. Encrypt the keys and values.
  */
@@ -47,9 +48,9 @@ fun preprocessEventsInPipeline(
   identifierHashPepperProvider: IdentifierHashPepperProvider,
   hkdfPepperProvider: HkdfPepperProvider,
   cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
-  eventCompressorTrainer: EventCompressorTrainer
+  dictionaryBuilder: DictionaryBuilder
 ): PreprocessedEvents {
-  val compressedEvents: CompressedEvents = eventCompressorTrainer.compressByKey(events)
+  val compressedEvents: CompressedEvents = dictionaryBuilder.compressByKey(events)
 
   val preprocessedEvents =
     compressedEvents

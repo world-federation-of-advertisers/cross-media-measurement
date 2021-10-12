@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.common.compression
 
-import com.google.protobuf.ByteString
 import java.io.Serializable
 
 /**
@@ -24,7 +23,7 @@ import java.io.Serializable
  * implementations.
  */
 abstract class CompressorFactory : Serializable {
-  abstract fun build(dictionary: ByteString): Compressor
+  abstract fun build(dictionary: Dictionary): Compressor
 
   override fun equals(other: Any?): Boolean {
     return other != null && this::class == other::class

@@ -15,10 +15,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "EvaluateQueriesWorkflowTest",
+    name = "EvaluateQueriesTest",
     timeout = "moderate",
-    srcs = ["EvaluateQueriesWorkflowTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflowTest",
+    srcs = ["EvaluateQueriesTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesTest",
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
@@ -71,13 +71,27 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "JniEvaluateQueriesWorkflowEndToEndTest",
+    name = "JniEvaluateQueriesEndToEndTest",
     timeout = "moderate",
-    srcs = ["JniEvaluateQueriesWorkflowEndToEndTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.JniEvaluateQueriesWorkflowEndToEndTest",
+    srcs = ["JniEvaluateQueriesEndToEndTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.JniEvaluateQueriesEndToEndTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "QueryIdGeneratorTest",
+    timeout = "short",
+    srcs = ["QueryIdGeneratorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.QueryIdGeneratorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

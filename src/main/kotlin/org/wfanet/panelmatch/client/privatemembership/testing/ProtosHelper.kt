@@ -15,6 +15,13 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.decryptedQueryOf
+import org.wfanet.panelmatch.client.common.joinKeyOf
+import org.wfanet.panelmatch.client.common.plaintextOf
+import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
+import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequestKt.encryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
@@ -23,14 +30,7 @@ import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
-import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
-import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
-import org.wfanet.panelmatch.client.privatemembership.plaintextOf
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
-import org.wfanet.panelmatch.client.privatemembership.unencryptedQueryOf
 import org.wfanet.panelmatch.common.toByteString
 
 /** Constructs a [UnencryptedQuery]. */

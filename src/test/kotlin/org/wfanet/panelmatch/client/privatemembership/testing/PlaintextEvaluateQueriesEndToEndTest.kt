@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpostprocessing.testing
+package org.wfanet.panelmatch.client.privatemembership.testing
 
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.common.testing.FakeCompressorFactory
-import org.wfanet.panelmatch.client.common.testing.FakeEventCompressorTrainer
+import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
+import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 
-@RunWith(JUnit4::class)
-class FakeCompressorUncompressEventsTest : AbstractUncompressEventsTest() {
-  override val eventCompressorTrainer = FakeEventCompressorTrainer()
-  override val compressorFactory = FakeCompressorFactory()
+class PlaintextEvaluateQueriesEndToEndTest : AbstractEvaluateQueriesEndToEndTest() {
+  override fun makeQueryEvaluator(parameters: EvaluateQueriesParameters): QueryEvaluator {
+    return PlaintextQueryEvaluator
+  }
+
+  override fun makeHelper(parameters: EvaluateQueriesParameters): QueryEvaluatorTestHelper {
+    return PlaintextQueryEvaluatorTestHelper
+  }
 }

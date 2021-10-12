@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.common.compression
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -25,13 +24,13 @@ import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class BrotliCompressorTest : AbstractCompressorTest() {
-  private val dictionary: ByteString = ByteString.EMPTY
+  private val dictionary: Dictionary = dictionary {}
   override val compressor = BrotliCompressor(dictionary)
   private val eventList = listOf("aaaaaaaaaaaaaaaa")
   override val events = combinedEvents { serializedEvents += eventList.map { it.toByteString() } }
 
   @Test
-  fun `compress data size is less than uncompress data size`() {
+  fun `compressed data size is less than uncompressed data size`() {
     val compressedData = compressor.compress(events.toByteString())
     assertThat(compressedData.size()).isLessThan(events.toByteString().size())
   }

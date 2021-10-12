@@ -47,6 +47,7 @@ class ExchangeTaskExecutor(
   override suspend fun execute(attemptKey: ExchangeStepAttemptKey, exchangeStep: ExchangeStep) {
     withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {
       try {
+        @Suppress("BlockingMethodInNonBlockingContext") // Proto parsing is lightweight
         val workflow =
           ExchangeWorkflow.parseFrom(exchangeStep.signedExchangeWorkflow.serializedExchangeWorkflow)
         tryExecute(attemptKey, workflow.getSteps(exchangeStep.stepIndex))

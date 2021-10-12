@@ -38,7 +38,7 @@ absl::StatusOr<CompressResponse> BrotliCompress(
                      .set_compression_level(
                          BrotliWriterBase::Options::kMaxCompressionLevel)
                      .set_dictionaries(BrotliWriterBase::Dictionaries().add_raw(
-                         request.dictionary()));
+                         request.dictionary().contents()));
 
   CompressResponse response;
   for (const std::string& uncompressed_data : request.uncompressed_data()) {
@@ -55,7 +55,8 @@ absl::StatusOr<CompressResponse> BrotliCompress(
 absl::StatusOr<DecompressResponse> BrotliDecompress(
     const DecompressRequest& request) {
   auto options = BrotliReaderBase::Options().set_dictionaries(
-      BrotliReaderBase::Dictionaries().add_raw_unowned(request.dictionary()));
+      BrotliReaderBase::Dictionaries().add_raw_unowned(
+          request.dictionary().contents()));
 
   DecompressResponse response;
   for (const std::string& compressed_data : request.compressed_data()) {

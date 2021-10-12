@@ -18,7 +18,7 @@ import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 
-class BrotliCompressor(private val dictionary: ByteString) : Compressor {
+class BrotliCompressor(private val dictionary: Dictionary) : Compressor {
   override fun compress(events: ByteString): ByteString {
     val request = compressRequest {
       dictionary = this@BrotliCompressor.dictionary

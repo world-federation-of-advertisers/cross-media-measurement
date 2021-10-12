@@ -16,11 +16,11 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.ListValue
+import org.wfanet.panelmatch.client.common.resultOf
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
-import org.wfanet.panelmatch.client.privatemembership.resultOf
 
 /**
  * Fake [QueryEvaluator] for testing purposes.

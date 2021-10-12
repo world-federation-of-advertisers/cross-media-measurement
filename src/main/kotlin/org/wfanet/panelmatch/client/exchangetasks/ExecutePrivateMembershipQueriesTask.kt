@@ -24,8 +24,9 @@ import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow
+import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
+import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -33,15 +34,15 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.toByteString
 
-/** Runs [EvaluateQueriesWorkflow]. */
+/** Evaluates Private Membership queries. */
 class ExecutePrivateMembershipQueriesTask(
   override val uriPrefix: String,
   override val privateKey: PrivateKey,
   override val localCertificate: X509Certificate,
-  private val workflowParameters: EvaluateQueriesWorkflow.Parameters,
+  private val evaluateQueriesParameters: EvaluateQueriesParameters,
   private val queryEvaluator: QueryEvaluator,
   private val partnerCertificate: X509Certificate,
-  private val outputs: ExecutePrivateMembershipQueriesTask.Outputs
+  private val outputs: Outputs
 ) : ApacheBeamTask() {
 
   data class Outputs(
@@ -69,9 +70,14 @@ class ExecutePrivateMembershipQueriesTask(
     val privateMembershipPublicKey =
       readFromManifest(publicKeyManifest, localCertificate).toSingletonView()
 
-    val evaluateQueriesWorkflow = EvaluateQueriesWorkflow(workflowParameters, queryEvaluator)
     val results: PCollection<EncryptedQueryResult> =
-      evaluateQueriesWorkflow.batchEvaluateQueries(database, queries, privateMembershipPublicKey)
+      evaluateQueries(
+        database,
+        queries,
+        privateMembershipPublicKey,
+        evaluateQueriesParameters,
+        queryEvaluator
+      )
 
     val encryptedResultsFileSpec =
       ShardedFileName(outputs.encryptedQueryResultFileName, outputs.encryptedQueryResultFileCount)

@@ -46,22 +46,6 @@ val SINGLE_BLINDED_KEYS =
     "some single-blinded key3".toByteString(),
     "some single-blinded key4".toByteString()
   )
-val DOUBLE_BLINDED_KEYS =
-  listOf(
-    "some double-blinded key0".toByteString(),
-    "some double-blinded key1".toByteString(),
-    "some double-blinded key2".toByteString(),
-    "some double-blinded key3".toByteString(),
-    "some double-blinded key4".toByteString()
-  )
-val LOOKUP_KEYS =
-  listOf(
-    "some lookup0".toByteString(),
-    "some lookup1".toByteString(),
-    "some lookup2".toByteString(),
-    "some lookup3".toByteString(),
-    "some lookup4".toByteString()
-  )
 
 fun buildWorkflow(
   testedStep: Step,

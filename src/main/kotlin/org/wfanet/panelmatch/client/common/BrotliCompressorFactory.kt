@@ -14,13 +14,13 @@
 
 package org.wfanet.panelmatch.client.common
 
-import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.compression.BrotliCompressor
 import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.compression.Dictionary
 
 class BrotliCompressorFactory : CompressorFactory() {
-  override fun build(dictionary: ByteString): Compressor {
+  override fun build(dictionary: Dictionary): Compressor {
     return BrotliCompressor(dictionary)
   }
 }

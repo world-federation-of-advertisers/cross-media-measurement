@@ -12,14 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.eventpostprocessing
+package org.wfanet.panelmatch.client.privatemembership
 
-import org.wfanet.panelmatch.client.common.BrotliCompressorFactory
-import org.wfanet.panelmatch.client.common.BrotliEventCompressorTrainer
-import org.wfanet.panelmatch.client.common.EventCompressorTrainer
-import org.wfanet.panelmatch.client.eventpostprocessing.testing.AbstractUncompressEventsTest
-
-class BrotliCompressorUncompressEventsTest : AbstractUncompressEventsTest() {
-  override val eventCompressorTrainer: EventCompressorTrainer = BrotliEventCompressorTrainer()
-  override val compressorFactory = BrotliCompressorFactory()
+data class CreateQueriesParameters(
+  val numShards: Int,
+  val numBucketsPerShard: Int,
+  val maxQueriesPerShard: Int,
+  val padQueries: Boolean
+) {
+  init {
+    require(numShards > 0)
+    require(numBucketsPerShard > 0)
+    require(maxQueriesPerShard > 0)
+  }
 }

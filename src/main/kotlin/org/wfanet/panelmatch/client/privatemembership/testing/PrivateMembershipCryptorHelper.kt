@@ -15,6 +15,10 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import java.io.Serializable
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.panelistKeyOf
+import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
@@ -25,13 +29,9 @@ import org.wfanet.panelmatch.client.privatemembership.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
-import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.panelistKeyOf
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 
-/** Used for testing CreateQueriesWorkflow (eg reversing some of the operations) */
+/** Used for testing createQueries (eg reversing some of the operations) */
 interface PrivateMembershipCryptorHelper : Serializable {
 
   /** Constructs an encrypted query bundle */

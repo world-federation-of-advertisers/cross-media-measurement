@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.CombinedEvents
 import org.wfanet.panelmatch.client.common.CompressedEvents
-import org.wfanet.panelmatch.client.common.testing.FakeEventCompressorTrainer
+import org.wfanet.panelmatch.client.common.testing.FakeDictionaryBuilder
 import org.wfanet.panelmatch.client.common.testing.eventsOf
 import org.wfanet.panelmatch.client.eventpreprocessing.compressByKey
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
@@ -36,7 +36,7 @@ class FakeCompressorCompressByKeyTest : BeamTestBase() {
   fun compressByKey() {
     val events = eventsOf("A" to "W", "A" to "X", "B" to "Y", "C" to "Z")
 
-    val compressedEvents: CompressedEvents = FakeEventCompressorTrainer().compressByKey(events)
+    val compressedEvents: CompressedEvents = FakeDictionaryBuilder().compressByKey(events)
 
     assertThat(compressedEvents.events).satisfies {
       val decodedEvents =
@@ -59,7 +59,7 @@ class FakeCompressorCompressByKeyTest : BeamTestBase() {
 
     assertThat(compressedEvents.dictionary).satisfies {
       val dictionary = it.toList()
-      assertThat(dictionary.single().toStringUtf8())
+      assertThat(dictionary.single().contents.toStringUtf8())
         .isAnyOf(
           "Dictionary: W, X, Y",
           "Dictionary: W, X, Z",

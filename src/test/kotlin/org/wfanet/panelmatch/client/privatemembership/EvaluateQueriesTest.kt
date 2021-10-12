@@ -23,7 +23,11 @@ import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesWorkflow.Parameters
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.databaseKeyOf
+import org.wfanet.panelmatch.client.common.plaintextOf
+import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluatorTestHelper
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -32,24 +36,25 @@ import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
-class EvaluateQueriesWorkflowTest : BeamTestBase() {
+class EvaluateQueriesTest : BeamTestBase() {
   private val database by lazy {
     databaseOf(53L to "abc", 58L to "def", 71L to "ghi", 85L to "jkl")
   }
 
   private fun runWorkflow(
     queryBundles: List<EncryptedQueryBundle>,
-    parameters: Parameters
+    parameters: EvaluateQueriesParameters
   ): PCollection<EncryptedQueryResult> {
-    return EvaluateQueriesWorkflow(parameters, PlaintextQueryEvaluator)
-      .batchEvaluateQueries(
-        database,
-        pcollectionOf("Create Query Bundles", queryBundles),
-        pcollectionViewOf(
-          "Create SerializedPublicKey",
-          PlaintextQueryEvaluatorTestHelper.serializedPublicKey
-        )
-      )
+    return evaluateQueries(
+      database,
+      pcollectionOf("Create Query Bundles", queryBundles),
+      pcollectionViewOf(
+        "Create SerializedPublicKey",
+        PlaintextQueryEvaluatorTestHelper.serializedPublicKey
+      ),
+      parameters,
+      PlaintextQueryEvaluator
+    )
   }
 
   @Test
@@ -57,7 +62,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
+    val parameters =
+      EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
 
     val queryBundles =
       listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
@@ -71,7 +77,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
+    val parameters =
+      EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
 
     val queryBundles =
       listOf(
@@ -93,7 +100,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
+    val parameters =
+      EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
 
     val queryBundles =
       listOf(
@@ -114,7 +122,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
 
   @Test
   fun `repeated bucket`() {
-    val parameters = Parameters(numShards = 1, numBucketsPerShard = 1, maxQueriesPerShard = 1)
+    val parameters =
+      EvaluateQueriesParameters(numShards = 1, numBucketsPerShard = 1, maxQueriesPerShard = 1)
 
     val queryBundles = listOf(encryptedQueryBundleOf(shard = 0, listOf(17 to 0)))
 
@@ -134,7 +143,8 @@ class EvaluateQueriesWorkflowTest : BeamTestBase() {
     // With `parameters`, we expect database to have:
     //  - Shard 0 to have bucket 4 with "def" in it
     //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
-    val parameters = Parameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 2)
+    val parameters =
+      EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 2)
 
     val queryBundles =
       listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))

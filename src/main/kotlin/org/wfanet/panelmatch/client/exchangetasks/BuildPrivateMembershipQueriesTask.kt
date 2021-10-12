@@ -22,11 +22,12 @@ import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
-import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
+import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
+import org.wfanet.panelmatch.client.privatemembership.createQueries
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
@@ -39,9 +40,9 @@ class BuildPrivateMembershipQueriesTask(
   override val localCertificate: X509Certificate,
   override val uriPrefix: String,
   override val privateKey: PrivateKey,
-  private val parameters: CreateQueriesWorkflow.Parameters,
+  private val parameters: CreateQueriesParameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
-  private val outputs: BuildPrivateMembershipQueriesTask.Outputs
+  private val outputs: Outputs
 ) : ApacheBeamTask() {
 
   data class Outputs(
@@ -83,8 +84,12 @@ class BuildPrivateMembershipQueriesTask(
     val (
       queryIdAndPanelistKeys: PCollection<QueryIdAndPanelistKey>,
       encryptedResponses: PCollection<EncryptedQueryBundle>) =
-      CreateQueriesWorkflow(parameters, privateMembershipCryptor)
-        .batchCreateQueries(panelistKeyAndJoinKeys, privateMembershipKeys)
+      createQueries(
+        panelistKeyAndJoinKeys,
+        privateMembershipKeys,
+        parameters,
+        privateMembershipCryptor
+      )
 
     val queryDecryptionKeysFileSpec =
       ShardedFileName(outputs.queryIdAndPanelistKeyFileName, outputs.queryIdAndPanelistKeyFileCount)

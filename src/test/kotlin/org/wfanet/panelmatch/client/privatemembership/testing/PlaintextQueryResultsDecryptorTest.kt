@@ -18,12 +18,11 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
-import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
 import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
@@ -67,7 +66,7 @@ class PlaintextQueryResultsDecryptorTest {
             serializedParameters = SERIALIZED_PARAMETERS
             serializedPublicKey = keys.serializedPublicKey
             serializedPrivateKey = keys.serializedPrivateKey
-            singleBlindedJoinkey = joinKeyOf(joinkeyList.second.toByteString())
+            singleBlindedJoinkey = joinKeyOf(joinkeyList.second)
             this.encryptedQueryResults += encryptedQueryResult
             hkdfPepper = HKDF_PEPPER
           }
