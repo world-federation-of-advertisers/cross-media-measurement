@@ -33,8 +33,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReleaseCertificateHold
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertificate
 
 class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
@@ -142,7 +142,7 @@ class SpannerCertificatesService(
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
-     grpcRequire(request.parentCase != ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET) {
+    grpcRequire(request.parentCase != ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET) {
       "ReleaseCertificateHoldRequest is missing parent field"
     }
     // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
@@ -155,7 +155,7 @@ class SpannerCertificatesService(
           failGrpc(Status.NOT_FOUND) { "Certificate not found" }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL->
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
