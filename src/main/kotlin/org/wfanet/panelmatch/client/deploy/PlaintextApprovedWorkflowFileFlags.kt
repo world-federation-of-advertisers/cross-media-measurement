@@ -14,12 +14,9 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import com.google.common.io.BaseEncoding
 import java.nio.file.Paths
-import java.security.MessageDigest
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidationKey
-import org.wfanet.panelmatch.common.PlaintextFileSecretSet
-import org.wfanet.panelmatch.common.SecretSet
+import org.wfanet.panelmatch.common.secrets.CsvSecretMap
+import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine
 
 object PlaintextApprovedWorkflowFileFlags {
@@ -27,24 +24,17 @@ object PlaintextApprovedWorkflowFileFlags {
     names = ["--approved_workflow_file"],
     description =
       [
-        "File where each line is an approved Recurring Exchange ID and a SHA256-hashed " +
+        "File where each line is an approved Recurring Exchange ID and a Base64-encoded " +
           "serialized ExchangeWorkflow separated by a comma"],
     required = true,
-    converter = [SecretSetConverter::class],
+    converter = [SecretMapConverter::class],
   )
-  lateinit var secretSet: SecretSet<ValidationKey>
+  lateinit var approvedExchangeWorkflows: SecretMap
     private set
 }
 
-private class SecretSetConverter : CommandLine.ITypeConverter<SecretSet<ValidationKey>> {
-  override fun convert(value: String): SecretSet<ValidationKey> {
-    return PlaintextFileSecretSet(Paths.get(value), ::translateValidationKey)
+private class SecretMapConverter : CommandLine.ITypeConverter<SecretMap> {
+  override fun convert(value: String): SecretMap {
+    return CsvSecretMap(Paths.get(value))
   }
-}
-
-private fun translateValidationKey(validationKey: ValidationKey): String {
-  val sha256MessageDigest = MessageDigest.getInstance("SHA-256")
-  val hash = sha256MessageDigest.digest(validationKey.serializedExchangeWork.toByteArray())
-  val hexHash = BaseEncoding.base16().encode(hash)
-  return "${validationKey.recurringExchangeId},$hexHash"
 }

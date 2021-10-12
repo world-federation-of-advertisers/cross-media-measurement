@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common
+package org.wfanet.panelmatch.common.secrets
 
-interface SecretSet<T> {
-  operator fun contains(item: T): Boolean
+import com.google.protobuf.ByteString
+
+/** [SecretMap] that supports insertion. */
+interface MutableSecretMap : SecretMap {
+  /**
+   * Adds a mapping from [key] to [value].
+   *
+   * This must overwrite any previous value associated with [key].
+   */
+  suspend fun put(key: String, value: ByteString)
 }

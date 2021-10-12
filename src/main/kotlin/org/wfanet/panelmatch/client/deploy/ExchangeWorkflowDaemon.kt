@@ -26,9 +26,9 @@ import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.Identity
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.common.SecretSet
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
+import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** Runs ExchangeWorkflows. */
 abstract class ExchangeWorkflowDaemon : Runnable {
@@ -42,14 +42,14 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [VerifiedStorageClient] for writing to local (non-shared) storage. */
   abstract val privateStorage: VerifiedStorageClient
 
+  /** [SecretMap] from RecurringExchange ID to serialized ExchangeWorkflow. */
+  abstract val validExchangeWorkflows: SecretMap
+
   /** Limits how often to poll. */
   abstract val throttler: Throttler
 
   /** How long a task should be allowed to run for before being cancelled. */
   abstract val taskTimeout: Timeout
-
-  /** [SecretSet] containing all of the valid serialized ExchangeWorkflows. */
-  abstract val validExchangeWorkflows: SecretSet<ExchangeStepValidator.ValidationKey>
 
   override fun run() {
     val exchangeTaskMapper =

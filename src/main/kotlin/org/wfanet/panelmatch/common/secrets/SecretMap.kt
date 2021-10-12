@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common
+package org.wfanet.panelmatch.common.secrets
 
-import java.nio.file.Path
+import com.google.protobuf.ByteString
 
-/** SecretSet that reads in a file. Each line of the file is considered a secret. */
-class PlaintextFileSecretSet<T>(path: Path, private val translate: (T) -> String) : SecretSet<T> {
-  private val contents = path.toFile().readLines().toSet()
-
-  override fun contains(item: T): Boolean {
-    return translate(item) in contents
-  }
+/**
+ * Key-value store abstraction from [String]s to sensitive [ByteString]s.
+ *
+ * Implementations should treat values as sensitive: they should not be logged and should be stored
+ * securely.
+ */
+interface SecretMap {
+  /** Returns the value associated with [key] -- or null if no value is associated. */
+  suspend fun get(key: String): ByteString?
 }
