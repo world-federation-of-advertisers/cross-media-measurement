@@ -30,7 +30,18 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipal
 private const val KEY_NAME = "principal"
 private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
   Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
-
+/**
+ * Add an interceptor that sets PrincipalName in the context.
+ *
+ * The PrincipalName is extracted from the metadata of the request. Note that this should only be
+ * used in in-process tests where mTLS isn't used.
+ *
+ * To install in a server, wrap a service with:
+ * ```
+ *    yourService.withMetadataPrincipalIdentities()
+ * ```
+ * On the client side, use [withPrincipalName].
+ */
 class MetadataPrincipalServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,

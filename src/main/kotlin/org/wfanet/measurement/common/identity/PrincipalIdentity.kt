@@ -24,7 +24,8 @@ private val PRINCIPAL_NAME_METADATA_KEY: Metadata.Key<String> =
 
 /**
  * Sets metadata key "principal" on all outgoing requests. Principal is [ResourceKey] for
- * DataProviders or ModelProviders.
+ * DataProviders or ModelProviders. On the server side, use [MetadataPrincipalServerInterceptor].
+ * Note that this should only be used in in-process tests where mTLS isn't used.
  *
  * Usage: val someStub =
  * SomeServiceCoroutineStub(channel).withPrincipalName("dataProviders/Ac8hsieOp")

@@ -116,24 +116,23 @@ class InProcessKingdom(
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
-        ExchangeStepAttemptsService(
-          internalExchangeStepAttemptsClient,
-          internalExchangeStepsClient
-        ),
-        ExchangeStepsService(internalExchangeStepsClient),
         MeasurementsService(internalMeasurementsClient),
         MeasurementConsumersService(internalMeasurementConsumersClient),
         RequisitionsService(internalRequisitionsClient)
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
-          when (it) {
-            is ExchangeStepsService, is ExchangeStepAttemptsService ->
-              addService(
-                it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging)
-              )
-            else -> addService(it.withVerboseLogging(verboseGrpcLogging))
-          }
+          addService(it.withVerboseLogging(verboseGrpcLogging))
+        }
+      listOf(
+        ExchangeStepAttemptsService(
+          internalExchangeStepAttemptsClient,
+          internalExchangeStepsClient
+        ),
+        ExchangeStepsService(internalExchangeStepsClient)
+      )
+        .forEach {
+          addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
         }
     }
 

@@ -25,6 +25,7 @@ kt_jvm_library(
 # TODO(yunyeng): Move this to common-jvm.
 kt_jvm_library(
     name = "principal_identity",
+    testonly = True,
     srcs = ["PrincipalIdentity.kt"],
     visibility = ["//visibility:public"],
     deps = [
