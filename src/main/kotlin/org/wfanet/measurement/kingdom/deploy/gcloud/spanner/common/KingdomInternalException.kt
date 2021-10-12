@@ -50,6 +50,9 @@ class KingdomInternalException : Exception {
     /** Certificate resource queried could not be found. */
     CERTIFICATE_NOT_FOUND,
 
+    /** Certificate is in an illegal revocation state for the operation. */
+    CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+
     /** Computation Participant should have been in another state. */
     COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
 

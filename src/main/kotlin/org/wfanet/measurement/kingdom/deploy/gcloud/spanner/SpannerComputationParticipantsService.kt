@@ -56,6 +56,7 @@ class SpannerComputationParticipantsService(
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
@@ -82,6 +83,7 @@ class SpannerComputationParticipantsService(
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
@@ -108,6 +110,7 @@ class SpannerComputationParticipantsService(
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
       }
     }
