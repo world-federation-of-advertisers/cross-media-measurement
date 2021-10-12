@@ -41,12 +41,10 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
-import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -97,7 +95,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-
 
   @Before
   fun initServices() {
@@ -153,7 +150,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .externalMeasurementConsumerId
     assertGetFailsWithMissingCertificate { externalMeasurementConsumerId = measurementConsumerId }
 
-    val modelProviderId = population.createModelProvider(modelProvidersService).externalModelProviderId
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
     assertGetFailsWithMissingCertificate { externalModelProviderId = modelProviderId }
   }
 
@@ -212,7 +210,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .externalMeasurementConsumerId
     assertCreateCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
 
-    val modelProviderId = population.createModelProvider(modelProvidersService).externalModelProviderId
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
     assertCreateCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
@@ -255,7 +254,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         .externalMeasurementConsumerId
     assertGetCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
 
-    val modelProviderId = population.createModelProvider(modelProvidersService).externalModelProviderId
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
     assertGetCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
