@@ -31,16 +31,18 @@ private const val KEY_NAME = "principal"
 private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
   Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
 /**
- * Add an interceptor that sets String PrincipalName in the context.
+ * Extracts a [Principal] from the gRPC [Metadata] and adds it to the gRPC [Context].
  *
- * The PrincipalName is extracted from the metadata of the request. Note that this should only be
- * used in in-process tests where mTLS isn't used.
+ * To install, wrap a service with:
+ * ```
+ *   yourService.withMedataPrincipalIdentities()
+ * ```
  *
- * To install in a server, wrap a service with:
- * ```
- *    yourService.withMetadataPrincipalIdentities()
- * ```
- * On the client side, use [withPrincipalName].
+ * The principal can be accessed within gRPC services via [principalFromCurrentContext].
+ *
+ * This expects the Metadata to have a key "principal" associated with a value equal to the v2Alpha
+ * resource name of the principal. The recommended way to set this is to use [withPrincipalName] on
+ * a stub.
  */
 class MetadataPrincipalServerInterceptor : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
