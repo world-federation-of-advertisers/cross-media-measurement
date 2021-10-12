@@ -92,8 +92,13 @@ objectSets: [
 	},
 ]
 
+#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
+#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+#Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
+
 #GkeDuchy: #Duchy & {
-	_duchy_secret_name: #SecretName
+	_duchy_secret_name:         #SecretName
+	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
 		"--instance-name=\(_spanner_instance)",
@@ -146,8 +151,9 @@ kingdom: #Kingdom & {
 }
 
 frontend_simulator: #FrontendSimulator & {
-	_mc_resource_name: #McResourcename
-	_simulator_image:  "\(_container_registry_prefix)/loadtest/frontend-simulator"
+	_mc_resource_name:          #McResourcename
+	_kingdom_public_api_target: #KingdomPublicApiTarget
+	_simulator_image:           "\(_container_registry_prefix)/loadtest/frontend-simulator"
 	_blob_storage_flags: [
 		"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
 		"--google-cloud-storage-project=\(_cloud_storage_project)",
@@ -164,8 +170,10 @@ resource_setup_job: #ResourceSetup & {
 edp_simulators: {
 	for d in #Edps {
 		"\(d.display_name)": #EdpSimulator & {
-			_edp:             d
-			_edp_secret_name: #SecretName
+			_edp:                       d
+			_edp_secret_name:           #SecretName
+			_duchy_public_api_target:   #Worker1PublicApiTarget
+			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_blob_storage_flags: [
 				"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
 				"--google-cloud-storage-project=\(_cloud_storage_project)",
