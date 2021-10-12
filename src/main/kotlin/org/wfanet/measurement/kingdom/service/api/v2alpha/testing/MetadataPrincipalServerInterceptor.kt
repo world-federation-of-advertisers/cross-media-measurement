@@ -31,7 +31,7 @@ private const val KEY_NAME = "principal"
 private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
   Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
 /**
- * Add an interceptor that sets PrincipalName in the context.
+ * Add an interceptor that sets String PrincipalName in the context.
  *
  * The PrincipalName is extracted from the metadata of the request. Note that this should only be
  * used in in-process tests where mTLS isn't used.
