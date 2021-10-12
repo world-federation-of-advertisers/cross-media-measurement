@@ -43,6 +43,8 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.withMetadataPrincipalIdentities
+import org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetup
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
@@ -114,16 +116,24 @@ class InProcessKingdom(
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
-        ExchangeStepAttemptsService(
-          internalExchangeStepAttemptsClient,
-          internalExchangeStepsClient
-        ),
-        ExchangeStepsService(internalExchangeStepsClient),
         MeasurementsService(internalMeasurementsClient),
         MeasurementConsumersService(internalMeasurementConsumersClient),
         RequisitionsService(internalRequisitionsClient)
       )
-        .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
+        .forEach {
+          // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
+          addService(it.withVerboseLogging(verboseGrpcLogging))
+        }
+      listOf(
+        ExchangeStepAttemptsService(
+          internalExchangeStepAttemptsClient,
+          internalExchangeStepsClient
+        ),
+        ExchangeStepsService(internalExchangeStepsClient)
+      )
+        .forEach {
+          addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
+        }
     }
 
   /** Provides a gRPC channel to the Kingdom's public API. */
@@ -133,6 +143,10 @@ class InProcessKingdom(
   /** Provides a gRPC channel to the Kingdom's system API. */
   val systemApiChannel: Channel
     get() = systemApiServer.channel
+
+  /** Provides a PanelMatchResourceSetup instance with the Kingdom's internal API. */
+  val panelMatchResourceSetup: PanelMatchResourceSetup
+    get() = PanelMatchResourceSetup(internalApiChannel)
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)

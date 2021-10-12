@@ -14,39 +14,26 @@
 
 package org.wfanet.measurement.loadtest.storage
 
-import com.google.protobuf.ByteString
-import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.storage.BlobKeyGenerator
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.Store
 
-private const val BLOB_KEY_PREFIX = "sketches"
+private const val BLOB_KEY_PREFIX = "/sketches"
 
-/**
- * Blob storage for sketch (for test purpose only).
- *
- * The blob path is deterministic such that the caller doesn't need to cache it.
- *
- * @param storageClient the blob storage client. TODO(wangyaopw): extend the Store class.
- */
-class SketchStore(private val storageClient: StorageClient) {
-  /** Writes a sketch as a new blob with the specified content. */
-  suspend fun write(blobKey: String, content: Flow<ByteString>): Blob {
-    val createdBlob = storageClient.createBlob(blobKey.withBlobKeyPrefix(), content)
-    return Blob(blobKey, createdBlob)
-  }
+/** A [Store] instance for managing Blobs associated with sketches (for test purpose only). */
+class SketchStore
+private constructor(storageClient: StorageClient, generateBlobKey: BlobKeyGenerator<String>) :
+  Store<String>(storageClient, generateBlobKey) {
+  constructor(storageClient: StorageClient) : this(storageClient, ::generateBlobKey)
 
-  /**
-   * Returns a [Blob] for the sketch with the specified blob key, or `null` if the sketch isn't
-   * found.
-   */
-  fun get(blobKey: String): Blob? {
-    return storageClient.getBlob(blobKey.withBlobKeyPrefix())?.let { Blob(blobKey, it) }
-  }
-
-  /** [StorageClient.Blob] implementation for [SketchStore]. */
-  class Blob(val blobKey: String, wrappedBlob: StorageClient.Blob) :
-    StorageClient.Blob by wrappedBlob
+  override val blobKeyPrefix = BLOB_KEY_PREFIX
 }
 
-private fun String.withBlobKeyPrefix(): String {
-  return "/$BLOB_KEY_PREFIX/$this"
+/**
+ * Generates a Blob key used in the [SketchStore].
+ *
+ * The blob path is deterministic such that the caller doesn't need to cache it.
+ */
+private fun generateBlobKey(context: String): String {
+  return context
 }

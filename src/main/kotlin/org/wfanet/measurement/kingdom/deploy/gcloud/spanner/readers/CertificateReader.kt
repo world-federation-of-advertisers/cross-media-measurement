@@ -22,6 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -43,19 +44,19 @@ class CertificateReader(private val parentType: ParentType) :
     val externalCertificateIdColumnName: String = "External${prefix}CertificateId"
     val certificatesTableName: String = "${prefix}Certificates"
 
-    val externalIdColumnName: String? by lazy {
-      when (this) {
-        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
-        DUCHY -> null
-      }
-    }
+    val externalIdColumnName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
+          DUCHY -> null
+        }
 
-    val tableName: String? by lazy {
-      when (this) {
-        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
-        DUCHY -> null
-      }
-    }
+    val tableName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
+          DUCHY -> null
+        }
   }
 
   override val builder: Statement.Builder = Statement.newBuilder(buildBaseSql(parentType))

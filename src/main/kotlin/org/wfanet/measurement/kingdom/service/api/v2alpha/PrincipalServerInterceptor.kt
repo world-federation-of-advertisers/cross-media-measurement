@@ -42,6 +42,19 @@ sealed class Principal<T : ResourceKey> {
 
   class DataProvider(override val resourceKey: DataProviderKey) : Principal<DataProviderKey>()
   class ModelProvider(override val resourceKey: ModelProviderKey) : Principal<ModelProviderKey>()
+
+  companion object {
+    fun fromName(name: String): Principal<*>? {
+      val dataProviderKey = DataProviderKey.fromName(name)
+      val modelProviderKey = ModelProviderKey.fromName(name)
+      if (dataProviderKey != null) {
+        return DataProvider(dataProviderKey)
+      } else if (modelProviderKey != null) {
+        return ModelProvider(modelProviderKey)
+      }
+      return null
+    }
+  }
 }
 
 /**
@@ -60,7 +73,12 @@ val principalFromCurrentContext: Principal<*>
  * -- in other words, [principal] is treated as already authenticated.
  */
 fun <T> withPrincipal(principal: Principal<*>, block: () -> T): T {
-  return Context.current().withValue(PRINCIPAL_CONTEXT_KEY, principal).call(block)
+  return Context.current().withPrincipal(principal).call(block)
+}
+
+/** Adds [principal] to the receiver and returns the new [Context]. */
+fun Context.withPrincipal(principal: Principal<*>): Context {
+  return withValue(PRINCIPAL_CONTEXT_KEY, principal)
 }
 
 /** This is the context key for the authenticated Principal. */
