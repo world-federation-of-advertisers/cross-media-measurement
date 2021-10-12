@@ -21,12 +21,12 @@ import org.wfanet.panelmatch.common.SecretSet
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "ExchangeWorkflowDaemon",
+  name = "ExchangeWorkflowDaemonFromFlags",
   description = ["Daemon for executing ExchangeWorkflows"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemon() {
+private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
   @CommandLine.Mixin
   lateinit var approvedWorkflowFlags: PlaintextApprovedWorkflowFileFlags
     private set
