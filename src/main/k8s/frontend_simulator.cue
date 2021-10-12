@@ -15,9 +15,10 @@
 package k8s
 
 #FrontendSimulator: {
-	_mc_resource_name: string
-	_mc_secret_name:   string
-	_simulator_image:  string
+	_mc_resource_name:          string
+	_mc_secret_name:            string
+	_simulator_image:           string
+	_kingdom_public_api_target: string
 	_blob_storage_flags: [...string]
 
 	frontend_simulator_job: #Job & {
@@ -28,7 +29,7 @@ package k8s
 				"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
 				"--tls-key-file=/var/run/secrets/files/mc_tls.key",
 				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-				"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
+				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--mc-resource-name=\(_mc_resource_name)",
 				"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",

@@ -16,8 +16,10 @@ package k8s
 
 #EdpSimulator: {
 	_edp: {display_name: string, resource_name: string}
-	_mc_resource_name: string
-	_edp_secret_name:  string
+	_mc_resource_name:          string
+	_edp_secret_name:           string
+	_duchy_public_api_target:   string
+	_kingdom_public_api_target: string
 
 	_edp_display_name:  _edp.display_name
 	_edp_resource_name: _edp.resource_name
@@ -44,9 +46,9 @@ package k8s
 			"--mc-resource-name=\(_mc_resource_name)",
 			"--edp-sketch-reach=1000",
 			"--edp-sketch-universe-size=10000000",
-			"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
+			"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 			"--kingdom-public-api-cert-host=localhost",
-			"--requisition-fulfillment-service-target=" + (#Target & {name: "worker1-requisition-fulfillment-server"}).target,
+			"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
 			"--requisition-fulfillment-service-cert-host=localhost",
 		] + _blob_storage_flags
 	}
