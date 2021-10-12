@@ -29,7 +29,7 @@ using ::testing::SizeIs;
 
 TEST(BrotliTest, RoundTrip) {
   CompressRequest compress_request;
-  compress_request.set_dictionary("abcde");
+  compress_request.mutable_dictionary()->set_contents("abcde");
 
   // The last item should take up the least amount of space because of the
   // dictionary. This shows the dictionary is used because the second item takes
@@ -54,7 +54,7 @@ TEST(BrotliTest, RoundTrip) {
   EXPECT_LT(sizes[1], sizes[2]);
 
   DecompressRequest decompress_request;
-  decompress_request.set_dictionary("abcde");
+  *decompress_request.mutable_dictionary() = compress_request.dictionary();
   decompress_request.mutable_compressed_data()->CopyFrom(
       compress_response.compressed_data());
 

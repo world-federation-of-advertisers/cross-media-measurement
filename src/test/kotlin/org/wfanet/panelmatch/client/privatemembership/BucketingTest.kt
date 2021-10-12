@@ -19,6 +19,9 @@ import kotlin.test.assertFails
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.joinKeyOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)

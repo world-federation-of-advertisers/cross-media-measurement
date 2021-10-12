@@ -24,17 +24,18 @@ import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow
-import org.wfanet.panelmatch.client.privatemembership.CreateQueriesWorkflow.Parameters
+import org.wfanet.panelmatch.client.common.joinKeyOf
+import org.wfanet.panelmatch.client.common.panelistKeyOf
+import org.wfanet.panelmatch.client.common.shardIdOf
+import org.wfanet.panelmatch.client.privatemembership.CreateQueriesOutputs
+import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
-import org.wfanet.panelmatch.client.privatemembership.joinKeyOf
+import org.wfanet.panelmatch.client.privatemembership.createQueries
 import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
-import org.wfanet.panelmatch.client.privatemembership.panelistKeyOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -45,7 +46,7 @@ import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
-abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
+abstract class AbstractCreateQueriesTest : BeamTestBase() {
   private val panelistKeyAndJoinKeys by lazy {
     getPanelistKeyAndJoinKeys(
       53L to "abc",
@@ -63,23 +64,20 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
 
   private fun runWorkflow(
     privateMembershipCryptor: PrivateMembershipCryptor,
-    parameters: Parameters
-  ): Pair<PCollection<QueryIdAndPanelistKey>, PCollection<EncryptedQueryBundle>> {
+    parameters: CreateQueriesParameters,
+  ): CreateQueriesOutputs {
     val keys = pcollectionViewOf("Create Keys", privateMembershipCryptor.generateKeys())
-    return CreateQueriesWorkflow(
-        parameters = parameters,
-        privateMembershipCryptor = privateMembershipCryptor
-      )
-      .batchCreateQueries(panelistKeyAndJoinKeys, keys)
+    return createQueries(panelistKeyAndJoinKeys, keys, parameters, privateMembershipCryptor)
   }
 
   @Test
   fun `Two Shards with no padding`() {
     val parameters =
-      Parameters(
+      CreateQueriesParameters(
         numShards = 2,
         numBucketsPerShard = 5,
-        totalQueriesPerShard = null,
+        maxQueriesPerShard = 12345,
+        padQueries = false
       )
     val (panelistKeyQueryId, encryptedResults) = runWorkflow(privateMembershipCryptor, parameters)
     val decodedQueries =
@@ -103,10 +101,11 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
     val totalQueriesPerShard = 10
     val numBucketsPerShard = 5
     val parameters =
-      Parameters(
+      CreateQueriesParameters(
         numShards = numShards,
         numBucketsPerShard = numBucketsPerShard,
-        totalQueriesPerShard = totalQueriesPerShard
+        maxQueriesPerShard = totalQueriesPerShard,
+        padQueries = true
       )
     val (panelistKeyQueryId, encryptedQueries) = runWorkflow(privateMembershipCryptor, parameters)
     val decodedQueries =
@@ -137,10 +136,11 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
     val totalQueriesPerShard = 3
     val numBucketsPerShard = 4
     val parameters =
-      Parameters(
+      CreateQueriesParameters(
         numShards = numShards,
         numBucketsPerShard = numBucketsPerShard,
-        totalQueriesPerShard = totalQueriesPerShard
+        maxQueriesPerShard = totalQueriesPerShard,
+        padQueries = true
       )
 
     val (_, encryptedResults) = runWorkflow(privateMembershipCryptor, parameters)
@@ -161,9 +161,7 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
     pipelineResult.waitUntilFinish()
     val filter =
       MetricsFilter.builder()
-        .addNameFilter(
-          MetricNameFilter.named(CreateQueriesWorkflow::class.java, "discarded-queries")
-        )
+        .addNameFilter(MetricNameFilter.named("CreateQueries", "discarded-queries-per-shard"))
         .build()
     val metrics = pipelineResult.metrics().queryMetrics(filter)
     return metrics.distributions.map { it.committed.max }.first()
@@ -173,7 +171,7 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
     vararg entries: Pair<Long, String>
   ): PCollection<PanelistKeyAndJoinKey> {
     return pcollectionOf(
-      "Create PanelistKeyandJoinKey",
+      "Create PanelistKey+JoinKeys",
       *entries
         .map {
           panelistKeyAndJoinKey {
@@ -207,11 +205,16 @@ abstract class AbstractCreateQueriesWorkflowTest : BeamTestBase() {
       panelistKeys: Iterable<QueryIdAndPanelistKey>,
       shardedQueries: Iterable<ShardedQuery> ->
       if (panelistKeys.count() > 0) {
+        val queriesList = shardedQueries.toList()
+        val panelistKeysList = panelistKeys.toList()
+
         val query =
-          requireNotNull(shardedQueries.singleOrNull()) { "Invalid number of queries for $key" }
+          requireNotNull(queriesList.singleOrNull()) { "${queriesList.size} queries for $key" }
 
         val queryIdAndPanelistKey =
-          requireNotNull(panelistKeys.singleOrNull()) { "Invalid number of panelistKeys for $key" }
+          requireNotNull(panelistKeysList.singleOrNull()) {
+            "${panelistKeysList.size} of panelistKeys for $key"
+          }
 
         val panelistQuery =
           PanelistQuery(query.shardId, queryIdAndPanelistKey.panelistKey, query.bucketId)

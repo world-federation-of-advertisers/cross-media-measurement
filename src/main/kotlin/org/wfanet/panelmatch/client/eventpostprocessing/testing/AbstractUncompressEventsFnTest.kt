@@ -15,13 +15,15 @@
 package org.wfanet.panelmatch.client.eventpostprocessing.testing
 
 import com.google.common.truth.Truth.assertThat
+import org.apache.beam.sdk.transforms.ParDo
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.CompressedEvents
-import org.wfanet.panelmatch.client.common.EventCompressorTrainer
+import org.wfanet.panelmatch.client.common.DictionaryBuilder
+import org.wfanet.panelmatch.client.common.buildAsPCollectionView
 import org.wfanet.panelmatch.client.common.testing.eventsOf
-import org.wfanet.panelmatch.client.eventpostprocessing.uncompressEvents
+import org.wfanet.panelmatch.client.eventpostprocessing.UncompressEventsFn
 import org.wfanet.panelmatch.client.eventpreprocessing.compressByKey
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.plaintext
@@ -29,18 +31,17 @@ import org.wfanet.panelmatch.client.privatemembership.queryId
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
-import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 
 @RunWith(JUnit4::class)
-abstract class AbstractUncompressEventsTest : BeamTestBase() {
-  abstract val eventCompressorTrainer: EventCompressorTrainer
+abstract class AbstractUncompressEventsFnTest : BeamTestBase() {
+  abstract val dictionaryBuilder: DictionaryBuilder
   abstract val compressorFactory: CompressorFactory
 
   @Test
   fun uncompressEvents() {
     val events = eventsOf("A" to "W1", "A" to "X1", "B" to "Y1", "C" to "Z1")
-    val compressedEvents: CompressedEvents = eventCompressorTrainer.compressByKey(events)
+    val compressedEvents: CompressedEvents = dictionaryBuilder.compressByKey(events)
     val eventData =
       compressedEvents.events.map {
         decryptedEventDataSet {
@@ -48,8 +49,12 @@ abstract class AbstractUncompressEventsTest : BeamTestBase() {
           this.queryId = queryId { id = it.key.toStringUtf8().first().toInt() }
         }
       }
+    val compressorView = compressorFactory.buildAsPCollectionView(compressedEvents.dictionary)
     val uncompressedEvents =
-      uncompressEvents(eventData, compressedEvents.dictionary.toSingletonView(), compressorFactory)
+      eventData.apply(
+        "Uncompress Events",
+        ParDo.of(UncompressEventsFn(compressorView)).withSideInputs(compressorView)
+      )
     assertThat(uncompressedEvents).satisfies {
       assertThat(
           it.flatMap { dataset ->

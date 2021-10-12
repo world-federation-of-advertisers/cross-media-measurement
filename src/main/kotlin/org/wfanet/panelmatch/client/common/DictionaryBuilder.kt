@@ -15,26 +15,24 @@
 package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import java.io.Serializable
 import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.CompressorFactory
-import org.wfanet.panelmatch.common.compression.FactoryBasedCompressor
-import org.wfanet.panelmatch.common.compression.NoOpCompressor
+import org.wfanet.panelmatch.common.compression.Dictionary
 
 /**
- * Trivial trainer for [NoOpCompressor].
+ * [Compressor] factory that supports training.
  *
- * WARNING: since this does no compression, you likely do not want to use it in production.
+ * This is to enable dictionary-based compression. The output dictionary should be provided to
+ * whichever library needs to decompress.
  */
-class UncompressedEventCompressorTrainer : EventCompressorTrainer {
-  override val preferredSampleSize: Int = 0
+interface DictionaryBuilder : Serializable {
+  /** Hint suggesting how many elements should be in the sample. */
+  val preferredSampleSize: Int
 
-  override fun train(eventsSample: Iterable<ByteString>): FactoryBasedCompressor {
-    return FactoryBasedCompressor(ByteString.EMPTY, NoOpCompressorFactory())
-  }
-}
+  /** Factory for the underlying [Compressor]. */
+  val factory: CompressorFactory
 
-private class NoOpCompressorFactory : CompressorFactory() {
-  override fun build(dictionary: ByteString): Compressor {
-    return NoOpCompressor()
-  }
+  /** Builds a dictionary and a [CompressorFactory] that uses it. */
+  fun buildDictionary(eventsSample: Iterable<ByteString>): Dictionary
 }

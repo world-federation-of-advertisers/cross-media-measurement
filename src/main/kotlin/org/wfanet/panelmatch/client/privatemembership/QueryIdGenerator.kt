@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership.testing
+package org.wfanet.panelmatch.client.privatemembership
 
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.common.toByteString
+import kotlin.random.Random
 
-@RunWith(JUnit4::class)
-class PlaintextCreateQueriesWorkflowTest : AbstractCreateQueriesWorkflowTest() {
-  override val privateMembershipSerializedParameters = "some serialized parameters".toByteString()
-  override val privateMembershipCryptor =
-    PlaintextPrivateMembershipCryptor(privateMembershipSerializedParameters)
-  override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
+/** Lazily generates [0, upperBound) in random order. */
+fun generateQueryIds(upperBound: Int): Iterator<Int> = iterator {
+  val seen = mutableSetOf<Int>()
+
+  while (seen.size < upperBound) {
+    val id = Random.nextInt(upperBound)
+    if (id !in seen) {
+      seen.add(id)
+      yield(id)
+    }
+  }
 }

@@ -18,12 +18,12 @@ import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.decryptedQueryOf
+import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
-import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.decryptedQueryOf
-import org.wfanet.panelmatch.client.privatemembership.queryIdOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.toByteString
 
 private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteString()

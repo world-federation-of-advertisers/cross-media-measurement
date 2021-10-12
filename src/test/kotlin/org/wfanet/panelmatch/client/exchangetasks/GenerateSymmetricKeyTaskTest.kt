@@ -24,14 +24,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
-import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
 class GenerateSymmetricKeyTaskTest {
-  private val mockStorage = makeTestVerifiedStorageClient()
   private val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher()
 
   @Test

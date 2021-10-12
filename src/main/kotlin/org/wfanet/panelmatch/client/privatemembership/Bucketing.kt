@@ -18,6 +18,8 @@ import java.io.Serializable
 import java.lang.Long.divideUnsigned
 import java.lang.Long.remainderUnsigned
 import java.lang.Long.toUnsignedString
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.common.crypto.hashSha256ToSpace
 
 /** Computes the appropriate bucket and shard for keys. */

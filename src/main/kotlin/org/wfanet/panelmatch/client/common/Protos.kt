@@ -12,9 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership
+package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.privatemembership.Bucket
+import org.wfanet.panelmatch.client.privatemembership.BucketId
+import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
+import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
+import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.JoinKey
+import org.wfanet.panelmatch.client.privatemembership.PanelistKey
+import org.wfanet.panelmatch.client.privatemembership.Plaintext
+import org.wfanet.panelmatch.client.privatemembership.QueryId
+import org.wfanet.panelmatch.client.privatemembership.ShardId
+import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
+import org.wfanet.panelmatch.client.privatemembership.bucket
+import org.wfanet.panelmatch.client.privatemembership.bucketContents
+import org.wfanet.panelmatch.client.privatemembership.bucketId
+import org.wfanet.panelmatch.client.privatemembership.databaseKey
+import org.wfanet.panelmatch.client.privatemembership.databaseShard
+import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
+import org.wfanet.panelmatch.client.privatemembership.encryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.joinKey
+import org.wfanet.panelmatch.client.privatemembership.panelistKey
+import org.wfanet.panelmatch.client.privatemembership.plaintext
+import org.wfanet.panelmatch.client.privatemembership.queryId
+import org.wfanet.panelmatch.client.privatemembership.shardId
+import org.wfanet.panelmatch.client.privatemembership.unencryptedQuery
 
 /** Constructs a [ShardId]. */
 fun shardIdOf(id: Int): ShardId = shardId { this.id = id }

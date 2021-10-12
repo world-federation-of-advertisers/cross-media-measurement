@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression
+package org.wfanet.panelmatch.client.privatemembership
 
-import com.google.protobuf.ByteString
+import java.io.Serializable
 
-class FactoryBasedCompressor(val dictionary: ByteString, val factory: CompressorFactory) :
-  Compressor {
-  override fun compress(events: ByteString): ByteString {
-    return factory.build(dictionary).compress(events)
-  }
-
-  override fun uncompress(compressedEvents: ByteString): ByteString {
-    return factory.build(dictionary).uncompress(compressedEvents)
+data class EvaluateQueriesParameters(
+  val numShards: Int,
+  val numBucketsPerShard: Int,
+  val maxQueriesPerShard: Int
+) : Serializable {
+  init {
+    require(numShards > 0)
+    require(numBucketsPerShard > 0)
+    require(maxQueriesPerShard > 0)
   }
 }

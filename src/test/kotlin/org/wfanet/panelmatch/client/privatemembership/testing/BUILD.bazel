@@ -1,10 +1,10 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "PlaintextEvaluateQueriesWorkflowEndToEndTest",
+    name = "PlaintextEvaluateQueriesEndToEndTest",
     timeout = "short",
-    srcs = ["PlaintextEvaluateQueriesWorkflowEndToEndTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextEvaluateQueriesWorkflowEndToEndTest",
+    srcs = ["PlaintextEvaluateQueriesEndToEndTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextEvaluateQueriesEndToEndTest",
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
@@ -75,10 +75,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PlaintextCreateQueriesWorkflowTest",
+    name = "PlaintextCreateQueriesTest",
     timeout = "short",
-    srcs = ["PlaintextCreateQueriesWorkflowTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextCreateQueriesWorkflowTest",
+    srcs = ["PlaintextCreateQueriesTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextCreateQueriesTest",
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
@@ -93,10 +93,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PlaintextDecryptQueryResultsWorkflowTest",
+    name = "PlaintextDecryptQueryResultsTest",
     timeout = "short",
-    srcs = ["PlaintextDecryptQueryResultsWorkflowTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextDecryptQueryResultsWorkflowTest",
+    srcs = ["PlaintextDecryptQueryResultsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextDecryptQueryResultsTest",
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",

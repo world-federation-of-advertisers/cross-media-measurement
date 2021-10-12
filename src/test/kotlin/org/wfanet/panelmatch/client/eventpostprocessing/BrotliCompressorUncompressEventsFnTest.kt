@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.common.testing
+package org.wfanet.panelmatch.client.eventpostprocessing
 
-import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.compression.CompressorFactory
-import org.wfanet.panelmatch.common.compression.Dictionary
-import org.wfanet.panelmatch.common.compression.testing.FakeCompressor
+import org.wfanet.panelmatch.client.common.BrotliCompressorFactory
+import org.wfanet.panelmatch.client.common.BrotliDictionaryBuilder
+import org.wfanet.panelmatch.client.common.DictionaryBuilder
+import org.wfanet.panelmatch.client.eventpostprocessing.testing.AbstractUncompressEventsFnTest
 
-class FakeCompressorFactory : CompressorFactory() {
-  override fun build(dictionary: Dictionary): Compressor {
-    return FakeCompressor()
-  }
+class BrotliCompressorUncompressEventsFnTest : AbstractUncompressEventsFnTest() {
+  override val dictionaryBuilder: DictionaryBuilder = BrotliDictionaryBuilder()
+  override val compressorFactory = BrotliCompressorFactory()
 }

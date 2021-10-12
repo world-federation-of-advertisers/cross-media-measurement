@@ -20,10 +20,11 @@ import org.apache.beam.sdk.values.KV
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.common.UncompressedEventCompressorTrainer
+import org.wfanet.panelmatch.client.common.UncompressedDictionaryBuilder
 import org.wfanet.panelmatch.client.common.testing.eventsOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.compression.dictionary
 import org.wfanet.panelmatch.common.toByteString
 
 private const val MAX_BYTE_SIZE = 8
@@ -48,7 +49,7 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
         IDENTIFIER_HASH_PEPPER_PROVIDER,
         HKDF_PEPPER_PROVIDER,
         CRYPTO_KEY_PROVIDER,
-        UncompressedEventCompressorTrainer()
+        UncompressedDictionaryBuilder()
       )
 
     assertThat(encryptedEvents).satisfies {
@@ -60,7 +61,7 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
     }
 
     assertThat(dictionary).satisfies {
-      assertThat(it).containsExactly(ByteString.EMPTY)
+      assertThat(it).containsExactly(dictionary {})
       null
     }
   }

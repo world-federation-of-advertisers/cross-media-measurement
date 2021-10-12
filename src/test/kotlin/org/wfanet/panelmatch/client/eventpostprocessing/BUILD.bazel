@@ -1,10 +1,10 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "BrotliCompressorUncompressEventsTest",
+    name = "BrotliCompressorUncompressEventsFnTest",
     timeout = "short",
-    srcs = ["BrotliCompressorUncompressEventsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpostprocessing.BrotliCompressorUncompressEventsTest",
+    srcs = ["BrotliCompressorUncompressEventsFnTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpostprocessing.BrotliCompressorUncompressEventsFnTest",
     deps = [
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",

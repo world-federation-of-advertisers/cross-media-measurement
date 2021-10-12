@@ -20,6 +20,11 @@ import com.google.privatemembership.batch.client.encryptQueriesRequest
 import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.bucketOf
+import org.wfanet.panelmatch.client.common.databaseShardOf
+import org.wfanet.panelmatch.client.common.queryBundleOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
@@ -29,10 +34,6 @@ import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
-import org.wfanet.panelmatch.client.privatemembership.bucketIdOf
-import org.wfanet.panelmatch.client.privatemembership.bucketOf
-import org.wfanet.panelmatch.client.privatemembership.databaseShardOf
-import org.wfanet.panelmatch.client.privatemembership.shardIdOf
 import org.wfanet.panelmatch.common.toByteString
 
 class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext) :
@@ -75,11 +76,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
         }
     }
     val response = JniPrivateMembership.encryptQueries(request)
-    return org.wfanet.panelmatch.client.privatemembership.queryBundleOf(
-      shard,
-      queries.map { it.first },
-      response.encryptedQueries.toByteString()
-    )
+    return queryBundleOf(shard, queries.map { it.first }, response.encryptedQueries.toByteString())
   }
 
   override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {

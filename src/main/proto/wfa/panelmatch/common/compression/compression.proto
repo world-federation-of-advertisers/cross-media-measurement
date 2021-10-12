@@ -19,10 +19,15 @@ package wfa.panelmatch;
 option java_package = "org.wfanet.panelmatch.common.compression";
 option java_multiple_files = true;
 
+// A compression dictionary (see Zstd or Brotli documentation for more details).
+message Dictionary {
+  bytes contents = 1;
+}
+
 // Request to compress data
 message CompressRequest {
   repeated bytes uncompressed_data = 1;
-  bytes dictionary = 2;
+  Dictionary dictionary = 2;
 }
 
 // Response with compressed data
@@ -33,7 +38,7 @@ message CompressResponse {
 // Request to compress data
 message DecompressRequest {
   repeated bytes compressed_data = 1;
-  bytes dictionary = 2;
+  Dictionary dictionary = 2;
 }
 
 // Response with decompressed data

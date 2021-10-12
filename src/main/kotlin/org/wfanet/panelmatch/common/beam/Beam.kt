@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.common.beam
 
-import kotlin.reflect.KClass
 import org.apache.beam.sdk.transforms.Combine
 import org.apache.beam.sdk.transforms.Count
 import org.apache.beam.sdk.transforms.DoFn
@@ -23,7 +22,6 @@ import org.apache.beam.sdk.transforms.GroupByKey
 import org.apache.beam.sdk.transforms.Keys
 import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.transforms.Partition
-import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.transforms.Values
 import org.apache.beam.sdk.transforms.View
 import org.apache.beam.sdk.transforms.join.CoGroupByKey
@@ -33,11 +31,15 @@ import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionList
 import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
-import org.apache.beam.sdk.values.TypeDescriptor
 
 /** Kotlin convenience helper for making [KV]s. */
 fun <KeyT, ValueT> kvOf(key: KeyT, value: ValueT): KV<KeyT, ValueT> {
   return KV.of(key, value)
+}
+
+/** Kotlin convenience helper for making [KV]s. */
+fun <KeyT, ValueT> Pair<KeyT, ValueT>.toKv(): KV<KeyT, ValueT> {
+  return kvOf(first, second)
 }
 
 /** Returns the keys of a [PCollection] of [KV]s. */
@@ -205,14 +207,6 @@ inline fun <InT, reified SideT, reified OutT> PCollection<InT>.mapWithSideInput(
   return parDoWithSideInput(sideInput, name) { e, side -> yield(processElement(e, side)) }
 }
 
-/** Groups receiver by key and then combines all values into one with [combiner]. */
-inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.combinePerKey(
-  name: String = "CombinePerKey",
-  crossinline combiner: (Iterable<ValueT>) -> ValueT
-): PCollection<KV<KeyT, ValueT>> {
-  return apply(name, Combine.perKey<KeyT, ValueT>(SerializableFunction { combiner(it) }))
-}
-
 /** Kotlin convenience helper for applying GroupByKey. */
 inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
   name: String = "GroupByKey"
@@ -223,7 +217,3 @@ inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
 fun <T> PCollection<T>.toSingletonView(name: String = "ToView"): PCollectionView<T> {
   return apply(name, View.asSingleton())
 }
-
-/** Convenient way to get a [TypeDescriptor] for the receiver. */
-val <T : Any> KClass<T>.typeDescriptor: TypeDescriptor<T>
-  get() = TypeDescriptor.of(this.java)

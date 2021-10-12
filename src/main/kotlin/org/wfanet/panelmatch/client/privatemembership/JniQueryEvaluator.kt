@@ -23,6 +23,8 @@ import com.google.privatemembership.batch.server.Server.RawDatabaseShard
 import com.google.privatemembership.batch.server.applyQueriesRequest
 import com.google.privatemembership.batch.server.rawDatabaseShard
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.resultOf
 
 /** [QueryEvaluator] that calls into C++ via JNI. */
 class JniQueryEvaluator(serializedParameters: ByteString) : QueryEvaluator {
