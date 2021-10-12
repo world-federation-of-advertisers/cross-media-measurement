@@ -30,6 +30,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipal
 private const val KEY_NAME = "principal"
 private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
   Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
+
 /**
  * Extracts a [Principal] from the gRPC [Metadata] and adds it to the gRPC [Context].
  *
@@ -68,6 +69,6 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
   }
 }
 
-/** Convenience helper for [withMetadataPrincipalIdentities]. */
+/** Installs [MetadataPrincipalServerInterceptor] on the service. */
 fun BindableService.withMetadataPrincipalIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(this, MetadataPrincipalServerInterceptor())
