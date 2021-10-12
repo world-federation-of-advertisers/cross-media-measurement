@@ -128,7 +128,12 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 	},
 ]
 
+#KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
+#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+#Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
+
 #LocalDuchy: #Duchy & {
+	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_spanner_schema_push_flags: [
 		"--create-instance",
 		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
@@ -190,9 +195,10 @@ kingdom: #Kingdom & {
 
 frontend_simulator: "frontend_simulator": #FrontendSimulator & {
 	_edp_display_names: [ for d in #Edps {d.display_name}]
-	_mc_resource_name: "measurementConsumers/TBD"
-	_image:            "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image"
-	_imagePullPolicy:  "Never"
+	_mc_resource_name:          "measurementConsumers/TBD"
+	_kingdom_public_api_target: #KingdomPublicApiTarget
+	_image:                     "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image"
+	_imagePullPolicy:           "Never"
 	_blob_storage_flags: [
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 	]
@@ -209,7 +215,9 @@ resource_setup_job: "resource_setup_job": #ResourceSetup & {
 edp_simulators: {
 	for d in #Edps {
 		"\(d.display_name)": #EdpSimulator & {
-			_edp: d
+			_edp:                       d
+			_duchy_public_api_target:   #Worker1PublicApiTarget
+			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_blob_storage_flags: [
 				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			]
