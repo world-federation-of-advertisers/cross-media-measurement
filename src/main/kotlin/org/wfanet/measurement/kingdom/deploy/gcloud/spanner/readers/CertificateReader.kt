@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
+import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -28,7 +29,10 @@ import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
-class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<Certificate>() {
+class CertificateReader(private val parentType: ParentType) :
+  BaseSpannerReader<CertificateReader.Result>() {
+  data class Result(val certificate: Certificate, val certificateId: InternalId)
+
   enum class ParentType(private val prefix: String) {
     DATA_PROVIDER("DataProvider"),
     MEASUREMENT_CONSUMER("MeasurementConsumer"),
@@ -39,19 +43,19 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
     val externalCertificateIdColumnName: String = "External${prefix}CertificateId"
     val certificatesTableName: String = "${prefix}Certificates"
 
-    val externalIdColumnName: String? by lazy {
-      when (this) {
-        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
-        DUCHY -> null
-      }
-    }
+    val externalIdColumnName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
+          DUCHY -> null
+        }
 
-    val tableName: String? by lazy {
-      when (this) {
-        DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
-        DUCHY -> null
-      }
-    }
+    val tableName: String?
+      get() =
+        when (this) {
+          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
+          DUCHY -> null
+        }
   }
 
   override val builder: Statement.Builder = Statement.newBuilder(buildBaseSql(parentType))
@@ -93,19 +97,21 @@ class CertificateReader(private val parentType: ParentType) : BaseSpannerReader<
     }
   }
 
-  override suspend fun translate(struct: Struct): Certificate {
+  override suspend fun translate(struct: Struct): Result {
+    val certificateId = struct.getInternalId("CertificateId")
     return when (parentType) {
-      ParentType.DATA_PROVIDER -> buildDataProviderCertificate(struct)
-      ParentType.MEASUREMENT_CONSUMER -> buildMeasurementConsumerCertificate(struct)
+      ParentType.DATA_PROVIDER -> Result(buildDataProviderCertificate(struct), certificateId)
+      ParentType.MEASUREMENT_CONSUMER ->
+        Result(buildMeasurementConsumerCertificate(struct), certificateId)
       ParentType.DUCHY -> {
         val duchyId = struct.getLong("DuchyId")
         val externalDuchyId =
           checkNotNull(DuchyIds.getExternalId(duchyId)) {
             "Duchy with internal ID $duchyId not found"
           }
-        buildDuchyCertificate(externalDuchyId, struct)
+        Result(buildDuchyCertificate(externalDuchyId, struct), certificateId)
       }
-      ParentType.MODEL_PROVIDER -> buildModelProviderCertificate(struct)
+      ParentType.MODEL_PROVIDER -> Result(buildModelProviderCertificate(struct), certificateId)
     }
   }
 

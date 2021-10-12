@@ -33,6 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeCertificate
 
 class SpannerCertificatesService(
   private val idGenerator: IdGenerator,
@@ -74,7 +75,7 @@ class SpannerCertificatesService(
   override suspend fun getCertificate(request: GetCertificateRequest): Certificate {
     val externalCertificateId = ExternalId(request.externalCertificateId)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    val reader: BaseSpannerReader<Certificate> =
+    val reader: BaseSpannerReader<CertificateReader.Result> =
       when (request.parentCase) {
         GetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
           CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
@@ -102,12 +103,39 @@ class SpannerCertificatesService(
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }
 
-    return reader.execute(client.singleUse()).singleOrNull()
-      ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+    val certificateResult =
+      reader.execute(client.singleUse()).singleOrNull()
+        ?: failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+
+    return certificateResult.certificate
   }
 
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
-    TODO("not implemented yet")
+    grpcRequire(request.parentCase != RevokeCertificateRequest.ParentCase.PARENT_NOT_SET) {
+      "RevokeCertificateRequest is missing parent field"
+    }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
+    // accordingly.
+    try {
+      return RevokeCertificate(request).execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+      }
+    }
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
