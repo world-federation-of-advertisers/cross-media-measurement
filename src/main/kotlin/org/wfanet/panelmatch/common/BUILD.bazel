@@ -9,10 +9,17 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc",
+        "@wfa_measurement_system//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_proto",
     ],
 )
