@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common
+package org.wfanet.panelmatch.common.certificates
 
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
@@ -40,5 +40,5 @@ interface CertificateManager {
   suspend fun getPartnerRootCertificate(partnerName: String): X509Certificate
 
   /** Gets the [PrivateKey] created for the current exchange */
-  fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey
+  suspend fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey
 }

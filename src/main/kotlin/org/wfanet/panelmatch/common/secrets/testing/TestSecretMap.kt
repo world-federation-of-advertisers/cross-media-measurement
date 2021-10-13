@@ -12,8 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common
+package org.wfanet.panelmatch.common.secrets.testing
 
-interface SecretMap<K, V> {
-  operator fun get(key: K): V
+import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.common.secrets.SecretMap
+
+/** [SecretMap] backed by a [Map]. */
+class TestSecretMap(private val underlyingMap: Map<String, ByteString>) : SecretMap {
+  override suspend fun get(key: String): ByteString? {
+    return underlyingMap[key]
+  }
 }
