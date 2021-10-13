@@ -26,8 +26,10 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.common.NoOpCompressorFactory
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptor
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -35,12 +37,16 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 class ExchangeTaskMapperForJoinKeyExchangeTest {
   private val privateStorage = InMemoryStorageClient()
   private val localCertificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
+  private val partnerCertificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
 
   private val exchangeTaskMapper =
     ExchangeTaskMapperForJoinKeyExchange(
+      compressorFactory = NoOpCompressorFactory(),
       getDeterministicCommutativeCryptor = ::FakeDeterministicCommutativeCipher,
       getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor,
+      getQueryResultsDecryptor = ::PlaintextQueryResultsDecryptor,
       localCertificate = localCertificate,
+      partnerCertificate = partnerCertificate,
       privateStorage = privateStorage,
       uriPrefix = "jk-prefix",
       privateKey = readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)

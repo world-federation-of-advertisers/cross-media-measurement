@@ -14,23 +14,14 @@
 
 package org.wfanet.panelmatch.client.common
 
-import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.Dictionary
 import org.wfanet.panelmatch.common.compression.NoOpCompressor
-import org.wfanet.panelmatch.common.compression.dictionary
 
-/**
- * Trivial trainer for [NoOpCompressor].
- *
- * WARNING: since this does no compression, you likely do not want to use it in production.
- */
-class UncompressedDictionaryBuilder : DictionaryBuilder {
-  override val preferredSampleSize: Int = 0
-
-  override val factory: CompressorFactory = NoOpCompressorFactory()
-
-  override fun buildDictionary(eventsSample: Iterable<ByteString>): Dictionary {
-    return dictionary {}
+/** WARNING: since this does no compression, you likely do not want to use it in production. */
+class NoOpCompressorFactory : CompressorFactory() {
+  override fun build(dictionary: Dictionary): Compressor {
+    return NoOpCompressor()
   }
 }
