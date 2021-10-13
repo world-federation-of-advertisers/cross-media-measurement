@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.testing
+package org.wfanet.panelmatch.common.certificates.testing
 
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
@@ -22,7 +22,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
-import org.wfanet.panelmatch.common.CertificateManager
+import org.wfanet.panelmatch.common.certificates.CertificateManager
 
 class TestCertificateManager : CertificateManager {
 
@@ -38,7 +38,7 @@ class TestCertificateManager : CertificateManager {
     return readCertificate(FIXED_SERVER_CERT_PEM_FILE)
   }
 
-  override fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey {
+  override suspend fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey {
     return readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
   }
 }

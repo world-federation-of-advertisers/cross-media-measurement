@@ -12,40 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common
+package org.wfanet.panelmatch.common.certificates
 
-import com.google.protobuf.ByteString
 import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.concurrent.ConcurrentHashMap
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.panelmatch.common.secrets.SecretMap
 
-// TODO: Rename (and maybe move the package) to indicate dependency on the v2alpha API.
-/**
- * Interface to grab and validate certificates. Provides validated X509 certificates for an exchange
- * to use to validate .
- */
+/** [CertificateManager] that loads [X509Certificate]s from [certificateService]. */
 class GrpcCertificateManager(
   /** Connection to the APIs certificate service used to grab certs registered with the Kingdom */
-  private val certificateService: CertificatesGrpcKt.CertificatesCoroutineStub,
-  private val rootCerts: SecretMap<String, X509Certificate>,
-  private val privateKeys: SecretMap<String, ByteString>,
+  private val certificateService: CertificatesCoroutineStub,
+  private val rootCerts: SecretMap,
+  private val privateKeys: SecretMap,
   private val algorithm: String
 ) : CertificateManager {
 
   private val cache = ConcurrentHashMap<Pair<String, String>, X509Certificate>()
 
-  private fun verifyCertificate(
+  private suspend fun verifyCertificate(
     certificate: X509Certificate,
     certOwnerName: String
   ): X509Certificate {
-    val rootCert = rootCerts[certOwnerName]
+    val rootCert = getRootCertificate(certOwnerName)
     certificate.verify(rootCert.publicKey, jceProvider)
     return certificate
   }
@@ -64,12 +60,19 @@ class GrpcCertificateManager(
     }
   }
 
-  override fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey {
+  override suspend fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey {
+    val keyBytes = requireNotNull(privateKeys.get(exchangeKey.toName()))
     return KeyFactory.getInstance(algorithm, jceProvider)
-      .generatePrivate(PKCS8EncodedKeySpec(privateKeys[exchangeKey.toName()].toByteArray()))
+      .generatePrivate(PKCS8EncodedKeySpec(keyBytes.toByteArray()))
   }
 
   override suspend fun getPartnerRootCertificate(partnerName: String): X509Certificate {
-    return rootCerts[partnerName]
+    return getRootCertificate(partnerName)
+  }
+
+  private suspend fun getRootCertificate(ownerName: String): X509Certificate {
+    val certBytes =
+      requireNotNull(rootCerts.get(ownerName)) { "Missing root certificate for $ownerName" }
+    return readCertificate(certBytes)
   }
 }
