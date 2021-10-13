@@ -35,7 +35,7 @@ class VerifiedStorageClient(
   private val storageClient: StorageClient,
   private val readCert: X509Certificate,
   private val writeCert: X509Certificate,
-  private val privateKey: PrivateKey
+  val privateKey: PrivateKey
 ) {
 
   val defaultBufferSizeBytes: Int = storageClient.defaultBufferSizeBytes

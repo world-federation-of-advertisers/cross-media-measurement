@@ -20,6 +20,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
@@ -29,12 +31,16 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 @RunWith(JUnit4::class)
 class ExchangeTaskMapperForJoinKeyExchangeTest {
   private val privateStorage = makeTestVerifiedStorageClient()
+  private val sharedStorage = makeTestVerifiedStorageClient()
+  private val localCertificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
 
   private val exchangeTaskMapper =
     ExchangeTaskMapperForJoinKeyExchange(
       getDeterministicCommutativeCryptor = ::FakeDeterministicCommutativeCipher,
       getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor,
-      privateStorage = privateStorage
+      localCertificate = localCertificate,
+      privateStorage = privateStorage,
+      uriPrefix = "jk-prefix"
     )
 
   @Test

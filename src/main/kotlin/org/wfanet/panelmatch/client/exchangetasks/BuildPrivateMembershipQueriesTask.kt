@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
+import org.wfanet.panelmatch.client.logger.addToTaskLog
+import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
@@ -53,6 +55,7 @@ class BuildPrivateMembershipQueriesTask(
   )
 
   override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
+    logger.addToTaskLog("Executing build private membership queries")
     val pipeline = Pipeline.create()
 
     // TODO: previous steps need to output in this format.
@@ -107,5 +110,9 @@ class BuildPrivateMembershipQueriesTask(
       "query-decryption-keys" to flowOf(queryDecryptionKeysFileSpec.spec.toByteString()),
       "encrypted-queries" to flowOf(encryptedQueriesFileSpec.spec.toByteString())
     )
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }
