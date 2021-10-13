@@ -148,6 +148,7 @@ message ExchangeWorkflow {
       int32 num_buckets_per_shard = 5;
       // Consider making this optional once its not experimental
       int32 num_queries_per_shard = 6;
+      bool add_padding_queries = 7;
     }
 
     // Decrypts results from Private Membership queries.
