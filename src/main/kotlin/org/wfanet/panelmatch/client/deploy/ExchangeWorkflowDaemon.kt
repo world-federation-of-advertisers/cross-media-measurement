@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
@@ -39,6 +40,12 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Kingdom [ApiClient]. */
   abstract val apiClient: ApiClient
 
+  // TODO derive `localCertificate`
+  abstract val localCertificate: X509Certificate
+
+  // TODO derive `uriPrefix`
+  abstract val uriPrefix: String
+
   /** [VerifiedStorageClient] for writing to local (non-shared) storage. */
   abstract val privateStorage: VerifiedStorageClient
 
@@ -56,7 +63,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       ExchangeTaskMapperForJoinKeyExchange(
         getDeterministicCommutativeCryptor = ::JniDeterministicCommutativeCipher,
         getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor,
-        privateStorage = privateStorage
+        localCertificate = localCertificate,
+        privateStorage = privateStorage,
+        uriPrefix = uriPrefix
       )
 
     val stepExecutor =
