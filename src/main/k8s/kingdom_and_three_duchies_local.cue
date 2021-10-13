@@ -167,7 +167,6 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 duchies: {for d in #Duchies {"\(d.name)": #LocalDuchy & {_duchy: d}}}
 
 kingdom: #Kingdom & {
-	_duchy_ids: [ for d in #Duchies {"duchy-\(d.name)"}]
 	_spanner_schema_push_flags: [
 		"--create-instance",
 		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
