@@ -26,16 +26,23 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
+import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
 /** Maps join key exchange steps to exchange tasks */
+// TODO make this class abstract and move the constructor params to lazy props
 class ExchangeTaskMapperForJoinKeyExchange(
+  private val compressorFactory: CompressorFactory,
   private val getDeterministicCommutativeCryptor: () -> DeterministicCommutativeCipher,
   private val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor,
+  private val getQueryResultsDecryptor: () -> QueryResultsDecryptor,
   // TODO remove `localCertificate` from constructor
   private val localCertificate: X509Certificate,
   private val privateStorage: StorageClient,
   private val privateKey: PrivateKey,
+  // TODO remove `partnerCertificate` from constructor
+  private val partnerCertificate: X509Certificate,
   private val throttler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100)),
   // TODO remove `uriPrefix` from constructor
@@ -99,7 +106,24 @@ class ExchangeTaskMapperForJoinKeyExchange(
           uriPrefix = uriPrefix,
         )
       }
-      StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> TODO()
+      StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> {
+        val outputs =
+          DecryptPrivateMembershipResultsTask.Outputs(
+            decryptedEventDataSetFileCount =
+              step.decryptPrivateMembershipQueryResultsStep.decryptEventDataSetFileCount,
+            decryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
+          )
+        DecryptPrivateMembershipResultsTask(
+          uriPrefix = uriPrefix,
+          privateKey = privateKey,
+          localCertificate = localCertificate,
+          serializedParameters = step.decryptPrivateMembershipQueryResultsStep.serializedParameters,
+          queryResultsDecryptor = getQueryResultsDecryptor(),
+          compressorFactory = compressorFactory,
+          partnerCertificate = partnerCertificate,
+          outputs = outputs,
+        )
+      }
       StepCase.COPY_FROM_SHARED_STORAGE_STEP -> TODO()
       StepCase.COPY_TO_SHARED_STORAGE_STEP -> TODO()
       else -> error("Unsupported step type")

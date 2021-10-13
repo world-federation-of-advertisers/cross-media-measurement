@@ -39,6 +39,8 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromF
     get() = TODO("Not yet implemented")
   override val localCertificate: X509Certificate
     get() = TODO("Not yet implemented")
+  override val partnerCertificate: X509Certificate
+    get() = TODO("Not yet implemented")
   override val uriPrefix: String
     get() = TODO("Not yet implemented: coming from client storage")
   override val privateKey: PrivateKey
