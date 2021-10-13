@@ -21,14 +21,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
-import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
 @RunWith(JUnit4::class)
 class IntersectValidateTaskTest {
-  private val mockStorage = makeTestVerifiedStorageClient()
+  private val storageClient = InMemoryStorageClient()
 
   @Test
   fun `test valid intersect and validate exchange step`() = runBlocking {
@@ -37,19 +37,19 @@ class IntersectValidateTaskTest {
         .execute(
           mapOf(
             "previous-data" to
-              mockStorage.createBlob(
+              storageClient.createBlob(
                 "encrypted-data",
                 makeSerializedSharedInputFlow(
                   SINGLE_BLINDED_KEYS.dropLast(1),
-                  mockStorage.defaultBufferSizeBytes
+                  storageClient.defaultBufferSizeBytes
                 )
               ),
             "current-data" to
-              mockStorage.createBlob(
+              storageClient.createBlob(
                 "current-data",
                 makeSerializedSharedInputFlow(
                   SINGLE_BLINDED_KEYS,
-                  mockStorage.defaultBufferSizeBytes
+                  storageClient.defaultBufferSizeBytes
                 )
               )
           )
@@ -66,19 +66,19 @@ class IntersectValidateTaskTest {
           .execute(
             mapOf(
               "previous-data" to
-                mockStorage.createBlob(
+                storageClient.createBlob(
                   "current-data",
                   makeSerializedSharedInputFlow(
                     SINGLE_BLINDED_KEYS,
-                    mockStorage.defaultBufferSizeBytes
+                    storageClient.defaultBufferSizeBytes
                   )
                 ),
               "current-data" to
-                mockStorage.createBlob(
+                storageClient.createBlob(
                   "current-data",
                   makeSerializedSharedInputFlow(
                     SINGLE_BLINDED_KEYS,
-                    mockStorage.defaultBufferSizeBytes
+                    storageClient.defaultBufferSizeBytes
                   )
                 )
             )
@@ -94,19 +94,19 @@ class IntersectValidateTaskTest {
           .execute(
             mapOf(
               "previous-data" to
-                mockStorage.createBlob(
+                storageClient.createBlob(
                   "current-data",
                   makeSerializedSharedInputFlow(
                     SINGLE_BLINDED_KEYS.dropLast(1),
-                    mockStorage.defaultBufferSizeBytes
+                    storageClient.defaultBufferSizeBytes
                   )
                 ),
               "current-data" to
-                mockStorage.createBlob(
+                storageClient.createBlob(
                   "current-data",
                   makeSerializedSharedInputFlow(
                     SINGLE_BLINDED_KEYS,
-                    mockStorage.defaultBufferSizeBytes
+                    storageClient.defaultBufferSizeBytes
                   )
                 )
             )

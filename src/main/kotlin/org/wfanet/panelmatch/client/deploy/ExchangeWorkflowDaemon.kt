@@ -14,10 +14,12 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
@@ -47,7 +49,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   abstract val uriPrefix: String
 
   /** [VerifiedStorageClient] for writing to local (non-shared) storage. */
-  abstract val privateStorage: VerifiedStorageClient
+  abstract val privateStorage: StorageClient
 
   /** [SecretMap] from RecurringExchange ID to serialized ExchangeWorkflow. */
   abstract val validExchangeWorkflows: SecretMap
@@ -58,6 +60,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** How long a task should be allowed to run for before being cancelled. */
   abstract val taskTimeout: Timeout
 
+  // TODO: this will be refactored very shortly. In general, this (a) doesn't work and (b) is unsafe
+  abstract val privateKey: PrivateKey
+
   override fun run() {
     val exchangeTaskMapper =
       ExchangeTaskMapperForJoinKeyExchange(
@@ -65,7 +70,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor,
         localCertificate = localCertificate,
         privateStorage = privateStorage,
-        uriPrefix = uriPrefix
+        uriPrefix = uriPrefix,
+        privateKey = privateKey
       )
 
     val stepExecutor =

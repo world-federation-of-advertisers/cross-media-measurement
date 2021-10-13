@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
@@ -36,11 +35,11 @@ class GenerateSymmetricKeyTaskTest {
   fun `generate key 2x yields different keys`() = withTestContext {
     val result1 =
       GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
-        .execute(emptyMap<String, VerifiedBlob>())
+        .execute(emptyMap())
         .mapValues { it.value.flatten() }
     val result2 =
       GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
-        .execute(emptyMap<String, VerifiedBlob>())
+        .execute(emptyMap())
         .mapValues { it.value.flatten() }
 
     assertThat(result1.getValue("symmetric-key")).isNotEqualTo(result2.getValue("symmetric-key"))
