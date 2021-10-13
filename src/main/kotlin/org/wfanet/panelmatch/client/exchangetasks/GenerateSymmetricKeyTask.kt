@@ -17,15 +17,17 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 
 private const val OUTPUT_DATA_LABEL = "symmetric-key"
 
 class GenerateSymmetricKeyTask(private val generateKey: () -> ByteString) : ExchangeTask {
 
-  override suspend fun execute(input: Map<String, VerifiedBlob>): Map<String, Flow<ByteString>> {
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> {
     logger.addToTaskLog("Executing generate symmetric key")
 
     val key = generateKey()

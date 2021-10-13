@@ -22,13 +22,14 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.Timeout
+import org.wfanet.panelmatch.common.createBlob
 
 /**
  * Maps ExchangeWorkflow.Step to respective tasks. Retrieves necessary inputs. Executes step. Stores
@@ -37,13 +38,10 @@ import org.wfanet.panelmatch.common.Timeout
 class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
-  private val privateStorage: VerifiedStorageClient,
-  private val getExchangeTaskForStep: suspend (ExchangeWorkflow.Step) -> ExchangeTask
+  private val privateStorage: StorageClient,
+  private val getExchangeTaskForStep: suspend (Step) -> ExchangeTask
 ) : ExchangeStepExecutor {
-  /**
-   * Reads inputs for [step], executes [step], and writes the outputs to appropriate
-   * [VerifiedStorageClient].
-   */
+  /** Reads inputs for [step], executes [step], and writes the outputs to [privateStorage]. */
   override suspend fun execute(attemptKey: ExchangeStepAttemptKey, exchangeStep: ExchangeStep) {
     withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {
       try {
@@ -59,15 +57,17 @@ class ExchangeTaskExecutor(
     }
   }
 
-  private suspend fun readInputs(step: ExchangeWorkflow.Step): Map<String, VerifiedBlob> {
-    return privateStorage.verifiedBatchRead(inputLabels = step.inputLabelsMap)
+  private fun readInputs(step: Step): Map<String, StorageClient.Blob> {
+    return step
+      .inputLabelsMap
+      .mapNotNull { (k, v) -> privateStorage.getBlob(v)?.let { k to it } }
+      .toMap()
   }
 
-  private suspend fun writeOutputs(
-    step: ExchangeWorkflow.Step,
-    taskOutput: Map<String, Flow<ByteString>>
-  ) {
-    privateStorage.verifiedBatchWrite(outputLabels = step.outputLabelsMap, data = taskOutput)
+  private suspend fun writeOutputs(step: Step, taskOutput: Map<String, Flow<ByteString>>) {
+    for ((genericLabel, flow) in taskOutput) {
+      privateStorage.createBlob(step.outputLabelsMap.getValue(genericLabel), flow)
+    }
   }
 
   private suspend fun markAsFinished(
@@ -77,15 +77,32 @@ class ExchangeTaskExecutor(
     apiClient.finishExchangeStepAttempt(attemptKey, state, getAndClearTaskLog())
   }
 
-  private suspend fun tryExecute(attemptKey: ExchangeStepAttemptKey, step: ExchangeWorkflow.Step) {
+  private suspend fun tryExecute(attemptKey: ExchangeStepAttemptKey, step: Step) {
     logger.addToTaskLog("Executing $step with attempt $attemptKey")
-    val exchangeTask: ExchangeTask = getExchangeTaskForStep(step)
+    if (!isAlreadyComplete(step)) {
+      runStep(step)
+      writeDoneBlob(step)
+    }
+    markAsFinished(attemptKey, ExchangeStepAttempt.State.SUCCEEDED)
+  }
+
+  private suspend fun runStep(step: Step) {
     timeout.runWithTimeout {
-      val taskInput: Map<String, VerifiedBlob> = readInputs(step)
+      val exchangeTask: ExchangeTask = getExchangeTaskForStep(step)
+      val taskInput: Map<String, StorageClient.Blob> = readInputs(step)
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
       writeOutputs(step, taskOutput)
     }
-    markAsFinished(attemptKey, ExchangeStepAttempt.State.SUCCEEDED)
+  }
+
+  private fun isAlreadyComplete(step: Step): Boolean {
+    return privateStorage.getBlob("done-tasks/${step.stepId}") != null
+  }
+
+  private suspend fun writeDoneBlob(step: Step) {
+    // TODO: consider writing the state into the file.
+    //  This would then require reading the file and knowing when failures are permanent.
+    privateStorage.createBlob("done-tasks/${step.stepId}", ByteString.EMPTY)
   }
 
   companion object {

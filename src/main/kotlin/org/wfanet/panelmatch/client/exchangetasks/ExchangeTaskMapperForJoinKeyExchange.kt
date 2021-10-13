@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -22,9 +23,9 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
 /** Maps join key exchange steps to exchange tasks */
@@ -33,7 +34,8 @@ class ExchangeTaskMapperForJoinKeyExchange(
   private val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor,
   // TODO remove `localCertificate` from constructor
   private val localCertificate: X509Certificate,
-  private val privateStorage: VerifiedStorageClient,
+  private val privateStorage: StorageClient,
+  private val privateKey: PrivateKey,
   private val throttler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(100)),
   // TODO remove `uriPrefix` from constructor
@@ -50,7 +52,11 @@ class ExchangeTaskMapperForJoinKeyExchange(
         CryptorExchangeTask.forReEncryption(getDeterministicCommutativeCryptor())
       StepCase.DECRYPT_STEP ->
         CryptorExchangeTask.forDecryption(getDeterministicCommutativeCryptor())
-      StepCase.INPUT_STEP -> InputTask(storage = privateStorage, step = step, throttler = throttler)
+      StepCase.INPUT_STEP -> {
+        require(step.inputLabelsMap.isEmpty())
+        val blobKey = step.outputLabelsMap.values.single()
+        InputTask(storage = privateStorage, blobKey = blobKey, throttler = throttler)
+      }
       StepCase.INTERSECT_AND_VALIDATE_STEP ->
         IntersectValidateTask(
           maxSize = step.intersectAndValidateStep.maxSize,
@@ -88,7 +94,7 @@ class ExchangeTaskMapperForJoinKeyExchange(
               // TODO get `padQueries` from new field at step.buildPrivateMembershipQueriesStep
               padQueries = true,
             ),
-          privateKey = privateStorage.privateKey,
+          privateKey = privateKey,
           privateMembershipCryptor = privateMembershipCryptor,
           uriPrefix = uriPrefix,
         )

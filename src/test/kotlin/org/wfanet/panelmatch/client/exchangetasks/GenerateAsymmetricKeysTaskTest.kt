@@ -24,7 +24,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.toByteString
 
@@ -39,9 +38,9 @@ class GenerateAsymmetricKeysTaskTest {
   @Test
   fun `public key is not equal to private key`() = withTestContext {
     val result =
-      GenerateAsymmetricKeysTask(generateKeys = keyGenerator)
-        .execute(emptyMap<String, VerifiedBlob>())
-        .mapValues { it.value.flatten() }
+      GenerateAsymmetricKeysTask(generateKeys = keyGenerator).execute(emptyMap()).mapValues {
+        it.value.flatten()
+      }
 
     assertThat(result.getValue("public-key")).isEqualTo("some public key".toByteString())
     assertThat(result.getValue("private-key")).isEqualTo("some private key".toByteString())

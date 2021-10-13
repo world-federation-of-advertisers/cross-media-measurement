@@ -154,10 +154,3 @@ class VerifiedStorageClient(
     suspend fun toStringUtf8(): String = toByteString().toStringUtf8()
   }
 }
-
-// TODO: add this as a method to StorageClient.kt as StorageClient.Blob.toByteString
-/**
- * Aggregates the [Flow] contained within a [StorageClient.Blob] object into a single concatenated
- * [ByteString].
- */
-suspend fun Blob.toByteString(): ByteString = this.read().flatten()

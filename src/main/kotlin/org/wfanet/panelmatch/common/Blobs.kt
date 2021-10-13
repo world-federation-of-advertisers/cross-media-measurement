@@ -12,21 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.common
 
 import com.google.protobuf.ByteString
-import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.StorageClient.Blob
+import org.wfanet.measurement.storage.read
 
-/** [ExchangeTask] that reads its own inputs and writes its own outputs. */
-abstract class CustomIOExchangeTask : ExchangeTask {
-  final override suspend fun execute(
-    input: Map<String, StorageClient.Blob>
-  ): Map<String, Flow<ByteString>> {
-    require(input.isEmpty())
-    execute()
-    return emptyMap()
-  }
+/** Reads the blob into a single [ByteString]. */
+suspend fun Blob.toByteString(): ByteString = read().flatten()
 
-  abstract suspend fun execute()
+/** Reads the blob bytes as a UTF8 [String]. */
+suspend fun Blob.toStringUtf8(): String = toByteString().toStringUtf8()
+
+/** Creates a [StorageClient.Blob] from a [ByteString]. */
+suspend fun StorageClient.createBlob(blobKey: String, content: ByteString): Blob {
+  return createBlob(blobKey, content.asBufferedFlow(this.defaultBufferSizeBytes))
 }

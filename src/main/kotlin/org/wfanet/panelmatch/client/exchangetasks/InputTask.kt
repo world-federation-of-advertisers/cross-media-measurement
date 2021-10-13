@@ -14,12 +14,10 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
-import com.google.protobuf.ByteString
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.panelmatch.client.storage.StorageNotFoundException
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Input task waits for output labels to be present. Clients should not pass in the actual required
@@ -27,37 +25,20 @@ import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
  * that are written after the actual outputs are done being written.
  */
 class InputTask(
-  private val step: ExchangeWorkflow.Step,
+  private val blobKey: String,
   private val throttler: Throttler,
-  private val storage: VerifiedStorageClient
-) : ExchangeTask {
+  private val storage: StorageClient
+) : CustomIOExchangeTask() {
 
-  init {
-    require(step.inputLabelsCount == 0)
-    require(step.outputLabelsCount == 1)
+  private fun isReady(): Boolean {
+    return storage.getBlob(blobKey) != null
   }
 
-  /** Reads a single blob from [storage] as specified in [step]. */
-  private suspend fun readValue() {
-    storage.verifiedBatchRead(inputLabels = step.outputLabelsMap)
-  }
-
-  private suspend fun isReady(): Boolean {
-    return try {
-      readValue()
-      true
-    } catch (e: StorageNotFoundException) {
-      false
-    }
-  }
-
-  override suspend fun execute(
-    input: Map<String, VerifiedStorageClient.VerifiedBlob>
-  ): Map<String, Flow<ByteString>> {
-    while (true) {
+  override suspend fun execute() {
+    while (currentCoroutineContext().isActive) {
       if (throttler.onReady { isReady() }) {
         // This function only returns that input is ready. It does not return actual values.
-        return emptyMap()
+        return
       }
     }
   }

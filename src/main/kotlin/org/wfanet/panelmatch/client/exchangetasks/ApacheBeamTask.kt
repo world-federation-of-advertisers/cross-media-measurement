@@ -19,9 +19,10 @@ import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.SignedFiles
+import org.wfanet.panelmatch.common.toStringUtf8
 
 /** Base class for Apache Beam-running ExchangeTasks. */
 abstract class ApacheBeamTask : ExchangeTask {
@@ -32,7 +33,7 @@ abstract class ApacheBeamTask : ExchangeTask {
   protected val pipeline: Pipeline = Pipeline.create()
 
   protected suspend fun readFromManifest(
-    manifest: VerifiedBlob,
+    manifest: StorageClient.Blob,
     certificate: X509Certificate
   ): PCollection<ByteString> {
     val shardedFileName = manifest.toStringUtf8()
