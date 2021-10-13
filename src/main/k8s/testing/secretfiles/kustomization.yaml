@@ -73,7 +73,8 @@ secretGenerator:
   - mc_tls.key
   - mc_tls.pem
   - duchy_id_config.textproto
-  - duchy_rpc_config.textproto
+  - duchy_rpc_config_dev.textproto
+  - duchy_rpc_config_local.textproto
   - aggregator_protocols_setup_config.textproto
   - nonaggregator_protocols_setup_config.textproto
   - llv2_protocol_config_config.textproto

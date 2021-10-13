@@ -128,7 +128,6 @@ objectSets: [
 duchies: {for d in #Duchies {"\(d.name)": #GkeDuchy & {_duchy: d}}}
 
 kingdom: #Kingdom & {
-	_duchy_ids: [ for d in #Duchies {"duchy-\(d.name)"}]
 	_kingdom_secret_name: #SecretName
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
@@ -152,6 +151,7 @@ kingdom: #Kingdom & {
 
 frontend_simulator: #FrontendSimulator & {
 	_mc_resource_name:          #McResourcename
+	_mc_secret_name:            #SecretName
 	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_simulator_image:           "\(_container_registry_prefix)/loadtest/frontend-simulator"
 	_blob_storage_flags: [
