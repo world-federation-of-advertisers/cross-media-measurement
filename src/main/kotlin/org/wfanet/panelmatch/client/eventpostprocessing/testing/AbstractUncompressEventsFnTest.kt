@@ -20,7 +20,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.CompressedEvents
-import org.wfanet.panelmatch.client.common.DictionaryBuilder
 import org.wfanet.panelmatch.client.common.buildAsPCollectionView
 import org.wfanet.panelmatch.client.common.testing.eventsOf
 import org.wfanet.panelmatch.client.eventpostprocessing.UncompressEventsFn
@@ -32,6 +31,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.compression.CompressorFactory
+import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 
 @RunWith(JUnit4::class)
 abstract class AbstractUncompressEventsFnTest : BeamTestBase() {

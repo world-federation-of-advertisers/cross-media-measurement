@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.client.deploy
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.panelmatch.client.common.BrotliCompressorFactory
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
@@ -29,6 +28,7 @@ import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCrypto
 import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.Timeout
+import org.wfanet.panelmatch.common.compression.BrotliCompressorFactory
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.secrets.SecretMap
 

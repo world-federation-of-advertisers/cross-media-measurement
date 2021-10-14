@@ -26,24 +26,18 @@ import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.common.testing.AlwaysReadyThrottler
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class InputTaskTest {
   private val storage = mock<StorageClient>()
 
-  private object NoOpThrottler : Throttler {
-    override suspend fun <T> onReady(block: suspend () -> T): T {
-      return block()
-    }
-  }
-
   @Test
   fun `wait on input`() = runBlockingTest {
     val blobKey = "mp-crypto-key"
-    val task = InputTask(blobKey, NoOpThrottler, storage)
+    val task = InputTask(blobKey, AlwaysReadyThrottler, storage)
 
     whenever(storage.getBlob(any()))
       .thenReturn(null)

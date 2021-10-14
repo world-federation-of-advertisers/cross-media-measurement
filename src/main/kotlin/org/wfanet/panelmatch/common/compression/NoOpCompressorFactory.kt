@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.common
-
-import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.compression.CompressorFactory
-import org.wfanet.panelmatch.common.compression.Dictionary
-import org.wfanet.panelmatch.common.compression.NoOpCompressor
+package org.wfanet.panelmatch.common.compression
 
 /** WARNING: since this does no compression, you likely do not want to use it in production. */
 class NoOpCompressorFactory : CompressorFactory() {
