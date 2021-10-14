@@ -24,3 +24,9 @@ option java_multiple_files = true;
 message SharedInputs {
   repeated bytes data = 1;
 }
+
+message NamedSignature {
+  bytes signature = 1;
+  // The API resource name of the certificate that provided this signature
+  string certificate_name = 2;
+}
