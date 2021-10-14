@@ -117,8 +117,7 @@ class ExchangeTaskMapperForJoinKeyExchange(
           numShards = step.buildPrivateMembershipQueriesStep.numShards,
           numBucketsPerShard = step.buildPrivateMembershipQueriesStep.numBucketsPerShard,
           maxQueriesPerShard = step.buildPrivateMembershipQueriesStep.numQueriesPerShard,
-          // TODO get `padQueries` from new field at step.buildPrivateMembershipQueriesStep
-          padQueries = true,
+          padQueries = step.buildPrivateMembershipQueriesStep.addPaddingQueries,
         ),
       privateKey = privateKey,
       privateMembershipCryptor = privateMembershipCryptor,
