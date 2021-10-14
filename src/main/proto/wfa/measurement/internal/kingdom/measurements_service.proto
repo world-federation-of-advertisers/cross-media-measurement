@@ -58,8 +58,9 @@ message StreamMeasurementsRequest {
   // disjunctions of their items.
   message Filter {
     int64 external_measurement_consumer_id = 1;
-    repeated Measurement.State states = 2;
-    google.protobuf.Timestamp updated_after = 3;
+    int64 external_measurement_consumer_certificate_id = 2;
+    repeated Measurement.State states = 3;
+    google.protobuf.Timestamp updated_after = 4;
   }
   Filter filter = 1;
 

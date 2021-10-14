@@ -44,6 +44,17 @@ class StreamMeasurements(
       bind(EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM to filter.externalMeasurementConsumerId)
     }
 
+    if (filter.externalMeasurementConsumerCertificateId != 0L) {
+      conjuncts.add(
+        "ExternalMeasurementConsumerCertificateId = " +
+          "@$EXTERNAL_MEASUREMENT_CONSUMER_CERTIFICATE_ID_PARAM"
+      )
+      bind(
+        EXTERNAL_MEASUREMENT_CONSUMER_CERTIFICATE_ID_PARAM to
+          filter.externalMeasurementConsumerCertificateId
+      )
+    }
+
     if (filter.statesValueList.isNotEmpty()) {
       conjuncts.add("Measurements.State IN UNNEST(@$STATES_PARAM)")
       bind(STATES_PARAM).toInt64Array(filter.statesValueList.map { it.toLong() })
@@ -64,6 +75,8 @@ class StreamMeasurements(
   companion object {
     const val LIMIT_PARAM = "limit"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM = "externalMeasurementConsumerId"
+    const val EXTERNAL_MEASUREMENT_CONSUMER_CERTIFICATE_ID_PARAM =
+      "externalMeasurementConsumerCertificateId"
     const val UPDATED_AFTER_PARAM = "updatedAfter"
     const val STATES_PARAM = "states"
   }

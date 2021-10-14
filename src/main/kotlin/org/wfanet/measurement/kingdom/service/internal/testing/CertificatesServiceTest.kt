@@ -40,11 +40,14 @@ import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -75,6 +78,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected data class Services<T>(
     val certificatesService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val modelProvidersService: ModelProvidersCoroutineImplBase
   )
@@ -87,6 +91,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     private set
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    private set
+
+  protected lateinit var measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase
     private set
 
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
@@ -102,6 +109,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val services = newServices(idGenerator)
     certificatesService = services.certificatesService
     measurementConsumersService = services.measurementConsumersService
+    measurementsService = services.measurementsService
     dataProvidersService = services.dataProvidersService
     modelProvidersService = services.modelProvidersService
   }
@@ -384,22 +392,33 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `revokeCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
-    val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
-        .externalMeasurementConsumerId
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val certificate =
       certificatesService.createCertificate(
         certificate {
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
           details = details { x509Der = X509_DER }
         }
       )
 
+    val measurementOne =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer.copy { this.certificate = certificate },
+        "measurement one"
+      )
+    val measurementTwo =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer.copy { this.certificate = certificate },
+        "measurement two"
+      )
+
     val request = revokeCertificateRequest {
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
       externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
@@ -410,13 +429,33 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .isEqualTo(
         certificatesService.getCertificate(
           getCertificateRequest {
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalCertificateId = certificate.externalCertificateId
           }
         )
       )
 
     assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
+
+    val measurementOneCancelled =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementId = measurementOne.externalMeasurementId
+        }
+      )
+
+    assertThat(measurementOneCancelled.state).isEqualTo(Measurement.State.CANCELLED)
+
+    val measurementTwoCancelled =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementId = measurementTwo.externalMeasurementId
+        }
+      )
+
+    assertThat(measurementTwoCancelled.state).isEqualTo(Measurement.State.CANCELLED)
   }
 
   @Test
