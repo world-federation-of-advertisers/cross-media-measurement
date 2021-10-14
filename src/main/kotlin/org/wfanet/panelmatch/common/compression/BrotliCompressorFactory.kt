@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.common
-
-import org.wfanet.panelmatch.common.compression.BrotliCompressor
-import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.compression.CompressorFactory
-import org.wfanet.panelmatch.common.compression.Dictionary
+package org.wfanet.panelmatch.common.compression
 
 class BrotliCompressorFactory : CompressorFactory() {
   override fun build(dictionary: Dictionary): Compressor {

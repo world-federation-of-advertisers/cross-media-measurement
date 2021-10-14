@@ -14,10 +14,10 @@
 
 package org.wfanet.panelmatch.client.eventpostprocessing
 
-import org.wfanet.panelmatch.client.common.BrotliCompressorFactory
-import org.wfanet.panelmatch.client.common.BrotliDictionaryBuilder
-import org.wfanet.panelmatch.client.common.DictionaryBuilder
 import org.wfanet.panelmatch.client.eventpostprocessing.testing.AbstractUncompressEventsFnTest
+import org.wfanet.panelmatch.common.compression.BrotliCompressorFactory
+import org.wfanet.panelmatch.common.compression.BrotliDictionaryBuilder
+import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 
 class BrotliCompressorUncompressEventsFnTest : AbstractUncompressEventsFnTest() {
   override val dictionaryBuilder: DictionaryBuilder = BrotliDictionaryBuilder()

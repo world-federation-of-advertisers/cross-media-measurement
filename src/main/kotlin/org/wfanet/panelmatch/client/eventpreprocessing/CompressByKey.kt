@@ -20,7 +20,6 @@ import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.combinedEvents
 import org.wfanet.panelmatch.client.common.CompressedEvents
-import org.wfanet.panelmatch.client.common.DictionaryBuilder
 import org.wfanet.panelmatch.client.common.buildAsPCollectionView
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -30,6 +29,7 @@ import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.compression.Compressor
 import org.wfanet.panelmatch.common.compression.Dictionary
+import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 
 /**
  * First use [Sample.any] -- which is not guaranteed to be uniform -- to significantly over-sample

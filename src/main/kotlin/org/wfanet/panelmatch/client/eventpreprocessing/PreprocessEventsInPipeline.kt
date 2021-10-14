@@ -18,9 +18,9 @@ import com.google.protobuf.ByteString
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.common.CompressedEvents
-import org.wfanet.panelmatch.client.common.DictionaryBuilder
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.compression.Dictionary
+import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 
 /**
  * Output of [preprocessEventsInPipeline].

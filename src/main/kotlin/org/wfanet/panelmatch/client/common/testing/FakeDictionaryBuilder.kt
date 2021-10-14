@@ -15,9 +15,9 @@
 package org.wfanet.panelmatch.client.common.testing
 
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.client.common.DictionaryBuilder
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.Dictionary
+import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 import org.wfanet.panelmatch.common.compression.dictionary
 import org.wfanet.panelmatch.common.toByteString
 
