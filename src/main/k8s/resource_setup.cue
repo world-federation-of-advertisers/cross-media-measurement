@@ -17,7 +17,8 @@ package k8s
 #ResourceSetup: {
 	_edp_display_names: [...string]
 	_duchy_ids: [...string]
-	_job_image: string
+	_resource_setup_secret_name: string
+	_job_image:                  string
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -53,8 +54,9 @@ package k8s
 	]
 
 	resource_setup_job: #Job & {
-		_name:  "resource-setup"
-		_image: _job_image
+		_name:       "resource-setup"
+		_secretName: _resource_setup_secret_name
+		_image:      _job_image
 		_args:
 			_edp_cert_key_files_flags +
 			_mc_cert_key_files_flags +

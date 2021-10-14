@@ -43,6 +43,8 @@ objectSets: [
 // frontend_simulator,
 //]
 
+#SecretName: "TBD"
+
 #Edps: [
 	{
 		display_name:  "edp1"
@@ -75,22 +77,23 @@ objectSets: [
 #Duchies: [
 	{
 		name:                   "aggregator"
-		protocols_setup_config: #AggregatorProtocolsSetupConfig
+		protocols_setup_config: "aggregator_protocols_setup_config.textproto"
 		cs_cert_resource_name:  "TBD"
 	},
 	{
 		name:                   "worker1"
-		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		protocols_setup_config: "nonaggregator_protocols_setup_config.textproto"
 		cs_cert_resource_name:  "TBD"
 	},
 	{
 		name:                   "worker2"
-		protocols_setup_config: #NonAggregatorProtocolsSetupConfig
+		protocols_setup_config: "nonaggregator_protocols_setup_config.textproto"
 		cs_cert_resource_name:  "TBD"
 	},
 ]
 
 #GkeDuchy: #Duchy & {
+	_duchy_secret_name: #SecretName
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
 		"--instance-name=\(_spanner_instance)",
@@ -121,6 +124,7 @@ duchies: {for d in #Duchies {"\(d.name)": #GkeDuchy & {_duchy: d}}}
 
 kingdom: #Kingdom & {
 	_duchy_ids: [ for d in #Duchies {"duchy-\(d.name)"}]
+	_kingdom_secret_name: #SecretName
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",
 		"--instance-name=\(_spanner_instance)",
@@ -153,13 +157,15 @@ frontend_simulator: #FrontendSimulator & {
 resource_setup_job: #ResourceSetup & {
 	_edp_display_names: [ for d in #Edps {d.display_name}]
 	_duchy_ids: [ for d in #Duchies {d.name}]
-	_job_image: "\(_container_registry_prefix)/loadtest/resource-setup"
+	_job_image:                  "\(_container_registry_prefix)/loadtest/resource-setup"
+	_resource_setup_secret_name: #SecretName
 }
 
 edp_simulators: {
 	for d in #Edps {
 		"\(d.display_name)": #EdpSimulator & {
-			_edp: d
+			_edp:             d
+			_edp_secret_name: #SecretName
 			_blob_storage_flags: [
 				"--google-cloud-storage-bucket=\(_cloud_storage_bucket)",
 				"--google-cloud-storage-project=\(_cloud_storage_project)",

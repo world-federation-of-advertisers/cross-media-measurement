@@ -15,6 +15,7 @@
 package org.wfanet.measurement.common.identity
 
 import com.google.protobuf.ByteString
+import java.io.File
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.DuchyRpcConfig
 import picocli.CommandLine
@@ -65,7 +66,7 @@ class DuchyInfoFlags {
     description = ["DuchyRpcConfig proto message in text format."],
     required = true
   )
-  lateinit var config: String
+  lateinit var config: File
     private set
 }
 
