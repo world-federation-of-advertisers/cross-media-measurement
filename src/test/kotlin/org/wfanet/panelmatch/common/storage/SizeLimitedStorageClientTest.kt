@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.common.storage
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFails
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -79,7 +78,7 @@ class SizeLimitedStorageClientTest {
 
   @Test
   fun getBlobFailsForTooLargeBlob() = runBlockingTest {
-    delegate.createBlob(KEY, flowOf(UNSAFE_CONTENTS.toByteString()))
+    delegate.createBlob(KEY, UNSAFE_CONTENTS.toByteString())
     val blob = storageClient.getBlob(KEY)
     assertThat(blob).isNotNull()
     assertFails { blob?.size }

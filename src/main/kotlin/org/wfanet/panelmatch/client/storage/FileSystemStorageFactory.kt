@@ -12,21 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.secrets
+package org.wfanet.panelmatch.client.storage
 
-import com.google.protobuf.ByteString
+import java.io.File
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.common.storage.createBlob
-import org.wfanet.panelmatch.common.storage.toByteString
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
-/** [MutableSecretMap] implementation that stores each item in a separate blob. */
-class StorageClientSecretMap(private val storageClient: StorageClient) : MutableSecretMap {
-  override suspend fun put(key: String, value: ByteString) {
-    storageClient.getBlob(key)?.delete()
-    storageClient.createBlob(key, value)
-  }
-
-  override suspend fun get(key: String): ByteString? {
-    return storageClient.getBlob(key)?.toByteString()
+class FileSystemStorageFactory(private val baseDir: String) : StorageFactory {
+  override fun build(): StorageClient {
+    return FileSystemStorageClient(File(baseDir))
   }
 }

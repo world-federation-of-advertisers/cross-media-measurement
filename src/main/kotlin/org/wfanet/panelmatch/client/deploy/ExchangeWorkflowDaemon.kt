@@ -14,12 +14,9 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import java.security.PrivateKey
-import java.security.cert.X509Certificate
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.BrotliCompressorFactory
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
 import org.wfanet.panelmatch.client.launcher.ApiClient
@@ -30,7 +27,7 @@ import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.Identity
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.secrets.SecretMap
@@ -44,17 +41,8 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Kingdom [ApiClient]. */
   abstract val apiClient: ApiClient
 
-  // TODO derive `localCertificate`
-  abstract val localCertificate: X509Certificate
-
-  // TODO derive `partnerCertificate`
-  abstract val partnerCertificate: X509Certificate
-
-  // TODO derive `uriPrefix`
-  abstract val uriPrefix: String
-
-  /** [VerifiedStorageClient] for writing to local (non-shared) storage. */
-  abstract val privateStorage: StorageClient
+  /** [StorageFactory] for writing to local (non-shared) storage. */
+  abstract val privateStorageFactory: StorageFactory
 
   /** [SecretMap] from RecurringExchange ID to serialized ExchangeWorkflow. */
   abstract val validExchangeWorkflows: SecretMap
@@ -65,9 +53,6 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** How long a task should be allowed to run for before being cancelled. */
   abstract val taskTimeout: Timeout
 
-  // TODO: this will be refactored very shortly. In general, this (a) doesn't work and (b) is unsafe
-  abstract val privateKey: PrivateKey
-
   override fun run() {
     val exchangeTaskMapper =
       ExchangeTaskMapperForJoinKeyExchange(
@@ -75,18 +60,15 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         getDeterministicCommutativeCryptor = ::JniDeterministicCommutativeCipher,
         getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor,
         getQueryResultsDecryptor = ::JniQueryResultsDecryptor,
-        localCertificate = localCertificate,
-        partnerCertificate = partnerCertificate,
-        privateStorage = privateStorage,
-        uriPrefix = uriPrefix,
-        privateKey = privateKey
+        privateStorage = privateStorageFactory,
+        inputTaskThrottler = throttler
       )
 
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,
         timeout = taskTimeout,
-        privateStorage = privateStorage,
+        privateStorage = privateStorageFactory.build(),
         getExchangeTaskForStep = exchangeTaskMapper::getExchangeTaskForStep
       )
 

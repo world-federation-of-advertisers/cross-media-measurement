@@ -21,16 +21,16 @@ import kotlin.random.Random
 import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
+import org.wfanet.panelmatch.client.common.databaseEntryOf
 import org.wfanet.panelmatch.client.common.databaseKeyOf
 import org.wfanet.panelmatch.client.common.plaintextOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.Bucketing
-import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
+import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
-import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
@@ -73,9 +73,10 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
     val rawDatabase: Map<Long, ByteString> =
       keys.associateWith { "<this is the payload for $it>".toByteString() }
 
-    val database: Map<DatabaseKey, Plaintext> =
-      rawDatabase.mapKeys { databaseKeyOf(it.key) }.mapValues { plaintextOf(it.value) }
-    val databasePCollection = pipeline.apply("Create Database", Create.of(database))
+    val database: List<DatabaseEntry> =
+      rawDatabase.map { databaseEntryOf(databaseKeyOf(it.key), plaintextOf(it.value)) }
+    val databasePCollection: PCollection<DatabaseEntry> =
+      pipeline.apply("Create Database", Create.of(database))
 
     val rawMatchingQueries = keys.take(3).mapIndexed { i, key -> key to queryIdOf(i) }
     val rawMissingQueries = (0 until 3).map { i -> random.nextLong() to queryIdOf(3 + i) }

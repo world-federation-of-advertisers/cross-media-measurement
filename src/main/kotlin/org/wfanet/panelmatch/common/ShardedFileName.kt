@@ -45,7 +45,7 @@ data class ShardedFileName(val spec: String) {
     shardCount = matches[3].toInt()
   }
 
-  private fun fileNameForShard(i: Int): String {
+  fun fileNameForShard(i: Int): String {
     require(i in 0 until shardCount)
     val digits = shardCount.toString().length
     return "$baseName-%0${digits}d-of-$shardCount".format(i)

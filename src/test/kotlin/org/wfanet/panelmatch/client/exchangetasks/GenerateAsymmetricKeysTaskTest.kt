@@ -24,14 +24,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
-import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.toByteString
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
 class GenerateAsymmetricKeysTaskTest {
-  private val mockStorage = makeTestVerifiedStorageClient()
   private val keyGenerator =
     PlaintextPrivateMembershipCryptor("some-serialized-parameters".toByteString())::generateKeys
 

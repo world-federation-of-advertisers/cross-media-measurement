@@ -58,8 +58,10 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
 
   override fun decodeEncryptedQueryBundle(queryBundle: EncryptedQueryBundle): List<ShardedQuery> {
     val queryIdsList = queryBundle.queryIdsList
+    val nestedEncryptedQueryBundle =
+      EncryptedQueryBundle.parseFrom(queryBundle.serializedEncryptedQueries)
     val bucketValuesList =
-      ListValue.parseFrom(queryBundle.serializedEncryptedQueries).valuesList.map {
+      ListValue.parseFrom(nestedEncryptedQueryBundle.serializedEncryptedQueries).valuesList.map {
         it.stringValue.toInt()
       }
     return queryIdsList.zip(bucketValuesList) { queryId: QueryId, bucketValue: Int ->

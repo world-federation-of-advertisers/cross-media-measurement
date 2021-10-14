@@ -28,8 +28,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.JOIN_KEYS
-import org.wfanet.panelmatch.common.createBlob
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
+import org.wfanet.panelmatch.common.storage.createBlob
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputs
 

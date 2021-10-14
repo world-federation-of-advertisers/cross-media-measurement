@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common
+package org.wfanet.panelmatch.common.storage
 
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.asBufferedFlow

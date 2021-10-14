@@ -15,8 +15,6 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
-import java.security.PrivateKey
-import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
@@ -26,9 +24,11 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.buildAsPCollectionView
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResults
+import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKey
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
@@ -37,17 +37,15 @@ import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.Dictionary
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.storage.toByteString
+import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.toByteString
-import org.wfanet.panelmatch.common.toStringUtf8
 
 class DecryptPrivateMembershipResultsTask(
-  override val uriPrefix: String,
-  override val privateKey: PrivateKey,
-  override val localCertificate: X509Certificate,
+  override val storageFactory: StorageFactory,
   private val serializedParameters: ByteString,
   private val queryResultsDecryptor: QueryResultsDecryptor,
   private val compressorFactory: CompressorFactory,
-  private val partnerCertificate: X509Certificate,
   private val outputs: Outputs
 ) : ApacheBeamTask() {
 
@@ -62,38 +60,28 @@ class DecryptPrivateMembershipResultsTask(
     val pipeline = Pipeline.create()
 
     val encryptedQueryResultsFileSpec = input.getValue("encrypted-query-results")
-    val encryptedQueryResults =
-      readFromManifest(encryptedQueryResultsFileSpec, partnerCertificate).map {
-        EncryptedQueryResult.parseFrom(it)
-      }
+    val encryptedQueryResults: PCollection<EncryptedQueryResult> =
+      readFromManifest(encryptedQueryResultsFileSpec, encryptedQueryResult {})
 
     val queryToJoinKeyFileSpec = input.getValue("query-to-joinkey-map")
     val queryToJoinKey =
-      readFromManifest(queryToJoinKeyFileSpec, localCertificate).map {
-        with(QueryIdAndJoinKey.parseFrom(it)) { kvOf(queryId, joinKey) }
+      readFromManifest(queryToJoinKeyFileSpec, queryIdAndJoinKey {}).map("To KVs") {
+        kvOf(it.queryId, it.joinKey)
       }
 
     val dictionary =
-      readFileAsSingletonPCollection(
-        input.getValue("compression-dictionary").toStringUtf8(),
-        partnerCertificate
-      )
-        .map("Parse as Dictionary") { Dictionary.parseFrom(it) }
+      readSingleBlobAsPCollection(input.getValue("compression-dictionary").toStringUtf8()).map(
+        "Parse as Dictionary"
+      ) { Dictionary.parseFrom(it) }
 
     val compressor = compressorFactory.buildAsPCollectionView(dictionary)
 
     val hkdfPepper = input.getValue("hkdf-pepper").toByteString()
 
     val privateKeys =
-      readFileAsSingletonPCollection(
-        input.getValue("rlwe-serialized-private-key").toStringUtf8(),
-        localCertificate
-      )
+      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-private-key").toStringUtf8())
     val publicKeyView =
-      readFileAsSingletonPCollection(
-          input.getValue("rlwe-serialized-public-key").toStringUtf8(),
-          localCertificate
-        )
+      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-public-key").toStringUtf8())
         .toSingletonView()
     val privateMembershipKeys: PCollectionView<AsymmetricKeys> =
       privateKeys
@@ -115,8 +103,7 @@ class DecryptPrivateMembershipResultsTask(
 
     val decryptedEventDataSetFileSpec =
       ShardedFileName(outputs.decryptedEventDataSetFileName, outputs.decryptedEventDataSetFileCount)
-    decryptedEventDataSet.map { it.toByteString() }.write(decryptedEventDataSetFileSpec)
-    require(decryptedEventDataSetFileSpec.shardCount == outputs.decryptedEventDataSetFileCount)
+    decryptedEventDataSet.write(decryptedEventDataSetFileSpec)
 
     pipeline.run()
 

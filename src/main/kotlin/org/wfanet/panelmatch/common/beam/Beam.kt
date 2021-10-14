@@ -217,3 +217,7 @@ inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
 fun <T> PCollection<T>.toSingletonView(name: String = "ToView"): PCollectionView<T> {
   return apply(name, View.asSingleton())
 }
+
+fun <T> PCollection<T>.toListView(name: String = "ToView"): PCollectionView<List<T>> {
+  return apply(name, View.asList())
+}

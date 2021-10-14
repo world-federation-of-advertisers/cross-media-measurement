@@ -36,11 +36,11 @@ import org.wfanet.panelmatch.common.withTime
 /**
  * Decrypts and decompresses [encryptedQueryResults].
  *
- * There must be a bijection between [QueryId]s in [queryIdToJoinKey] and the queries present in
+ * There must be a bijection between [QueryId]s in [queryIdAndJoinKeys] and the queries present in
  * [encryptedQueryResults].
  *
  * @param encryptedQueryResults data to be decrypted and decompressed
- * @param queryIdToJoinKey joinkeys from which AES keys are derived
+ * @param queryIdAndJoinKeys joinkeys from which AES keys are derived
  * @param compressor decompresses compressed payloads
  * @param serializedParameters parameters for decryption
  * @param queryResultsDecryptor decryptor

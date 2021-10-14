@@ -33,9 +33,8 @@ abstract class AbstractVerifiedStorageTest {
 
   @Test
   fun `write and read Storage`() = runBlockingTest {
-    privateStorage.createBlob(KEY, VALUE.asBufferedFlow(1024))
-    assertThat(privateStorage.getBlob(KEY).read(1024).reduce { a, b -> a.concat(b) })
-      .isEqualTo(VALUE)
+    privateStorage.createBlob(KEY, VALUE)
+    assertThat(privateStorage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
   }
 
   @Test
@@ -69,7 +68,7 @@ abstract class AbstractVerifiedStorageTest {
 
   @Test
   fun `same key can be written to private storage and shared storage`() = runBlockingTest {
-    sharedStorage.createBlob(KEY, VALUE.asBufferedFlow(1024))
-    privateStorage.createBlob(KEY, VALUE.asBufferedFlow(1024)) // Does not throw.
+    sharedStorage.createBlob(KEY, VALUE)
+    privateStorage.createBlob(KEY, VALUE) // Does not throw.
   }
 }

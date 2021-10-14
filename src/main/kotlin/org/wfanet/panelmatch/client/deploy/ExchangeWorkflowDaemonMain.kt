@@ -14,10 +14,8 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import java.security.PrivateKey
-import java.security.cert.X509Certificate
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine
@@ -35,15 +33,7 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromF
 
   override val sharedStorage: VerifiedStorageClient
     get() = TODO("Not yet implemented")
-  override val privateStorage: StorageClient
-    get() = TODO("Not yet implemented")
-  override val localCertificate: X509Certificate
-    get() = TODO("Not yet implemented")
-  override val partnerCertificate: X509Certificate
-    get() = TODO("Not yet implemented")
-  override val uriPrefix: String
-    get() = TODO("Not yet implemented: coming from client storage")
-  override val privateKey: PrivateKey
+  override val privateStorageFactory: StorageFactory
     get() = TODO("Not yet implemented")
 
   override val validExchangeWorkflows: SecretMap by lazy {

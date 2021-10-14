@@ -15,8 +15,6 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
-import java.security.PrivateKey
-import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
@@ -27,22 +25,20 @@ import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
-import org.wfanet.panelmatch.client.privatemembership.PanelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
 import org.wfanet.panelmatch.client.privatemembership.createQueries
+import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
-import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.toByteString
-import org.wfanet.panelmatch.common.toStringUtf8
 
 class BuildPrivateMembershipQueriesTask(
-  override val localCertificate: X509Certificate,
-  override val uriPrefix: String,
-  override val privateKey: PrivateKey,
+  override val storageFactory: StorageFactory,
   private val parameters: CreateQueriesParameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
   private val outputs: Outputs
@@ -65,20 +61,12 @@ class BuildPrivateMembershipQueriesTask(
     // TODO: need to update all file names to translate labels via step.inputsMap/outputsMap
     val panelistKeyAndJoinKeysManifest = input.getValue("panelists-and-joinkeys")
     val panelistKeyAndJoinKeys =
-      readFromManifest(panelistKeyAndJoinKeysManifest, localCertificate).map {
-        PanelistKeyAndJoinKey.parseFrom(it)
-      }
+      readFromManifest(panelistKeyAndJoinKeysManifest, panelistKeyAndJoinKey {})
 
     val privateKeys =
-      readFileAsSingletonPCollection(
-        input.getValue("rlwe-serialized-private-key").toStringUtf8(),
-        localCertificate
-      )
+      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-private-key").toStringUtf8())
     val publicKeyView =
-      readFileAsSingletonPCollection(
-          input.getValue("rlwe-serialized-public-key").toStringUtf8(),
-          localCertificate
-        )
+      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-public-key").toStringUtf8())
         .toSingletonView()
     val privateMembershipKeys: PCollectionView<AsymmetricKeys> =
       privateKeys
@@ -89,7 +77,7 @@ class BuildPrivateMembershipQueriesTask(
 
     val (
       queryIdAndPanelistKeys: PCollection<QueryIdAndPanelistKey>,
-      encryptedResponses: PCollection<EncryptedQueryBundle>) =
+      encryptedQueryBundles: PCollection<EncryptedQueryBundle>) =
       createQueries(
         panelistKeyAndJoinKeys,
         privateMembershipKeys,
@@ -100,12 +88,12 @@ class BuildPrivateMembershipQueriesTask(
     val queryDecryptionKeysFileSpec =
       ShardedFileName(outputs.queryIdAndPanelistKeyFileName, outputs.queryIdAndPanelistKeyFileCount)
     require(queryDecryptionKeysFileSpec.shardCount == outputs.queryIdAndPanelistKeyFileCount)
-    queryIdAndPanelistKeys.map { it.toByteString() }.write(queryDecryptionKeysFileSpec)
+    queryIdAndPanelistKeys.write(queryDecryptionKeysFileSpec)
 
     val encryptedQueriesFileSpec =
       ShardedFileName(outputs.encryptedQueriesFileName, outputs.encryptedQueriesFileCount)
-    require(encryptedQueriesFileSpec.shardCount == outputs.encryptedQueriesFileCount)
-    encryptedResponses.map { it.toByteString() }.write(encryptedQueriesFileSpec)
+    require(encryptedQueriesFileSpec.shardCount == parameters.numShards)
+    encryptedQueryBundles.write(encryptedQueriesFileSpec)
 
     pipeline.run()
 
