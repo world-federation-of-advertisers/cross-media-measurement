@@ -220,7 +220,6 @@ abstract class MillBase(
   ) {
     val request = setComputationResultRequest {
       name = ComputationKey(globalId).toName()
-      // TODO(wangyaopw): set the cert resourceName when it is added to the protos.
       aggregatorCertificate = ByteString.copyFrom(certificate.encoded)
       this.resultPublicKey = resultPublicKey
       this.encryptedResult = encryptedResult
