@@ -36,10 +36,10 @@ import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
 import org.wfanet.panelmatch.client.privatemembership.createQueries
 import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
+import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
-import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.beam.values
@@ -185,15 +185,13 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
 
   private fun decodeEncryptedQueryBundle(
     privateMembershipCryptorHelper: PrivateMembershipCryptorHelper,
-    data: PCollection<EncryptedQueryBundle>
+    encryptedQueryBundles: PCollection<EncryptedQueryBundle>
   ): PCollection<KV<QueryId, ShardedQuery>> {
-    return data.parDo("Map to ShardedQuery") { encryptedQueriesData ->
-      val shardedQueries =
-        privateMembershipCryptorHelper.decodeEncryptedQueryBundle(
-          EncryptedQueryBundle.parseFrom(encryptedQueriesData.serializedEncryptedQueries)
-        )
-      yieldAll(shardedQueries.map { kvOf(it.queryId, it) })
-    }
+    return encryptedQueryBundles
+      .flatMap("Map to ShardedQuery") { encryptedQueryBundle ->
+        privateMembershipCryptorHelper.decodeEncryptedQueryBundle(encryptedQueryBundle)
+      }
+      .keyBy { it.queryId }
   }
 
   private fun getPanelistQueries(

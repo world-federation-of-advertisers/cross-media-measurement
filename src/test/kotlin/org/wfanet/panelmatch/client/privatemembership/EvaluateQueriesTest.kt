@@ -18,19 +18,18 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import kotlin.test.assertFails
-import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.databaseEntryOf
 import org.wfanet.panelmatch.client.common.databaseKeyOf
 import org.wfanet.panelmatch.client.common.plaintextOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluatorTestHelper
-import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.toByteString
@@ -154,12 +153,12 @@ class EvaluateQueriesTest : BeamTestBase() {
     assertFails { pipeline.run() }
   }
 
-  private fun databaseOf(
-    vararg entries: Pair<Long, String>
-  ): PCollection<KV<DatabaseKey, Plaintext>> {
+  private fun databaseOf(vararg entries: Pair<Long, String>): PCollection<DatabaseEntry> {
     return pcollectionOf(
       "Create Database",
-      entries.map { kvOf(databaseKeyOf(it.first), plaintextOf(it.second.toByteString())) }
+      entries.map {
+        databaseEntryOf(databaseKeyOf(it.first), plaintextOf(it.second.toByteString()))
+      }
     )
   }
 }

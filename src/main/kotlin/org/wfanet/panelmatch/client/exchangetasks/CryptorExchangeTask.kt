@@ -20,7 +20,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
-import org.wfanet.panelmatch.common.toByteString
+import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
 import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 

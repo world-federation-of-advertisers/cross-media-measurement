@@ -29,7 +29,7 @@ import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.common.Timeout
-import org.wfanet.panelmatch.common.createBlob
+import org.wfanet.panelmatch.common.storage.createBlob
 
 /**
  * Maps ExchangeWorkflow.Step to respective tasks. Retrieves necessary inputs. Executes step. Stores

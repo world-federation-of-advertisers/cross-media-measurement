@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.protobuf.ByteString
-import java.lang.IllegalArgumentException
 import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.PTransform
@@ -30,16 +29,14 @@ import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
 import org.wfanet.panelmatch.client.common.bucketOf
 import org.wfanet.panelmatch.client.common.databaseShardOf
-import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
-import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.withTime
 
 /** Implements a batch query engine in Apache Beam using homomorphic encryption. */
 fun evaluateQueries(
-  database: PCollection<KV<DatabaseKey, Plaintext>>,
+  database: PCollection<DatabaseEntry>,
   queryBundles: PCollection<EncryptedQueryBundle>,
   serializedPublicKey: PCollectionView<ByteString>,
   parameters: EvaluateQueriesParameters,
@@ -61,68 +58,33 @@ private class EvaluateQueries(
     val queryBundles = input[queryBundlesTag]
 
     val bucketing = Bucketing(parameters.numShards, parameters.numBucketsPerShard)
-    val databaseByShard = database.apply("Shard Database", ShardDatabase(bucketing))
-
-    val queriesByShard = queryBundles.keyBy("Key QueryBundles by Shard") { it.shardId }
-
-    @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
-    return KeyedPCollectionTuple.of(JoinAndEvaluateQueries.databaseTag, databaseByShard)
-      .and(JoinAndEvaluateQueries.queriesTag, queriesByShard)
-      .apply(
-        "Join+Evaluate",
-        JoinAndEvaluateQueries(queryEvaluator, serializedPublicKey, parameters.maxQueriesPerShard)
-      )
-  }
-
-  companion object {
-    val databaseTag = TupleTag<KV<DatabaseKey, Plaintext>>()
-    val queryBundlesTag = TupleTag<EncryptedQueryBundle>()
-  }
-}
-
-private class ShardDatabase(private val bucketing: Bucketing) :
-  PTransform<PCollection<KV<DatabaseKey, Plaintext>>, PCollection<KV<ShardId, DatabaseShard>>>() {
-
-  override fun expand(
-    input: PCollection<KV<DatabaseKey, Plaintext>>
-  ): PCollection<KV<ShardId, DatabaseShard>> {
-    return input
-      .map("Key by Shard") {
-        val (shardId, bucketId) = bucketing.apply(it.key.id)
-        kvOf(shardId, bucketOf(bucketId, listOf(it.value.payload)))
+    val databaseByShard: PCollection<KV<ShardId, Bucket>> =
+      database.map("Form Database Buckets by Shard") { databaseEntry ->
+        val (shardId, bucketId) = bucketing.apply(databaseEntry.databaseKey.id)
+        kvOf(shardId, bucketOf(bucketId, listOf(databaseEntry.plaintext.payload)))
       }
-      .groupByKey("Group by Shard")
-      .map("Map Buckets to DatabaseShard") { kv ->
-        val buckets =
-          kv.value.groupBy { it.bucketId }.map {
-            bucketOf(it.key, it.value.flatMap { bucket -> bucket.contents.itemsList })
-          }
-        kvOf(kv.key, databaseShardOf(kv.key, buckets))
-      }
-  }
-}
 
-private class JoinAndEvaluateQueries(
-  private val queryEvaluator: QueryEvaluator,
-  private val serializedPublicKey: PCollectionView<ByteString>,
-  private val maxQueriesPerShard: Int
-) : PTransform<KeyedPCollectionTuple<ShardId>, PCollection<EncryptedQueryResult>>() {
+    val queryBundlesByShard = queryBundles.keyBy("Key Queries by Shard") { it.shardId }
 
-  override fun expand(input: KeyedPCollectionTuple<ShardId>): PCollection<EncryptedQueryResult> {
-    @Suppress("NULLABILITY_MISMATCH_BASED_ON_JAVA_ANNOTATIONS")
-    return input
+    return KeyedPCollectionTuple.of(EvaluateQueriesForShardFn.databaseTag, databaseByShard)
+      .and(EvaluateQueriesForShardFn.queryBundlesTag, queryBundlesByShard)
       .apply("Join Database and Queries", CoGroupByKey.create())
-      .values("Drop ShardIds")
       .apply(
         "Evaluate Queries per Shard",
-        ParDo.of(EvaluateQueriesForShardFn(maxQueriesPerShard, queryEvaluator, serializedPublicKey))
+        ParDo.of(
+            EvaluateQueriesForShardFn(
+              parameters.maxQueriesPerShard,
+              queryEvaluator,
+              serializedPublicKey
+            )
+          )
           .withSideInputs(serializedPublicKey)
       )
   }
 
   companion object {
-    val queriesTag = TupleTag<EncryptedQueryBundle>()
-    val databaseTag = TupleTag<DatabaseShard>()
+    val databaseTag = TupleTag<DatabaseEntry>()
+    val queryBundlesTag = TupleTag<EncryptedQueryBundle>()
   }
 }
 
@@ -130,7 +92,7 @@ private class EvaluateQueriesForShardFn(
   private val maxQueriesPerShard: Int,
   private val queryEvaluator: QueryEvaluator,
   private val serializedPublicKey: PCollectionView<ByteString>
-) : DoFn<CoGbkResult, EncryptedQueryResult>() {
+) : DoFn<KV<ShardId, CoGbkResult>, EncryptedQueryResult>() {
   private val metricsNamespace = "EvaluateQueries"
 
   /** Distribution of the number of queries per shard. */
@@ -171,39 +133,46 @@ private class EvaluateQueriesForShardFn(
 
   @ProcessElement
   fun processElement(context: ProcessContext) {
-    val shards = context.element().getAll(JoinAndEvaluateQueries.databaseTag).toList()
-    val queries = context.element().getAll(JoinAndEvaluateQueries.queriesTag).toList()
-    validateAndCountInputs(shards, queries)
-    if (shards.isEmpty() || queries.isEmpty()) return
+    val joinResult = context.element().value
+    val buckets = joinResult.getAll(databaseTag).toList()
+    val queries = joinResult.getAll(queryBundlesTag).toList()
+
+    validateAndCountInputs(buckets, queries)
+    if (buckets.isEmpty() || queries.isEmpty()) return
+
+    val combinedBuckets =
+      buckets.groupBy { it.bucketId }.map { (bucketId, buckets) ->
+        bucketOf(bucketId, buckets.flatMap { it.contents.itemsList })
+      }
+    val shard = databaseShardOf(context.element().key, combinedBuckets)
 
     val publicKey = context.sideInput(serializedPublicKey)
 
-    val (results, time) = withTime { queryEvaluator.executeQueries(shards, queries, publicKey) }
+    val (results, time) =
+      withTime { queryEvaluator.executeQueries(listOf(shard), queries, publicKey) }
     queryEvaluatorTimes.update(time.toNanos())
 
-    results.forEach(context::output)
+    for (result in results) {
+      context.output(result)
+    }
   }
 
-  private fun validateAndCountInputs(
-    shards: List<DatabaseShard>,
-    queries: List<EncryptedQueryBundle>
-  ) {
+  private fun validateAndCountInputs(buckets: List<Bucket>, queries: List<EncryptedQueryBundle>) {
     for (query in queries) {
       queryBundleSizeDistribution.update(query.serializedSize.toLong())
     }
 
-    for (shard in shards) {
-      for (bucket in shard.bucketsList) {
-        bucketSizeDistribution.update(bucket.serializedSize.toLong())
-      }
+    for (bucket in buckets) {
+      bucketSizeDistribution.update(bucket.serializedSize.toLong())
     }
 
-    val shardSize = shards.sumOf { it.serializedSize.toLong() }
+    val shardSize = buckets.sumOf { it.serializedSize.toLong() }
+    databaseShardSizeDistribution.update(shardSize)
+
     val queriesSize = queries.sumOf { it.serializedSize.toLong() }
     totalSizeDistribution.update(shardSize + queriesSize)
-    databaseShardSizeDistribution.update(shardSize)
     combinedEncryptedQueryBundleSizeDistribution.update(queriesSize)
-    bucketCountDistribution.update(shards.sumOf { it.bucketsCount.toLong() })
+    bucketCountDistribution.update(buckets.size.toLong())
 
     val numQueries = queries.sumBy { it.queryIdsCount }
     queryCountsDistribution.update(numQueries.toLong())
@@ -211,10 +180,12 @@ private class EvaluateQueriesForShardFn(
       "Shard has $numQueries queries ($maxQueriesPerShard allowed)"
     }
 
-    when {
-      queries.isEmpty() -> noQueriesCounter.inc()
-      shards.isEmpty() -> missingShardsCounter.inc()
-      shards.size > 1 -> throw IllegalArgumentException("Too many DatabaseShards for shard")
-    }
+    if (queries.isEmpty()) noQueriesCounter.inc()
+    if (buckets.isEmpty()) missingShardsCounter.inc()
+  }
+
+  companion object {
+    val queryBundlesTag = TupleTag<EncryptedQueryBundle>()
+    val databaseTag = TupleTag<Bucket>()
   }
 }

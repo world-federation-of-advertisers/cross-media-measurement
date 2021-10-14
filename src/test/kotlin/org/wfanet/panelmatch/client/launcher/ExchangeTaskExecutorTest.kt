@@ -28,22 +28,20 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.launcher.testing.buildExchangeStep
-import org.wfanet.panelmatch.common.createBlob
+import org.wfanet.panelmatch.common.storage.createBlob
+import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 import org.wfanet.panelmatch.common.toByteString
-import org.wfanet.panelmatch.common.toStringUtf8
 
 @RunWith(JUnit4::class)
 class ExchangeTaskExecutorTest {
   private val apiClient: ApiClient = mock()
   private val storage = InMemoryStorageClient()
-
   private val timeout = FakeTimeout()
 
   private val exchangeTask =
@@ -52,7 +50,7 @@ class ExchangeTaskExecutorTest {
         input: Map<String, StorageClient.Blob>
       ): Map<String, Flow<ByteString>> {
         return input.mapKeys { "Out:${it.key}" }.mapValues {
-          val valString: String = it.value.read(1024).flatten().toStringUtf8()
+          val valString: String = it.value.toStringUtf8()
           "Out:$valString".toByteString().asBufferedFlow(1024)
         }
       }

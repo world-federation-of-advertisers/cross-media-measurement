@@ -12,24 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package org.wfanet.panelmatch.common.testing
 
-package wfa.panelmatch.client.privatemembership;
+import org.wfanet.measurement.common.throttler.Throttler
 
-import "wfa/panelmatch/client/privatemembership/query.proto";
-
-option java_package = "org.wfanet.panelmatch.client.privatemembership";
-option java_multiple_files = true;
-
-message DatabaseKey {
-  fixed64 id = 1;
-}
-
-message DatabaseEntry {
-  DatabaseKey database_key = 1;
-  Plaintext plaintext = 2;
-}
-
-message DatabaseEntries {
-  repeated DatabaseEntry entries = 1;
+object AlwaysReadyThrottler : Throttler {
+  override suspend fun <T> onReady(block: suspend () -> T): T {
+    return block()
+  }
 }

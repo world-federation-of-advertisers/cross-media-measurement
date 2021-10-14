@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.common
 import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.BucketId
+import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
@@ -32,6 +33,7 @@ import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
 import org.wfanet.panelmatch.client.privatemembership.bucket
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
 import org.wfanet.panelmatch.client.privatemembership.bucketId
+import org.wfanet.panelmatch.client.privatemembership.databaseEntry
 import org.wfanet.panelmatch.client.privatemembership.databaseKey
 import org.wfanet.panelmatch.client.privatemembership.databaseShard
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
@@ -115,3 +117,9 @@ fun panelistKeyOf(id: Long): PanelistKey = panelistKey { this.id = id }
 
 /** Constructs a [JoinKey]. */
 fun joinKeyOf(key: ByteString): JoinKey = joinKey { this.key = key }
+
+/** Constructs a [DatabaseEntry]. */
+fun databaseEntryOf(databaseKey: DatabaseKey, plaintext: Plaintext): DatabaseEntry = databaseEntry {
+  this.databaseKey = databaseKey
+  this.plaintext = plaintext
+}

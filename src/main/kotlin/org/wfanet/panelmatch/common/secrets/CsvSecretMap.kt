@@ -18,7 +18,6 @@ import com.google.protobuf.ByteString
 import java.nio.file.Path
 import java.util.Base64
 import org.wfanet.measurement.common.toByteString
-import org.wfanet.panelmatch.common.toByteString
 
 /**
  * SecretSet that reads in a file and treats it as a two-column CSV file.

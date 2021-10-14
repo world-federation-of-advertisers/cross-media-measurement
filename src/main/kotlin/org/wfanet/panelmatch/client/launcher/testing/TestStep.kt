@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.launcher.testing
 
-import com.google.protobuf.ByteString
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStep.SignedExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKt.signedExchangeWorkflow
@@ -26,8 +25,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.panelmatch.common.toByteString
-
-val MP_0_SECRET_KEY: ByteString = "random-mp-string-0".toByteString()
 
 val JOIN_KEYS =
   listOf(

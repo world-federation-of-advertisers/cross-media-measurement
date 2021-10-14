@@ -15,11 +15,11 @@
 package org.wfanet.panelmatch.common.secrets
 
 import com.google.protobuf.ByteString
-import kotlinx.coroutines.flow.flowOf
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.secrets.testing.AbstractMutableSecretMapTest
+import org.wfanet.panelmatch.common.storage.createBlob
 
 private const val BLOB_KEY = "some-blob-key"
 
@@ -28,7 +28,7 @@ class StorageClientSecretMapTest : AbstractMutableSecretMapTest<StorageClientSec
   override suspend fun secretMapOf(vararg items: Pair<String, ByteString>): StorageClientSecretMap {
     val storageClient = InMemoryStorageClient()
     for ((key, value) in items) {
-      storageClient.createBlob(key, flowOf(value))
+      storageClient.createBlob(key, value)
     }
 
     return StorageClientSecretMap(storageClient)
