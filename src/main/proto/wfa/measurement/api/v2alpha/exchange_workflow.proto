@@ -212,4 +212,16 @@ message ExchangeWorkflow {
 
   // The date of the first Exchange.
   google.type.Date first_exchange_date = 3;
+
+  message Schedule {
+    // Expects a valid CRON expression.
+    // See https://en.wikipedia.org/wiki/Cron#CRON_expression.
+    //
+    // Currently, only "@daily", "@weekly", "@monthly" and "@yearly" are
+    // supported.
+    string cron_expression = 1;
+  }
+
+  // How often to run the `exchange_workflow`.
+  Schedule repetition_schedule = 4;
 }

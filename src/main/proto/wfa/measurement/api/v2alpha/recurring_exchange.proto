@@ -39,9 +39,6 @@ message RecurringExchange {
   // The ExchangeWorkflow for this recurring exchange. Immutable.
   ExchangeWorkflow exchange_workflow = 2;
 
-  // How often to run the `exchange_workflow`.
-  Schedule repetition_schedule = 3;
-
   // The DataProvider party.
   string event_data_provider = 4
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
@@ -55,12 +52,6 @@ message RecurringExchange {
 
   // The date of the next Exchange.
   google.type.Date next_exchange_date = 7;
-
-  message Schedule {
-    // Expects a valid CRON expression.
-    // See https://en.wikipedia.org/wiki/Cron#CRON_expression.
-    string cron_expression = 1;
-  }
 
   enum State {
     STATE_UNSPECIFIED = 0;

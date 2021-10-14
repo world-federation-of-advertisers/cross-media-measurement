@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
+import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -35,40 +36,15 @@ message ExchangeStep {
   // Output-only.
   State state = 2;
 
-  message SignedExchangeWorkflow {
-    // Serialized exchange workflow
-    bytes serialized_exchange_workflow = 1;
-
-    // Model Provider's signature
-    bytes model_provider_signature = 2;
-
-    // Data Provider's signature
-    bytes data_provider_signature = 3;
-  }
-
   // Serialized ExchangeWorkflow that this ExchangeStep corresponds to.
-  SignedExchangeWorkflow signed_exchange_workflow = 3;
+  bytes serialized_exchange_workflow = 3;
 
-  // Current index of the step inside the signed_exchange_workflow.
-  int32 step_index = 4;
+  // Denormalized Exchange date. Must be a complete date (no field can be
+  // unset/zero).
+  google.type.Date exchange_date = 4;
 
-  // Output-only.
-  //
-  // Once predecessor steps complete, this will contain an entry for each
-  // `step.shared_input_labels` entry produced by the other party.
-  //
-  // The keys of this map are the values of the `step.shared_input_labels` map.
-  //
-  // The values of this map are serialized SignedData. Each SignedData's payload
-  // is a byte string of concatenated encrypted values of uniform length.
-  //
-  // When ExchangeStepAttempts are completed successfully,
-  // `/ExchangeStepAttempts.FinishExchangeStepAttempt` is provided
-  // with outputs via its `shared_outputs` field. To populate this field, all of
-  // the shared_outputs are (logically) aggregated into one map, and then
-  // `shared_inputs` is the subset of that map consisting of labels from
-  // `step.shared_input_labels`.
-  map<string, bytes> shared_inputs = 5;
+  // Current index of the step inside the serialized_exchange_workflow.
+  int32 step_index = 5;
 
   enum State {
     STATE_UNSPECIFIED = 0;
