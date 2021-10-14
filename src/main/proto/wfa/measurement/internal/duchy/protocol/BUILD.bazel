@@ -55,23 +55,6 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "requisition",
-    srcs = ["requisition.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-java_proto_library(
-    name = "requisition_java_proto",
-    deps = [":requisition"],
-)
-
-kt_jvm_proto_library(
-    name = "requisition_kt_jvm_proto",
-    srcs = [":requisition"],
-    deps = [":requisition_java_proto"],
-)
-
-proto_library(
     name = "liquid_legions_sketch_parameter_proto",
     srcs = ["liquid_legions_sketch_parameter.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -95,7 +78,6 @@ proto_library(
     deps = [
         ":liquid_legions_sketch_parameter_proto",
         ":liquid_legions_v2_noise_config_proto",
-        ":requisition",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
