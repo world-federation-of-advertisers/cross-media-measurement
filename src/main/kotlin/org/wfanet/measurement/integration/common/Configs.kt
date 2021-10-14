@@ -21,7 +21,6 @@ import java.nio.file.Paths
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.config.DuchyRpcConfig
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
@@ -29,8 +28,6 @@ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 val DUCHY_ID_CONFIG: DuchyIdConfig =
   loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
-val DUCHY_RPC_CONFIG: DuchyRpcConfig =
-  loadTextProto("duchy_rpc_config.textproto", DuchyRpcConfig.getDefaultInstance())
 val AGGREGATOR_PROTOCOLS_SETUP_CONFIG: ProtocolsSetupConfig =
   loadTextProto(
     "aggregator_protocols_setup_config.textproto",
