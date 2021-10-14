@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -32,6 +33,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
@@ -100,6 +102,22 @@ class CreateMeasurement(private val measurement: Measurement) :
         measurementConsumerId,
         ExternalId(measurement.externalMeasurementConsumerCertificateId)
       )
+
+    val reader =
+      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+        .bindWhereClause(
+          measurementConsumerId,
+          ExternalId(measurement.externalMeasurementConsumerCertificateId)
+        )
+
+    reader.execute(transactionContext).singleOrNull()?.let {
+      if (it.certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+      ) {
+        throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_REVOKED)
+      }
+    }
+      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)

@@ -32,6 +32,8 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -54,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
+import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
@@ -78,7 +81,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected data class Services<T>(
     val measurementsService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-    val dataProvidersService: DataProvidersCoroutineImplBase
+    val dataProvidersService: DataProvidersCoroutineImplBase,
+    val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
   )
 
   protected val testClock: Clock = Clock.systemUTC()
@@ -94,6 +98,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
 
+  protected lateinit var certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -102,6 +109,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     measurementConsumersService = services.measurementConsumersService
     measurementsService = services.measurementsService
     dataProvidersService = services.dataProvidersService
+    certificatesService = services.certificatesService
   }
 
   // TODO(@uakyol) : delete these helper functions and use Population.kt
@@ -216,6 +224,41 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+  }
+
+  @Test
+  fun `createMeasurement fails for revokedCertificate`() = runBlocking {
+    val measurementConsumer = insertMeasurementConsumer()
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+    val measurement = measurement {
+      details = details { apiVersion = "v2alpha" }
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+      this.dataProviders[externalDataProviderId] =
+        dataProviderValue {
+          this.externalDataProviderCertificateId = externalDataProviderCertificateId
+        }
+      this.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+    }
+
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        externalCertificateId = externalMeasurementConsumerCertificateId
+        revocationState = Certificate.RevocationState.REVOKED
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(measurement) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate has been revoked")
   }
 
   @Test

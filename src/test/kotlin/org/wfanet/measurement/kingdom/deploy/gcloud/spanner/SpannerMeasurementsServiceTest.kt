@@ -36,7 +36,8 @@ class SpannerMeasurementsServiceTest : MeasurementsServiceTest<SpannerMeasuremen
     return Services<SpannerMeasurementsService>(
       spannerServices.measurementsService as SpannerMeasurementsService,
       spannerServices.measurementConsumersService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
+      spannerServices.certificatesService
     )
   }
 }
