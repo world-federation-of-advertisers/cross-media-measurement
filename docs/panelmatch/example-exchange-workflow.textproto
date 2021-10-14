@@ -82,14 +82,27 @@ steps {
   output_labels { key: "input" value: "mp-commutative-deterministic-key" }
 }
 
-# MP provides unencrypted joinkeys previously hashed using identifier hash pepper.
+# MP provides unencrypted hashed join keys previously hashed using identifier hash pepper
 steps {
-  step_id: "input-hashed-joinkeys"
+  step_id: "input-hashed-join-keys"
   party: MODEL_PROVIDER
 
   input_step {}
 
-  output_labels { key: "input" value: "mp-hashed-joinkeys" }
+  output_labels { key: "input" value: "mp-raw-hashed-join-keys" }
+}
+
+# MP generates ids for join keys that are to be shared with EDP.
+steps {
+  step_id: "generate-join-key-ids"
+  party: MODEL_PROVIDER
+
+  generate_join_key_ids_step {}
+
+  input_labels { key: "input" value: "mp-commutative-deterministic-key" }
+  input_labels { key: "input" value: "mp-raw-hashed-join-keys" }
+
+  output_labels { key: "input" value: "mp-hashed-join-keys" }
 }
 
 # EDP provides previously generated private key as input.
@@ -107,15 +120,15 @@ steps {
 # These are used to validate that the new single-blinded joinkeys derived in
 # this protocol don't deviate too much.
 steps {
-  step_id: "input-previous-single-blinded-joinkeys"
+  step_id: "input-previous-single-blinded-join-keys"
   party: DATA_PROVIDER
 
   input_step {}
 
-  output_labels { key: "input" value: "edp-previous-single-blinded-joinkeys" }
+  output_labels { key: "input" value: "edp-previous-single-blinded-join-keys" }
 }
 
-# MP wraps their panelist identifiers in a layer of deterministic commutative
+# MP wraps their hashed join keys in a layer of deterministic commutative
 # encryption.
 steps {
   step_id: "single-blind"
@@ -123,36 +136,36 @@ steps {
 
   encrypt_step {}
 
-  input_labels { key: "data" value: "mp-hashed-joinkeys" }
+  input_labels { key: "data" value: "mp-hashed-join-keys" }
   input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
 
-  output_labels { key: "output" value: "mp-single-blinded-joinkeys" }
+  output_labels { key: "output" value: "mp-single-blinded-join-keys" }
 }
 
 steps {
-  step_id: "export-single-blinded-joinkeys"
+  step_id: "export-single-blinded-join-keys"
   party: MODEL_PROVIDER
 
   copy_to_shared_storage_step {}
 
-  input_labels { key: "single-blinded-joinkeys" value: "mp-single-blinded-joinkeys" }
-  output_labels { key: "single-blinded-joinkeys" value: "single-blinded-joinkeys" }
+  input_labels { key: "single-blinded-join-keys" value: "mp-single-blinded-join-keys" }
+  output_labels { key: "single-blinded-join-keys" value: "single-blinded-join-keys" }
 }
 
 steps {
-  step_id: "import-single-blinded-joinkeys"
+  step_id: "import-single-blinded-join-keys"
   party: DATA_PROVIDER
 
   copy_from_shared_storage_step {}
 
-  input_labels { key: "single-blinded-joinkeys" value: "single-blinded-joinkeys" }
-  output_labels { key: "single-blinded-joinkeys" value: "edp-single-blinded-joinkeys" }
+  input_labels { key: "single-blinded-join-keys" value: "single-blinded-join-keys" }
+  output_labels { key: "single-blinded-join-keys" value: "edp-single-blinded-join-keys" }
 }
 
-# EDP validates that the single-encrypted panelist identifiers are sufficiently
-# similar to the previous execution's single-encrypted panelist identifiers.
+# EDP validates that the single-encrypted join keys are sufficiently
+# similar to the previous execution's single-encrypted join keys.
 steps {
-  step_id: "validate-single-blinded-joinkeys"
+  step_id: "validate-single-blinded-join-keys"
   party: DATA_PROVIDER
 
   # Ensure there are are between 1000 and 10,000 panelists and 99% of them
@@ -162,14 +175,14 @@ steps {
     minimum_overlap: 0.99
   }
 
-  input_labels { key: "previous-data" value: "edp-previous-single-blinded-joinkeys" }
-  input_labels { key: "current-data" value: "edp-single-blinded-joinkeys" }
+  input_labels { key: "previous-data" value: "edp-previous-single-blinded-join-keys" }
+  input_labels { key: "current-data" value: "edp-single-blinded-join-keys" }
 
   # Outputs "current-data" as a local copy for long-term auditing storage.
   output_labels { key: "output" value: "edp-single-blinded-joinkeys-copy" }
 }
 
-# EDP wraps the single-encrypted panelist identifiers in another layer of
+# EDP wraps the single-encrypted join keys in another layer of
 # commutative deterministic encryption.
 steps {
   step_id: "double-blind"
@@ -180,27 +193,27 @@ steps {
   input_labels { key: "data" value: "edp-single-blinded-joinkeys-copy" }
   input_labels { key: "crypto-key" value: "edp-commutative-deterministic-key" }
 
-  output_labels { key: "output" value: "edp-double-blinded-joinkeys" }
+  output_labels { key: "output" value: "edp-double-blinded-join-keys" }
 }
 
 steps {
-  step_id: "export-double-blinded-joinkeys"
+  step_id: "export-double-blinded-join-keys"
   party: DATA_PROVIDER
 
   copy_to_shared_storage_step {}
 
-  input_labels { key: "double-blinded-joinkeys" value: "edp-double-blinded-joinkeys" }
-  output_labels { key: "double-blinded-joinkeys" value: "double-blinded-joinkeys" }
+  input_labels { key: "double-blinded-join-keys" value: "edp-double-blinded-join-keys" }
+  output_labels { key: "double-blinded-join-keys" value: "double-blinded-join-keys" }
 }
 
 steps {
-  step_id: "import-double-blinded-joinkeys"
+  step_id: "import-double-blinded-join-keys"
   party: MODEL_PROVIDER
 
   copy_from_shared_storage_step {}
 
-  input_labels { key: "double-blinded-joinkeys" value: "double-blinded-joinkeys" }
-  output_labels { key: "double-blinded-joinkeys" value: "mp-double-blinded-joinkeys" }
+  input_labels { key: "double-blinded-join-keys" value: "double-blinded-join-keys" }
+  output_labels { key: "double-blinded-join-keys" value: "mp-double-blinded-join-keys" }
 }
 
 # MP removes their layer of commutative, deterministic encryption.
@@ -211,7 +224,7 @@ steps {
   decrypt_step {}
 
   input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
-  input_labels { key: "data" value: "mp-double-blinded-joinkeys" }
+  input_labels { key: "data" value: "mp-double-blinded-join-keys" }
 
   output_labels { key: "output" value: "mp-lookup-keys" }
 }
@@ -229,16 +242,6 @@ steps {
   output_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
 }
 
-# MP provides previously generated panelist identifiers in the same order as original single joinkeys.
-steps {
-  step_id: "input-panelist-identifiers"
-  party: MODEL_PROVIDER
-
-  input_step {}
-
-  output_labels { key: "input" value: "mp-panelist-identifiers" }
-}
-
 # MP encrypts their queries.
 steps {
   step_id: "prepare-event-lookup-queries"
@@ -249,11 +252,11 @@ steps {
   }
 
   input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
-  input_labels { key: "panelist-identifiers" value: "mp-panelist-identifiers" }
+  input_labels { key: "hashed-join-keys" value: "mp-hashed-join-keys" }
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
 
-  output_labels { key: "query-decryption-keys" value: "mp-query-decryption-keys" }
+  output_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
   output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
 }
 
@@ -393,7 +396,7 @@ steps {
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
   input_labels { key: "event-data-dictionary" value: "mp-event-data-dictionary" }
-  input_labels { key: "query-decryption-keys" value: "mp-query-decryption-keys" }
+  input_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
   input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
 
   output_labels { key: "results" value: "results" }
