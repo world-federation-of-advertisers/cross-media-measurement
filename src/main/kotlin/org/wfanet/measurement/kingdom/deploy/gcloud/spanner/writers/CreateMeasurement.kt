@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import java.time.Clock
+import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -53,6 +54,7 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
+    val now = clock.instant()
     val measurementConsumerId: InternalId =
       readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
 
@@ -67,6 +69,7 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
     insertMeasurement(
+      now,
       measurementConsumerId,
       measurementId,
       externalMeasurementId,
@@ -76,7 +79,13 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
     // Insert into Requisitions for each EDP
     for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
       val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
-      insertRequisition(measurementConsumerId, measurementId, dataProviderId, dataProviderValue)
+      insertRequisition(
+        now,
+        measurementConsumerId,
+        measurementId,
+        dataProviderId,
+        dataProviderValue
+      )
     }
 
     DuchyIds.entries.forEach { entry ->
@@ -94,6 +103,7 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
   }
 
   private suspend fun TransactionScope.insertMeasurement(
+    now: Instant,
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     externalMeasurementId: ExternalId,
@@ -105,24 +115,12 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
         ExternalId(measurement.externalMeasurementConsumerCertificateId)
       )
 
-    val reader =
-      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-        .bindWhereClause(
-          measurementConsumerId,
-          ExternalId(measurement.externalMeasurementConsumerCertificateId)
-        )
-
-    reader.execute(transactionContext).singleOrNull()?.let {
-      val now = clock.instant()
-      if (it.certificate.revocationState !=
-          Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
-          now.isBefore(it.certificate.notValidBefore.toInstant()) ||
-          now.isAfter(it.certificate.notValidAfter.toInstant())
-      ) {
-        throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
-      }
-    }
-      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+    validateCertificate(
+      CertificateReader.ParentType.MEASUREMENT_CONSUMER,
+      measurementConsumerId,
+      ExternalId(measurement.externalMeasurementConsumerCertificateId),
+      now
+    )
 
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -159,6 +157,7 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
   }
 
   private suspend fun TransactionScope.insertRequisition(
+    now: Instant,
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     dataProviderId: InternalId,
@@ -169,6 +168,13 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
         dataProviderId,
         ExternalId(dataProviderValue.externalDataProviderCertificateId)
       )
+
+    validateCertificate(
+      CertificateReader.ParentType.DATA_PROVIDER,
+      dataProviderId,
+      ExternalId(dataProviderValue.externalDataProviderCertificateId),
+      now
+    )
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -297,4 +303,24 @@ private suspend fun TransactionScope.readMeasurementConsumerCertificateId(
       "Certificate for MeasurementConsumer ${measurementConsumerId.value} with external ID " +
         "$externalCertificateId not found"
     }
+}
+
+private suspend fun TransactionScope.validateCertificate(
+  parentType: CertificateReader.ParentType,
+  parentId: InternalId,
+  externalCertificateId: ExternalId,
+  now: Instant
+) {
+  val reader = CertificateReader(parentType).bindWhereClause(parentId, externalCertificateId)
+
+  reader.execute(transactionContext).singleOrNull()?.let {
+    if (it.certificate.revocationState !=
+        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
+        now.isBefore(it.certificate.notValidBefore.toInstant()) ||
+        now.isAfter(it.certificate.notValidAfter.toInstant())
+    ) {
+      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    }
+  }
+    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
 }
