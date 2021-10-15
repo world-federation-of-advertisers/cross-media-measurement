@@ -18,6 +18,7 @@ _duchy_name:                   string @tag("duchy_name")
 _duchy_cert_name:              string @tag("duchy_cert_name")
 _duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
 _secret_name:                  string @tag("secret_name")
+_environment:                  string @tag("environment")
 
 #KingdomSystemApiTarget:  "kingdom.dev.halo-cmm.org:8443"
 #GloudProject:            "halo-cmm-dev"
@@ -29,6 +30,7 @@ _secret_name:                  string @tag("secret_name")
 objectSets: [default_deny_ingress] + [ for d in duchy {d}]
 
 duchy: #Duchy & {
+	_env: _environment
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
