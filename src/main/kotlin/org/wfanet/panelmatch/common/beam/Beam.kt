@@ -14,6 +14,8 @@
 
 package org.wfanet.panelmatch.common.beam
 
+import org.apache.beam.sdk.coders.KvCoder
+import org.apache.beam.sdk.coders.NullableCoder
 import org.apache.beam.sdk.transforms.Combine
 import org.apache.beam.sdk.transforms.Count
 import org.apache.beam.sdk.transforms.DoFn
@@ -31,6 +33,7 @@ import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionList
 import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
+import org.wfanet.panelmatch.common.singleOrNullIfEmpty
 
 /** Kotlin convenience helper for making [KV]s. */
 fun <KeyT, ValueT> kvOf(key: KeyT, value: ValueT): KV<KeyT, ValueT> {
@@ -160,7 +163,28 @@ inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<
   right: PCollection<KV<KeyT, RightT>>,
   name: String = "Strict Join",
 ): PCollection<KV<LeftT, RightT>> {
-  return join(right, name) { _, lefts, rights -> yield(kvOf(lefts.single(), rights.single())) }
+  return oneToOneJoin(right, name = "$name/Join").map("$name/RequireNotNull") {
+    kvOf(requireNotNull(it.key), requireNotNull(it.value))
+  }
+}
+
+/**
+ * Kotlin convenience helper for a join between two [PCollection]s where for each key, each
+ * PCollection contains at most one item.
+ */
+inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<KV<KeyT, LeftT>>.oneToOneJoin(
+  right: PCollection<KV<KeyT, RightT>>,
+  name: String = "One-to-One Join",
+): PCollection<KV<LeftT?, RightT?>> {
+  return join<KeyT, LeftT, RightT, KV<LeftT?, RightT?>>(right, name) { _, lefts, rights ->
+      yield(kvOf(lefts.singleOrNullIfEmpty(), rights.singleOrNullIfEmpty()))
+    }
+    .setCoder(
+      KvCoder.of(
+        NullableCoder.of((coder as KvCoder<KeyT, LeftT>).valueCoder),
+        NullableCoder.of((right.coder as KvCoder<KeyT, RightT>).valueCoder)
+      )
+    )
 }
 
 /** Kotlin convenience helper for getting the size of a [PCollection]. */

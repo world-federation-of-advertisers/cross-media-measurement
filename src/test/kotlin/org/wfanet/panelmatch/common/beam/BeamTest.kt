@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.beam
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFails
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
@@ -154,6 +155,26 @@ class BeamTest : BeamTestBase() {
   fun joinIgnoringArguments() {
     val result: PCollection<Int> = collection.join(anotherCollection) { _, _, _ -> yield(1) }
     assertThat(result).containsInAnyOrder(1, 1, 1, 1)
+  }
+
+  @Test
+  fun oneToOneJoinFailsWithManyOnOneSide() {
+    collection.oneToOneJoin(anotherCollection)
+    assertFails { pipeline.run() }
+  }
+
+  @Test
+  fun oneToOneJoin() {
+    collection.oneToOneJoin(yetAnotherCollection)
+    val left = pcollectionOf("Left", kvOf(1, "only-on-left"), kvOf(2, "in-both:left"))
+    val right = pcollectionOf("Right", kvOf(3, "only-on-right"), kvOf(2, "in-both:right"))
+    val result = left.oneToOneJoin(right)
+    assertThat(result)
+      .containsInAnyOrder(
+        kvOf("only-on-left", null),
+        kvOf(null, "only-on-right"),
+        kvOf("in-both:left", "in-both:right")
+      )
   }
 
   @Test

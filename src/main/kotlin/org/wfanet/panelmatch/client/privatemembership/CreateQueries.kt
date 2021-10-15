@@ -37,14 +37,13 @@ import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
-import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
 import org.wfanet.panelmatch.common.beam.filter
 import org.wfanet.panelmatch.common.beam.groupByKey
-import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.oneToOneJoin
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
@@ -189,31 +188,18 @@ private class CreateQueries(
       .filter("Filter out padded queries") {
         it.lookupKeyAndId.joinKeyIdentifier.id != FAKE_JOIN_KEY_ID
       }
-      .keyBy { it.lookupKeyAndId.joinKeyIdentifier }
-      /** We can't strict join here in case one of the queries was dropped. */
-      // TODO Turn this into a DoFn so we can export some metrics about it
-      .join(keyedHashedJoinKeyAndIds, name = "Join FullUnencryptedQuery+HashedJoinKeys") {
-        key: JoinKeyIdentifier,
-        fullUnencryptedQueriesIterable: Iterable<FullUnencryptedQuery>,
-        hashedJoinKeyAndIdsIterable: Iterable<JoinKeyAndId> ->
-        val fullUnencryptedQueriesList = fullUnencryptedQueriesIterable.toList()
-        val hashedJoinKeyAndIdsList = hashedJoinKeyAndIdsIterable.toList()
-        if ((fullUnencryptedQueriesList.isNotEmpty()) and (hashedJoinKeyAndIdsList.isNotEmpty())) {
-
-          val fullUnencryptedQuery =
-            requireNotNull(fullUnencryptedQueriesList.singleOrNull()) {
-              "${fullUnencryptedQueriesList.size} queries for $key"
-            }
-
-          val hashedJoinKeyAndId =
-            requireNotNull(hashedJoinKeyAndIdsList.singleOrNull()) {
-              "${hashedJoinKeyAndIdsList.size} of panelistKeys for $key"
-            }
+      .keyBy("Key by JoinKey") { it.lookupKeyAndId.joinKeyIdentifier }
+      .oneToOneJoin(keyedHashedJoinKeyAndIds, name = "Join FullUnencryptedQuery+HashedJoinKeys")
+      // TODO: Consider using DoFn to export some metrics about this
+      .parDo("Make QueryIdAndJoinKeys") { kv ->
+        val query: FullUnencryptedQuery? = kv.key
+        val joinKeyAndId: JoinKeyAndId? = kv.value
+        if (query != null && joinKeyAndId != null) {
           yield(
             queryIdAndJoinKeys {
-              queryId = fullUnencryptedQuery.unencryptedQuery.queryId
-              hashedJoinKey = hashedJoinKeyAndId.joinKey
-              lookupKey = fullUnencryptedQuery.lookupKeyAndId.joinKey
+              queryId = query.unencryptedQuery.queryId
+              hashedJoinKey = joinKeyAndId.joinKey
+              lookupKey = query.lookupKeyAndId.joinKey
             }
           )
         }
