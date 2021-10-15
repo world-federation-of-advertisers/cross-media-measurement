@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -23,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.compression.NoOpCompressorFactory
@@ -40,6 +42,7 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
       override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
       override val privateStorage = StorageFactory { InMemoryStorageClient() }
       override val inputTaskThrottler = AlwaysReadyThrottler
+      override val getQueryResultsEvaluator = { _: ByteString -> PlaintextQueryEvaluator }
     }
 
   @Test
