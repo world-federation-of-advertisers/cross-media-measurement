@@ -26,29 +26,25 @@ import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
 /** Maps join key exchange steps to exchange tasks */
-// TODO make this class abstract and move the constructor params to lazy props
-class ExchangeTaskMapperForJoinKeyExchange(
-  private val compressorFactory: CompressorFactory,
-  private val getDeterministicCommutativeCryptor: () -> DeterministicCommutativeCipher,
-  private val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor,
-  private val getQueryResultsDecryptor: () -> QueryResultsDecryptor,
-  private val privateStorage: StorageFactory,
-  private val inputTaskThrottler: Throttler
-) : ExchangeTaskMapper {
+abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
+  abstract val compressorFactory: CompressorFactory
+  abstract val deterministicCommutativeCryptor: DeterministicCommutativeCipher
+  abstract val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor
+  abstract val queryResultsDecryptor: QueryResultsDecryptor
+  abstract val privateStorage: StorageFactory
+  abstract val inputTaskThrottler: Throttler
 
   override suspend fun getExchangeTaskForStep(step: ExchangeWorkflow.Step): ExchangeTask {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     return when (step.stepCase) {
-      StepCase.ENCRYPT_STEP ->
-        CryptorExchangeTask.forEncryption(getDeterministicCommutativeCryptor())
+      StepCase.ENCRYPT_STEP -> CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
       StepCase.REENCRYPT_STEP ->
-        CryptorExchangeTask.forReEncryption(getDeterministicCommutativeCryptor())
-      StepCase.DECRYPT_STEP ->
-        CryptorExchangeTask.forDecryption(getDeterministicCommutativeCryptor())
+        CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
+      StepCase.DECRYPT_STEP -> CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
       StepCase.INPUT_STEP -> getInputStepTask(step)
       StepCase.INTERSECT_AND_VALIDATE_STEP -> getIntersectAndValidateStepTask(step)
       StepCase.GENERATE_COMMUTATIVE_DETERMINISTIC_KEY_STEP ->
-        GenerateSymmetricKeyTask(generateKey = getDeterministicCommutativeCryptor()::generateKey)
+        GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
       StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP -> getGenerateSerializedRLWEKeysStepTask(step)
       StepCase.GENERATE_CERTIFICATE_STEP -> TODO()
       StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> TODO()
@@ -125,7 +121,7 @@ class ExchangeTaskMapperForJoinKeyExchange(
     return DecryptPrivateMembershipResultsTask(
       storageFactory = privateStorage,
       serializedParameters = step.decryptPrivateMembershipQueryResultsStep.serializedParameters,
-      queryResultsDecryptor = getQueryResultsDecryptor(),
+      queryResultsDecryptor = queryResultsDecryptor,
       compressorFactory = compressorFactory,
       outputs = outputs,
     )

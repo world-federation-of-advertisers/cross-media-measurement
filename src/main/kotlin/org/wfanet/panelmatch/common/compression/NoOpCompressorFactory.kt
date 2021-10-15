@@ -15,7 +15,7 @@
 package org.wfanet.panelmatch.common.compression
 
 /** WARNING: since this does no compression, you likely do not want to use it in production. */
-class NoOpCompressorFactory : CompressorFactory() {
+object NoOpCompressorFactory : CompressorFactory() {
   override fun build(dictionary: Dictionary): Compressor {
     return NoOpCompressor()
   }

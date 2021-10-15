@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.launcher.Identity
@@ -38,6 +39,13 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
   /** [VerifiedStorageClient] for payloads to be shared with the other party. */
   abstract val sharedStorage: VerifiedStorageClient
+
+  override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
+    ProductionExchangeTaskMapper(
+      privateStorage = privateStorageFactory,
+      inputTaskThrottler = throttler,
+    )
+  }
 
   override val apiClient: ApiClient by lazy {
     val clientCerts =

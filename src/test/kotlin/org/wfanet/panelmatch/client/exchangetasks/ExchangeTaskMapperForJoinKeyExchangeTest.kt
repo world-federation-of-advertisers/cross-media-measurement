@@ -24,6 +24,7 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptor
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.compression.NoOpCompressorFactory
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.testing.AlwaysReadyThrottler
@@ -31,17 +32,15 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 @RunWith(JUnit4::class)
 class ExchangeTaskMapperForJoinKeyExchangeTest {
-  private val privateStorage = InMemoryStorageClient()
-
   private val exchangeTaskMapper =
-    ExchangeTaskMapperForJoinKeyExchange(
-      compressorFactory = NoOpCompressorFactory(),
-      getDeterministicCommutativeCryptor = ::FakeDeterministicCommutativeCipher,
-      getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor,
-      getQueryResultsDecryptor = ::PlaintextQueryResultsDecryptor,
-      privateStorage = ::privateStorage,
-      inputTaskThrottler = AlwaysReadyThrottler
-    )
+    object : ExchangeTaskMapperForJoinKeyExchange() {
+      override val compressorFactory = NoOpCompressorFactory
+      override val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
+      override val getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor
+      override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
+      override val privateStorage = StorageFactory { InMemoryStorageClient() }
+      override val inputTaskThrottler = AlwaysReadyThrottler
+    }
 
   @Test
   fun `map input task`() = runBlockingTest {

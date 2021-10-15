@@ -24,7 +24,7 @@ import com.google.protobuf.ByteString
 class UncompressedDictionaryBuilder : DictionaryBuilder {
   override val preferredSampleSize: Int = 0
 
-  override val factory: CompressorFactory = NoOpCompressorFactory()
+  override val factory: CompressorFactory = NoOpCompressorFactory
 
   override fun buildDictionary(eventsSample: Iterable<ByteString>): Dictionary {
     return dictionary {}
