@@ -15,6 +15,7 @@
 package k8s
 
 _secret_name: string @tag("secret_name")
+_environment: string @tag("environment")
 
 #GloudProject:            "halo-cmm-dev"
 #SpannerInstance:         "dev-instance"
@@ -27,6 +28,7 @@ objectSets: [
 ] + [ for k in kingdom {k}]
 
 kingdom: #Kingdom & {
+	_env:                 _environment
 	_kingdom_secret_name: _secret_name
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",

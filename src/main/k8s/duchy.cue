@@ -17,6 +17,7 @@ package k8s
 import ("strings")
 
 #Duchy: {
+	_env: "local" | "dev" | "prod"
 	_duchy: {name: string, protocols_setup_config: string, cs_cert_resource_name: string}
 	_duchy_secret_name:         string
 	_kingdom_system_api_target: string
@@ -40,7 +41,7 @@ import ("strings")
 	_computations_service_target_flag:                  "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
 	_computations_service_cert_host_flag:               "--computations-service-cert-host=localhost"
 	_duchy_name_flag:                                   "--duchy-name=\(_name)"
-	_duchy_info_config_flag:                            "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config.textproto"
+	_duchy_info_config_flag:                            "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config_\(_env).textproto"
 	_duchy_protocols_setup_config_flag:                 "--protocols-setup-config=/var/run/secrets/files/\(_protocols_setup_config)"
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"

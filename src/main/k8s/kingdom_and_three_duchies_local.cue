@@ -82,6 +82,7 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 	]
 	_replicas: 1 // We should have 1 and only 1 fake storage server.
 }
+#ENV: "local"
 
 #Edps: [
 	{
@@ -133,6 +134,7 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 
 #LocalDuchy: #Duchy & {
+	_env:                       #ENV
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_spanner_schema_push_flags: [
 		"--create-instance",
@@ -167,6 +169,7 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 duchies: {for d in #Duchies {"\(d.name)": #LocalDuchy & {_duchy: d}}}
 
 kingdom: #Kingdom & {
+	_env: #ENV
 	_spanner_schema_push_flags: [
 		"--create-instance",
 		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
