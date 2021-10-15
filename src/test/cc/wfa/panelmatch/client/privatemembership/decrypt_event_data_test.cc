@@ -34,6 +34,7 @@ using ::google::protobuf::RepeatedPtrField;
 using ::testing::Eq;
 using ::testing::Pointwise;
 using ::wfa::EqualsProto;
+using ::wfa::panelmatch::client::exchangetasks::JoinKey;
 using ::wfa::panelmatch::common::crypto::Aes;
 using ::wfa::panelmatch::common::crypto::AesWithHkdf;
 using ::wfa::panelmatch::common::crypto::GetAesSivCmac512;
@@ -42,9 +43,9 @@ using ::wfa::panelmatch::common::crypto::Hkdf;
 
 TEST(DecryptEventData, DecryptEventDataTest) {
   std::string hkdf_pepper = "some-pepper";
-  std::string key = "some-single-blinded-joinkey";
-  JoinKey single_blinded_joinkey;
-  single_blinded_joinkey.set_key(key);
+  std::string key = "some-single-blinded-JoinKey";
+  JoinKey lookup_key;
+  lookup_key.set_key(key);
   std::string plaintext = "Some data to encrypt.";
 
   // We first generate a valid ciphertext
@@ -58,7 +59,7 @@ TEST(DecryptEventData, DecryptEventDataTest) {
 
   DecryptEventDataRequest test_request;
   test_request.set_hkdf_pepper(hkdf_pepper);
-  test_request.mutable_single_blinded_joinkey()->set_key(key);
+  test_request.mutable_lookup_key()->set_key(key);
   test_request.mutable_encrypted_event_data_set()
       ->mutable_encrypted_event_data()
       ->add_ciphertexts(ciphertext);

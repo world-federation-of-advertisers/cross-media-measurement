@@ -93,12 +93,12 @@ class ExchangeTaskMapperForJoinKeyExchange(
       getPrivateMembershipCryptor(step.buildPrivateMembershipQueriesStep.serializedParameters)
     val outputs =
       BuildPrivateMembershipQueriesTask.Outputs(
-        encryptedQueriesFileCount =
+        encryptedQueryBundlesFileCount =
           step.buildPrivateMembershipQueriesStep.encryptedQueryBundleFileCount,
-        encryptedQueriesFileName = step.outputLabelsMap.getValue("encrypted-queries"),
-        queryIdAndPanelistKeyFileCount =
+        encryptedQueryBundlesFileName = step.outputLabelsMap.getValue("encrypted-queries"),
+        queryIdAndJoinKeysFileCount =
           step.buildPrivateMembershipQueriesStep.queryIdAndPanelistKeyFileCount,
-        queryIdAndPanelistKeyFileName = step.outputLabelsMap.getValue("query-decryption-keys"),
+        queryIdAndJoinKeysFileName = step.outputLabelsMap.getValue("query-decryption-keys"),
       )
     return BuildPrivateMembershipQueriesTask(
       storageFactory = privateStorage,
@@ -118,9 +118,9 @@ class ExchangeTaskMapperForJoinKeyExchange(
     require(step.stepCase == StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP)
     val outputs =
       DecryptPrivateMembershipResultsTask.Outputs(
-        decryptedEventDataSetFileCount =
+        keyedDecryptedEventDataSetFileCount =
           step.decryptPrivateMembershipQueryResultsStep.decryptEventDataSetFileCount,
-        decryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
+        keyedDecryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
       )
     return DecryptPrivateMembershipResultsTask(
       storageFactory = privateStorage,

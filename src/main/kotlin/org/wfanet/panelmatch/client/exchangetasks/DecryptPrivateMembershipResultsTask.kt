@@ -22,15 +22,14 @@ import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.buildAsPCollectionView
-import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResults
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKey
+import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKeys
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
-import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
@@ -50,8 +49,8 @@ class DecryptPrivateMembershipResultsTask(
 ) : ApacheBeamTask() {
 
   data class Outputs(
-    val decryptedEventDataSetFileName: String,
-    val decryptedEventDataSetFileCount: Int
+    val keyedDecryptedEventDataSetFileName: String,
+    val keyedDecryptedEventDataSetFileCount: Int
   )
 
   override suspend fun execute(
@@ -63,11 +62,8 @@ class DecryptPrivateMembershipResultsTask(
     val encryptedQueryResults: PCollection<EncryptedQueryResult> =
       readFromManifest(encryptedQueryResultsFileSpec, encryptedQueryResult {})
 
-    val queryToJoinKeyFileSpec = input.getValue("query-to-joinkey-map")
-    val queryToJoinKey =
-      readFromManifest(queryToJoinKeyFileSpec, queryIdAndJoinKey {}).map("To KVs") {
-        kvOf(it.queryId, it.joinKey)
-      }
+    val queryAndJoinKeysFileSpec = input.getValue("query-to-join-keys-map")
+    val queryAndJoinKeys = readFromManifest(queryAndJoinKeysFileSpec, queryIdAndJoinKeys {})
 
     val dictionary =
       readSingleBlobAsPCollection(input.getValue("compression-dictionary").toStringUtf8()).map(
@@ -90,10 +86,10 @@ class DecryptPrivateMembershipResultsTask(
         }
         .toSingletonView()
 
-    val decryptedEventDataSet: PCollection<DecryptedEventDataSet> =
+    val keyedDecryptedEventDataSet: PCollection<KeyedDecryptedEventDataSet> =
       decryptQueryResults(
         encryptedQueryResults,
-        queryToJoinKey,
+        queryAndJoinKeys,
         compressor,
         privateMembershipKeys,
         serializedParameters,
@@ -101,14 +97,17 @@ class DecryptPrivateMembershipResultsTask(
         hkdfPepper,
       )
 
-    val decryptedEventDataSetFileSpec =
-      ShardedFileName(outputs.decryptedEventDataSetFileName, outputs.decryptedEventDataSetFileCount)
-    decryptedEventDataSet.write(decryptedEventDataSetFileSpec)
+    val keyedDecryptedEventDataSetFileSpec =
+      ShardedFileName(
+        outputs.keyedDecryptedEventDataSetFileName,
+        outputs.keyedDecryptedEventDataSetFileCount
+      )
+    keyedDecryptedEventDataSet.write(keyedDecryptedEventDataSetFileSpec)
 
     pipeline.run()
 
     return mapOf(
-      "decrypted-event-data" to flowOf(decryptedEventDataSetFileSpec.spec.toByteString())
+      "decrypted-event-data" to flowOf(keyedDecryptedEventDataSetFileSpec.spec.toByteString())
     )
   }
 }

@@ -23,12 +23,45 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
-import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
-import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
+import org.wfanet.panelmatch.common.storage.createBlob
+import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class IntersectValidateTaskTest {
-  private val storageClient = InMemoryStorageClient()
+  private val mockStorage = InMemoryStorageClient()
+  private val numSingleBlindedKeys = SINGLE_BLINDED_KEYS.size
+  private val singleBlindedKeysAndIds =
+    SINGLE_BLINDED_KEYS.zip(1..SINGLE_BLINDED_KEYS.size) { singleBlindedKey, keyId ->
+      joinKeyAndId {
+        this.joinKey = joinKey { key = singleBlindedKey }
+        this.joinKeyIdentifier = joinKeyIdentifier { id = "joinKeyId of $keyId".toByteString() }
+      }
+    }
+  private val singleBlindedKeysAndWrongIds =
+    SINGLE_BLINDED_KEYS.zip(SINGLE_BLINDED_KEYS.size..1) { singleBlindedKey, keyId ->
+      joinKeyAndId {
+        this.joinKey = joinKey { key = singleBlindedKey }
+        this.joinKeyIdentifier = joinKeyIdentifier { id = "joinKeyId of $keyId".toByteString() }
+      }
+    }
+  private val blobOfSingleBlindedKeys = runBlocking {
+    mockStorage.createBlob(
+      "single-blinded-keys-1",
+      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndIds }.toByteString()
+    )
+  }
+  private val blobOfSingleBlindedKeysWithOneMissing = runBlocking {
+    mockStorage.createBlob(
+      "single-blinded-keys-2",
+      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndIds.drop(1) }.toByteString()
+    )
+  }
+  private val blobOfSingleBlindedKeysAndWrongIds = runBlocking {
+    mockStorage.createBlob(
+      "single-blinded-keys-3",
+      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndWrongIds }.toByteString()
+    )
+  }
 
   @Test
   fun `test valid intersect and validate exchange step`() = runBlocking {
@@ -36,26 +69,15 @@ class IntersectValidateTaskTest {
       IntersectValidateTask(maxSize = 100, minimumOverlap = 0.75f)
         .execute(
           mapOf(
-            "previous-data" to
-              storageClient.createBlob(
-                "encrypted-data",
-                makeSerializedSharedInputFlow(
-                  SINGLE_BLINDED_KEYS.dropLast(1),
-                  storageClient.defaultBufferSizeBytes
-                )
-              ),
-            "current-data" to
-              storageClient.createBlob(
-                "current-data",
-                makeSerializedSharedInputFlow(
-                  SINGLE_BLINDED_KEYS,
-                  storageClient.defaultBufferSizeBytes
-                )
-              )
+            "previous-data" to blobOfSingleBlindedKeysWithOneMissing,
+            "current-data" to blobOfSingleBlindedKeys
           )
         )
-    assertThat(parseSerializedSharedInputs(requireNotNull(output["current-data"]).flatten()))
-      .isEqualTo(SINGLE_BLINDED_KEYS)
+    assertThat(
+        JoinKeyAndIdCollection.parseFrom(output.getValue("current-data").flatten())
+          .joinKeysAndIdsList
+      )
+      .isEqualTo(singleBlindedKeysAndIds)
   }
 
   @Test
@@ -65,22 +87,8 @@ class IntersectValidateTaskTest {
         IntersectValidateTask(maxSize = 1, minimumOverlap = 0.99f)
           .execute(
             mapOf(
-              "previous-data" to
-                storageClient.createBlob(
-                  "current-data",
-                  makeSerializedSharedInputFlow(
-                    SINGLE_BLINDED_KEYS,
-                    storageClient.defaultBufferSizeBytes
-                  )
-                ),
-              "current-data" to
-                storageClient.createBlob(
-                  "current-data",
-                  makeSerializedSharedInputFlow(
-                    SINGLE_BLINDED_KEYS,
-                    storageClient.defaultBufferSizeBytes
-                  )
-                )
+              "previous-data" to blobOfSingleBlindedKeys,
+              "current-data" to blobOfSingleBlindedKeys
             )
           )
       }
@@ -93,22 +101,22 @@ class IntersectValidateTaskTest {
         IntersectValidateTask(maxSize = 10, minimumOverlap = 0.85f)
           .execute(
             mapOf(
-              "previous-data" to
-                storageClient.createBlob(
-                  "current-data",
-                  makeSerializedSharedInputFlow(
-                    SINGLE_BLINDED_KEYS.dropLast(1),
-                    storageClient.defaultBufferSizeBytes
-                  )
-                ),
-              "current-data" to
-                storageClient.createBlob(
-                  "current-data",
-                  makeSerializedSharedInputFlow(
-                    SINGLE_BLINDED_KEYS,
-                    storageClient.defaultBufferSizeBytes
-                  )
-                )
+              "previous-data" to blobOfSingleBlindedKeysWithOneMissing,
+              "current-data" to blobOfSingleBlindedKeys
+            )
+          )
+      }
+    }
+
+  @Test
+  fun `test data with different ids fails to validate`() =
+    runBlocking<Unit> {
+      assertFailsWith(IllegalArgumentException::class) {
+        IntersectValidateTask(maxSize = 100, minimumOverlap = 0.0f)
+          .execute(
+            mapOf(
+              "previous-data" to blobOfSingleBlindedKeys,
+              "current-data" to blobOfSingleBlindedKeysAndWrongIds
             )
           )
       }

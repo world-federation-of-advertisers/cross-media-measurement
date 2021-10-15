@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.common.storage.toByteString
-import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
 /**
  * Validates input data. In current iteration, it makes sure it is not empty, has less than a
@@ -34,16 +33,19 @@ class IntersectValidateTask(val maxSize: Int, val minimumOverlap: Float) : Excha
 
     // Flatten the Blob's underlying Flow and record the buffer size for output creation.
     val currentData: ByteString = input.getValue("current-data").toByteString()
-    val currentSetData: Set<ByteString> = parseSerializedSharedInputs(currentData).toSet()
+    val currentSetData: Set<JoinKeyAndId> =
+      JoinKeyAndIdCollection.parseFrom(currentData).joinKeysAndIdsList.toSet()
     val currentDataSize: Int = currentSetData.size
 
     require(currentDataSize < maxSize) {
       "Current data size of $currentDataSize is greater than $maxSize"
     }
-    require(currentDataSize > 0)
+    require(currentDataSize > 0) { "Current data size must be greater than zero" }
 
-    val oldData: Set<ByteString> =
-      parseSerializedSharedInputs(input.getValue("previous-data").toByteString()).toSet()
+    val oldData: Set<JoinKeyAndId> =
+      JoinKeyAndIdCollection.parseFrom(input.getValue("previous-data").toByteString())
+        .joinKeysAndIdsList
+        .toSet()
     val overlapItemsCount: Int = currentSetData.count { it in oldData }
     val currentOverlap: Float = overlapItemsCount.toFloat() / currentDataSize
 

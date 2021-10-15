@@ -58,9 +58,7 @@ class PlaintextQueryResultsDecryptor(
               eventData.ciphertextsList.map { ciphertext ->
                 plaintext {
                   payload =
-                    symmetricCryptor
-                      .decrypt(request.singleBlindedJoinkey.key, listOf(ciphertext))
-                      .single()
+                    symmetricCryptor.decrypt(request.lookupKey.key, listOf(ciphertext)).single()
                 }
               }
           }

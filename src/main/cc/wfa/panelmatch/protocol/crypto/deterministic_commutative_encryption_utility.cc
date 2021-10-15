@@ -25,7 +25,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "common_cpp/macros/macros.h"
-#include "common_cpp/time/started_thread_cpu_timer.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
 #include "wfa/panelmatch/common/crypto/ec_commutative_cipher_key_generator.h"
@@ -52,7 +51,6 @@ absl::StatusOr<CryptorGenerateKeyResponse> DeterministicCommutativeGenerateKey(
 
 absl::StatusOr<CryptorEncryptResponse> DeterministicCommutativeEncrypt(
     const CryptorEncryptRequest& request) {
-  StartedThreadCpuTimer timer;
   CryptorEncryptResponse response;
 
   ASSIGN_OR_RETURN(SecretData key, LoadKey(request.encryption_key()));
@@ -62,13 +60,11 @@ absl::StatusOr<CryptorEncryptResponse> DeterministicCommutativeEncrypt(
     ASSIGN_OR_RETURN(*response.add_ciphertexts(), cipher->Encrypt(plaintext));
   }
 
-  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 
 absl::StatusOr<CryptorDecryptResponse> DeterministicCommutativeDecrypt(
     const CryptorDecryptRequest& request) {
-  StartedThreadCpuTimer timer;
   CryptorDecryptResponse response;
 
   ASSIGN_OR_RETURN(SecretData key, LoadKey(request.encryption_key()));
@@ -79,13 +75,11 @@ absl::StatusOr<CryptorDecryptResponse> DeterministicCommutativeDecrypt(
                      cipher->Decrypt(ciphertext));
   }
 
-  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 
 absl::StatusOr<CryptorReEncryptResponse> DeterministicCommutativeReEncrypt(
     const CryptorReEncryptRequest& request) {
-  StartedThreadCpuTimer timer;
   CryptorReEncryptResponse response;
 
   ASSIGN_OR_RETURN(SecretData key, LoadKey(request.encryption_key()));
@@ -96,7 +90,6 @@ absl::StatusOr<CryptorReEncryptResponse> DeterministicCommutativeReEncrypt(
                      cipher->ReEncrypt(ciphertext));
   }
 
-  response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());
   return response;
 }
 

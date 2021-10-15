@@ -42,7 +42,7 @@ absl::StatusOr<DecryptedEventDataSet> DecryptEventData(
   if (request.hkdf_pepper().empty()) {
     return absl::InvalidArgumentError("Empty HKDF Pepper");
   }
-  if (request.single_blinded_joinkey().key().empty()) {
+  if (request.lookup_key().key().empty()) {
     return absl::InvalidArgumentError("Empty Single Blinded Joinkey");
   }
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
@@ -55,8 +55,7 @@ absl::StatusOr<DecryptedEventDataSet> DecryptEventData(
                                                 .encrypted_event_data()
                                                 .ciphertexts()) {
     absl::StatusOr<std::string> plaintext = aes_hkdf.Decrypt(
-        encrypted_event,
-        SecretDataFromStringView(request.single_blinded_joinkey().key()),
+        encrypted_event, SecretDataFromStringView(request.lookup_key().key()),
         SecretDataFromStringView(request.hkdf_pepper()));
     if (plaintext.ok()) {
       Plaintext* decrypted_event_data = response.add_decrypted_event_data();

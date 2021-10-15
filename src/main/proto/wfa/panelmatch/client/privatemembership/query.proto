@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.panelmatch.client.privatemembership;
 
+import "wfa/panelmatch/client/exchangetasks/join_key_exchange.proto";
+
 option java_package = "org.wfanet.panelmatch.client.privatemembership";
 option java_multiple_files = true;
 option java_outer_classname = "QueryProto";
@@ -35,16 +37,6 @@ message QueryId {
   int32 id = 1;
 }
 
-// Some key maintained by a model provider to identify a panelist
-message PanelistKey {
-  fixed64 id = 1;
-}
-
-// The agreed upon join key used for double blind exchange and query lookup
-message JoinKey {
-  bytes key = 1;
-}
-
 // A set of oblivious queries for a single database shard.
 //
 // All of the queries for a specific shard need not fit into a single
@@ -61,22 +53,12 @@ message EncryptedQueryBundle {
   bytes serialized_encrypted_queries = 3;
 }
 
-// Pair of QueryId and JoinKey
-message QueryIdAndJoinKey {
+// QueryId and Hashed Join Key and Lookup Key. Used to decrypt a query by lookup
+// key and then tie it back to its original hashed join key.
+message QueryIdAndJoinKeys {
   QueryId query_id = 1;
-  JoinKey join_key = 2;
-}
-
-// Pair of QueryId and PanelistKey
-message QueryIdAndPanelistKey {
-  QueryId query_id = 1;
-  PanelistKey panelist_key = 2;
-}
-
-// Pair of PanelistKey and JoinKey
-message PanelistKeyAndJoinKey {
-  PanelistKey panelist_key = 1;
-  JoinKey join_key = 2;
+  wfa.panelmatch.client.exchangetasks.JoinKey hashed_join_key = 2;
+  wfa.panelmatch.client.exchangetasks.JoinKey lookup_key = 3;
 }
 
 // Generic message type holding an encrypted query result
