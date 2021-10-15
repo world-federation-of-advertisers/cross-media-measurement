@@ -19,7 +19,9 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
+import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.compression.CompressorFactory
@@ -31,6 +33,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   abstract val deterministicCommutativeCryptor: DeterministicCommutativeCipher
   abstract val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor
   abstract val queryResultsDecryptor: QueryResultsDecryptor
+  abstract val getQueryResultsEvaluator: (ByteString) -> QueryEvaluator
   abstract val privateStorage: StorageFactory
   abstract val inputTaskThrottler: Throttler
 
@@ -47,7 +50,8 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
         GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
       StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP -> getGenerateSerializedRLWEKeysStepTask(step)
       StepCase.GENERATE_CERTIFICATE_STEP -> TODO()
-      StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> TODO()
+      StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP ->
+        getExecutePrivateMembershipQueriesTask(step)
       StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getBuildPrivateMembershipQueriesTask(step)
       StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP ->
         getDecryptMembershipResultsTask(step)
@@ -124,6 +128,30 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       queryResultsDecryptor = queryResultsDecryptor,
       compressorFactory = compressorFactory,
       outputs = outputs,
+    )
+  }
+
+  private fun getExecutePrivateMembershipQueriesTask(step: ExchangeWorkflow.Step): ExchangeTask {
+    require(step.stepCase == StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP)
+    val outputs =
+      ExecutePrivateMembershipQueriesTask.Outputs(
+        encryptedQueryResultFileCount =
+          step.executePrivateMembershipQueriesStep.encryptedQueryResultFileCount,
+        encryptedQueryResultFileName = step.outputLabelsMap.getValue("encrypted-results")
+      )
+    val parameters =
+      EvaluateQueriesParameters(
+        numShards = step.executePrivateMembershipQueriesStep.numShards,
+        numBucketsPerShard = step.executePrivateMembershipQueriesStep.numBucketsPerShard,
+        maxQueriesPerShard = step.executePrivateMembershipQueriesStep.maxQueriesPerShard
+      )
+    val queryResultsEvaluator =
+      getQueryResultsEvaluator(step.executePrivateMembershipQueriesStep.serializedParameters)
+    return ExecutePrivateMembershipQueriesTask(
+      storageFactory = privateStorage,
+      evaluateQueriesParameters = parameters,
+      queryEvaluator = queryResultsEvaluator,
+      outputs = outputs
     )
   }
 }

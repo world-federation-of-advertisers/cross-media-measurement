@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.deploy
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
+import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.compression.BrotliCompressorFactory
@@ -29,5 +30,6 @@ class ProductionExchangeTaskMapper(
   override val compressorFactory by lazy { BrotliCompressorFactory() }
   override val deterministicCommutativeCryptor by lazy { JniDeterministicCommutativeCipher() }
   override val getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor
+  override val getQueryResultsEvaluator = ::JniQueryEvaluator
   override val queryResultsDecryptor by lazy { JniQueryResultsDecryptor() }
 }

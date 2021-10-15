@@ -29,6 +29,7 @@ import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.toSingletonView
+import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.toByteString
 
 /** Evaluates Private Membership queries. */
@@ -36,7 +37,6 @@ class ExecutePrivateMembershipQueriesTask(
   override val storageFactory: StorageFactory,
   private val evaluateQueriesParameters: EvaluateQueriesParameters,
   private val queryEvaluator: QueryEvaluator,
-  private val publicKeyBlobKey: String,
   private val outputs: Outputs
 ) : ApacheBeamTask() {
 
@@ -56,7 +56,9 @@ class ExecutePrivateMembershipQueriesTask(
     val queriesManifest = input.getValue("encrypted-queries")
     val queries = readFromManifest(queriesManifest, encryptedQueryBundle {})
 
-    val privateMembershipPublicKey = readSingleBlobAsPCollection(publicKeyBlobKey).toSingletonView()
+    val privateMembershipPublicKey =
+      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-public-key").toStringUtf8())
+        .toSingletonView()
 
     val results: PCollection<EncryptedQueryResult> =
       evaluateQueries(
