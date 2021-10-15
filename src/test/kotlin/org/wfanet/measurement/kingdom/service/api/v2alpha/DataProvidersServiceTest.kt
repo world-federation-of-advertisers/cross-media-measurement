@@ -156,7 +156,7 @@ class DataProvidersServiceTest {
         runBlocking { service.createDataProvider(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("public_key is not fully specified")
+    assertThat(exception.status.description).isEqualTo("public_key.data is missing")
   }
 
   @Test
@@ -217,8 +217,8 @@ class DataProvidersServiceTest {
     }
 
     private val PUBLIC_KEY = encryptionPublicKey {
-      type = EncryptionPublicKey.Type.EC_P256
-      publicKeyInfo = PUBLIC_KEY_DER
+      format = EncryptionPublicKey.Format.TINK_KEYSET
+      data = PUBLIC_KEY_DER
     }
 
     private val SIGNED_PUBLIC_KEY = signedData {
