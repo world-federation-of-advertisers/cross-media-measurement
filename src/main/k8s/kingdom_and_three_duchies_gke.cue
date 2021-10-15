@@ -74,6 +74,8 @@ objectSets: [
 
 #McResourcename: "TBD"
 
+#ENV: "local" // single cluster is like local.
+
 #Duchies: [
 	{
 		name:                   "aggregator"
@@ -97,6 +99,7 @@ objectSets: [
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 
 #GkeDuchy: #Duchy & {
+	_env:                       #ENV
 	_duchy_secret_name:         #SecretName
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_spanner_schema_push_flags: [
@@ -128,6 +131,7 @@ objectSets: [
 duchies: {for d in #Duchies {"\(d.name)": #GkeDuchy & {_duchy: d}}}
 
 kingdom: #Kingdom & {
+	_env:                 #ENV
 	_kingdom_secret_name: #SecretName
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",

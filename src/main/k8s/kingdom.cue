@@ -17,6 +17,7 @@ package k8s
 import ("strings")
 
 #Kingdom: {
+	_env:                  "local" | "dev" | "prod"
 	_verbose_grpc_logging: "true" | "false"
 
 	_spanner_schema_push_flags: [...string]
@@ -26,7 +27,7 @@ import ("strings")
 	_kingdom_image_pull_policy: string
 	_kingdom_secret_name:       string
 
-	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config.textproto"
+	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config_\(_env).textproto"
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
