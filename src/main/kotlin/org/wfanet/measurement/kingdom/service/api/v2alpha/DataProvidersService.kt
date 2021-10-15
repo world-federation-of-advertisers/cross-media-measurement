@@ -39,9 +39,9 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
   DataProvidersCoroutineService() {
   override suspend fun createDataProvider(request: CreateDataProviderRequest): DataProvider {
     val dataProvider = request.dataProvider
-    grpcRequire(with(dataProvider.publicKey) { !data.isEmpty && !signature.isEmpty }) {
-      "public_key is not fully specified"
-    }
+
+    grpcRequire(!dataProvider.publicKey.data.isEmpty) { "public_key.data is missing" }
+    grpcRequire(!dataProvider.publicKey.signature.isEmpty) { "public_key.signature is missing" }
 
     val internalResponse: InternalDataProvider =
       internalClient.createDataProvider(

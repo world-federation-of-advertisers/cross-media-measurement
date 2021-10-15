@@ -38,7 +38,6 @@ import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement.State
@@ -55,7 +54,6 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.hybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
@@ -139,11 +137,6 @@ private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
 }
 private val MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = UPDATE_TIME.toByteString()
-  cipherSuite =
-    hybridCipherSuite {
-      kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-      dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
-    }
   reachAndFrequency =
     reachAndFrequency {
       reachPrivacyParams =
@@ -358,29 +351,6 @@ class MeasurementsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Measurement public key is unspecified")
-  }
-
-  @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when measurement cipher suite is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  measurementSpec =
-                    signedData {
-                      data = MEASUREMENT_SPEC.copy { clearCipherSuite() }.toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                }
-            }
-          )
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement cipher suite is unspecified")
   }
 
   @Test

@@ -31,8 +31,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite as publicApiHybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
@@ -45,7 +45,6 @@ import org.wfanet.measurement.duchy.service.internal.computations.newPassThrough
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.HybridCipherSuite
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
@@ -77,22 +76,15 @@ private const val DUCHY_ONE = "BOHEMIA"
 private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
 
-private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY =
-  EncryptionPublicKey.newBuilder()
-    .apply {
-      type = EncryptionPublicKey.Type.EC_P256
-      publicKeyInfo = ByteString.copyFromUtf8("A nice encryption public key.")
-    }
-    .build()
+private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
+  format = EncryptionPublicKey.Format.TINK_KEYSET
+  data = ByteString.copyFromUtf8("A nice encryption public key.")
+}
 
 private val PUBLIC_API_MEASUREMENT_SPEC =
   MeasurementSpec.newBuilder()
     .apply {
       measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
-      cipherSuiteBuilder.apply {
-        kem = publicApiHybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-        dem = publicApiHybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
-      }
       reachAndFrequencyBuilder.apply {
         reachPrivacyParamsBuilder.apply {
           epsilon = 1.1
@@ -296,11 +288,7 @@ class HeraldTest {
               dataProviderListSalt = DATA_PROVIDER_LIST_SALT
               measurementPublicKeyBuilder.apply {
                 type = org.wfanet.measurement.internal.duchy.EncryptionPublicKey.Type.EC_P256
-                publicKeyInfo = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.publicKeyInfo
-              }
-              cipherSuiteBuilder.apply {
-                kem = HybridCipherSuite.KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-                dem = HybridCipherSuite.DataEncapsulationMechanism.AES_128_GCM
+                publicKeyInfo = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.data
               }
             }
             liquidLegionsV2Builder.apply {

@@ -49,7 +49,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey as V2AlphaEncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey.Format
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -252,10 +252,12 @@ private val ENCRYPTION_PUBLIC_KEY_DER =
 private val HYBRID_CRYPTOR = ReversingHybridCryptor()
 private val SOME_DATA_PROVIDER_LIST_SALT = ByteString.copyFromUtf8("some-salt-0")
 private val SOME_SERIALIZED_DATA_PROVIDER_LIST = ByteString.copyFromUtf8("some-data-provider-list")
-private val DATA_PROVIDER_PUBLIC_KEY =
-  V2AlphaEncryptionPublicKey.newBuilder()
-    .apply { publicKeyInfo = ByteString.copyFromUtf8("some-public-key") }
-    .build()
+
+private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
+  format = Format.TINK_KEYSET
+  data = ByteString.copyFromUtf8("some-public-key")
+}
+
 private val SOME_REQUISITION_SPEC =
   RequisitionSpec.newBuilder()
     .apply {
@@ -1831,8 +1833,8 @@ class LiquidLegionsV2MillTest {
           aggregatorCertificate = CONSENT_SIGNALING_CERT_DER
           resultPublicKey =
             encryptionPublicKey {
-                type = V2AlphaEncryptionPublicKey.Type.EC_P256
-                publicKeyInfo = ENCRYPTION_PUBLIC_KEY_DER
+                format = Format.TINK_KEYSET
+                data = ENCRYPTION_PUBLIC_KEY_DER
               }
               .toByteString()
         }
