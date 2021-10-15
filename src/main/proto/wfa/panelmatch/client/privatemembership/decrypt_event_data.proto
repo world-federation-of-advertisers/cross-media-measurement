@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.panelmatch.client.privatemembership;
 
+import "wfa/panelmatch/client/exchangetasks/join_key_exchange.proto";
 import "wfa/panelmatch/client/privatemembership/query.proto";
 
 option java_package = "org.wfanet.panelmatch.client.privatemembership";
@@ -29,13 +30,18 @@ message DecryptEventDataRequest {
     EncryptedEventData encrypted_event_data = 2;
   }
   EncryptedEventDataSet encrypted_event_data_set = 1;
-  JoinKey single_blinded_joinkey = 2;
+  wfa.panelmatch.client.exchangetasks.JoinKey lookup_key = 2;
   bytes hkdf_pepper = 3;
 }
 
 // Response of DecryptEventDataRequest
 message DecryptedEventDataSet {
   QueryId query_id = 1;
+  repeated Plaintext decrypted_event_data = 2;
+}
+
+message KeyedDecryptedEventDataSet {
+  wfa.panelmatch.client.exchangetasks.JoinKey hashed_join_key = 1;
   repeated Plaintext decrypted_event_data = 2;
 }
 
@@ -46,7 +52,7 @@ message DecryptQueryResultsRequest {
   bytes serialized_public_key = 2;
   bytes serialized_private_key = 3;
   repeated EncryptedQueryResult encrypted_query_results = 4;
-  JoinKey single_blinded_joinkey = 5;
+  wfa.panelmatch.client.exchangetasks.JoinKey lookup_key = 5;
   bytes hkdf_pepper = 6;
 }
 

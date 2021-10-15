@@ -36,7 +36,6 @@ message CryptorEncryptRequest {
 // Response of the CryptorEncryptRequest method.
 message CryptorEncryptResponse {
   repeated bytes ciphertexts = 1;
-  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to reencrypt.
@@ -48,7 +47,6 @@ message CryptorReEncryptRequest {
 // Response of the CryptorReEncryptRequest method.
 message CryptorReEncryptResponse {
   repeated bytes ciphertexts = 1;
-  int64 elapsed_cpu_time_millis = 2;
 }
 
 // The request to decrypt.
@@ -60,5 +58,4 @@ message CryptorDecryptRequest {
 // Response of the CryptorEncryptRequest method.
 message CryptorDecryptResponse {
   repeated bytes decrypted_texts = 1;
-  int64 elapsed_cpu_time_millis = 2;
 }

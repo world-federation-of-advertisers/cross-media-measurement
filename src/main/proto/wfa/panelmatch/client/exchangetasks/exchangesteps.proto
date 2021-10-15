@@ -19,12 +19,6 @@ package wfa.panelmatch.protocol;
 option java_package = "org.wfanet.panelmatch.protocol";
 option java_multiple_files = true;
 
-// TODO: Replace this in the measurement api with something to support signed
-// shared inputs
-message SharedInputs {
-  repeated bytes data = 1;
-}
-
 message NamedSignature {
   bytes signature = 1;
   // The API resource name of the certificate that provided this signature

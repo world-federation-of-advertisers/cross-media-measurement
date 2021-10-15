@@ -32,6 +32,9 @@ proto_library(
     name = "query_proto",
     srcs = ["query.proto"],
     strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_proto",
+    ],
 )
 
 cc_proto_library(
@@ -119,7 +122,10 @@ proto_library(
     name = "decrypt_event_data_proto",
     srcs = ["decrypt_event_data.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":query_proto"],
+    deps = [
+        ":query_proto",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_proto",
+    ],
 )
 
 cc_proto_library(

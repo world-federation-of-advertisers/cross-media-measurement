@@ -15,6 +15,12 @@
 package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.exchangetasks.JoinKey
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
+import org.wfanet.panelmatch.client.exchangetasks.joinKey
+import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.joinKeyIdentifier
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
@@ -24,8 +30,6 @@ import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.JoinKey
-import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
@@ -40,8 +44,6 @@ import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.joinKey
-import org.wfanet.panelmatch.client.privatemembership.panelistKey
 import org.wfanet.panelmatch.client.privatemembership.plaintext
 import org.wfanet.panelmatch.client.privatemembership.queryId
 import org.wfanet.panelmatch.client.privatemembership.shardId
@@ -112,11 +114,17 @@ fun databaseKeyOf(id: Long): DatabaseKey = databaseKey { this.id = id }
 /** Constructs a [Plaintext]. */
 fun plaintextOf(payload: ByteString): Plaintext = plaintext { this.payload = payload }
 
-/** Constructs a [PanelistKey]. */
-fun panelistKeyOf(id: Long): PanelistKey = panelistKey { this.id = id }
-
 /** Constructs a [JoinKey]. */
 fun joinKeyOf(key: ByteString): JoinKey = joinKey { this.key = key }
+
+/** Constructs a [JoinKeyIdentifier]. */
+fun joinKeyIdentifierOf(id: ByteString): JoinKeyIdentifier = joinKeyIdentifier { this.id = id }
+
+/** Constructs a [JoinKeyAndId]. */
+fun joinKeyAndIdOf(key: ByteString, id: ByteString): JoinKeyAndId = joinKeyAndId {
+  joinKey = joinKeyOf(key)
+  joinKeyIdentifier = joinKeyIdentifierOf(id)
+}
 
 /** Constructs a [DatabaseEntry]. */
 fun databaseEntryOf(databaseKey: DatabaseKey, plaintext: Plaintext): DatabaseEntry = databaseEntry {

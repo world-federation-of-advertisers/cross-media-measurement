@@ -16,17 +16,15 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import java.io.Serializable
 import org.wfanet.panelmatch.client.common.bucketIdOf
-import org.wfanet.panelmatch.client.common.panelistKeyOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
+import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.JoinKey
-import org.wfanet.panelmatch.client.privatemembership.PanelistKey
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
@@ -73,12 +71,14 @@ data class ShardedQuery(val shardId: ShardId, val queryId: QueryId, val bucketId
 
 data class PanelistQuery(
   val shardId: ShardId,
-  val panelistKey: PanelistKey,
+  val hashedJoinKey: JoinKey,
+  val lookupKey: JoinKey,
   val bucketId: BucketId
 ) : Serializable {
   constructor(
     shard: Int,
-    panelist: Long,
+    hashedJoinKey: String,
+    lookupKey: String,
     bucket: Int
-  ) : this(shardIdOf(shard), panelistKeyOf(panelist), bucketIdOf(bucket))
+  ) : this(shardIdOf(shard), joinKeyOf(hashedJoinKey), joinKeyOf(lookupKey), bucketIdOf(bucket))
 }

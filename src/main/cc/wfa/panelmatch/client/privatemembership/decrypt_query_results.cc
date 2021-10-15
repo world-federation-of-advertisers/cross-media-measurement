@@ -66,11 +66,10 @@ absl::StatusOr<ClientDecryptQueriesResponse> RemoveRlwe(
 
 absl::StatusOr<DecryptedEventDataSet> RemoveAesFromDecryptedQueryResult(
     const ClientDecryptedQueryResult& client_decrypted_query_result,
-    const std::string& single_blinded_joinkey, const std::string& hkdf_pepper) {
+    const std::string& lookup_key, const std::string& hkdf_pepper) {
   DecryptEventDataRequest decrypt_event_data_request;
   decrypt_event_data_request.set_hkdf_pepper(hkdf_pepper);
-  decrypt_event_data_request.mutable_single_blinded_joinkey()->set_key(
-      single_blinded_joinkey);
+  decrypt_event_data_request.mutable_lookup_key()->set_key(lookup_key);
   EncryptedEventData encrypted_event_data;
   encrypted_event_data.ParseFromString(client_decrypted_query_result.result());
   decrypt_event_data_request.mutable_encrypted_event_data_set()
@@ -89,11 +88,10 @@ absl::StatusOr<DecryptQueryResultsResponse> RemoveAes(
   DecryptQueryResultsResponse result;
   for (const ClientDecryptedQueryResult& client_decrypted_query_result :
        client_decrypt_queries_response.result()) {
-    ASSIGN_OR_RETURN(
-        DecryptedEventDataSet decrypt_event_data_response,
-        RemoveAesFromDecryptedQueryResult(
-            client_decrypted_query_result,
-            request.single_blinded_joinkey().key(), request.hkdf_pepper()));
+    ASSIGN_OR_RETURN(DecryptedEventDataSet decrypt_event_data_response,
+                     RemoveAesFromDecryptedQueryResult(
+                         client_decrypted_query_result,
+                         request.lookup_key().key(), request.hkdf_pepper()));
     result.add_event_data_sets()->Swap(&decrypt_event_data_response);
   }
   return result;

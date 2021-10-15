@@ -16,15 +16,14 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.storage.toByteString
-import org.wfanet.panelmatch.protocol.common.makeSerializedSharedInputFlow
-import org.wfanet.panelmatch.protocol.common.parseSerializedSharedInputs
 
-private const val INPUT_KEY_LABEL = "encryption-key"
+private const val INPUT_CRYPTO_KEY_LABEL = "encryption-key"
 
 class CryptorExchangeTask
 internal constructor(
@@ -41,12 +40,27 @@ internal constructor(
     // TODO See if it is worth updating this to not collect the inputs entirely at this step.
     //  It should be possible to process batches of them to balance memory usage and execution
     //  efficiency. If the inputs turn out to be small enough this shouldn't be an issue.
-    val key = input.getValue(INPUT_KEY_LABEL).toByteString()
+    //  Another reason to process them in one entire batch is to minimize the cost of
+    //  serialization.
+    val cryptoKey = input.getValue(INPUT_CRYPTO_KEY_LABEL).toByteString()
     val serializedInputs = input.getValue(inputDataLabel).toByteString()
-
-    val inputs = parseSerializedSharedInputs(serializedInputs)
-    val result = operation(key, inputs)
-    return mapOf(outputDataLabel to makeSerializedSharedInputFlow(result, 1024))
+    val inputList = JoinKeyAndIdCollection.parseFrom(serializedInputs).joinKeysAndIdsList
+    val joinKeys = inputList.map { it.joinKey.key }
+    val joinKeyIds = inputList.map { it.joinKeyIdentifier }
+    val results = operation(cryptoKey, joinKeys)
+    /** For now, we assume the join keys return in the same order that they were input. */
+    val serializedOutput =
+      joinKeyAndIdCollection {
+          joinKeysAndIds +=
+            results.zip(joinKeyIds) { result: ByteString, joinKeyId: JoinKeyIdentifier ->
+              joinKeyAndId {
+                this.joinKey = joinKey { key = result }
+                this.joinKeyIdentifier = joinKeyId
+              }
+            }
+        }
+        .toByteString()
+    return mapOf(outputDataLabel to serializedOutput.asBufferedFlow(1024))
   }
 
   companion object {

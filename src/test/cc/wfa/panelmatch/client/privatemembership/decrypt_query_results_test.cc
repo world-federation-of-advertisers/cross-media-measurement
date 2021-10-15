@@ -53,12 +53,13 @@ using ClientDecryptQueriesRequest =
     ::private_membership::batch::DecryptQueriesRequest;
 using ClientEncryptedQueryResult =
     ::private_membership::batch::EncryptedQueryResult;
+using ::wfa::panelmatch::client::exchangetasks::JoinKey;
 
 TEST(DecryptQueryResults, DecryptQueryResultsTest) {
   std::string hkdf_pepper = "some-pepper";
-  std::string key = "some-single-blinded-joinkey";
-  JoinKey single_blinded_joinkey;
-  single_blinded_joinkey.set_key(key);
+  std::string key = "some-single-blinded-JoinKey";
+  JoinKey lookup_key;
+  lookup_key.set_key(key);
   std::string plaintext1 = "Some data to encrypt 1.";
   std::string plaintext2 = "Some data to encrypt 2.";
   std::string plaintext3 = "Some data to encrypt 3.";
@@ -102,7 +103,7 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
 
   DecryptQueryResultsRequest test_request;
   test_request.set_hkdf_pepper(hkdf_pepper);
-  test_request.mutable_single_blinded_joinkey()->set_key(key);
+  test_request.mutable_lookup_key()->set_key(key);
   test_request.set_serialized_private_key(
       request.private_key().SerializeAsString());
   test_request.set_serialized_public_key(
@@ -149,9 +150,9 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
 
 TEST(DecryptQueryResults, ParseCiphertextsWithDifferentKeys) {
   std::string hkdf_pepper = "some-pepper";
-  std::string key = "some-single-blinded-joinkey";
-  JoinKey single_blinded_joinkey;
-  single_blinded_joinkey.set_key(key);
+  std::string key = "some-single-blinded-JoinKey";
+  JoinKey lookup_key;
+  lookup_key.set_key(key);
   std::string plaintext1 = "Some data to encrypt.";
   std::string ciphertext2 = "Some event data I should not be able to decrypt.";
   std::string plaintext3 = "Some other event data to encrypt.";
@@ -200,7 +201,7 @@ TEST(DecryptQueryResults, ParseCiphertextsWithDifferentKeys) {
 
   DecryptQueryResultsRequest test_request;
   test_request.set_hkdf_pepper(hkdf_pepper);
-  test_request.mutable_single_blinded_joinkey()->set_key(key);
+  test_request.mutable_lookup_key()->set_key(key);
   test_request.set_serialized_private_key(
       request.private_key().SerializeAsString());
   test_request.set_serialized_public_key(

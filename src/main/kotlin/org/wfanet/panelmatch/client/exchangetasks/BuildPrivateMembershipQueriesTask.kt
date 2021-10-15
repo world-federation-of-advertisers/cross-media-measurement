@@ -26,9 +26,8 @@ import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
-import org.wfanet.panelmatch.client.privatemembership.QueryIdAndPanelistKey
+import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKeys
 import org.wfanet.panelmatch.client.privatemembership.createQueries
-import org.wfanet.panelmatch.client.privatemembership.panelistKeyAndJoinKey
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
@@ -45,10 +44,10 @@ class BuildPrivateMembershipQueriesTask(
 ) : ApacheBeamTask() {
 
   data class Outputs(
-    val encryptedQueriesFileName: String,
-    val encryptedQueriesFileCount: Int,
-    val queryIdAndPanelistKeyFileName: String,
-    val queryIdAndPanelistKeyFileCount: Int
+    val encryptedQueryBundlesFileName: String,
+    val encryptedQueryBundlesFileCount: Int,
+    val queryIdAndJoinKeysFileName: String,
+    val queryIdAndJoinKeysFileCount: Int
   )
 
   override suspend fun execute(
@@ -57,11 +56,11 @@ class BuildPrivateMembershipQueriesTask(
     logger.addToTaskLog("Executing build private membership queries")
     val pipeline = Pipeline.create()
 
-    // TODO: previous steps need to output in this format.
-    // TODO: need to update all file names to translate labels via step.inputsMap/outputsMap
-    val panelistKeyAndJoinKeysManifest = input.getValue("panelists-and-joinkeys")
-    val panelistKeyAndJoinKeys =
-      readFromManifest(panelistKeyAndJoinKeysManifest, panelistKeyAndJoinKey {})
+    val lookupKeyAndIdsManifest = input.getValue("lookup-keys")
+    val lookupKeyAndIds = readFromManifest(lookupKeyAndIdsManifest, joinKeyAndId {})
+
+    val hashedJoinKeyAndIdsManifest = input.getValue("hashed-join-keys")
+    val hashedJoinKeyAndIds = readFromManifest(hashedJoinKeyAndIdsManifest, joinKeyAndId {})
 
     val privateKeys =
       readSingleBlobAsPCollection(input.getValue("rlwe-serialized-private-key").toStringUtf8())
@@ -76,30 +75,29 @@ class BuildPrivateMembershipQueriesTask(
         .toSingletonView()
 
     val (
-      queryIdAndPanelistKeys: PCollection<QueryIdAndPanelistKey>,
+      queryIdAndJoinKeys: PCollection<QueryIdAndJoinKeys>,
       encryptedQueryBundles: PCollection<EncryptedQueryBundle>) =
       createQueries(
-        panelistKeyAndJoinKeys,
+        lookupKeyAndIds,
+        hashedJoinKeyAndIds,
         privateMembershipKeys,
         parameters,
         privateMembershipCryptor
       )
 
-    val queryDecryptionKeysFileSpec =
-      ShardedFileName(outputs.queryIdAndPanelistKeyFileName, outputs.queryIdAndPanelistKeyFileCount)
-    require(queryDecryptionKeysFileSpec.shardCount == outputs.queryIdAndPanelistKeyFileCount)
-    queryIdAndPanelistKeys.write(queryDecryptionKeysFileSpec)
+    val queryIdAndJoinKeysFileSpec =
+      ShardedFileName(outputs.queryIdAndJoinKeysFileName, outputs.queryIdAndJoinKeysFileCount)
+    queryIdAndJoinKeys.write(queryIdAndJoinKeysFileSpec)
 
-    val encryptedQueriesFileSpec =
-      ShardedFileName(outputs.encryptedQueriesFileName, outputs.encryptedQueriesFileCount)
-    require(encryptedQueriesFileSpec.shardCount == parameters.numShards)
-    encryptedQueryBundles.write(encryptedQueriesFileSpec)
+    val encryptedQueryBundlesFileSpec =
+      ShardedFileName(outputs.encryptedQueryBundlesFileName, outputs.encryptedQueryBundlesFileCount)
+    encryptedQueryBundles.write(encryptedQueryBundlesFileSpec)
 
     pipeline.run()
 
     return mapOf(
-      "query-decryption-keys" to flowOf(queryDecryptionKeysFileSpec.spec.toByteString()),
-      "encrypted-queries" to flowOf(encryptedQueriesFileSpec.spec.toByteString())
+      "query-to-join-keys-map" to flowOf(queryIdAndJoinKeysFileSpec.spec.toByteString()),
+      "encrypted-queries" to flowOf(encryptedQueryBundlesFileSpec.spec.toByteString())
     )
   }
 

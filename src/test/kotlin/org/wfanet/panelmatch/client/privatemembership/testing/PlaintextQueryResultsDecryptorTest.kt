@@ -66,7 +66,7 @@ class PlaintextQueryResultsDecryptorTest {
             serializedParameters = SERIALIZED_PARAMETERS
             serializedPublicKey = keys.serializedPublicKey
             serializedPrivateKey = keys.serializedPrivateKey
-            singleBlindedJoinkey = joinKeyOf(joinkeyList.second)
+            lookupKey = joinKeyOf(joinkeyList.second)
             this.encryptedQueryResults += encryptedQueryResult
             hkdfPepper = HKDF_PEPPER
           }

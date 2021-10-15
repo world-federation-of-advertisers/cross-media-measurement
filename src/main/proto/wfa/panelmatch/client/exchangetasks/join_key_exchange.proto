@@ -1,0 +1,45 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.panelmatch.client.exchangetasks;
+
+option java_package = "org.wfanet.panelmatch.client.exchangetasks";
+option java_multiple_files = true;
+option java_outer_classname = "JoinkeyExchangeProto";
+
+// Keys represent the data that is exchange during a join key exchange
+// including hashed join keys, single blinded keys, double blinded keys, and
+// lookup join keys.
+// TODO: Consider splitting these into separate messages
+message JoinKey {
+  bytes key = 1;
+}
+
+// An ID to identify a particular key using during a join exchange. Normally,
+// it is the single blinded join key itself.
+message JoinKeyIdentifier {
+  bytes id = 1;
+}
+
+message JoinKeyAndId {
+  JoinKey join_key = 1;
+  JoinKeyIdentifier join_key_identifier = 2;
+}
+
+// A collection of panelist keys and panelist key ids
+message JoinKeyAndIdCollection {
+  repeated JoinKeyAndId join_keys_and_ids = 1;
+}
