@@ -29,7 +29,7 @@ private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
 class GenerateSymmetricKeyTaskTest {
-  private val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher()
+  private val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
 
   @Test
   fun `generate key 2x yields different keys`() = withTestContext {

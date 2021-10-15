@@ -39,15 +39,14 @@ private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 @RunWith(JUnit4::class)
 class DeterministicCommutativeCryptorExchangeTaskTest {
   private val mockStorage = InMemoryStorageClient()
-  private val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher()
-  private val mpSecretKey = FakeDeterministicCommutativeCipher().generateKey()
-  private val dpSecretKey = FakeDeterministicCommutativeCipher().generateKey()
-  private val singleBlindedKeys =
-    FakeDeterministicCommutativeCipher().encrypt(mpSecretKey, JOIN_KEYS)
+  private val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
+  private val mpSecretKey = FakeDeterministicCommutativeCipher.generateKey()
+  private val dpSecretKey = FakeDeterministicCommutativeCipher.generateKey()
+  private val singleBlindedKeys = FakeDeterministicCommutativeCipher.encrypt(mpSecretKey, JOIN_KEYS)
   private val doubleBlindedKeys =
-    FakeDeterministicCommutativeCipher().reEncrypt(dpSecretKey, singleBlindedKeys)
+    FakeDeterministicCommutativeCipher.reEncrypt(dpSecretKey, singleBlindedKeys)
   private val lookupKeys =
-    FakeDeterministicCommutativeCipher().decrypt(mpSecretKey, doubleBlindedKeys)
+    FakeDeterministicCommutativeCipher.decrypt(mpSecretKey, doubleBlindedKeys)
   private val invalidKey = FakeDeterministicCommutativeCipher.INVALID_KEY
   val hashedJoinKeysAndIds = buildJoinKeysAndIds(JOIN_KEYS)
   val singleBlindedKeysAndIds = buildJoinKeysAndIds(singleBlindedKeys)

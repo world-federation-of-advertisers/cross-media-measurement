@@ -17,19 +17,15 @@ package org.wfanet.panelmatch.client.deploy
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperForJoinKeyExchange
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.Identity
-import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
-import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.Timeout
-import org.wfanet.panelmatch.common.compression.BrotliCompressorFactory
-import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** Runs ExchangeWorkflows. */
@@ -53,16 +49,10 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** How long a task should be allowed to run for before being cancelled. */
   abstract val taskTimeout: Timeout
 
+  /** [ExchangeTaskMapper] to create a task based on the step */
+  abstract val exchangeTaskMapper: ExchangeTaskMapper
+
   override fun run() {
-    val exchangeTaskMapper =
-      ExchangeTaskMapperForJoinKeyExchange(
-        compressorFactory = BrotliCompressorFactory(),
-        getDeterministicCommutativeCryptor = ::JniDeterministicCommutativeCipher,
-        getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor,
-        getQueryResultsDecryptor = ::JniQueryResultsDecryptor,
-        privateStorage = privateStorageFactory,
-        inputTaskThrottler = throttler
-      )
 
     val stepExecutor =
       ExchangeTaskExecutor(

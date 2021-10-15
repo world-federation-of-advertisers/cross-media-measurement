@@ -21,7 +21,7 @@ import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
 @RunWith(JUnit4::class)
 class FakeDeterministicCommutativeCipherTest : AbstractDeterministicCommutativeCipherTest() {
-  override val cipher: DeterministicCommutativeCipher = FakeDeterministicCommutativeCipher()
+  override val cipher: DeterministicCommutativeCipher = FakeDeterministicCommutativeCipher
   override val invalidKey: ByteString = FakeDeterministicCommutativeCipher.INVALID_KEY
   override val privateKey1 = cipher.generateKey()
   override val privateKey2 = cipher.generateKey()

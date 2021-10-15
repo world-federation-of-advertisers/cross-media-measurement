@@ -21,7 +21,8 @@ import org.wfanet.panelmatch.common.toByteString
 private const val SEPARATOR = " encrypted by "
 
 /** For testing only. Does not play nicely with non-Utf8 source data. */
-class FakeDeterministicCommutativeCipher : DeterministicCommutativeCipher {
+object FakeDeterministicCommutativeCipher : DeterministicCommutativeCipher {
+  val INVALID_KEY = "invalid key".toByteString()
 
   override fun generateKey(): ByteString {
     var key = ""
@@ -52,9 +53,5 @@ class FakeDeterministicCommutativeCipher : DeterministicCommutativeCipher {
       require(dataString.contains(encryptionString)) { "invalid ciphertext" }
       dataString.replace(encryptionString, "").toByteString()
     }
-  }
-
-  companion object {
-    val INVALID_KEY = "invalid key".toByteString()
   }
 }
