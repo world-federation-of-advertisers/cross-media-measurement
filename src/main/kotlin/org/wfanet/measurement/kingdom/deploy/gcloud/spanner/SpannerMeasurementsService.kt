@@ -46,8 +46,6 @@ class SpannerMeasurementsService(
       return CreateMeasurement(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Certificate has been revoked" }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
@@ -108,7 +106,6 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
@@ -144,7 +141,6 @@ class SpannerMeasurementsService(
           KingdomInternalException.Code.DUCHY_NOT_FOUND,
           KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
           KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-          KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
           KingdomInternalException.Code.REQUISITION_NOT_FOUND,

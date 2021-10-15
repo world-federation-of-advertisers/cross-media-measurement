@@ -105,7 +105,6 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
           KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
           KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-          KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
@@ -141,7 +140,6 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
           KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
           KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-          KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
