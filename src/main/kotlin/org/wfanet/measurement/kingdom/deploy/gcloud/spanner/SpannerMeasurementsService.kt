@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -37,17 +38,18 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasur
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
 
 class SpannerMeasurementsService(
+  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun createMeasurement(request: Measurement): Measurement {
     try {
-      return CreateMeasurement(request).execute(client, idGenerator)
+      return CreateMeasurement(clock, request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Certificate has been revoked" }
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Certificate is invalid" }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
@@ -108,7 +110,7 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
@@ -144,7 +146,7 @@ class SpannerMeasurementsService(
           KingdomInternalException.Code.DUCHY_NOT_FOUND,
           KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
           KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-          KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
+          KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
           KingdomInternalException.Code.REQUISITION_NOT_FOUND,

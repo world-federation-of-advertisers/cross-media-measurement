@@ -133,13 +133,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     )
   }
 
-  private suspend fun insertMeasurementConsumer(): MeasurementConsumer {
+  private suspend fun insertMeasurementConsumer(
+    notValidBefore: Long,
+    notValidAfter: Long
+  ): MeasurementConsumer {
     return measurementConsumersService.createMeasurementConsumer(
       MeasurementConsumer.newBuilder()
         .apply {
           certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
+            notValidBeforeBuilder.seconds = notValidBefore
+            notValidAfterBuilder.seconds = notValidAfter
             subjectKeyIdentifier = PREFERRED_MC_SUBJECT_KEY_IDENTIFIER
             detailsBuilder.x509Der = PREFERRED_MC_CERTIFICATE_DER
           }
@@ -150,6 +153,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         }
         .build()
+    )
+  }
+
+  private suspend fun insertMeasurementConsumer(): MeasurementConsumer {
+    return insertMeasurementConsumer(
+      testClock.instant().epochSecond - 1000L,
+      testClock.instant().epochSecond + 1000L
     )
   }
 
@@ -227,7 +237,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMeasurement fails for revokedCertificate`() = runBlocking {
+  fun `createMeasurement fails for revoked Measurement Consumer Certificate`() = runBlocking {
     val measurementConsumer = insertMeasurementConsumer()
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalMeasurementConsumerCertificateId =
@@ -258,7 +268,69 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(measurement) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("Certificate has been revoked")
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
+  }
+
+  @Test
+  fun `createMeasurement fails when current time is before certificate is valid`() = runBlocking {
+    val measurementConsumer =
+      insertMeasurementConsumer(
+        testClock.instant().epochSecond + 1000L,
+        testClock.instant().epochSecond + 2000L
+      )
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+    val measurement = measurement {
+      details = details { apiVersion = "v2alpha" }
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+      this.dataProviders[externalDataProviderId] =
+        dataProviderValue {
+          this.externalDataProviderCertificateId = externalDataProviderCertificateId
+        }
+      this.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(measurement) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
+  }
+
+  @Test
+  fun `createMeasurement fails when current time is after certificate is valid`() = runBlocking {
+    val measurementConsumer =
+      insertMeasurementConsumer(
+        testClock.instant().epochSecond - 2000L,
+        testClock.instant().epochSecond - 1000L
+      )
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalMeasurementConsumerCertificateId =
+      measurementConsumer.certificate.externalCertificateId
+    val dataProvider = insertDataProvider()
+    val externalDataProviderId = dataProvider.externalDataProviderId
+    val externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
+    val measurement = measurement {
+      details = details { apiVersion = "v2alpha" }
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalMeasurementConsumerCertificateId = externalMeasurementConsumerCertificateId
+      this.dataProviders[externalDataProviderId] =
+        dataProviderValue {
+          this.externalDataProviderCertificateId = externalDataProviderCertificateId
+        }
+      this.providedMeasurementId = PROVIDED_MEASUREMENT_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(measurement) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
   }
 
   @Test

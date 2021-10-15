@@ -16,10 +16,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import java.time.Clock
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -47,7 +49,7 @@ private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PA
  * * [KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND]
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
  */
-class CreateMeasurement(private val measurement: Measurement) :
+class CreateMeasurement(private val clock: Clock, private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
@@ -111,9 +113,13 @@ class CreateMeasurement(private val measurement: Measurement) :
         )
 
     reader.execute(transactionContext).singleOrNull()?.let {
-      if (it.certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+      val now = clock.instant()
+      if (it.certificate.revocationState !=
+          Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
+          now.isBefore(it.certificate.notValidBefore.toInstant()) ||
+          now.isAfter(it.certificate.notValidAfter.toInstant())
       ) {
-        throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_REVOKED)
+        throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
       }
     }
       ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)

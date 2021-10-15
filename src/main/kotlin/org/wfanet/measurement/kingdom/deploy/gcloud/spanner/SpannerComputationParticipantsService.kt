@@ -52,7 +52,7 @@ class SpannerComputationParticipantsService(
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
@@ -77,7 +77,7 @@ class SpannerComputationParticipantsService(
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Measurement State is Illegal" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
@@ -106,7 +106,7 @@ class SpannerComputationParticipantsService(
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_REVOKED,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,

@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -32,7 +31,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -58,7 +56,6 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val PROVIDED_MEASUREMENT_ID = "measurement"
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2")
 
 private val EL_GAMAL_PUBLIC_KEY = ByteString.copyFromUtf8("This is an ElGamal Public Key.")
@@ -79,7 +76,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val requisitionsService: RequisitionsCoroutineImplBase
   )
 
-  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  private val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
 

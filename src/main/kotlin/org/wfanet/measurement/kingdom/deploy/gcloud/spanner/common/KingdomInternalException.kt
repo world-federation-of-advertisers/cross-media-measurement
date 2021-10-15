@@ -53,8 +53,8 @@ class KingdomInternalException : Exception {
     /** Certificate is in an illegal revocation state for the operation. */
     CERTIFICATE_REVOCATION_STATE_ILLEGAL,
 
-    /** Certificate has the revocation state set and cannot be used in the creation of entities. */
-    CERTIFICATE_IS_REVOKED,
+    /** Certificate is invalid and cannot be used in the creation of entities. */
+    CERTIFICATE_IS_INVALID,
 
     /** Computation Participant should have been in another state. */
     COMPUTATION_PARTICIPANT_STATE_ILLEGAL,

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import java.time.Clock
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,12 +27,12 @@ import org.wfanet.measurement.kingdom.service.internal.testing.RequisitionsServi
 class SpannerRequisitionsServiceTest : RequisitionsServiceTest<SpannerRequisitionsService>() {
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 
-  override fun newTestDataServices(idGenerator: IdGenerator): TestDataServices {
+  override fun newTestDataServices(clock: Clock, idGenerator: IdGenerator): TestDataServices {
     val databaseClient = spannerDatabase.databaseClient
     return TestDataServices(
       SpannerMeasurementConsumersService(idGenerator, databaseClient),
       SpannerDataProvidersService(idGenerator, databaseClient),
-      SpannerMeasurementsService(idGenerator, databaseClient),
+      SpannerMeasurementsService(clock, idGenerator, databaseClient),
       SpannerComputationParticipantsService(idGenerator, databaseClient),
       SpannerCertificatesService(idGenerator, databaseClient)
     )
