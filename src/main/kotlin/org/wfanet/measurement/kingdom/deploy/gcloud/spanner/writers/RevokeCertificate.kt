@@ -38,6 +38,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
+ * associated active measurements if a certificate is revoked
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
@@ -98,14 +101,13 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           states += Measurement.State.PENDING_REQUISITION_PARAMS
         }
 
-      StreamMeasurements(Measurement.View.DEFAULT, filter, 10000)
+      StreamMeasurements(Measurement.View.DEFAULT, filter)
         .execute(transactionContext)
         .toList()
         .forEach {
           transactionContext.bufferUpdateMutation("Measurements") {
             set("MeasurementConsumerId" to it.measurementConsumerId)
             set("MeasurementId" to it.measurementId)
-            set("CertificateId" to certificateResult.certificateId.value)
             set("State" to Measurement.State.CANCELLED)
             set("UpdateTime" to Value.COMMIT_TIMESTAMP)
           }
