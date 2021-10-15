@@ -43,8 +43,10 @@ class MeasurementConsumersService(
     request: CreateMeasurementConsumerRequest
   ): MeasurementConsumer {
     val measurementConsumer = request.measurementConsumer
-    grpcRequire(with(measurementConsumer.publicKey) { !data.isEmpty && !signature.isEmpty }) {
-      "public_key is not fully specified"
+
+    grpcRequire(!measurementConsumer.publicKey.data.isEmpty) { "public_key.data is missing" }
+    grpcRequire(!measurementConsumer.publicKey.signature.isEmpty) {
+      "public_key.signature is missing"
     }
 
     val internalResponse: InternalMeasurementConsumer =
