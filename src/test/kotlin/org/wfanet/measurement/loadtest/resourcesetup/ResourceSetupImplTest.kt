@@ -16,7 +16,6 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.security.cert.X509Certificate
-import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -36,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
@@ -43,7 +43,6 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
-import org.wfanet.measurement.consent.crypto.verifySignature
 
 private const val RUN_ID = "run id"
 private const val EDP_DISPLAY_NAME = "edp"
@@ -113,13 +112,10 @@ class ResourceSetupImplTest {
               certificateDer = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
               publicKeyBuilder.apply {
                 data =
-                  EncryptionPublicKey.newBuilder()
-                    .apply {
-                      type = EncryptionPublicKey.Type.EC_P256
-                      publicKeyInfo =
-                        FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
+                  encryptionPublicKey {
+                      format = EncryptionPublicKey.Format.TINK_KEYSET
+                      data = FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
                     }
-                    .build()
                     .toByteString()
               }
               displayName = EDP_DISPLAY_NAME
@@ -129,7 +125,6 @@ class ResourceSetupImplTest {
       )
 
     // TODO: call the client library to verifyPublicKey
-    assertTrue(CONSENT_SIGNAL_X509.verifySignature(apiRequest.dataProvider.publicKey))
   }
 
   @Test
@@ -159,13 +154,10 @@ class ResourceSetupImplTest {
               certificateDer = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
               publicKeyBuilder.apply {
                 data =
-                  EncryptionPublicKey.newBuilder()
-                    .apply {
-                      type = EncryptionPublicKey.Type.EC_P256
-                      publicKeyInfo =
-                        FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
+                  encryptionPublicKey {
+                      format = EncryptionPublicKey.Format.TINK_KEYSET
+                      data = FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
                     }
-                    .build()
                     .toByteString()
               }
               displayName = MC_DISPLAY_NAME
@@ -174,7 +166,7 @@ class ResourceSetupImplTest {
           .build()
       )
 
-    assertTrue(CONSENT_SIGNAL_X509.verifySignature(apiRequest.measurementConsumer.publicKey))
+    // TODO: verify signature
   }
 
   companion object {
