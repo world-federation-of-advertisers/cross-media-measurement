@@ -21,7 +21,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DuchyKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey.Type.EC_P256
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -79,8 +79,9 @@ class ResourceSetup(
 
   suspend fun createDataProvider(dataProviderContent: EntityContent): DataProvider {
     val encryptionPublicKey = encryptionPublicKey {
-      type = EC_P256
-      publicKeyInfo = dataProviderContent.encryptionPublicKeyDer
+      format = EncryptionPublicKey.Format.TINK_KEYSET
+      data = dataProviderContent.encryptionPublicKeyDer
+      // TODO: get the data in the right format: a Tink Keyset instead of a DER public key info
     }
 
     val privateKeyHandle = PrivateKeyHandle(dataProviderContent.displayName, keyStore)
@@ -104,9 +105,8 @@ class ResourceSetup(
     measurementConsumerContent: EntityContent
   ): MeasurementConsumer {
     val encryptionPublicKey = encryptionPublicKey {
-      // TODO: Get the type using the consent-signaling-client lib.
-      type = EC_P256
-      publicKeyInfo = measurementConsumerContent.encryptionPublicKeyDer
+      format = EncryptionPublicKey.Format.TINK_KEYSET
+      data = measurementConsumerContent.encryptionPublicKeyDer
     }
     val privateKeyHandle = PrivateKeyHandle(measurementConsumerContent.displayName, keyStore)
     val request = createMeasurementConsumerRequest {

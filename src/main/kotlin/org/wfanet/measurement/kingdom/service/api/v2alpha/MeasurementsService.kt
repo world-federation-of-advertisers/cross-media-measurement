@@ -24,7 +24,6 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -207,13 +206,6 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 /** Validates a [MeasurementSpec] for a request. */
 private fun MeasurementSpec.validate() {
   grpcRequire(!this.measurementPublicKey.isEmpty) { "Measurement public key is unspecified" }
-
-  grpcRequire(
-    this.cipherSuite.kem !=
-      HybridCipherSuite.KeyEncapsulationMechanism.KEY_ENCAPSULATION_MECHANISM_UNSPECIFIED &&
-      this.cipherSuite.dem !=
-        HybridCipherSuite.DataEncapsulationMechanism.DATA_ENCAPSULATION_MECHANISM_UNSPECIFIED
-  ) { "Measurement cipher suite is unspecified" }
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   when (this.measurementTypeCase) {
