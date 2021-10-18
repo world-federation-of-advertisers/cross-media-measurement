@@ -109,18 +109,15 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
     externalMeasurementId: ExternalId,
     externalComputationId: ExternalId
   ) {
-    val measurementConsumerCertificateId =
-      readMeasurementConsumerCertificateId(
-        measurementConsumerId,
-        ExternalId(measurement.externalMeasurementConsumerCertificateId)
-      )
+    val reader =
+      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+        .bindWhereClause(
+          measurementConsumerId,
+          ExternalId(measurement.externalMeasurementConsumerCertificateId)
+        )
+    val certificateResult = reader.execute(transactionContext).singleOrNull()
 
-    validateCertificate(
-      CertificateReader.ParentType.MEASUREMENT_CONSUMER,
-      measurementConsumerId,
-      ExternalId(measurement.externalMeasurementConsumerCertificateId),
-      now
-    )
+    val measurementConsumerCertificateId = validateCertificate(certificateResult, now)
 
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -163,18 +160,15 @@ class CreateMeasurement(private val clock: Clock, private val measurement: Measu
     dataProviderId: InternalId,
     dataProviderValue: Measurement.DataProviderValue
   ) {
-    val dataProviderCertificateId =
-      readDataProviderCertificateId(
-        dataProviderId,
-        ExternalId(dataProviderValue.externalDataProviderCertificateId)
-      )
+    val reader =
+      CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+        .bindWhereClause(
+          dataProviderId,
+          ExternalId(dataProviderValue.externalDataProviderCertificateId)
+        )
+    val certificateResult = reader.execute(transactionContext).singleOrNull()
 
-    validateCertificate(
-      CertificateReader.ParentType.DATA_PROVIDER,
-      dataProviderId,
-      ExternalId(dataProviderValue.externalDataProviderCertificateId),
-      now
-    )
+    val dataProviderCertificateId = validateCertificate(certificateResult, now)
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -269,58 +263,20 @@ private suspend fun TransactionScope.readDataProviderId(
     }
 }
 
-private suspend fun TransactionScope.readDataProviderCertificateId(
-  dataProviderId: InternalId,
-  externalCertificateId: ExternalId
-): InternalId {
-  val column = "CertificateId"
-  return transactionContext.readRowUsingIndex(
-      "DataProviderCertificates",
-      "DataProviderCertificatesByExternalId",
-      Key.of(dataProviderId.value, externalCertificateId.value),
-      column
-    )
-    ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
-      "Certificate for DataProvider ${dataProviderId.value} with external ID " +
-        "$externalCertificateId not found"
-    }
-}
-
-private suspend fun TransactionScope.readMeasurementConsumerCertificateId(
-  measurementConsumerId: InternalId,
-  externalCertificateId: ExternalId
-): InternalId {
-  val column = "CertificateId"
-  return transactionContext.readRowUsingIndex(
-      "MeasurementConsumerCertificates",
-      "MeasurementConsumerCertificatesByExternalId",
-      Key.of(measurementConsumerId.value, externalCertificateId.value),
-      column
-    )
-    ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
-      "Certificate for MeasurementConsumer ${measurementConsumerId.value} with external ID " +
-        "$externalCertificateId not found"
-    }
-}
-
-private suspend fun TransactionScope.validateCertificate(
-  parentType: CertificateReader.ParentType,
-  parentId: InternalId,
-  externalCertificateId: ExternalId,
+private fun validateCertificate(
+  certificateResult: CertificateReader.Result?,
   now: Instant
-) {
-  val reader = CertificateReader(parentType).bindWhereClause(parentId, externalCertificateId)
+): InternalId {
+  val certificate =
+    certificateResult?.certificate
+      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
 
-  reader.execute(transactionContext).singleOrNull()?.let {
-    if (it.certificate.revocationState !=
-        Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
-        now.isBefore(it.certificate.notValidBefore.toInstant()) ||
-        now.isAfter(it.certificate.notValidAfter.toInstant())
-    ) {
-      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
-    }
+  if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
+      now.isBefore(certificate.notValidBefore.toInstant()) ||
+      now.isAfter(certificate.notValidAfter.toInstant())
+  ) {
+    throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
   }
-    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+
+  return certificateResult.certificateId
 }

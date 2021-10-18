@@ -49,24 +49,29 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig
 private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
-  fun buildRequestCertificate(derUtf8: String, skidUtf8: String, notValidBefore: Instant) =
-      certificate {
-    fillRequestCertificate(derUtf8, skidUtf8, notValidBefore)
-  }
+  private fun buildRequestCertificate(
+    derUtf8: String,
+    skidUtf8: String,
+    notValidBefore: Instant,
+    notValidAfter: Instant
+  ) = certificate { fillRequestCertificate(derUtf8, skidUtf8, notValidBefore, notValidAfter) }
 
   private fun CertificateKt.Dsl.fillRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
-    notValidBefore: Instant
+    notValidBefore: Instant,
+    notValidAfter: Instant
   ) {
     this.notValidBefore = notValidBefore.toProtoTime()
-    notValidAfter = notValidBefore.plus(365L, ChronoUnit.DAYS).toProtoTime()
+    this.notValidAfter = notValidAfter.toProtoTime()
     subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
     details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
   }
 
   suspend fun createMeasurementConsumer(
-    measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): MeasurementConsumer {
     return measurementConsumersService.createMeasurementConsumer(
       measurementConsumer {
@@ -74,7 +79,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           buildRequestCertificate(
             "MC cert",
             "MC SKID " + idGenerator.generateExternalId().value,
-            clock.instant()
+            notValidBefore,
+            notValidAfter
           )
         details =
           MeasurementConsumerKt.details {
@@ -87,7 +93,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   }
 
   suspend fun createDataProvider(
-    dataProvidersService: DataProvidersCoroutineImplBase
+    dataProvidersService: DataProvidersCoroutineImplBase,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): DataProvider {
     return dataProvidersService.createDataProvider(
       dataProvider {
@@ -95,7 +103,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           buildRequestCertificate(
             "EDP cert",
             "EDP SKID " + idGenerator.generateExternalId().value,
-            clock.instant()
+            notValidBefore,
+            notValidAfter
           )
         details =
           DataProviderKt.details {
@@ -108,7 +117,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   }
 
   suspend fun createModelProvider(
-    modelProvidersService: ModelProvidersCoroutineImplBase
+    modelProvidersService: ModelProvidersCoroutineImplBase,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): ModelProvider {
     val modelProvider =
       modelProvidersService.createModelProvider(
@@ -117,7 +128,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             buildRequestCertificate(
               "MC cert",
               "MP SKID " + idGenerator.generateExternalId().value,
-              clock.instant()
+              notValidBefore,
+              notValidAfter
             )
           details =
             ModelProviderKt.details {
@@ -175,12 +187,19 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createDuchyCertificate(
     certificatesService: CertificatesCoroutineImplBase,
-    externalDuchyId: String
+    externalDuchyId: String,
+    notValidBefore: Instant = clock.instant(),
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): Certificate {
     return certificatesService.createCertificate(
       certificate {
         this.externalDuchyId = externalDuchyId
-        fillRequestCertificate("Duchy cert", "Duchy $externalDuchyId SKID", clock.instant())
+        fillRequestCertificate(
+          "Duchy cert",
+          "Duchy $externalDuchyId SKID",
+          notValidBefore,
+          notValidAfter
+        )
       }
     )
   }
