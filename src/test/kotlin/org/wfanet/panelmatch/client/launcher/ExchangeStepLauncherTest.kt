@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStepKt.signedExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.MODEL_PROVIDER
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
@@ -79,8 +78,7 @@ private val EXCHANGE_STEP: ExchangeStep = exchangeStep {
   name = EXCHANGE_STEP_KEY.toName()
   state = ExchangeStep.State.READY_FOR_RETRY
   stepIndex = 2
-  signedExchangeWorkflow =
-    signedExchangeWorkflow { serializedExchangeWorkflow = SERIALIZED_EXCHANGE_WORKFLOW }
+  serializedExchangeWorkflow = SERIALIZED_EXCHANGE_WORKFLOW
 }
 
 private object ValidExchangeWorkflows : SecretMap {
@@ -128,12 +126,7 @@ class ExchangeStepLauncherTest {
   fun `findAndRunExchangeStep with unrecognized ExchangeWorkflow`() {
     val invalidExchangeWorkflow = EXCHANGE_WORKFLOW.copy { steps += step {} }
     val invalidExchangeStep =
-      EXCHANGE_STEP.copy {
-        signedExchangeWorkflow =
-          signedExchangeWorkflow {
-            serializedExchangeWorkflow = invalidExchangeWorkflow.toByteString()
-          }
-      }
+      EXCHANGE_STEP.copy { serializedExchangeWorkflow = invalidExchangeWorkflow.toByteString() }
 
     apiClient.stub {
       onBlocking { claimExchangeStep() }

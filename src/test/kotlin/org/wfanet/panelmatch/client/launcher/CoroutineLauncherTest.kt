@@ -27,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.common.CountDownLatch
-import org.wfanet.panelmatch.client.launcher.testing.buildSignedExchangeWorkflow
 import org.wfanet.panelmatch.client.launcher.testing.buildWorkflow
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -43,7 +42,7 @@ class CoroutineLauncherTest {
     val step = exchangeStep {
       name = "some-exchange-step-name"
       stepIndex = 0
-      signedExchangeWorkflow = buildSignedExchangeWorkflow(workflow)
+      serializedExchangeWorkflow = workflow.toByteString()
     }
 
     val startLatch = CountDownLatch(1)

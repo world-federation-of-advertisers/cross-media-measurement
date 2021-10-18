@@ -29,7 +29,7 @@ class ExchangeStepValidator(
 ) {
   /** Throws [InvalidExchangeStepException] if [exchangeStep] is invalid. */
   suspend fun validate(exchangeStep: ExchangeStep) {
-    val serializedExchangeWorkflow = exchangeStep.signedExchangeWorkflow.serializedExchangeWorkflow
+    val serializedExchangeWorkflow = exchangeStep.serializedExchangeWorkflow
     val recurringExchangeId =
       requireNotNull(ExchangeStepKey.fromName(exchangeStep.name)).recurringExchangeId
     if (validExchangeWorkflows.get(recurringExchangeId) != serializedExchangeWorkflow) {
