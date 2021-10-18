@@ -20,7 +20,6 @@ import java.time.Clock
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2alphaElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
@@ -32,7 +31,6 @@ import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
 import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
-import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
@@ -47,7 +45,6 @@ import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaHybridCipherSuite
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaMeasurementResult
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
@@ -755,8 +752,7 @@ class LiquidLegionsV2Mill(
           encryptResult(
             signedResult,
             publicApiEncryptionPublicKey,
-            kingdomComputation.cipherSuite.toV2AlphaHybridCipherSuite(),
-            ::fakeGetHybridCryptorForCipherSuite // TODO: use the real HybridCryptor.
+            ::ReversingHybridCryptor // TODO: use the real HybridCryptor.
           )
         }
         Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
@@ -860,11 +856,6 @@ class LiquidLegionsV2Mill(
         dpParams = llv2Parameters.noise.frequencyNoiseConfig
       }
       .build()
-  }
-
-  // TODO: delete this fake when the EciesCryptor is done.
-  private fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
-    return ReversingHybridCryptor()
   }
 
   companion object {
