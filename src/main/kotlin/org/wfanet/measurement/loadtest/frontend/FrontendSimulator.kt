@@ -35,9 +35,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite.DataEncapsulationMechanism
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite.KeyEncapsulationMechanism
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -61,7 +58,6 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.dataProviderList
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.hybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
@@ -77,7 +73,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
-import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
@@ -90,10 +85,6 @@ private const val INDEX_SIZE = 100000L
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
-private val CIPHER_SUITE = hybridCipherSuite {
-  kem = KeyEncapsulationMechanism.ECDH_P256_HKDF_HMAC_SHA256
-  dem = DataEncapsulationMechanism.AES_128_GCM
-}
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -200,8 +191,7 @@ class FrontendSimulator(
         decryptResult(
           measurement.encryptedResult,
           PrivateKeyHandle(measurementConsumerData.encryptionPrivateKeyId, keyStore),
-          CIPHER_SUITE,
-          ::fakeGetHybridCryptorForCipherSuite
+          ::ReversingHybridCryptor
         )
       val result = Result.parseFrom(signedResult.data)
       val aggregatorCertificate = readCertificate(measurement.aggregatorCertificate)
@@ -267,7 +257,6 @@ class FrontendSimulator(
   private fun newMeasurementSpec(serializedMeasurementPublicKey: ByteString): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
-      cipherSuite = CIPHER_SUITE
       reachAndFrequency =
         reachAndFrequency {
           reachPrivacyParams = outputDpParams
@@ -340,16 +329,10 @@ class FrontendSimulator(
             encryptRequisitionSpec(
               signedRequisitionSpec,
               EncryptionPublicKey.parseFrom(source.publicKey.data),
-              CIPHER_SUITE,
-              ::fakeGetHybridCryptorForCipherSuite // TODO: use the real HybridCryptor.
+              ::ReversingHybridCryptor // TODO: use the real HybridCryptor.
             )
         }
     }
-  }
-
-  // TODO: delete this fake when the EciesCryptor is done.
-  private fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
-    return ReversingHybridCryptor()
   }
 
   companion object {

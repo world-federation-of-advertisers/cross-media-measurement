@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.HybridCipherSuite
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -64,7 +63,6 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.signRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
-import org.wfanet.measurement.consent.crypto.hybridencryption.HybridCryptor
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -155,8 +153,7 @@ class EdpSimulator(
       decryptRequisitionSpecAndGenerateRequisitionFingerprint(
         requisition,
         checkNotNull(keyStore.getPrivateKeyHandle(ENCRYPTION_PRIVATE_KEY_HANDLE_KEY)),
-        HybridCipherSuite.getDefaultInstance(),
-        ::fakeGetHybridCryptorForCipherSuite
+        ::ReversingHybridCryptor
       )
 
     val signedRequisitionSpec = requisitionSpecAndFingerprint.signedRequisitionSpec
@@ -287,11 +284,6 @@ class EdpSimulator(
         .build()
 
     return requisitionsStub.listRequisitions(request).requisitionsList.firstOrNull()
-  }
-
-  /** Always returns [ReversingHybridCryptor] regardless of input [HybridCipherSuite]. */
-  private fun fakeGetHybridCryptorForCipherSuite(cipherSuite: HybridCipherSuite): HybridCryptor {
-    return ReversingHybridCryptor()
   }
 
   companion object {
