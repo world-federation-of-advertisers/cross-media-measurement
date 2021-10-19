@@ -58,8 +58,6 @@ private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 private const val NOT_AN_ID = 13579L
 
 private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
@@ -68,7 +66,7 @@ private val CERTIFICATE = certificate {
   notValidBefore = timestamp { seconds = 12345 }
   notValidAfter = timestamp { seconds = 23456 }
   subjectKeyIdentifier = ByteString.copyFromUtf8("This is an SKID")
-  details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+  details = details { x509Der = CERTIFICATE_DER }
 }
 
 @RunWith(JUnit4::class)
@@ -404,19 +402,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         }
       )
 
-    val measurementOne =
-      population.createMeasurement(
-        measurementsService,
-        measurementConsumer.copy { this.certificate = certificate },
-        "measurement one"
-      )
-    val measurementTwo =
-      population.createMeasurement(
-        measurementsService,
-        measurementConsumer.copy { this.certificate = certificate },
-        "measurement two"
-      )
-
     val request = revokeCertificateRequest {
       externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
       externalCertificateId = certificate.externalCertificateId
@@ -436,6 +421,24 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       )
 
     assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
+  }
+
+  @Test
+  fun `revokeCertificate for MeasurementConsumer cancels pending Measurements`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+
+    val measurementOne =
+      population.createMeasurement(measurementsService, measurementConsumer, "measurement one")
+    val measurementTwo =
+      population.createMeasurement(measurementsService, measurementConsumer, "measurement two")
+
+    val request = revokeCertificateRequest {
+      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      externalCertificateId = measurementConsumer.certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    certificatesService.revokeCertificate(request)
 
     val measurementOneCancelled =
       measurementsService.getMeasurement(

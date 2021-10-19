@@ -16,8 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import java.lang.IllegalStateException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -101,17 +101,14 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           states += Measurement.State.PENDING_REQUISITION_PARAMS
         }
 
-      StreamMeasurements(Measurement.View.DEFAULT, filter)
-        .execute(transactionContext)
-        .toList()
-        .forEach {
-          transactionContext.bufferUpdateMutation("Measurements") {
-            set("MeasurementConsumerId" to it.measurementConsumerId)
-            set("MeasurementId" to it.measurementId)
-            set("State" to Measurement.State.CANCELLED)
-            set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-          }
+      StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
+        transactionContext.bufferUpdateMutation("Measurements") {
+          set("MeasurementConsumerId" to it.measurementConsumerId)
+          set("MeasurementId" to it.measurementId)
+          set("State" to Measurement.State.CANCELLED)
+          set("UpdateTime" to Value.COMMIT_TIMESTAMP)
         }
+      }
     }
 
     return certificateResult.certificate.copy { revocationState = request.revocationState }
