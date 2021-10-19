@@ -31,7 +31,11 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class CertificateReader(private val parentType: ParentType) :
   BaseSpannerReader<CertificateReader.Result>() {
-  data class Result(val certificate: Certificate, val certificateId: InternalId)
+  data class Result(
+    val certificate: Certificate,
+    val certificateId: InternalId,
+    val isValidNow: Boolean
+  )
 
   enum class ParentType(private val prefix: String) {
     DATA_PROVIDER("DataProvider"),
@@ -100,18 +104,28 @@ class CertificateReader(private val parentType: ParentType) :
   override suspend fun translate(struct: Struct): Result {
     val certificateId = struct.getInternalId("CertificateId")
     return when (parentType) {
-      ParentType.DATA_PROVIDER -> Result(buildDataProviderCertificate(struct), certificateId)
+      ParentType.DATA_PROVIDER ->
+        Result(buildDataProviderCertificate(struct), certificateId, struct.getBoolean("IsValid"))
       ParentType.MEASUREMENT_CONSUMER ->
-        Result(buildMeasurementConsumerCertificate(struct), certificateId)
+        Result(
+          buildMeasurementConsumerCertificate(struct),
+          certificateId,
+          struct.getBoolean("IsValid")
+        )
       ParentType.DUCHY -> {
         val duchyId = struct.getLong("DuchyId")
         val externalDuchyId =
           checkNotNull(DuchyIds.getExternalId(duchyId)) {
             "Duchy with internal ID $duchyId not found"
           }
-        Result(buildDuchyCertificate(externalDuchyId, struct), certificateId)
+        Result(
+          buildDuchyCertificate(externalDuchyId, struct),
+          certificateId,
+          struct.getBoolean("IsValid")
+        )
       }
-      ParentType.MODEL_PROVIDER -> Result(buildModelProviderCertificate(struct), certificateId)
+      ParentType.MODEL_PROVIDER ->
+        Result(buildModelProviderCertificate(struct), certificateId, struct.getBoolean("IsValid"))
     }
   }
 
@@ -135,7 +149,8 @@ class CertificateReader(private val parentType: ParentType) :
         RevocationState,
         CertificateDetails,
         ${parentType.externalCertificateIdColumnName},
-        ${parentType.externalIdColumnName!!}
+        ${parentType.externalIdColumnName!!},
+        (CURRENT_TIMESTAMP() >= NotValidBefore AND CURRENT_TIMESTAMP() <= NotValidAfter) AS IsValid
       FROM
         ${parentType.certificatesTableName}
         JOIN ${parentType.tableName!!} USING (${parentType.idColumnName})
@@ -153,7 +168,8 @@ class CertificateReader(private val parentType: ParentType) :
         RevocationState,
         CertificateDetails,
         ${parentType.externalCertificateIdColumnName},
-        ${parentType.idColumnName}
+        ${parentType.idColumnName},
+        (CURRENT_TIMESTAMP() >= NotValidBefore AND CURRENT_TIMESTAMP() <= NotValidAfter) AS IsValid
       FROM
         ${parentType.certificatesTableName}
         JOIN Certificates USING (CertificateId)
