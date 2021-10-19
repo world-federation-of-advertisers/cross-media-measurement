@@ -91,8 +91,8 @@ class PanelMatchResourceSetup(
     logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
 
     return ResourceSetupKeys(
-      DataProviderKey(externalIdToApiId(externalDataProviderId)).toName(),
-      ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName(),
+      DataProviderKey(externalIdToApiId(externalDataProviderId)),
+      ModelProviderKey(externalIdToApiId(externalModelProviderId)),
       externalIdToApiId(externalRecurringExchangeId)
     )
   }
@@ -192,7 +192,7 @@ class PanelMatchResourceSetup(
 }
 
 data class ResourceSetupKeys(
-  val dataProviderKey: String,
-  val modelProviderKey: String,
+  val dataProviderKey: DataProviderKey,
+  val modelProviderKey: ModelProviderKey,
   val recurringExchangeApiId: String
 )
