@@ -18,8 +18,10 @@ import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchangeStep
 import org.wfanet.measurement.internal.kingdom.provider
 
@@ -74,6 +76,9 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
           }
         }
       updateTime = struct.getTimestamp("UpdateTime").toProto()
+      serializedExchangeWorkflow =
+        struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+          .externalExchangeWorkflow
     }
   }
 
@@ -89,7 +94,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
         "ExchangeSteps.DataProviderId",
         "ModelProviders.ExternalModelProviderId",
         "DataProviders.ExternalDataProviderId",
-        "RecurringExchanges.ExternalRecurringExchangeId"
+        "RecurringExchanges.ExternalRecurringExchangeId",
+        "RecurringExchanges.RecurringExchangeDetails",
       )
 
     val SELECT_COLUMNS_SQL = SELECT_COLUMNS.joinToString(", ")

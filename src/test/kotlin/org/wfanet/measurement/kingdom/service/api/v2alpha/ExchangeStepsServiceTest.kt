@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -59,6 +60,7 @@ private val DATE = date {
 private const val EXCHANGE_ID = "2021-03-14"
 private const val STEP_INDEX = 123
 private const val ATTEMPT_NUMBER = 5
+private val SERIALIZED_WORKFLOW = ByteString.copyFromUtf8("some-serialized-exchange-workflow")
 
 private val EXCHANGE_STEP = exchangeStep {
   val exchangeStepKey =
@@ -70,6 +72,8 @@ private val EXCHANGE_STEP = exchangeStep {
   name = exchangeStepKey.toName()
   state = ExchangeStep.State.READY_FOR_RETRY
   stepIndex = STEP_INDEX
+  exchangeDate = DATE
+  serializedExchangeWorkflow = SERIALIZED_WORKFLOW
 }
 
 private val EXCHANGE_STEP_ATTEMPT: String =
@@ -92,6 +96,7 @@ private val INTERNAL_EXCHANGE_STEP: InternalExchangeStep = internalExchangeStep 
   date = DATE
   stepIndex = STEP_INDEX
   state = InternalExchangeStep.State.READY_FOR_RETRY
+  serializedExchangeWorkflow = SERIALIZED_WORKFLOW
 }
 
 @RunWith(JUnit4::class)

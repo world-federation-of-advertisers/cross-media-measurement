@@ -71,4 +71,7 @@ message ExchangeStep {
   Provider provider = 5;
 
   google.protobuf.Timestamp update_time = 6;
+
+  // Serialized ExchangeWorkflow that this ExchangeStep corresponds to.
+  bytes serialized_exchange_workflow = 7;
 }
