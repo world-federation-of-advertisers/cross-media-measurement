@@ -92,7 +92,8 @@ class PanelMatchResourceSetup(
 
     return RecurringExchangeParticipants(
       DataProviderKey(externalIdToApiId(externalDataProviderId)).toName(),
-      ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
+      ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName(),
+      externalIdToApiId(externalRecurringExchangeId)
     )
   }
 
@@ -190,4 +191,8 @@ class PanelMatchResourceSetup(
   }
 }
 
-data class RecurringExchangeParticipants(val dataProviderKey: String, val modelProviderKey: String)
+data class RecurringExchangeParticipants(
+  val dataProviderKey: String,
+  val modelProviderKey: String,
+  val recurringExchangeApiId: String
+)
