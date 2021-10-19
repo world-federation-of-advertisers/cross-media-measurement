@@ -46,6 +46,7 @@ private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PA
  * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
  * * [KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND]
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [KingdomInternalException.Code.CERTIFICATE_IS_INVALID]
  */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
@@ -250,6 +251,10 @@ private suspend fun TransactionScope.readDataProviderId(
     }
 }
 
+/**
+ * Returns the internal Certificate Id if the revocation state has not been set and the current time
+ * is inside the valid time period.
+ */
 private fun validateCertificate(
   certificateResult: CertificateReader.Result?,
 ): InternalId {

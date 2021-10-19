@@ -103,29 +103,22 @@ class CertificateReader(private val parentType: ParentType) :
 
   override suspend fun translate(struct: Struct): Result {
     val certificateId = struct.getInternalId("CertificateId")
+    val isValid = struct.getBoolean("IsValid")
     return when (parentType) {
       ParentType.DATA_PROVIDER ->
-        Result(buildDataProviderCertificate(struct), certificateId, struct.getBoolean("IsValid"))
+        Result(buildDataProviderCertificate(struct), certificateId, isValid)
       ParentType.MEASUREMENT_CONSUMER ->
-        Result(
-          buildMeasurementConsumerCertificate(struct),
-          certificateId,
-          struct.getBoolean("IsValid")
-        )
+        Result(buildMeasurementConsumerCertificate(struct), certificateId, isValid)
       ParentType.DUCHY -> {
         val duchyId = struct.getLong("DuchyId")
         val externalDuchyId =
           checkNotNull(DuchyIds.getExternalId(duchyId)) {
             "Duchy with internal ID $duchyId not found"
           }
-        Result(
-          buildDuchyCertificate(externalDuchyId, struct),
-          certificateId,
-          struct.getBoolean("IsValid")
-        )
+        Result(buildDuchyCertificate(externalDuchyId, struct), certificateId, isValid)
       }
       ParentType.MODEL_PROVIDER ->
-        Result(buildModelProviderCertificate(struct), certificateId, struct.getBoolean("IsValid"))
+        Result(buildModelProviderCertificate(struct), certificateId, isValid)
     }
   }
 
