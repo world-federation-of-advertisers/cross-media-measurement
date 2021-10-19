@@ -60,7 +60,7 @@ private val DATE = date {
 private const val EXCHANGE_ID = "2021-03-14"
 private const val STEP_INDEX = 123
 private const val ATTEMPT_NUMBER = 5
-private val SERIALIZED_WORKFLOW = ByteString.copyFromUtf8("generate-hkdf-pepper")
+private val SERIALIZED_WORKFLOW = ByteString.copyFromUtf8("some-serialized-exchange-workflow")
 
 private val EXCHANGE_STEP = exchangeStep {
   val exchangeStepKey =
