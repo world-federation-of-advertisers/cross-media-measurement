@@ -68,13 +68,12 @@ private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
       exchangeId = date.toLocalDate().toString(),
       exchangeStepId = stepIndex.toString()
     )
-
   return exchangeStep {
     name = exchangeStepKey.toName()
     state = v2AlphaState
     stepIndex = this@toV2Alpha.stepIndex
     exchangeDate = date
-    this.serializedExchangeWorkflow = serializedExchangeWorkflow
+    serializedExchangeWorkflow = this@toV2Alpha.serializedExchangeWorkflow
   }
 }
 
