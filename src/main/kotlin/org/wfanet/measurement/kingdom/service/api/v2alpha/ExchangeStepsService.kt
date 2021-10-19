@@ -73,7 +73,8 @@ private fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
     name = exchangeStepKey.toName()
     state = v2AlphaState
     stepIndex = this@toV2Alpha.stepIndex
-    // TODO(world-federation-of-advertisers/cross-media-measurement#3): add remaining fields
+    exchangeDate = date
+    this.serializedExchangeWorkflow = serializedExchangeWorkflow
   }
 }
 

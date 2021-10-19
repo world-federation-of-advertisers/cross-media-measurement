@@ -70,6 +70,7 @@ private val EXCHANGE_STEP = exchangeStep {
   name = exchangeStepKey.toName()
   state = ExchangeStep.State.READY_FOR_RETRY
   stepIndex = STEP_INDEX
+  exchangeDate = DATE
 }
 
 private val EXCHANGE_STEP_ATTEMPT: String =
