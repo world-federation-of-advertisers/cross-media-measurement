@@ -72,7 +72,7 @@ class PanelMatchResourceSetup(
     apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow,
     exchangeDate: Date
-  ): RecurringExchangeParticipants {
+  ): ResourceSetupKeys {
 
     val externalDataProviderId = createDataProvider()
     logger.info("Successfully created data provider: $externalDataProviderId.")
@@ -90,7 +90,7 @@ class PanelMatchResourceSetup(
       )
     logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
 
-    return RecurringExchangeParticipants(
+    return ResourceSetupKeys(
       DataProviderKey(externalIdToApiId(externalDataProviderId)).toName(),
       ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName(),
       externalIdToApiId(externalRecurringExchangeId)
@@ -100,24 +100,24 @@ class PanelMatchResourceSetup(
   private suspend fun createDataProvider(): Long {
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
     return dataProvidersStub.createDataProvider(
-        internalDataProvider {
-          certificate =
-            certificate {
-              notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-              notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-              details =
-                CertificateKt.details {
-                  x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-                }
-            }
-          details =
-            DataProviderKt.details {
-              apiVersion = "2"
-              publicKey = ByteString.copyFromUtf8("This is a  public key.")
-              publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-            }
-        }
-      )
+      internalDataProvider {
+        certificate =
+          certificate {
+            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+            details =
+              CertificateKt.details {
+                x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+              }
+          }
+        details =
+          DataProviderKt.details {
+            apiVersion = "2"
+            publicKey = ByteString.copyFromUtf8("This is a  public key.")
+            publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+          }
+      }
+    )
       .externalDataProviderId
   }
 
@@ -134,23 +134,23 @@ class PanelMatchResourceSetup(
     exchangeWorkflow: ExchangeWorkflow
   ): Long {
     return recurringExchangesStub.createRecurringExchange(
-        createRecurringExchangeRequest {
-          recurringExchange =
-            internalRecurringExchange {
-              externalDataProviderId = externalDataProvider
-              externalModelProviderId = externalModelProvider
-              state = InternalRecurringExchange.State.ACTIVE
-              details =
-                recurringExchangeDetails {
-                  this.exchangeWorkflow = exchangeWorkflow.toInternal()
-                  cronSchedule = exchangeSchedule
-                  externalExchangeWorkflow = exchangeWorkflow.toByteString()
-                  apiVersion = publicApiVersion
-                }
-              nextExchangeDate = exchangeDate
-            }
-        }
-      )
+      createRecurringExchangeRequest {
+        recurringExchange =
+          internalRecurringExchange {
+            externalDataProviderId = externalDataProvider
+            externalModelProviderId = externalModelProvider
+            state = InternalRecurringExchange.State.ACTIVE
+            details =
+              recurringExchangeDetails {
+                this.exchangeWorkflow = exchangeWorkflow.toInternal()
+                cronSchedule = exchangeSchedule
+                externalExchangeWorkflow = exchangeWorkflow.toByteString()
+                apiVersion = publicApiVersion
+              }
+            nextExchangeDate = exchangeDate
+          }
+      }
+    )
       .externalRecurringExchangeId
   }
 
@@ -191,7 +191,7 @@ class PanelMatchResourceSetup(
   }
 }
 
-data class RecurringExchangeParticipants(
+data class ResourceSetupKeys(
   val dataProviderKey: String,
   val modelProviderKey: String,
   val recurringExchangeApiId: String
