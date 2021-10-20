@@ -23,6 +23,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -72,7 +73,7 @@ class PanelMatchResourceSetup(
     apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow,
     exchangeDate: Date
-  ): RecurringExchangeParticipants {
+  ): WorkflowResourceKeys {
 
     val externalDataProviderId = createDataProvider()
     logger.info("Successfully created data provider: $externalDataProviderId.")
@@ -90,9 +91,10 @@ class PanelMatchResourceSetup(
       )
     logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
 
-    return RecurringExchangeParticipants(
-      DataProviderKey(externalIdToApiId(externalDataProviderId)).toName(),
-      ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
+    return WorkflowResourceKeys(
+      DataProviderKey(externalIdToApiId(externalDataProviderId)),
+      ModelProviderKey(externalIdToApiId(externalModelProviderId)),
+      RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
     )
   }
 
@@ -190,4 +192,8 @@ class PanelMatchResourceSetup(
   }
 }
 
-data class RecurringExchangeParticipants(val dataProviderKey: String, val modelProviderKey: String)
+data class WorkflowResourceKeys(
+  val dataProviderKey: DataProviderKey,
+  val modelProviderKey: ModelProviderKey,
+  val recurringExchangeKey: RecurringExchangeKey
+)
