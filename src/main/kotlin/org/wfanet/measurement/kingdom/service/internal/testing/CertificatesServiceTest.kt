@@ -24,6 +24,7 @@ import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -44,12 +45,14 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
-import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -424,7 +427,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
-  fun `revokeCertificate for MeasurementConsumer cancels pending Measurements`() = runBlocking {
+  fun `revokeCertificate for MeasurementConsumer cancels pending Measurements`(): Unit =
+      runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val measurementOne =
@@ -440,25 +444,30 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     certificatesService.revokeCertificate(request)
 
-    val measurementOneCancelled =
-      measurementsService.getMeasurement(
-        getMeasurementRequest {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val measurements =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              StreamMeasurementsRequestKt.filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        measurement {
+          state = Measurement.State.CANCELLED
           externalMeasurementId = measurementOne.externalMeasurementId
-        }
-      )
-
-    assertThat(measurementOneCancelled.state).isEqualTo(Measurement.State.CANCELLED)
-
-    val measurementTwoCancelled =
-      measurementsService.getMeasurement(
-        getMeasurementRequest {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        },
+        measurement {
+          state = Measurement.State.CANCELLED
           externalMeasurementId = measurementTwo.externalMeasurementId
         }
       )
-
-    assertThat(measurementTwoCancelled.state).isEqualTo(Measurement.State.CANCELLED)
   }
 
   @Test
