@@ -104,10 +104,11 @@ message ExchangeWorkflow {
     // Compares the inputs to determine if they overlap sufficiently.
     message IntersectAndValidateStep {
       // The maximum number of items in to allow.
-      int32 max_size = 3;
+      int32 max_size = 1;
 
-      // The minimum fraction of items that must exist in both input data sets.
-      float minimum_overlap = 4;
+      // The maximum number of items allowed that do not exist in the previous
+      // day's set of items.
+      int32 maximum_new_items_allowed = 2;
     }
 
     // Generates public ids for a list of hashed join keys
