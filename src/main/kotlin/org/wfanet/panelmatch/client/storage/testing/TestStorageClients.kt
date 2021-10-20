@@ -14,11 +14,52 @@
 
 package org.wfanet.panelmatch.client.storage.testing
 
+import com.google.common.collect.ImmutableMap
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
+import org.wfanet.panelmatch.client.storage.SharedStorageSelector
+import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
+import org.wfanet.panelmatch.common.secrets.SecretMap
+
+fun makeTestPrivateStorageSelector(secretMap: SecretMap): PrivateStorageSelector {
+
+  return PrivateStorageSelector(
+    ImmutableMap.of(
+      StorageDetails.PlatformCase.FILE,
+      ::InMemoryStorageFactory,
+      StorageDetails.PlatformCase.AWS,
+      ::InMemoryStorageFactory,
+      StorageDetails.PlatformCase.GCS,
+      ::InMemoryStorageFactory,
+      StorageDetails.PlatformCase.PLATFORM_NOT_SET,
+      ::InMemoryStorageFactory,
+    ),
+    secretMap
+  )
+}
+
+fun makeTestSharedStorageSelector(secretMap: SecretMap): SharedStorageSelector {
+
+  return SharedStorageSelector(
+    TestCertificateManager(),
+    "owner",
+    ImmutableMap.of(
+      StorageDetails.PlatformCase.FILE,
+      ::InMemoryStorageFactory,
+      StorageDetails.PlatformCase.AWS,
+      ::InMemoryStorageFactory,
+      StorageDetails.PlatformCase.GCS,
+      ::InMemoryStorageFactory,
+      StorageDetails.PlatformCase.PLATFORM_NOT_SET,
+      ::InMemoryStorageFactory,
+    ),
+    secretMap
+  )
+}
 
 fun makeTestVerifiedStorageClient(
   underlyingClient: StorageClient = InMemoryStorageClient()

@@ -35,6 +35,18 @@ message StorageDetails {
     ROTATING_BUCKET = 2;
   }
 
+  enum Visibility {
+    // Default. Will cause an error as all storage is expected to be tagged
+    // shared or private.
+    UNKNOWN = 0;
+    // Indicates that this storage intended to be used for shared storage. Data
+    // written here will be visible to both partners in an exchange.
+    SHARED = 1;
+    // Indicates that this storage intended to be used for private storage. Data
+    // written here is intended only to be visible to the task executor.
+    PRIVATE = 2;
+  }
+
   // TODO(): Stub. Implement this when S3 Storage Client is ready.
   message AwsStorage {
     string bucket = 1;
@@ -55,4 +67,6 @@ message StorageDetails {
     GcsStorage gcs = 2;
     FileStorage file = 3;
   }
+
+  Visibility visibility = 4;
 }
