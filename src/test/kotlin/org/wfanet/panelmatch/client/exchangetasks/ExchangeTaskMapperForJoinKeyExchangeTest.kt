@@ -21,12 +21,11 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptor
-import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.client.storage.testing.InMemoryStorageFactory
 import org.wfanet.panelmatch.common.compression.NoOpCompressorFactory
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.testing.AlwaysReadyThrottler
@@ -40,7 +39,7 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
       override val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
       override val getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor
       override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
-      override val privateStorage = StorageFactory { InMemoryStorageClient() }
+      override val privateStorage = InMemoryStorageFactory()
       override val inputTaskThrottler = AlwaysReadyThrottler
       override val getQueryResultsEvaluator = { _: ByteString -> PlaintextQueryEvaluator }
     }

@@ -43,12 +43,12 @@ class VerifiedStorageClient(
   private val certificateManager: CertificateManager,
 ) {
 
+  val defaultBufferSizeBytes: Int = storageClient.defaultBufferSizeBytes
+
   // TODO: This is just wildly a bad idea and I'm only keeping it here to reduce the number of files
   //   I'm changing. I will immediately rework this in a following PR once StorageSelector is
   //   implemented. - jmolle
   suspend fun getPrivateKey(): PrivateKey = certificateManager.getExchangePrivateKey(exchangeKey)
-
-  val defaultBufferSizeBytes: Int = storageClient.defaultBufferSizeBytes
 
   /** A helper function to get the implicit path for a input's signature. */
   private fun getSigPath(blobKey: String): String = "${blobKey}_signature"
@@ -105,7 +105,6 @@ class VerifiedStorageClient(
     return VerifiedBlob(
       sourceBlob,
       namedSignature.signature,
-      blobKey,
       certificateManager.getCertificate(exchangeKey, partnerName, namedSignature.certificateName)
     )
   }
@@ -141,7 +140,7 @@ class VerifiedStorageClient(
       signature = signatureVal
     }
     storageClient.createBlob(blobKey = getSigPath(blobKey), content = namedSignature.toByteString())
-    return VerifiedBlob(sourceBlob, signatureVal, blobKey, ownerCertificate)
+    return VerifiedBlob(sourceBlob, signatureVal, ownerCertificate)
   }
 
   suspend fun createBlob(blobKey: String, content: ByteString): VerifiedBlob =
@@ -150,7 +149,6 @@ class VerifiedStorageClient(
   class VerifiedBlob(
     private val sourceBlob: Blob,
     private val signature: ByteString,
-    val blobKey: String,
     private val cert: X509Certificate
   ) {
 
