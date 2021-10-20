@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import java.time.Clock
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
@@ -35,6 +36,8 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromF
     get() = TODO("Not yet implemented")
   override val privateStorageFactory: StorageFactory
     get() = TODO("Not yet implemented")
+
+  override val clock: Clock = Clock.systemUTC()
 
   override val validExchangeWorkflows: SecretMap by lazy {
     approvedWorkflowFlags.approvedExchangeWorkflows

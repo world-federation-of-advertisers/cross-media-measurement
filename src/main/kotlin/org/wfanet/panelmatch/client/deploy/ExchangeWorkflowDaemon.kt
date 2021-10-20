@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
@@ -21,7 +22,7 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.Identity
 import org.wfanet.panelmatch.client.storage.StorageFactory
@@ -52,6 +53,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** [ExchangeTaskMapper] to create a task based on the step */
   abstract val exchangeTaskMapper: ExchangeTaskMapper
 
+  /** Clock for ensuring future Exchanges don't execute yet. */
+  abstract val clock: Clock
+
   override fun run() {
 
     val stepExecutor =
@@ -67,7 +71,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     val exchangeStepLauncher =
       ExchangeStepLauncher(
         apiClient = apiClient,
-        validator = ExchangeStepValidator(identity.party, validExchangeWorkflows),
+        validator = ExchangeStepValidatorImpl(identity.party, validExchangeWorkflows, clock),
         jobLauncher = launcher
       )
 
