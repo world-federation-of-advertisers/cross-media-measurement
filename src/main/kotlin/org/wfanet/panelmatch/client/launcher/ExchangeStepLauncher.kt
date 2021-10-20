@@ -17,6 +17,8 @@ package org.wfanet.panelmatch.client.launcher
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
+import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
 
 /** Finds an [ExchangeStep], validates it, and starts executing the work. */
 class ExchangeStepLauncher(
@@ -34,21 +36,25 @@ class ExchangeStepLauncher(
 
     try {
       validator.validate(exchangeStep)
+      jobLauncher.execute(exchangeStep, attemptKey)
     } catch (e: Exception) {
       invalidateAttempt(attemptKey, e)
-      return
     }
-
-    jobLauncher.execute(exchangeStep, attemptKey)
   }
 
   private suspend fun invalidateAttempt(attemptKey: ExchangeStepAttemptKey, exception: Exception) {
+    val state =
+      when (exception) {
+        is InvalidExchangeStepException ->
+          when (exception.type) {
+            PERMANENT -> ExchangeStepAttempt.State.FAILED_STEP
+            TRANSIENT -> ExchangeStepAttempt.State.FAILED
+          }
+        else -> ExchangeStepAttempt.State.FAILED
+      }
+
     // TODO: log an error or retry a few times if this fails.
     // TODO: add API-level support for some type of justification about what went wrong.
-    apiClient.finishExchangeStepAttempt(
-      attemptKey,
-      ExchangeStepAttempt.State.FAILED_STEP,
-      listOfNotNull(exception.message)
-    )
+    apiClient.finishExchangeStepAttempt(attemptKey, state, listOfNotNull(exception.message))
   }
 }

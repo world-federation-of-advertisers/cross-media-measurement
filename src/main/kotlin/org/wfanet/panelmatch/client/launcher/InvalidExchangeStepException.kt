@@ -14,11 +14,10 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-import kotlin.jvm.Throws
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
-
-/** Determines whether an ExchangeStep is valid and can be safely executed. */
-interface ExchangeStepValidator {
-  /** Throws [InvalidExchangeStepException] if [exchangeStep] is invalid. */
-  @Throws(InvalidExchangeStepException::class) suspend fun validate(exchangeStep: ExchangeStep)
+/** Indicates that an [ExchangeStep] is not valid to execute. */
+class InvalidExchangeStepException(val type: FailureType, message: String) : Exception(message) {
+  enum class FailureType {
+    PERMANENT,
+    TRANSIENT
+  }
 }
