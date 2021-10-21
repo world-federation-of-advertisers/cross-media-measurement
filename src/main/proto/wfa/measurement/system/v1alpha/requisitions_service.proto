@@ -36,9 +36,4 @@ message FulfillRequisitionRequest {
   // Resource name of the `Requisition` to mark as fulfilled. Required.
   string name = 1 [(google.api.resource_reference).type =
                        "halo-system.wfanet.org/Requisition"];
-
-  // Cryptographic digital signature of the "requisition fingerprint". Required.
-  //
-  // See the matching field in `Requisition`.
-  bytes data_provider_participation_signature = 2;
 }
