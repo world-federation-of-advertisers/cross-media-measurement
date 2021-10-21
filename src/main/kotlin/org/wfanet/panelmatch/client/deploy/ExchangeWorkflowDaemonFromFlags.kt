@@ -15,6 +15,8 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -82,4 +84,6 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }
 
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
+
+  override val scope: CoroutineScope by lazy { CoroutineScope(Dispatchers.Default) }
 }
