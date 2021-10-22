@@ -49,8 +49,8 @@ import ("strings")
 	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
 	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
 	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
-	_system_api_target_flag:                            "--kingdom-system-api-target=\(_kingdom_system_api_target)"
-	_system_api_cert_host_flag:                         "--kingdom-system-api-cert-host=localhost"
+	_kingdom_system_api_target_flag:                    "--kingdom-system-api-target=\(_kingdom_system_api_target)"
+	_kingdom_system_api_cert_host_flag:                 "--kingdom-system-api-cert-host=localhost"
 	_debug_verbose_grpc_client_logging_flag:            "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag:            "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
@@ -60,9 +60,9 @@ import ("strings")
 	}
 	duchy_service: {
 		"async-computation-control-server": {}
-		"computation-control-server": {}
+		"computation-control-server": _type: "LoadBalancer"
 		"spanner-computations-server": {}
-		"requisition-fulfillment-server": {}
+		"requisition-fulfillment-server": _type: "LoadBalancer"
 	}
 
 	duchy_deployment: [Name=_]: #Deployment & {
@@ -85,12 +85,12 @@ import ("strings")
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
 				_duchy_protocols_setup_config_flag,
-				_system_api_target_flag,
-				_system_api_cert_host_flag,
+				_kingdom_system_api_target_flag,
+				_kingdom_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--polling-interval=1m",
 			]
-			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server"]
+			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": #Deployment & {
 			_replicas: 2
@@ -105,8 +105,8 @@ import ("strings")
 					_duchy_cs_cert_file_flag,
 					_duchy_cs_key_file_flag,
 					_duchy_cs_cert_rename_name_flag,
-					_system_api_target_flag,
-					_system_api_cert_host_flag,
+					_kingdom_system_api_target_flag,
+					_kingdom_system_api_cert_host_flag,
 					"--channel-shutdown-timeout=3s",
 					"--mill-id=\(_name)-liquid-legions-v2-mill-1", //TODO(@wangyaopw): use different id at different replica
 					"--polling-interval=1s",
@@ -116,7 +116,7 @@ import ("strings")
 			_resourceLimitMemory:   "4Gi"
 			_resourceRequestCpu:    "2"
 			_resourceLimitCpu:      "2"
-			_dependencies: ["\(_name)-spanner-computations-server", "system-api-server", "\(_name)-computation-control-server"]
+			_dependencies: ["\(_name)-spanner-computations-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-deployment": #ServerDeployment & {
 			_args: [
@@ -154,13 +154,12 @@ import ("strings")
 				_duchy_tls_cert_file_flag,
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
-				_system_api_target_flag,
-				_system_api_cert_host_flag,
+				_kingdom_system_api_target_flag,
+				_kingdom_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--port=8443",
 				"--spanner-database=\(_name)_duchy_computations",
 			] + _spanner_flags
-			_dependencies: ["system-api-server"]
 		}
 		"requisition-fulfillment-server-deployment": #ServerDeployment & {
 			_args: [
@@ -171,11 +170,11 @@ import ("strings")
 				_duchy_cert_collection_file_flag,
 				_computations_service_target_flag,
 				_computations_service_cert_host_flag,
-				_system_api_target_flag,
-				_system_api_cert_host_flag,
+				_kingdom_system_api_target_flag,
+				_kingdom_system_api_cert_host_flag,
 				"--port=8443",
 			] + _blob_storage_flags
-			_dependencies: ["system-api-server", "\(_name)-spanner-computations-server"]
+			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
 	}
 

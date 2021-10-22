@@ -76,6 +76,6 @@ secretGenerator:
   - duchy_rpc_config_dev.textproto
   - duchy_rpc_config_local.textproto
   - aggregator_protocols_setup_config.textproto
-  - nonaggregator_protocols_setup_config.textproto
+  - non_aggregator_protocols_setup_config.textproto
   - llv2_protocol_config_config.textproto
 

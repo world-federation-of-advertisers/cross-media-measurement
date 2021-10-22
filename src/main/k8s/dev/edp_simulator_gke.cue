@@ -23,10 +23,10 @@ _edp5_name:   string @tag("edp5_name")
 _edp6_name:   string @tag("edp6_name")
 _secret_name: string @tag("secret_name")
 
-#KingdomPublicApiTarget:  "kingdom.dev.halo-cmm.org:8443"
-#DuchyPublicApiTarget:    "worker1.dev.halo-cmm.org:8443"
+#KingdomPublicApiTarget:  "public.kingdom.dev.halo-cmm.org:8443"
+#DuchyPublicApiTarget:    "public.worker1.dev.halo-cmm.org:8443"
 #GloudProject:            "halo-cmm-dev"
-#CloudStorageBucket:      "dev-bucket"
+#CloudStorageBucket:      "halo-cmm-dev-bucket"
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 
