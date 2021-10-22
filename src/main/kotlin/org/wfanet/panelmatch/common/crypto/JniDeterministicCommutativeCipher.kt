@@ -15,8 +15,7 @@
 package org.wfanet.panelmatch.common.crypto
 
 import com.google.protobuf.ByteString
-import java.nio.file.Paths
-import org.wfanet.panelmatch.common.loadLibrary
+import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.CryptorDecryptResponse
 import org.wfanet.panelmatch.protocol.CryptorEncryptResponse
@@ -28,11 +27,17 @@ import org.wfanet.panelmatch.protocol.cryptorEncryptRequest
 import org.wfanet.panelmatch.protocol.cryptorGenerateKeyRequest
 import org.wfanet.panelmatch.protocol.cryptorReEncryptRequest
 
+private const val SWIG_PREFIX: String = "/main/swig/wfanet/panelmatch/protocol/crypto"
+
 /**
  * A [DeterministicCommutativeCipher] implementation using the JNI
  * [DeterministicCommutativeEncryptionWrapper].
  */
 class JniDeterministicCommutativeCipher : DeterministicCommutativeCipher {
+
+  init {
+    loadLibraryFromResource("deterministic_commutative_encryption", SWIG_PREFIX)
+  }
 
   override fun generateKey(): ByteString {
     val request = cryptorGenerateKeyRequest {}
@@ -89,15 +94,5 @@ class JniDeterministicCommutativeCipher : DeterministicCommutativeCipher {
       )
     }
     return response.decryptedTextsList
-  }
-
-  companion object {
-    init {
-      loadLibrary(
-        name = "deterministic_commutative_encryption",
-        directoryPath =
-          Paths.get("panel_exchange_client/src/main/swig/wfanet/panelmatch/protocol/crypto")
-      )
-    }
   }
 }
