@@ -24,13 +24,37 @@ import picocli.CommandLine.Command
 
 @Command(name = "deploy_to_kind", description = ["Deploys containers on gcr.io to GKE"])
 class DeployToGke : Callable<Int> {
-  private val yamlFile = "kingdom_and_three_duchies_from_cue_gke.yaml"
-  private val clusterName = "om-test-cluster"
+
+  @CommandLine.Option(
+    names = ["--yaml-file"],
+    description = ["The yaml file to deploy."],
+    required = true
+  )
+  lateinit var yamlFile: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--cluster-name"],
+    description = ["The name of the Kubernetes cluster to deploy in."],
+    required = true
+  )
+  lateinit var clusterName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--environment"],
+    description = ["The environment of the deployment."],
+    required = true
+  )
+  lateinit var environment: String
+    private set
 
   override fun call(): Int {
     val manifestPath =
       checkNotNull(
-        getRuntimePath(Paths.get("wfa_measurement_system", "src", "main", "k8s", yamlFile))
+        getRuntimePath(
+          Paths.get("wfa_measurement_system", "src", "main", "k8s", environment, yamlFile)
+        )
       )
     logger.info("*** STARTING ***")
 
