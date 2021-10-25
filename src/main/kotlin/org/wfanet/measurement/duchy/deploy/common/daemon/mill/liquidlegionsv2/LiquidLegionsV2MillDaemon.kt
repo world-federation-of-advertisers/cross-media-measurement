@@ -104,7 +104,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
     val mill =
       LiquidLegionsV2Mill(
-        millId = flags.millId,
+        millId = System.getenv("HOSTNAME"),
         duchyId = flags.duchy.duchyName,
         keyStore = keyStore,
         consentSignalCert = csCertificate,
