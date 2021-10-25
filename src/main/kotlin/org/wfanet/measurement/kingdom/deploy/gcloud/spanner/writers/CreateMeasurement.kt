@@ -104,9 +104,9 @@ class CreateMeasurement(private val measurement: Measurement) :
           measurementConsumerId,
           ExternalId(measurement.externalMeasurementConsumerCertificateId)
         )
-    val certificateResult = reader.execute(transactionContext).singleOrNull()
-
-    val measurementConsumerCertificateId = validateCertificate(certificateResult)
+    val measurementConsumerCertificateId =
+      reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
+        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
 
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -154,9 +154,10 @@ class CreateMeasurement(private val measurement: Measurement) :
           dataProviderId,
           ExternalId(dataProviderValue.externalDataProviderCertificateId)
         )
-    val certificateResult = reader.execute(transactionContext).singleOrNull()
 
-    val dataProviderCertificateId = validateCertificate(certificateResult)
+    val dataProviderCertificateId =
+      reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
+        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -256,17 +257,16 @@ private suspend fun TransactionScope.readDataProviderId(
  * is inside the valid time period.
  */
 private fun validateCertificate(
-  certificateResult: CertificateReader.Result?,
+  certificateResult: CertificateReader.Result,
 ): InternalId {
-  val certificate =
-    certificateResult?.certificate
-      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+  val certificate = certificateResult.certificate
 
-  if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
-      !certificateResult.isValidNow
-  ) {
+  if (!certificate.isAvailable || !certificateResult.isValidNow) {
     throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
   }
 
   return certificateResult.certificateId
 }
+
+private val Certificate.isAvailable: Boolean
+  get() = revocationState == Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
