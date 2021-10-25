@@ -2,7 +2,7 @@
 
 set -eEu -o pipefail
 
-readonly IMAGE='docker.io/wfameasurement/bazel@sha256:1f6d2be8e8abbb96d49bf77fded2ebdfd6242589d5a062493689acb773768700'
+readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:6073b7e9fbc655c5ffd950b1959eccbbd80f368dc5fc73ae63913749ac2b2cf9}"
 readonly DOCKER="${DOCKER:-docker}"
 readonly USERNAME="$(id -un)"
 readonly OUTPUT_USER_ROOT="${HOME}/.cache/bazel/_bazel_${USERNAME}"

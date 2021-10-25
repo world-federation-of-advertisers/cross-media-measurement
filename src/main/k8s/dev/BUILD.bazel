@@ -106,6 +106,6 @@ filegroup(
     ],
     tags = ["manual"],
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/tools:__subpackage__",
+        "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
     ],
 )

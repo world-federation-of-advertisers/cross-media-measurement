@@ -44,14 +44,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcService: {
 	_name:      string
 	_system:    string
-	_type:      "ClusterIP"
+	_type:      *"ClusterIP" | "LoadBalancer"
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata: {
 		name: _name
 		annotations: {
-			system:                           _system
-			"cloud.google.com/app-protocols": '{"grpc-port":"HTTP2"}'
+			system:                             _system
+			"cloud.google.com/app-protocols":   '{"grpc-port":"HTTP2"}'
+			"kubernetes.io/ingress.allow-http": "false"
 		}
 		labels: "app.kubernetes.io/name": #AppName
 	}
@@ -237,8 +238,8 @@ default_deny_ingress: [{
 	}
 }]
 
-// A simple fanout Ingress base definition (GKE version)
-#GkeIngress: {
+// A simple fanout Ingress base definition
+#Ingress: {
 	_name:         string
 	_host:         string
 	_ingressClass: string
@@ -247,10 +248,9 @@ default_deny_ingress: [{
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "Ingress"
 	metadata: {
-		name: _name + "ingress"
+		name: _name + "-ingress"
 		annotations: {
-			"kubernetes.io/ingress.class":      _ingressClass
-			"kubernetes.io/ingress.allow-http": "false"
+			"kubernetes.io/ingress.class": _ingressClass
 		}
 	}
 	spec: {
