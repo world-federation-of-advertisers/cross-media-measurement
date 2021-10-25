@@ -108,7 +108,6 @@ import ("strings")
 					_kingdom_system_api_target_flag,
 					_kingdom_system_api_cert_host_flag,
 					"--channel-shutdown-timeout=3s",
-					"--mill-id=\(_name)-liquid-legions-v2-mill-1", //TODO(@wangyaopw): use different id at different replica
 					"--polling-interval=1s",
 			] + _blob_storage_flags
 			_jvm_flags:             "-Xmx4g -Xms256m"
