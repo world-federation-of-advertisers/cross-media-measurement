@@ -17,6 +17,7 @@
 
 package(default_visibility = ["//visibility:public"])
 
+
 toolchain(
     name = "cc-toolchain",
     exec_compatible_with = [
@@ -34,14 +35,14 @@ toolchain(
 
 platform(
     name = "platform",
+    parents = ["@local_config_platform//:host"],
     constraint_values = [
         "@bazel_tools//platforms:linux",
         "@bazel_tools//platforms:x86_64",
         "@bazel_tools//tools/cpp:clang",
     ],
     exec_properties = {
-        "container-image": "gcr.io/ads-open-measurement/bazel@sha256:1f6d2be8e8abbb96d49bf77fded2ebdfd6242589d5a062493689acb773768700",
+        "container-image": "docker://gcr.io/ads-open-measurement/bazel@sha256:6073b7e9fbc655c5ffd950b1959eccbbd80f368dc5fc73ae63913749ac2b2cf9",
         "OSFamily": "Linux",
     },
-    parents = ["@local_config_platform//:host"],
 )
