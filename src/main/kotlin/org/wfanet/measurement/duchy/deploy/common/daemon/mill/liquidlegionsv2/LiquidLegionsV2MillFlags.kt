@@ -61,14 +61,6 @@ class LiquidLegionsV2MillFlags {
   lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 
-  @CommandLine.Option(
-    names = ["--mill-id"],
-    description = ["The Identifier of the Mill."],
-    required = true
-  )
-  lateinit var millId: String
-    private set
-
   @set:CommandLine.Option(
     names = ["--bytes-per-chunk"],
     description = ["The number of bytes in a chunk when sending rpc result to other duchy."],
