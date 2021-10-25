@@ -22,9 +22,9 @@ It is in .gitignore; please don't commit your local changes.
 # image-specific suffix joined with slashes.
 IMAGE_REPOSITORY_SETTINGS = struct(
     # URL of the container registry.
-    container_registry = "",
+    container_registry = "gcr.io",
     # Common prefix of all images.
-    repository_prefix = "",
+    repository_prefix = "halo-cmm-dev",
 )
 
 # Settings for deploying tests to Google Cloud.

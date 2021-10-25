@@ -17,9 +17,9 @@ package k8s
 _mc_name:     string @tag("mc_name")
 _secret_name: string @tag("secret_name")
 
-#KingdomPublicApiTarget:  "kingdom.dev.halo-cmm.org:8443"
+#KingdomPublicApiTarget:  "public.kingdom.dev.halo-cmm.org:8443"
 #GloudProject:            "halo-cmm-dev"
-#CloudStorageBucket:      "dev-bucket"
+#CloudStorageBucket:      "halo-cmm-dev-bucket"
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 

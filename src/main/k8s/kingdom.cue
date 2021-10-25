@@ -46,8 +46,8 @@ import ("strings")
 
 	kingdom_service: {
 		"gcp-kingdom-data-server": {}
-		"system-api-server": {}
-		"v2alpha-public-api-server": {}
+		"system-api-server": _type:         "LoadBalancer"
+		"v2alpha-public-api-server": _type: "LoadBalancer"
 	}
 
 	kingdom_job: "kingdom-push-spanner-schema-job": {

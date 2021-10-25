@@ -20,10 +20,10 @@ _duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
 _secret_name:                  string @tag("secret_name")
 _environment:                  string @tag("environment")
 
-#KingdomSystemApiTarget:  "kingdom.dev.halo-cmm.org:8443"
+#KingdomSystemApiTarget:  "system.kingdom.dev.halo-cmm.org:8443"
 #GloudProject:            "halo-cmm-dev"
 #SpannerInstance:         "dev-instance"
-#CloudStorageBucket:      "dev-bucket"
+#CloudStorageBucket:      "halo-cmm-dev-bucket"
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 
