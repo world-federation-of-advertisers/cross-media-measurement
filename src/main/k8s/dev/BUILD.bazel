@@ -10,7 +10,7 @@ cue_dump(
     ],
     cue_tags = {
         "environment": "dev",
-        "secret_name": "TBD",
+        "secret_name": "certs-and-configs-22d55d546t",
     },
 )
 
@@ -23,10 +23,10 @@ cue_dump(
     ],
     cue_tags = {
         "duchy_name": "aggregator",
-        "duchy_cert_name": "TBD",
+        "duchy_cert_name": "duchies/aggregator/certificates/DWLYAGVRGjA",
         "duchy_protocols_setup_config": "aggregator_protocols_setup_config.textproto",
         "environment": "dev",
-        "secret_name": "TBD",
+        "secret_name": "certs-and-configs-ctmkd7dkm2",
     },
 )
 
@@ -39,10 +39,10 @@ cue_dump(
     ],
     cue_tags = {
         "duchy_name": "worker1",
-        "duchy_cert_name": "TBD",
+        "duchy_cert_name": "duchies/worker1/certificates/D0FJFJqu5fI",
         "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
         "environment": "dev",
-        "secret_name": "TBD",
+        "secret_name": "certs-and-configs-ctmkd7dkm2",
     },
 )
 
@@ -55,10 +55,10 @@ cue_dump(
     ],
     cue_tags = {
         "duchy_name": "worker2",
-        "duchy_cert_name": "TBD",
+        "duchy_cert_name": "duchies/worker2/certificates/dXZCFJqu5hA",
         "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
         "environment": "dev",
-        "secret_name": "TBD",
+        "secret_name": "certs-and-configs-ctmkd7dkm2",
     },
 )
 
@@ -70,14 +70,14 @@ cue_dump(
         "//src/main/k8s:edp_simulator.cue",
     ],
     cue_tags = {
-        "mc_name": "TBD",
-        "edp1_name": "TBD",
-        "edp2_name": "TBD",
-        "edp3_name": "TBD",
-        "edp4_name": "TBD",
-        "edp5_name": "TBD",
-        "edp6_name": "TBD",
-        "secret_name": "TBD",
+        "mc_name": "measurementConsumers/BbomSmVRGmw",
+        "edp1_name": "dataProviders/UwZoypqu5D8",
+        "edp2_name": "dataProviders/N2Z2hWVRGzI",
+        "edp3_name": "dataProviders/BDnPTZqu5PM",
+        "edp4_name": "dataProviders/EiOed2VRGuY",
+        "edp5_name": "dataProviders/EZ4Vqpqu5UM",
+        "edp6_name": "dataProviders/RGNQkWVRGqA",
+        "secret_name": "certs-and-configs-ctmkd7dkm2",
     },
 )
 
@@ -89,8 +89,8 @@ cue_dump(
         "//src/main/k8s:frontend_simulator.cue",
     ],
     cue_tags = {
-        "mc_name": "TBD",
-        "secret_name": "TBD",
+        "mc_name": "measurementConsumers/BbomSmVRGmw",
+        "secret_name": "certs-and-configs-ctmkd7dkm2",
     },
 )
 
