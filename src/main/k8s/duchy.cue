@@ -90,7 +90,6 @@ import ("strings")
 				"--channel-shutdown-timeout=3s",
 				"--polling-interval=1m",
 			]
-			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": #Deployment & {
 			_replicas: 2
@@ -129,7 +128,6 @@ import ("strings")
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
 			]
-			_dependencies: ["\(_name)-spanner-computations-server"]
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
 			_args: [
@@ -143,7 +141,6 @@ import ("strings")
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
 			] + _blob_storage_flags
-			_dependencies: ["\(_name)-async-computation-control-server"]
 		}
 		"spanner-computations-server-deployment": #ServerDeployment & {
 			_args: [
@@ -184,37 +181,70 @@ import ("strings")
 			name: "\(_name)-push-spanner-schema-job"
 			labels: "app.kubernetes.io/name": #AppName
 		}
-		spec: template: spec: {
-			containers: [{
-				name:            "push-spanner-schema-container"
-				image:           _images[name]
-				imagePullPolicy: _duchy_image_pull_policy
-				args:            [
-							"--databases=\(_name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
-				] + _spanner_schema_push_flags
-			}]
-			restartPolicy: "OnFailure"
+		spec: template: {
+			metadata: labels: app: "\(_name)-push-spanner-schema-job"
+			spec: {
+				containers: [{
+					name:            "push-spanner-schema-container"
+					image:           _images[name]
+					imagePullPolicy: _duchy_image_pull_policy
+					args:            [
+								"--databases=\(_name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
+					] + _spanner_schema_push_flags
+				}]
+				restartPolicy: "OnFailure"
+			}
 		}
 	}
 
 	duchy_internal_network_policy: [Name=_]: #NetworkPolicy & {
 		_name: _object_prefix + Name
 	}
+	// TODO(@wangyaopw): Consider setting GCS and spanner destinations explicityly.
 	duchy_internal_network_policy: {
 		"spanner-computations-server": #NetworkPolicy & {
+			_app_label: _object_prefix + "spanner-computations-server-app"
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
 				_object_prefix + "liquid-legions-v2-mill-daemon-app",
 				_object_prefix + "async-computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 			]
-			_destinationMatchLabels: _object_prefix + "spanner-computations-server-app"
+			_destinationMatchLabels: [] // spanner-computations-server is allowed to send traffic externally.
+		}
+		"requisition-fulfillment-server": #NetworkPolicy & {
+			_app_label: _object_prefix + "requisition-fulfillment-server-app"
+			_sourceMatchLabels: [] // External API, allow all incoming traffic.
+			_destinationMatchLabels: [] // requisition-fulfillment-server is allowed to send traffic externally.
 		}
 		"async-computation-controls-server": #NetworkPolicy & {
+			_app_label: _object_prefix + "async-computation-control-server-app"
 			_sourceMatchLabels: [
-				"computation-control-server-app",
+				_object_prefix + "computation-control-server-app",
 			]
-			_destinationMatchLabels: "async-computation-control-server-app"
+			_destinationMatchLabels: [
+				_object_prefix + "spanner-computations-server-app",
+			]
+		}
+		"computation-control-server": #NetworkPolicy & {
+			_app_label: _object_prefix + "computation-control-server-app"
+			_sourceMatchLabels: [] // External API, allow all incoming traffic.
+			_destinationMatchLabels: [] // computation-control-server is allowed to send traffic externally.
+		}
+		"liquid-legions-v2-mill-daemon": #NetworkPolicy & {
+			_app_label: _object_prefix + "liquid-legions-v2-mill-daemon-app"
+			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
+			_destinationMatchLabels: [] // Mill is allowed to send traffic externally.
+		}
+		"herald-daemon": #NetworkPolicy & {
+			_app_label: _object_prefix + "herald-daemon-app"
+			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
+			_destinationMatchLabels: [] // Herald is allowed to send traffic externally.
+		}
+		"push-spanner-schema-job": #NetworkPolicy & {
+			_app_label: _object_prefix + "push-spanner-schema-job"
+			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
+			_destinationMatchLabels: [] // Need to send external traffic to spanner.
 		}
 	}
 }
