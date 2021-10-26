@@ -1,0 +1,19 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+kt_jvm_library(
+    name = "exchange_workflow_to_graphviz_main",
+    srcs = ["ExchangeWorkflowToGraphvizMain.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/graphviz",
+    ],
+)
+
+java_binary(
+    name = "exchange_workflow_to_graphviz",
+    main_class = "org.wfanet.panelmatch.tools.ExchangeWorkflowToGraphvizMainKt",
+    tags = ["manual"],
+    runtime_deps = [":exchange_workflow_to_graphviz_main"],
+)
