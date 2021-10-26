@@ -28,7 +28,7 @@ _container_registry_prefix: _container_registry + "/" + _repository_prefix
 // Group 1
 objectSets: [
 	resource_setup_job,
-	default_deny_ingress,
+	default_deny_ingress_and_egress,
 	kingdom.kingdom_service,
 	kingdom.kingdom_deployment,
 	kingdom.kingdom_job,
