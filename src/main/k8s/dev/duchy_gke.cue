@@ -27,7 +27,7 @@ _environment:                  string @tag("environment")
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 
-objectSets: [default_deny_ingress] + [ for d in duchy {d}]
+objectSets: [default_deny_ingress_and_egress] + [ for d in duchy {d}]
 
 duchy: #Duchy & {
 	_env: _environment
