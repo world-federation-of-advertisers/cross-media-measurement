@@ -23,8 +23,8 @@ _environment: string @tag("environment")
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 
 objectSets: [
-		resource_setup_job,
-		default_deny_ingress,
+		// resource_setup_job, Only deploy if the kingdom database is reset.
+		default_deny_ingress_and_egress,
 ] + [ for k in kingdom {k}]
 
 kingdom: #Kingdom & {
