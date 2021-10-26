@@ -255,6 +255,8 @@ private suspend fun TransactionScope.readDataProviderId(
 /**
  * Returns the internal Certificate Id if the revocation state has not been set and the current time
  * is inside the valid time period.
+ *
+ * Throws a [KingdomInternalException.Code.CERTIFICATE_IS_INVALID] otherwise.
  */
 private fun validateCertificate(
   certificateResult: CertificateReader.Result,
