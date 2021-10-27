@@ -25,33 +25,44 @@ import org.wfanet.panelmatch.common.storage.toByteString
  * maxSize number of items, and has a substantially overlapping membership to the previous validated
  * data.
  */
-class IntersectValidateTask(val maxSize: Int, val minimumOverlap: Float) : ExchangeTask {
-
+class IntersectValidateTask(
+  private val maxSize: Int,
+  private val maximumNewItemsAllowed: Int,
+  private val isFirstExchange: Boolean
+) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
 
     // Flatten the Blob's underlying Flow and record the buffer size for output creation.
-    val currentData: ByteString = input.getValue("current-data").toByteString()
-    val currentSetData: Set<JoinKeyAndId> =
-      JoinKeyAndIdCollection.parseFrom(currentData).joinKeysAndIdsList.toSet()
-    val currentDataSize: Int = currentSetData.size
+    val currentDataBytes = input.getValue("current-data").toByteString()
+    val currentData = parseJoinKeyAndIds(currentDataBytes)
 
-    require(currentDataSize < maxSize) {
-      "Current data size of $currentDataSize is greater than $maxSize"
+    require(currentData.size <= maxSize) {
+      "${currentData.size} ids were provided, which exceeds the limit of $maxSize"
     }
-    require(currentDataSize > 0) { "Current data size must be greater than zero" }
 
-    val oldData: Set<JoinKeyAndId> =
-      JoinKeyAndIdCollection.parseFrom(input.getValue("previous-data").toByteString())
-        .joinKeysAndIdsList
-        .toSet()
-    val overlapItemsCount: Int = currentSetData.count { it in oldData }
-    val currentOverlap: Float = overlapItemsCount.toFloat() / currentDataSize
-
-    require(currentOverlap > minimumOverlap) {
-      "Overlap of $currentOverlap is less than $minimumOverlap"
+    if (isFirstExchange) {
+      require(!input.containsKey("previous-data"))
+    } else {
+      val oldDataBytes = input.getValue("previous-data").toByteString()
+      val oldData: Set<JoinKeyAndId> = parseJoinKeyAndIds(oldDataBytes)
+      validateIntersection(currentData, oldData)
     }
-    return mapOf("current-data" to flowOf(currentData)).toMap()
+
+    return mapOf("current-data" to flowOf(currentDataBytes))
+  }
+
+  private fun parseJoinKeyAndIds(bytes: ByteString): Set<JoinKeyAndId> {
+    return JoinKeyAndIdCollection.parseFrom(bytes).joinKeysAndIdsList.toSet()
+  }
+
+  private fun validateIntersection(currentData: Set<JoinKeyAndId>, oldData: Set<JoinKeyAndId>) {
+    val overlap: Int = currentData.count { it in oldData }
+    val newItems = currentData.size - overlap
+
+    require(newItems <= maximumNewItemsAllowed) {
+      "There are $newItems new ids, but only $maximumNewItemsAllowed are allowed"
+    }
   }
 }

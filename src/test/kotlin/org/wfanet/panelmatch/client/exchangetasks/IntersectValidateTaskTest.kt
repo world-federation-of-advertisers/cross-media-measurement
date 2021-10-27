@@ -15,110 +15,121 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.launcher.testing.SINGLE_BLINDED_KEYS
 import org.wfanet.panelmatch.common.storage.createBlob
 import org.wfanet.panelmatch.common.toByteString
 
+private val JOIN_KEYS: List<JoinKeyAndId> =
+  (1..10).map {
+    joinKeyAndId {
+      joinKey = joinKey { key = "join-key-$it".toByteString() }
+      joinKeyIdentifier = joinKeyIdentifier { id = "join-key-identifier-$it".toByteString() }
+    }
+  }
+
+private const val DEFAULT_MAX_SIZE = 10
+private const val MAXIMUM_NEW_ITEMS_ALLOWED = 2
+
 @RunWith(JUnit4::class)
 class IntersectValidateTaskTest {
-  private val mockStorage = InMemoryStorageClient()
-  private val numSingleBlindedKeys = SINGLE_BLINDED_KEYS.size
-  private val singleBlindedKeysAndIds =
-    SINGLE_BLINDED_KEYS.zip(1..SINGLE_BLINDED_KEYS.size) { singleBlindedKey, keyId ->
-      joinKeyAndId {
-        this.joinKey = joinKey { key = singleBlindedKey }
-        this.joinKeyIdentifier = joinKeyIdentifier { id = "joinKeyId of $keyId".toByteString() }
-      }
-    }
-  private val singleBlindedKeysAndWrongIds =
-    SINGLE_BLINDED_KEYS.zip(SINGLE_BLINDED_KEYS.size..1) { singleBlindedKey, keyId ->
-      joinKeyAndId {
-        this.joinKey = joinKey { key = singleBlindedKey }
-        this.joinKeyIdentifier = joinKeyIdentifier { id = "joinKeyId of $keyId".toByteString() }
-      }
-    }
-  private val blobOfSingleBlindedKeys = runBlocking {
-    mockStorage.createBlob(
-      "single-blinded-keys-1",
-      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndIds }.toByteString()
-    )
-  }
-  private val blobOfSingleBlindedKeysWithOneMissing = runBlocking {
-    mockStorage.createBlob(
-      "single-blinded-keys-2",
-      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndIds.drop(1) }.toByteString()
-    )
-  }
-  private val blobOfSingleBlindedKeysAndWrongIds = runBlocking {
-    mockStorage.createBlob(
-      "single-blinded-keys-3",
-      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndWrongIds }.toByteString()
-    )
+
+  private suspend fun createBlob(items: List<JoinKeyAndId>): Blob {
+    val collection = joinKeyAndIdCollection { joinKeysAndIds += items }
+    val storageClient = InMemoryStorageClient()
+    return storageClient.createBlob("irrelevant-blob-key", collection.toByteString())
   }
 
-  @Test
-  fun `test valid intersect and validate exchange step`() = runBlocking {
-    val output =
-      IntersectValidateTask(maxSize = 100, minimumOverlap = 0.75f)
-        .execute(
-          mapOf(
-            "previous-data" to blobOfSingleBlindedKeysWithOneMissing,
-            "current-data" to blobOfSingleBlindedKeys
-          )
-        )
-    assertThat(
-        JoinKeyAndIdCollection.parseFrom(output.getValue("current-data").flatten())
-          .joinKeysAndIdsList
+  private fun runIntersectAndValidate(
+    previousData: List<JoinKeyAndId>? = JOIN_KEYS,
+    currentData: List<JoinKeyAndId>? = JOIN_KEYS,
+    maxSize: Int = DEFAULT_MAX_SIZE,
+    isFirstExchange: Boolean = false
+  ): Map<String, Flow<ByteString>> = runBlocking {
+    val inputs = mutableMapOf<String, Blob>()
+
+    if (previousData != null) inputs["previous-data"] = createBlob(previousData)
+    if (currentData != null) inputs["current-data"] = createBlob(currentData)
+
+    IntersectValidateTask(
+        maxSize = maxSize,
+        maximumNewItemsAllowed = MAXIMUM_NEW_ITEMS_ALLOWED,
+        isFirstExchange = isFirstExchange
       )
-      .isEqualTo(singleBlindedKeysAndIds)
+      .execute(inputs)
+  }
+
+  private fun assertIntersectAndValidateHasCorrectOutput(
+    previousData: List<JoinKeyAndId>? = JOIN_KEYS,
+    currentData: List<JoinKeyAndId>? = JOIN_KEYS,
+    maxSize: Int = DEFAULT_MAX_SIZE,
+    isFirstExchange: Boolean = false
+  ) = runBlocking {
+    val outputs = runIntersectAndValidate(previousData, currentData, maxSize, isFirstExchange)
+    val outputJoinKeys =
+      JoinKeyAndIdCollection.parseFrom(outputs.getValue("current-data").flatten())
+        .joinKeysAndIdsList
+    assertThat(outputJoinKeys).containsExactlyElementsIn(currentData)
   }
 
   @Test
-  fun `test data greater than max size fails to validate`() =
-    runBlocking<Unit> {
-      assertFailsWith(IllegalArgumentException::class) {
-        IntersectValidateTask(maxSize = 1, minimumOverlap = 0.99f)
-          .execute(
-            mapOf(
-              "previous-data" to blobOfSingleBlindedKeys,
-              "current-data" to blobOfSingleBlindedKeys
-            )
-          )
-      }
+  fun newIsSubsetOfOld() {
+    for (i in JOIN_KEYS.indices) {
+      assertIntersectAndValidateHasCorrectOutput(currentData = JOIN_KEYS.take(i))
     }
+  }
 
   @Test
-  fun `test data with overlap below minimum overlap fails to validate`() =
-    runBlocking<Unit> {
-      assertFailsWith(IllegalArgumentException::class) {
-        IntersectValidateTask(maxSize = 10, minimumOverlap = 0.85f)
-          .execute(
-            mapOf(
-              "previous-data" to blobOfSingleBlindedKeysWithOneMissing,
-              "current-data" to blobOfSingleBlindedKeys
-            )
-          )
-      }
-    }
+  fun maximumNewItems() {
+    assertIntersectAndValidateHasCorrectOutput(previousData = JOIN_KEYS.drop(2))
+  }
 
   @Test
-  fun `test data with different ids fails to validate`() =
-    runBlocking<Unit> {
-      assertFailsWith(IllegalArgumentException::class) {
-        IntersectValidateTask(maxSize = 100, minimumOverlap = 0.0f)
-          .execute(
-            mapOf(
-              "previous-data" to blobOfSingleBlindedKeys,
-              "current-data" to blobOfSingleBlindedKeysAndWrongIds
-            )
-          )
-      }
+  fun tooManyNewItems() {
+    assertFailsWith<IllegalArgumentException> {
+      runIntersectAndValidate(previousData = JOIN_KEYS.drop(3))
     }
+  }
+
+  @Test
+  fun tooManyItems() {
+    assertFailsWith<IllegalArgumentException> { runIntersectAndValidate(maxSize = 9) }
+  }
+
+  @Test
+  fun disjointSets() {
+    val previousData = JOIN_KEYS.drop(5)
+    val currentData = JOIN_KEYS.take(5)
+    assertThat(previousData).containsNoneIn(currentData) // Sanity check that they are disjoint
+    assertFailsWith<IllegalArgumentException> {
+      runIntersectAndValidate(previousData = previousData, currentData = currentData)
+    }
+  }
+
+  @Test
+  fun missingInputs() {
+    assertFailsWith<NoSuchElementException> { runIntersectAndValidate(currentData = null) }
+    assertFailsWith<NoSuchElementException> { runIntersectAndValidate(previousData = null) }
+  }
+
+  @Test
+  fun firstExchange() {
+    assertIntersectAndValidateHasCorrectOutput(previousData = null, isFirstExchange = true)
+  }
+
+  @Test
+  fun firstExchangeWithPreviousDataInputFails() {
+    assertFailsWith<IllegalArgumentException> {
+      runIntersectAndValidate(previousData = JOIN_KEYS, isFirstExchange = true)
+    }
+  }
 }
