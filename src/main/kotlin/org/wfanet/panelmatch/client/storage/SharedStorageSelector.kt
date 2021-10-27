@@ -67,9 +67,7 @@ class SharedStorageSelector(
     val storageDetails =
       StorageDetails.parseFrom(
         sharedStorageInfo.get(recurringExchangeId)
-          ?: throw StorageNotFoundException(
-            "No shared storage found for exchange $recurringExchangeId"
-          )
+          ?: throw StorageNotFoundException("Shared storage for exchange $recurringExchangeId")
       )
 
     require(storageDetails.visibility == StorageDetails.Visibility.SHARED)

@@ -14,17 +14,15 @@
 
 package org.wfanet.panelmatch.client.storage.testing
 
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageFactory
 
-class InMemoryStorageFactory() : StorageFactory {
-
-  constructor(storageDetails: StorageDetails, exchangeKey: ExchangeKey) : this()
+class InMemoryStorageFactory(
+  val underylingStorage: InMemoryStorageClient = InMemoryStorageClient()
+) : StorageFactory {
 
   override fun build(): StorageClient {
-    return InMemoryStorageClient()
+    return underylingStorage
   }
 }

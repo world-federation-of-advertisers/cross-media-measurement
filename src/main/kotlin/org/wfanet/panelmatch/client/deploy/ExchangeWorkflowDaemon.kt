@@ -27,8 +27,10 @@ import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.launcher.Identity
-import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
+import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.Timeout
+import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** Runs ExchangeWorkflows. */
@@ -40,8 +42,17 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Kingdom [ApiClient]. */
   abstract val apiClient: ApiClient
 
-  /** [StorageFactory] for writing to local (non-shared) storage. */
-  abstract val privateStorageFactory: StorageFactory
+  /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
+  abstract val privateStorageSelector: PrivateStorageSelector
+
+  /** [SharedStorageSelector] for writing to shared storage. */
+  abstract val sharedStorageSelector: SharedStorageSelector
+
+  /**
+   * [CertificateManager] for managing access to the certificate API service and private
+   * (exchange-agnostic) storage containing saved certs.
+   */
+  abstract val certificateManager: CertificateManager
 
   /** [SecretMap] from RecurringExchange ID to serialized ExchangeWorkflow. */
   abstract val validExchangeWorkflows: SecretMap
@@ -67,7 +78,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
       ExchangeTaskExecutor(
         apiClient = apiClient,
         timeout = taskTimeout,
-        privateStorage = privateStorageFactory.build(),
+        privateStorageSelector = privateStorageSelector,
         getExchangeTaskForStep = exchangeTaskMapper::getExchangeTaskForStep
       )
 

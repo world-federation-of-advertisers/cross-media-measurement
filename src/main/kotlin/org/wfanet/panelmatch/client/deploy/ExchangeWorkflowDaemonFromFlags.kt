@@ -28,7 +28,6 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.launcher.Identity
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import picocli.CommandLine
@@ -39,13 +38,13 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   protected lateinit var flags: ExchangeWorkflowFlags
     private set
 
-  /** [VerifiedStorageClient] for payloads to be shared with the other party. */
-  abstract val sharedStorage: VerifiedStorageClient
-
+  // TODO(jonmolle): Implement certificateManager and the storage SecretMaps here.
   override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(
-      privateStorage = privateStorageFactory,
       inputTaskThrottler = throttler,
+      privateStorageSelector = privateStorageSelector,
+      sharedStorageSelector = sharedStorageSelector,
+      certificateManager = certificateManager
     )
   }
 
