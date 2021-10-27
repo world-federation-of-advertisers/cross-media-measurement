@@ -19,7 +19,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -30,7 +29,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -44,7 +42,6 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
 @RunWith(JUnit4::class)
@@ -58,7 +55,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase
   )
-  val testClock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
   private val population = Population(testClock, idGenerator)
 
