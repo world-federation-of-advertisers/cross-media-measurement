@@ -67,6 +67,24 @@ private const val API_VERSION = "v2alpha"
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
+private val MEASUREMENT = measurement {
+  providedMeasurementId = PROVIDED_MEASUREMENT_ID
+  details =
+    MeasurementKt.details {
+      apiVersion = API_VERSION
+      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+      dataProviderList = ByteString.copyFromUtf8("EDP list")
+      dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
+      duchyProtocolConfig =
+        duchyProtocolConfig {
+          liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+      protocolConfig =
+        protocolConfig { liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance() }
+    }
+}
+
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
@@ -455,7 +473,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurement =
       measurementsService.getMeasurement(
         getMeasurementRequest {
-          this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
           externalMeasurementId = createdMeasurement.externalMeasurementId
         }
       )
@@ -495,22 +513,22 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Measurement.REQUISITIONS_FIELD_NUMBER,
           Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
         )
-        .isEqualTo(createdMeasurement.copy { this.dataProviders.clear() })
+        .isEqualTo(createdMeasurement.copy { dataProviders.clear() })
       assertThat(measurement.requisitionsList)
         .ignoringFields(Requisition.EXTERNAL_REQUISITION_ID_FIELD_NUMBER)
         .containsExactly(
           requisition {
             externalMeasurementId = createdMeasurement.externalMeasurementId
-            this.externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+            externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
             externalComputationId = measurement.externalComputationId
-            this.externalDataProviderId = dataProvider.externalDataProviderId
+            externalDataProviderId = dataProvider.externalDataProviderId
             updateTime = createdMeasurement.createTime
             state = Requisition.State.UNFULFILLED
             dataProviderCertificate = dataProvider.certificate
             parentMeasurement =
               parentMeasurement {
                 apiVersion = createdMeasurement.details.apiVersion
-                this.externalMeasurementConsumerCertificateId =
+                externalMeasurementConsumerCertificateId =
                   measurementConsumer.certificate.externalCertificateId
                 state = createdMeasurement.state
                 measurementSpec = createdMeasurement.details.measurementSpec
@@ -540,7 +558,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       // TODO(@SanjayVas): Verify requisition params once FailComputationParticipant can be called
       // from this test.
       val templateParticipant = computationParticipant {
-        this.externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         externalMeasurementId = createdMeasurement.externalMeasurementId
         externalComputationId = createdMeasurement.externalComputationId
         updateTime = createdMeasurement.createTime
@@ -595,9 +613,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val expectedMeasurementDetails =
       createdMeasurement.details.copy {
-        this.aggregatorCertificate = request.aggregatorCertificate
-        this.resultPublicKey = request.resultPublicKey
-        this.encryptedResult = request.encryptedResult
+        aggregatorCertificate = request.aggregatorCertificate
+        resultPublicKey = request.resultPublicKey
+        encryptedResult = request.encryptedResult
       }
     assertThat(measurementWithResult.updateTime.toInstant())
       .isGreaterThan(createdMeasurement.updateTime.toInstant())
@@ -748,9 +766,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurements: List<Measurement> =
       measurementsService
         .streamMeasurements(
-          streamMeasurementsRequest {
-            filter = filter { this.updatedAfter = measurement1.updateTime }
-          }
+          streamMeasurementsRequest { filter = filter { updatedAfter = measurement1.updateTime } }
         )
         .toList()
 
@@ -862,9 +878,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurements: List<Measurement> =
       measurementsService
         .streamMeasurements(
-          streamMeasurementsRequest {
-            filter = filter { this.states += Measurement.State.SUCCEEDED }
-          }
+          streamMeasurementsRequest { filter = filter { states += Measurement.State.SUCCEEDED } }
         )
         .toList()
 
@@ -875,22 +889,4 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
       .containsExactly(measurement2.copy { state = Measurement.State.SUCCEEDED })
   }
-}
-
-private val MEASUREMENT = measurement {
-  providedMeasurementId = PROVIDED_MEASUREMENT_ID
-  details =
-    MeasurementKt.details {
-      apiVersion = API_VERSION
-      measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-      measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      dataProviderList = ByteString.copyFromUtf8("EDP list")
-      dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
-      duchyProtocolConfig =
-        duchyProtocolConfig {
-          liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-        }
-      protocolConfig =
-        protocolConfig { liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance() }
-    }
 }

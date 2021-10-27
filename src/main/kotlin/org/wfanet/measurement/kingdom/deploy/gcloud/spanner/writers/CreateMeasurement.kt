@@ -263,7 +263,7 @@ private fun validateCertificate(
 ): InternalId {
   val certificate = certificateResult.certificate
 
-  if (!certificate.isAvailable || !certificateResult.isValidNow) {
+  if (!certificate.isAvailable || certificateResult.isNotYetActive || certificateResult.isExpired) {
     throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
   }
 
