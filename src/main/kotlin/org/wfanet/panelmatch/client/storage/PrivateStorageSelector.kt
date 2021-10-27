@@ -61,9 +61,7 @@ class PrivateStorageSelector(
     val storageDetails =
       StorageDetails.parseFrom(
         privateStorageInfo.get(recurringExchangeId)
-          ?: throw StorageNotFoundException(
-            "No shared storage found for exchange $recurringExchangeId"
-          )
+          ?: throw StorageNotFoundException("Private storage for exchange $recurringExchangeId")
       )
 
     require(storageDetails.visibility == StorageDetails.Visibility.PRIVATE)

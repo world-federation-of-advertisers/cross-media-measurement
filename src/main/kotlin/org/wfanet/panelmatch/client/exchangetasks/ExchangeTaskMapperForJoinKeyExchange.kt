@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.Throttler
@@ -23,7 +24,9 @@ import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
-import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
+import org.wfanet.panelmatch.client.storage.SharedStorageSelector
+import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
@@ -34,39 +37,48 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   abstract val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor
   abstract val queryResultsDecryptor: QueryResultsDecryptor
   abstract val getQueryResultsEvaluator: (ByteString) -> QueryEvaluator
-  abstract val privateStorage: StorageFactory
+  abstract val privateStorageSelector: PrivateStorageSelector
+  abstract val sharedStorageSelector: SharedStorageSelector
+  abstract val certificateManager: CertificateManager
   abstract val inputTaskThrottler: Throttler
 
-  override suspend fun getExchangeTaskForStep(step: ExchangeWorkflow.Step): ExchangeTask {
+  override suspend fun getExchangeTaskForStep(
+    step: ExchangeWorkflow.Step,
+    attemptKey: ExchangeStepAttemptKey
+  ): ExchangeTask {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     return when (step.stepCase) {
       StepCase.ENCRYPT_STEP -> CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
       StepCase.REENCRYPT_STEP ->
         CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
       StepCase.DECRYPT_STEP -> CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
-      StepCase.INPUT_STEP -> getInputStepTask(step)
+      StepCase.INPUT_STEP -> getInputStepTask(step, attemptKey)
       StepCase.INTERSECT_AND_VALIDATE_STEP -> getIntersectAndValidateStepTask(step)
       StepCase.GENERATE_COMMUTATIVE_DETERMINISTIC_KEY_STEP ->
         GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
       StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP -> getGenerateSerializedRLWEKeysStepTask(step)
       StepCase.GENERATE_CERTIFICATE_STEP -> TODO()
       StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP ->
-        getExecutePrivateMembershipQueriesTask(step)
-      StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getBuildPrivateMembershipQueriesTask(step)
+        getExecutePrivateMembershipQueriesTask(step, attemptKey)
+      StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP ->
+        getBuildPrivateMembershipQueriesTask(step, attemptKey)
       StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP ->
-        getDecryptMembershipResultsTask(step)
+        getDecryptMembershipResultsTask(step, attemptKey)
       StepCase.COPY_FROM_SHARED_STORAGE_STEP -> TODO()
       StepCase.COPY_TO_SHARED_STORAGE_STEP -> TODO()
       else -> error("Unsupported step type")
     }
   }
 
-  private fun getInputStepTask(step: ExchangeWorkflow.Step): ExchangeTask {
+  private suspend fun getInputStepTask(
+    step: ExchangeWorkflow.Step,
+    attemptKey: ExchangeStepAttemptKey
+  ): ExchangeTask {
     require(step.stepCase == StepCase.INPUT_STEP)
     require(step.inputLabelsMap.isEmpty())
     val blobKey = step.outputLabelsMap.values.single()
     return InputTask(
-      storage = privateStorage.build(),
+      storage = privateStorageSelector.getStorageClient(attemptKey),
       blobKey = blobKey,
       throttler = inputTaskThrottler
     )
@@ -93,7 +105,10 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     return GenerateAsymmetricKeysTask(generateKeys = privateMembershipCryptor::generateKeys)
   }
 
-  private fun getBuildPrivateMembershipQueriesTask(step: ExchangeWorkflow.Step): ExchangeTask {
+  private suspend fun getBuildPrivateMembershipQueriesTask(
+    step: ExchangeWorkflow.Step,
+    attemptKey: ExchangeStepAttemptKey
+  ): ExchangeTask {
     require(step.stepCase == StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP)
     val privateMembershipCryptor =
       getPrivateMembershipCryptor(step.buildPrivateMembershipQueriesStep.serializedParameters)
@@ -107,7 +122,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
         queryIdAndJoinKeysFileName = step.outputLabelsMap.getValue("query-decryption-keys"),
       )
     return BuildPrivateMembershipQueriesTask(
-      storageFactory = privateStorage,
+      storageFactory = privateStorageSelector.getStorageFactory(attemptKey),
       parameters =
         CreateQueriesParameters(
           numShards = step.buildPrivateMembershipQueriesStep.numShards,
@@ -120,7 +135,10 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     )
   }
 
-  private fun getDecryptMembershipResultsTask(step: ExchangeWorkflow.Step): ExchangeTask {
+  private suspend fun getDecryptMembershipResultsTask(
+    step: ExchangeWorkflow.Step,
+    attemptKey: ExchangeStepAttemptKey
+  ): ExchangeTask {
     require(step.stepCase == StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP)
     val outputs =
       DecryptPrivateMembershipResultsTask.Outputs(
@@ -129,7 +147,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
         keyedDecryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
       )
     return DecryptPrivateMembershipResultsTask(
-      storageFactory = privateStorage,
+      storageFactory = privateStorageSelector.getStorageFactory(attemptKey),
       serializedParameters = step.decryptPrivateMembershipQueryResultsStep.serializedParameters,
       queryResultsDecryptor = queryResultsDecryptor,
       compressorFactory = compressorFactory,
@@ -137,7 +155,10 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     )
   }
 
-  private fun getExecutePrivateMembershipQueriesTask(step: ExchangeWorkflow.Step): ExchangeTask {
+  private suspend fun getExecutePrivateMembershipQueriesTask(
+    step: ExchangeWorkflow.Step,
+    attemptKey: ExchangeStepAttemptKey
+  ): ExchangeTask {
     require(step.stepCase == StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP)
     val outputs =
       ExecutePrivateMembershipQueriesTask.Outputs(
@@ -154,7 +175,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     val queryResultsEvaluator =
       getQueryResultsEvaluator(step.executePrivateMembershipQueriesStep.serializedParameters)
     return ExecutePrivateMembershipQueriesTask(
-      storageFactory = privateStorage,
+      storageFactory = privateStorageSelector.getStorageFactory(attemptKey),
       evaluateQueriesParameters = parameters,
       queryEvaluator = queryResultsEvaluator,
       outputs = outputs
