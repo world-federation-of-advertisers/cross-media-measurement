@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
@@ -40,6 +41,9 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     val internalRequest = claimReadyExchangeStepRequest { provider = getProviderFromContext() }
 
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
+    if (internalResponse == internalClaimReadyExchangeStepResponse {}) {
+      return claimReadyExchangeStepResponse {}
+    }
     val externalExchangeStep = internalResponse.exchangeStep.toV2Alpha()
     val externalExchangeStepAttempt =
       ExchangeStepAttemptKey(
