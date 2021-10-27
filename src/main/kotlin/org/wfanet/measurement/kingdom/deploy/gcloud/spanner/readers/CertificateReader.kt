@@ -31,7 +31,12 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class CertificateReader(private val parentType: ParentType) :
   BaseSpannerReader<CertificateReader.Result>() {
-  data class Result(val certificate: Certificate, val certificateId: InternalId)
+  data class Result(
+    val certificate: Certificate,
+    val certificateId: InternalId,
+    val isNotYetActive: Boolean,
+    val isExpired: Boolean
+  )
 
   enum class ParentType(private val prefix: String) {
     DATA_PROVIDER("DataProvider"),
@@ -99,19 +104,33 @@ class CertificateReader(private val parentType: ParentType) :
 
   override suspend fun translate(struct: Struct): Result {
     val certificateId = struct.getInternalId("CertificateId")
+    val isNotYetActive = struct.getBoolean("IsNotYetActive")
+    val isExpired = struct.getBoolean("IsExpired")
     return when (parentType) {
-      ParentType.DATA_PROVIDER -> Result(buildDataProviderCertificate(struct), certificateId)
+      ParentType.DATA_PROVIDER ->
+        Result(buildDataProviderCertificate(struct), certificateId, isNotYetActive, isExpired)
       ParentType.MEASUREMENT_CONSUMER ->
-        Result(buildMeasurementConsumerCertificate(struct), certificateId)
+        Result(
+          buildMeasurementConsumerCertificate(struct),
+          certificateId,
+          isNotYetActive,
+          isExpired
+        )
       ParentType.DUCHY -> {
         val duchyId = struct.getLong("DuchyId")
         val externalDuchyId =
           checkNotNull(DuchyIds.getExternalId(duchyId)) {
             "Duchy with internal ID $duchyId not found"
           }
-        Result(buildDuchyCertificate(externalDuchyId, struct), certificateId)
+        Result(
+          buildDuchyCertificate(externalDuchyId, struct),
+          certificateId,
+          isNotYetActive,
+          isExpired
+        )
       }
-      ParentType.MODEL_PROVIDER -> Result(buildModelProviderCertificate(struct), certificateId)
+      ParentType.MODEL_PROVIDER ->
+        Result(buildModelProviderCertificate(struct), certificateId, isNotYetActive, isExpired)
     }
   }
 
@@ -135,7 +154,9 @@ class CertificateReader(private val parentType: ParentType) :
         RevocationState,
         CertificateDetails,
         ${parentType.externalCertificateIdColumnName},
-        ${parentType.externalIdColumnName!!}
+        ${parentType.externalIdColumnName!!},
+        CURRENT_TIMESTAMP() < NotValidBefore AS IsNotYetActive,
+        CURRENT_TIMESTAMP() > NotValidAfter AS IsExpired,
       FROM
         ${parentType.certificatesTableName}
         JOIN ${parentType.tableName!!} USING (${parentType.idColumnName})
@@ -153,7 +174,9 @@ class CertificateReader(private val parentType: ParentType) :
         RevocationState,
         CertificateDetails,
         ${parentType.externalCertificateIdColumnName},
-        ${parentType.idColumnName}
+        ${parentType.idColumnName},
+        CURRENT_TIMESTAMP() < NotValidBefore AS IsNotYetActive,
+        CURRENT_TIMESTAMP() > NotValidAfter AS IsExpired,
       FROM
         ${parentType.certificatesTableName}
         JOIN Certificates USING (CertificateId)
