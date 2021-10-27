@@ -45,12 +45,8 @@ service Accounts {
   // current `identity`.
   rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account) {}
 
-  // Logs the user in.
-  rpc LogIn(LogInRequest) returns (LogInResponse) {}
-
-  // Exchanges a login token for a bearer token.
-  rpc ExchangeLoginToken(ExchangeLoginTokenRequest)
-      returns (ExchangeLoginTokenResponse) {}
+  // Authenticates the user using an OpenID Connect (OIDC) provider.
+  rpc Authenticate(AuthenticateRequest) returns (AuthenticateResponse) {}
 }
 
 // Request message for `CreateAccount` method.
@@ -95,23 +91,15 @@ message ReplaceAccountIdentityRequest {
   }
 }
 
-message LogInRequest {}
-
-message LogInResponse {
-  // Single-use token that can be exchanged for a bearer JWT.
-  string login_token = 1;
-
-  // URI to navigate to in user agent for completing login process.
-  string authorization_uri = 2;
+// Request message for `Authenticate` method.
+message AuthenticateRequest {
+  // OpenID Connect issuer identifier. Required.
+  //
+  // For Self-Issued OpenID Providers, this will be `https://self-issued.me`.
+  string issuer = 1;
 }
 
-message ExchangeLoginTokenRequest {
-  // Single-use token that can be exchanged for a bearer JWT.
-  bytes login_token = 1;
-}
-
-message ExchangeLoginTokenResponse {
-  // Encoded JSON Web Token that can be used as a bearer token for call
-  // authentication.
-  string bearer_token = 1;
+message AuthenticateResponse {
+  // URI for id_token authentication request to OpenID Provider.
+  string authentication_request_uri = 1;
 }

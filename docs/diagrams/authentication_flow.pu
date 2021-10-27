@@ -1,0 +1,58 @@
+@startuml
+
+skinparam default {
+  fontName "Roboto"
+  fontSize 13
+  defaultMonospacedFontName "Roboto Mono"
+}
+
+autonumber
+actor User
+boundary "API Server" as Server
+database "Database" as DB
+participant "OpenID Provider" as OP
+
+group Obtaining ID Token
+User->Server: ""Authenticate"" request
+activate Server
+Server->Server: Generate state and nonce
+Server->DB: Persist state and nonce
+activate DB
+autonumber stop
+return
+autonumber resume
+Server->Server: Build authentication request URI
+return ""Authenticate"" response
+
+User->OP: Authentication request
+activate OP
+autonumber stop
+return Login prompt
+autonumber resume
+User->OP: Log in
+activate OP
+return Authentication response
+User->User: Parse ID Token from response
+autonumber stop
+end
+...
+
+group Making authenticated API call
+autonumber 1
+User->Server: Authenticated API request
+activate Server
+Server->DB: Read nonce for ID Token state
+activate DB
+autonumber stop
+return
+autonumber resume
+Server->Server: Validate ID Token
+
+...
+rnote over Server, DB: Method-specific behavior
+...
+
+return Method response
+end
+
+@enduml
