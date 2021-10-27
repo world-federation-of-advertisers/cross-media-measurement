@@ -74,9 +74,15 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
 
   private fun getIntersectAndValidateStepTask(step: ExchangeWorkflow.Step): ExchangeTask {
     require(step.stepCase == StepCase.INTERSECT_AND_VALIDATE_STEP)
+
+    val maxSize = step.intersectAndValidateStep.maxSize
+    val maximumNewItemsAllowed = step.intersectAndValidateStep.maximumNewItemsAllowed
+
     return IntersectValidateTask(
-      maxSize = step.intersectAndValidateStep.maxSize,
-      minimumOverlap = step.intersectAndValidateStep.minimumOverlap
+      maxSize = maxSize,
+      maximumNewItemsAllowed = maximumNewItemsAllowed,
+      // TODO: set this based on Exchange data and ExchangeWorkflow first_exchange_date
+      isFirstExchange = false
     )
   }
 
