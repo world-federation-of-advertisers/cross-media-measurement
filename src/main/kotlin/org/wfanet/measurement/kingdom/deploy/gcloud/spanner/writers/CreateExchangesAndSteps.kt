@@ -16,12 +16,13 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import com.google.type.Date
-import java.time.LocalDate
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.gcloud.common.toCloudDate
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -31,8 +32,6 @@ import org.wfanet.measurement.internal.kingdom.ExchangeDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
-import org.wfanet.measurement.kingdom.db.streamRecurringExchangesFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRecurringExchanges
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 class CreateExchangesAndSteps(
@@ -81,14 +80,34 @@ class CreateExchangesAndSteps(
   }
 
   private suspend fun TransactionScope.getRecurringExchange(): RecurringExchangeReader.Result? {
-    val streamFilter =
-      streamRecurringExchangesFilter(
-        externalModelProviderIds = listOfNotNull(externalModelProviderId),
-        externalDataProviderIds = listOfNotNull(externalDataProviderId),
-        states = listOf(RecurringExchange.State.ACTIVE),
-        nextExchangeDateBefore = LocalDate.now().plusDays(1).toProtoDate() // TOMORROW
-      )
-    return StreamRecurringExchanges(streamFilter, limit = 1)
+    return RecurringExchangeReader()
+      .fillStatementBuilder {
+        appendClause(
+          """
+          WHERE State = @recurringExchangeState
+            AND NextExchangeDate <= CURRENT_DATE()
+            AND @exchangeState NOT IN (
+              SELECT Exchanges.State
+              FROM Exchanges
+              WHERE Exchanges.RecurringExchangeId = RecurringExchanges.RecurringExchangeId
+              ORDER BY Exchanges.Date DESC
+              LIMIT 1
+            )
+          """.trimIndent()
+        )
+        bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
+        bind("exchangeState" to Exchange.State.FAILED)
+
+        if (externalModelProviderId != null) {
+          appendClause("  AND ExternalModelProviderId = @externalModelProviderId")
+          bind("externalModelProviderId" to externalModelProviderId)
+        }
+
+        if (externalDataProviderId != null) {
+          appendClause("  AND ExternalDataProviderId = @externalDataProviderId")
+          bind("externalDataProviderId" to externalDataProviderId)
+        }
+      }
       .execute(transactionContext)
       .singleOrNull()
   }
