@@ -206,9 +206,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
 //
 #NetworkPolicy: {
-	_name: string
+	_name:      string
+	_app_label: string
 	_sourceMatchLabels: [...string]
-	_destinationMatchLabels: string
+	_destinationMatchLabels: [...string]
 
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
@@ -216,25 +217,46 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		name: _name + "-network-policy"
 	}
 	spec: {
-		podSelector: matchLabels: app: _destinationMatchLabels
-		policyTypes: ["Ingress"]
+		podSelector: matchLabels: app: _app_label
+		policyTypes: ["Ingress", "Egress"]
 		ingress: [{
 			from: [ for d in _sourceMatchLabels {
 				podSelector: matchLabels: app: d
+			}]
+			ports: [{
+				protocol: "TCP"
+				port:     8443
+			}]
+		}]
+		egress: [{
+			to: [ for d in _destinationMatchLabels {
+				podSelector: matchLabels: app: d
+			}]
+		}, {
+			to: [{
+				namespaceSelector: {} // Allow DNS only inside the cluster
+				podSelector: matchLabels: "k8s-app": "kube-dns"
+			}]
+			ports: [{
+				protocol: "UDP" // To allow DNS resolution
+				port:     53
+			}, {
+				protocol: "TCP" // To allow DNS resolution
+				port:     53
 			}]
 		}]
 	}
 }
 
-// This policy will deny ingress traffic to all unconfigured pods.
-default_deny_ingress: [{
+// This policy will deny ingress and egress traffic at all unconfigured pods.
+default_deny_ingress_and_egress: [{
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
 	metadata:
-		name: "default-deny-ingress"
+		name: "default-deny-ingress-and-egress"
 	spec: {
 		podSelector: {}
-		policyTypes: ["Ingress"]
+		policyTypes: ["Ingress", "Egress"]
 	}
 }]
 

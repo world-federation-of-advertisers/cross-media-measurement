@@ -57,16 +57,19 @@ import ("strings")
 			name: "kingdom-push-spanner-schema-job"
 			labels: "app.kubernetes.io/name": #AppName
 		}
-		spec: template: spec: {
-			containers: [{
-				name:            "push-spanner-schema-container"
-				image:           _images[name]
-				imagePullPolicy: _kingdom_image_pull_policy
-				args:            [
-							"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
-				] + _spanner_schema_push_flags
-			}]
-			restartPolicy: "OnFailure"
+		spec: template: {
+			metadata: labels: app: "kingdom-push-spanner-schema-job"
+			spec: {
+				containers: [{
+					name:            "push-spanner-schema-container"
+					image:           _images[name]
+					imagePullPolicy: _kingdom_image_pull_policy
+					args:            [
+								"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
+					] + _spanner_schema_push_flags
+				}]
+				restartPolicy: "OnFailure"
+			}
 		}
 	}
 
@@ -125,13 +128,30 @@ import ("strings")
 	kingdom_internal_network_policies: [Name=_]: #NetworkPolicy & {
 		_name: Name
 	}
+	// TODO(@wangyaopw): Consider setting the spanner destination explicityly.
 	kingdom_internal_network_policies: {
-		"interal-data-server": #NetworkPolicy & {
+		"internal-data-server": #NetworkPolicy & {
+			_app_label: "gcp-kingdom-data-server-app"
 			_sourceMatchLabels: [
 				"v2alpha-public-api-server-app",
 				"system-api-server-app",
 			]
-			_destinationMatchLabels: "gcp-kingdom-data-server-app"
+			_destinationMatchLabels: [] // Need to send external traffic to spanner.
+		}
+		"public-api-server": #NetworkPolicy & {
+			_app_label: "v2alpha-public-api-server-app"
+			_sourceMatchLabels: [] // External API, allow all ingress traffic.
+			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
+		}
+		"system-api-server": #NetworkPolicy & {
+			_app_label: "system-api-server-app"
+			_sourceMatchLabels: [] // External API, allow all ingress traffic.
+			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
+		}
+		"push-spanner-schema-job": #NetworkPolicy & {
+			_app_label: "kingdom-push-spanner-schema-job"
+			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
+			_destinationMatchLabels: [] // Need to send external traffic to spanner.
 		}
 	}
 }
