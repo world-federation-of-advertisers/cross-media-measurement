@@ -101,10 +101,13 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         readCertificate(flags.csCertificateDerFile.readBytes().toByteString())
       )
     val keyStore = InMemoryKeyStore() // TODO: use real keystore
+    // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
+    // included in mill logs to help debugging.
+    val millId = System.getenv("HOSTNAME")
 
     val mill =
       LiquidLegionsV2Mill(
-        millId = flags.millId,
+        millId = millId,
         duchyId = flags.duchy.duchyName,
         keyStore = keyStore,
         consentSignalCert = csCertificate,
