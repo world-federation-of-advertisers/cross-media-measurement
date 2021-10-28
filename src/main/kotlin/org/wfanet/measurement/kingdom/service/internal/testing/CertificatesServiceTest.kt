@@ -33,7 +33,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -60,8 +59,6 @@ private const val EXTERNAL_CERTIFICATE_ID = 123L
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 private const val NOT_AN_ID = 13579L
 
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
 
@@ -84,7 +81,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val modelProvidersService: ModelProvidersCoroutineImplBase
   )
 
-  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  private val clock: Clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
 
