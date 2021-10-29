@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -29,6 +30,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequestKt
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -126,25 +128,19 @@ class ExchangeStepsServiceTest {
       }
     }
 
-  private fun claimReadyExchangeStep(): ClaimReadyExchangeStepResponse = runBlocking {
-    service.claimReadyExchangeStep(claimReadyExchangeStepRequest {})
+  private fun claimReadyExchangeStep(
+    init: ClaimReadyExchangeStepRequestKt.Dsl.() -> Unit
+  ): ClaimReadyExchangeStepResponse = runBlocking {
+    service.claimReadyExchangeStep(claimReadyExchangeStepRequest(init))
   }
 
   @Test
   fun `claimReadyExchangeStep unauthenticated`() {
-    val e = assertFailsWith<StatusRuntimeException> { claimReadyExchangeStep() }
+    val e =
+      assertFailsWith<StatusRuntimeException> {
+        claimReadyExchangeStep { dataProvider = externalIdToApiId(123L) }
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-  }
-
-  private fun testClaimReadyExchangeStepWithPrincipal(principal: Principal<*>, provider: Provider) {
-    assertThat(withPrincipal(principal) { claimReadyExchangeStep() })
-      .isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
-
-    verifyProtoArgument(
-        internalService,
-        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
-      )
-      .isEqualTo(internalClaimReadyExchangeStepRequest { this.provider = provider })
   }
 
   @Test
@@ -154,7 +150,27 @@ class ExchangeStepsServiceTest {
       type = Provider.Type.DATA_PROVIDER
       externalId = 12345L
     }
-    testClaimReadyExchangeStepWithPrincipal(principal, provider)
+    val response =
+      withPrincipal(principal) {
+        claimReadyExchangeStep { dataProvider = externalIdToApiId(12345L) }
+      }
+
+    assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
+
+    verifyProtoArgument(
+        internalService,
+        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+      )
+      .isEqualTo(internalClaimReadyExchangeStepRequest { this.provider = provider })
+  }
+
+  @Test
+  fun `claimReadyExchangeStep for DataProvider with wrong parent in Request`() {
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+
+    withPrincipal(principal) {
+      assertFails { claimReadyExchangeStep { modelProvider = externalIdToApiId(12345L) } }
+    }
   }
 
   @Test
@@ -164,6 +180,27 @@ class ExchangeStepsServiceTest {
       type = Provider.Type.MODEL_PROVIDER
       externalId = 12345L
     }
-    testClaimReadyExchangeStepWithPrincipal(principal, provider)
+
+    val response =
+      withPrincipal(principal) {
+        claimReadyExchangeStep { modelProvider = externalIdToApiId(12345L) }
+      }
+
+    assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
+
+    verifyProtoArgument(
+        internalService,
+        InternalExchangeStepsCoroutineImplBase::claimReadyExchangeStep
+      )
+      .isEqualTo(internalClaimReadyExchangeStepRequest { this.provider = provider })
+  }
+
+  @Test
+  fun `claimReadyExchangeStep for ModelProvider with wrong parent in Request`() {
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+
+    withPrincipal(principal) {
+      assertFails { claimReadyExchangeStep { dataProvider = externalIdToApiId(12345L) } }
+    }
   }
 }
