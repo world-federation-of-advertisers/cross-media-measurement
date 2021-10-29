@@ -110,10 +110,10 @@ import ("strings")
 					"--polling-interval=1s",
 			] + _blob_storage_flags
 			_jvm_flags:             "-Xmx4g -Xms256m"
-			_resourceRequestMemory: "4Gi"
+			_resourceRequestMemory: "2Gi"
 			_resourceLimitMemory:   "4Gi"
-			_resourceRequestCpu:    "2"
-			_resourceLimitCpu:      "2"
+			_resourceRequestCpu:    "500m"
+			_resourceLimitCpu:      "1000m"
 			_dependencies: ["\(_name)-spanner-computations-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-deployment": #ServerDeployment & {
