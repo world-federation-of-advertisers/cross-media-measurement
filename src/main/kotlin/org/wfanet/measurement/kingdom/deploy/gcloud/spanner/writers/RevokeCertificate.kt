@@ -22,8 +22,10 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -102,11 +104,21 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         }
 
       StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
+        val details =
+          it.measurement.details.copy {
+            failure =
+              MeasurementKt.failure {
+                reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                message = "The associated Measurement Consumer certificate has been revoked."
+              }
+          }
         transactionContext.bufferUpdateMutation("Measurements") {
           set("MeasurementConsumerId" to it.measurementConsumerId)
           set("MeasurementId" to it.measurementId)
           set("State" to Measurement.State.FAILED)
           set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+          set("MeasurementDetails" to details)
+          setJson("MeasurementDetailsJson" to details)
         }
       }
     }
