@@ -25,20 +25,35 @@ import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.provider
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    // TODO(@efoxepstein): ensure the request's provider matches the Principal
-    val internalRequest = claimReadyExchangeStepRequest { provider = getProviderFromContext() }
+    val provider = getProviderFromContext()
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enums are not null.
+    val parentFromRequest: String =
+      when (provider.type) {
+        Provider.Type.MODEL_PROVIDER -> request.modelProvider
+        Provider.Type.DATA_PROVIDER -> request.dataProvider
+        Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED -> error("Unsupported Principal")
+      }
+    grpcRequire(externalIdToApiId(provider.externalId) == parentFromRequest) {
+      "Principal from authentication does not match request"
+    }
+
+    val internalRequest = claimReadyExchangeStepRequest { this.provider = provider }
 
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
     if (internalResponse == internalClaimReadyExchangeStepResponse {}) {
