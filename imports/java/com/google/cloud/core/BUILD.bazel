@@ -1,0 +1,7 @@
+package(default_visibility = ["//visibility:public"])
+
+# TODO: move this into common-jvm.
+alias(
+    name = "core",
+    actual = "@maven//:com_google_cloud_google_cloud_core",
+)

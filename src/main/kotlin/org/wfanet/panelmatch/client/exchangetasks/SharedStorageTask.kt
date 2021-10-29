@@ -44,10 +44,10 @@ class SharedStorageTask(
         else -> error("Unrecognized CopyOptions label type: $step")
       }
 
-    destinationStorageClient.verifiedBatchWrite(
-      outputLabels = outputs.keys.associateWith { it },
-      data = outputs
-    )
+    // TODO: if this is too slow, launch in parallel.
+    for ((key, value) in outputs) {
+      destinationStorageClient.createBlob(key, value)
+    }
   }
 
   private fun getBlobOutputs(blobData: Flow<ByteString>): Map<String, Flow<ByteString>> {

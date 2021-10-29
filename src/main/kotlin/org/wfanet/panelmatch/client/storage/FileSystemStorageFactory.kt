@@ -14,17 +14,25 @@
 
 package org.wfanet.panelmatch.client.storage
 
+import com.google.type.Date
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 class FileSystemStorageFactory(
   private val storageDetails: StorageDetails,
-  private val exchangeKey: ExchangeKey
+  private val recurringExchangeId: String,
+  private val exchangeDate: Date
 ) : StorageFactory {
 
   override fun build(): StorageClient {
-    return FileSystemStorageClient(File("${storageDetails.file.path}/${exchangeKey.toName()}"))
+    val exchangePath =
+      "recurringExchanges/$recurringExchangeId/exchanges/${exchangeDate.toLocalDate()}"
+    val directory = File("${storageDetails.file.path}/$exchangePath")
+    check(directory.exists() || directory.mkdirs()) {
+      "Unable to create recursively directory: ${directory.absolutePath}"
+    }
+    return FileSystemStorageClient(directory)
   }
 }

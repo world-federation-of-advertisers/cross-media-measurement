@@ -18,7 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.time.Clock
 import java.time.Instant
-import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -40,7 +39,7 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private val TEST_INSTANT = Instant.now()
 
-private val TODAY = TEST_INSTANT.atZone(ZoneId.systemDefault()).toLocalDate()
+private val TODAY = TEST_INSTANT.atZone(ZoneOffset.UTC).toLocalDate()
 private val FIRST_EXCHANGE_DATE = TODAY.minusDays(10)
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"

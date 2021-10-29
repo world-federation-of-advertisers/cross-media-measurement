@@ -12,11 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.client.storage
 
-import org.wfanet.panelmatch.client.common.ExchangeContext
+import java.lang.Exception
 
-/** Maps ExchangeWorkflow.Step to respective task. */
-interface ExchangeTaskMapper {
-  suspend fun getExchangeTaskForStep(context: ExchangeContext): ExchangeTask
-}
+class StorageNotFoundException(inputKey: String) : Exception("$inputKey not found")

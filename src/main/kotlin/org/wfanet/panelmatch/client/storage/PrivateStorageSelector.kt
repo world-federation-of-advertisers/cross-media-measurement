@@ -14,10 +14,10 @@
 
 package org.wfanet.panelmatch.client.storage
 
-import com.google.common.collect.ImmutableMap
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /**
@@ -42,27 +42,29 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
  */
 class PrivateStorageSelector(
   private val privateStorageFactories:
-    ImmutableMap<StorageDetails.PlatformCase, (StorageDetails, ExchangeKey) -> StorageFactory>,
+    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>,
   private val privateStorageInfo: SecretMap
 ) {
 
-  private suspend fun getStorageFactory(
+  private fun getStorageFactory(
     storageDetails: StorageDetails,
-    exchangeKey: ExchangeKey
+    context: ExchangeContext
   ): StorageFactory {
-    val storageFactoryBuilder =
-      requireNotNull(privateStorageFactories[storageDetails.platformCase]) {
-        "Missing private StorageFactory for ${storageDetails.platformCase}"
+    val platform = storageDetails.platformCase
+    val buildStorageFactory =
+      requireNotNull(privateStorageFactories[platform]) {
+        "Missing private StorageFactory for $platform"
       }
-    return storageFactoryBuilder(storageDetails, exchangeKey)
+    return context.buildStorageFactory(storageDetails)
   }
 
   private suspend fun getStorageDetails(recurringExchangeId: String): StorageDetails {
-    val storageDetails =
-      StorageDetails.parseFrom(
-        privateStorageInfo.get(recurringExchangeId)
-          ?: throw StorageNotFoundException("Private storage for exchange $recurringExchangeId")
-      )
+    val serializedStorageDetails =
+      privateStorageInfo.get(recurringExchangeId)
+        ?: throw StorageNotFoundException("Private storage for exchange $recurringExchangeId")
+
+    @Suppress("BlockingMethodInNonBlockingContext")
+    val storageDetails = StorageDetails.parseFrom(serializedStorageDetails)
 
     require(storageDetails.visibility == StorageDetails.Visibility.PRIVATE)
     return storageDetails
@@ -73,18 +75,15 @@ class PrivateStorageSelector(
    * active with private storage recorded in our secret map. Note that since we only expect to need
    * a StorageFactory for private storage, this does not ever check [privateStorageInfo].
    */
-  suspend fun getStorageFactory(attemptKey: ExchangeStepAttemptKey): StorageFactory {
-    return getStorageFactory(
-      getStorageDetails(attemptKey.recurringExchangeId),
-      ExchangeKey(attemptKey.recurringExchangeId, attemptKey.exchangeId)
-    )
+  suspend fun getStorageFactory(context: ExchangeContext): StorageFactory {
+    return getStorageFactory(getStorageDetails(context.recurringExchangeId), context)
   }
 
   /**
    * Gets the appropriate [StorageClient] for the current exchange. Requires the exchange to be
    * active with private storage recorded in our secret map.
    */
-  suspend fun getStorageClient(attemptKey: ExchangeStepAttemptKey): StorageClient {
-    return getStorageFactory(attemptKey).build()
+  suspend fun getStorageClient(context: ExchangeContext): StorageClient {
+    return getStorageFactory(context).build()
   }
 }

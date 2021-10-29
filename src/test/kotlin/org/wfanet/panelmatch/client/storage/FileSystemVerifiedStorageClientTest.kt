@@ -14,25 +14,17 @@
 
 package org.wfanet.panelmatch.client.storage
 
-import java.io.File
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.panelmatch.client.storage.testing.AbstractVerifiedStorageTest
+import org.wfanet.panelmatch.client.storage.testing.VerifiedStorageClientTest
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 
-class FileSystemVerifiedStorageTest : AbstractVerifiedStorageTest() {
+class FileSystemVerifiedStorageClientTest : VerifiedStorageClientTest() {
   @get:Rule val temporaryFolder = TemporaryFolder()
 
-  override val privateStorage by lazy {
-    makeTestVerifiedStorageClient(
-      FileSystemStorageClient(directory = File(temporaryFolder.newFolder("private").absolutePath))
-    )
-  }
-
-  override val sharedStorage by lazy {
-    makeTestVerifiedStorageClient(
-      FileSystemStorageClient(directory = File(temporaryFolder.newFolder("shared").absolutePath))
-    )
+  override val storage by lazy {
+    temporaryFolder.create()
+    makeTestVerifiedStorageClient(FileSystemStorageClient(directory = temporaryFolder.root))
   }
 }

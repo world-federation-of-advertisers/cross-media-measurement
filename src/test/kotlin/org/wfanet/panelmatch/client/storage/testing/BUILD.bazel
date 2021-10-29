@@ -1,10 +1,10 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "InMemoryVerifiedStorageTest",
+    name = "InMemoryVerifiedStorageClientTest",
     timeout = "short",
-    srcs = ["InMemoryVerifiedStorageTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.storage.testing.InMemoryVerifiedStorageTest",
+    srcs = ["InMemoryVerifiedStorageClientTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.storage.testing.InMemoryVerifiedStorageClientTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",

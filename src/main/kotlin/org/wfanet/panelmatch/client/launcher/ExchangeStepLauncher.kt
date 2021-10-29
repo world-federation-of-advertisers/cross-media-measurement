@@ -35,8 +35,8 @@ class ExchangeStepLauncher(
     val (exchangeStep, attemptKey) = apiClient.claimExchangeStep() ?: return
 
     try {
-      validator.validate(exchangeStep)
-      jobLauncher.execute(exchangeStep, attemptKey)
+      val validatedExchangeStep = validator.validate(exchangeStep)
+      jobLauncher.execute(validatedExchangeStep, attemptKey)
     } catch (e: Exception) {
       invalidateAttempt(attemptKey, e)
     }

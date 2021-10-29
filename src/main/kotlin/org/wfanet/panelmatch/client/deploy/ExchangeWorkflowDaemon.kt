@@ -20,13 +20,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.CoroutineLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepLauncher
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
-import org.wfanet.panelmatch.client.launcher.Identity
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.Timeout
@@ -79,7 +79,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         apiClient = apiClient,
         timeout = taskTimeout,
         privateStorageSelector = privateStorageSelector,
-        getExchangeTaskForStep = exchangeTaskMapper::getExchangeTaskForStep
+        exchangeTaskMapper = exchangeTaskMapper
       )
 
     val launcher = CoroutineLauncher(stepExecutor = stepExecutor)

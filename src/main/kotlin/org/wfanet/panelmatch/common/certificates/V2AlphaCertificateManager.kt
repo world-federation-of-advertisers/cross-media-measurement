@@ -20,15 +20,14 @@ import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
 import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** [CertificateManager] that loads [X509Certificate]s from [certificateService]. */
-class GrpcCertificateManager(
-  /** Connection to the APIs certificate service used to grab certs registered with the Kingdom */
+class V2AlphaCertificateManager(
   private val certificateService: CertificatesCoroutineStub,
   private val rootCerts: SecretMap,
   private val privateKeys: SecretMap,
@@ -47,23 +46,22 @@ class GrpcCertificateManager(
   }
 
   override suspend fun getCertificate(
-    exchangeKey: ExchangeKey,
+    exchange: ExchangeDateKey,
     certOwnerName: String,
     certResourceName: String
   ): X509Certificate {
-    return cache.getOrPut((certOwnerName to exchangeKey.toName())) {
-      val response =
-        certificateService.getCertificate(getCertificateRequest { name = certResourceName })
+    return cache.getOrPut(certOwnerName to exchange.path) {
+      val request = getCertificateRequest { name = certResourceName }
+      val response = certificateService.getCertificate(request)
       val x509 = readCertificate(response.x509Der)
-
       verifyCertificate(x509, certOwnerName)
     }
   }
 
-  override suspend fun getExchangePrivateKey(exchangeKey: ExchangeKey): PrivateKey {
-    val keyBytes = requireNotNull(privateKeys.get(exchangeKey.toName()))
-    return KeyFactory.getInstance(algorithm, jceProvider)
-      .generatePrivate(PKCS8EncodedKeySpec(keyBytes.toByteArray()))
+  override suspend fun getExchangePrivateKey(exchange: ExchangeDateKey): PrivateKey {
+    val keyBytes = requireNotNull(privateKeys.get(exchange.path))
+    val keyFactory = KeyFactory.getInstance(algorithm, jceProvider)
+    return keyFactory.generatePrivate(PKCS8EncodedKeySpec(keyBytes.toByteArray()))
   }
 
   override suspend fun getPartnerRootCertificate(partnerName: String): X509Certificate {

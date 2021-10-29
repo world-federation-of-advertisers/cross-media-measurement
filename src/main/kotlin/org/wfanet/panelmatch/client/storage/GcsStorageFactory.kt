@@ -15,13 +15,14 @@
 package org.wfanet.panelmatch.client.storage
 
 import com.google.cloud.storage.StorageOptions
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
+import com.google.type.Date
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 class GcsStorageFactory(
   private val storageDetails: StorageDetails,
-  private val exchangeKey: ExchangeKey
+  private val recurringExchangeId: String,
+  private val exchangeDate: Date
 ) : StorageFactory {
 
   // TODO(jonmolle): Add support for per-exchange buckets here.

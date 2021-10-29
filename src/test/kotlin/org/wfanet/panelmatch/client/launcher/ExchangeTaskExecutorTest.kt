@@ -16,24 +16,28 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
-import org.wfanet.panelmatch.client.launcher.testing.buildExchangeStep
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt
 import org.wfanet.panelmatch.client.storage.storageDetails
@@ -43,6 +47,7 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 import org.wfanet.panelmatch.common.toByteString
 
+// TODO: move somewhere for reuse
 class TestPrivateStorageSelector {
   val storageDetailsMap = mutableMapOf<String, ByteString>()
   val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
@@ -50,6 +55,22 @@ class TestPrivateStorageSelector {
   private val secrets = TestSecretMap(storageDetailsMap)
   val selector = makeTestPrivateStorageSelector(secrets, storageClient)
 }
+
+private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
+private val ATTEMPT_KEY = ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "x", "y", "z")
+
+private val DATE = LocalDate.of(2021, 11, 3)
+
+private val WORKFLOW = exchangeWorkflow {
+  steps +=
+    step {
+      encryptStep = encryptStep {}
+      inputLabels["a"] = "b"
+      outputLabels["Out:a"] = "c"
+    }
+}
+
+private val VALIDATED_EXCHANGE_STEP = ValidatedExchangeStep(WORKFLOW, WORKFLOW.getSteps(0), DATE)
 
 @RunWith(JUnit4::class)
 class ExchangeTaskExecutorTest {
@@ -74,37 +95,34 @@ class ExchangeTaskExecutorTest {
       }
     }
 
-  private fun getTask(
-    step: ExchangeWorkflow.Step,
-    attemptKey: ExchangeStepAttemptKey
-  ): ExchangeTask {
-    return exchangeTask
-  }
+  private val exchangeTaskMapper =
+    object : ExchangeTaskMapper {
+      override suspend fun getExchangeTaskForStep(context: ExchangeContext): ExchangeTask {
+        return exchangeTask
+      }
+    }
 
   private val exchangeTaskExecutor =
-    ExchangeTaskExecutor(apiClient, timeout, testPrivateStorageSelector.selector, ::getTask)
+    ExchangeTaskExecutor(
+      apiClient,
+      timeout,
+      testPrivateStorageSelector.selector,
+      exchangeTaskMapper
+    )
+
+  @Before
+  fun setUpStorage() {
+    testPrivateStorageSelector.storageDetailsMap[RECURRING_EXCHANGE_ID] =
+      storageDetails.toByteString()
+  }
 
   @Test
   fun `reads inputs and writes outputs`() = runBlockingTest {
     val blob = "some-blob".toByteString()
 
-    testPrivateStorageSelector.storageDetailsMap["recurringId"] = storageDetails.toByteString()
     testPrivateStorageSelector.storageClient.createBlob("b", blob.asBufferedFlow(1024))
 
-    exchangeTaskExecutor.execute(
-      ExchangeStepAttemptKey("recurringId", "x", "y", "z"),
-      buildExchangeStep(
-        name = "some-name",
-        dataProviderName = "some-edp",
-        modelProviderName = "some-mp",
-        testedStep =
-          step {
-            encryptStep = encryptStep {}
-            inputLabels["a"] = "b"
-            outputLabels["Out:a"] = "c"
-          }
-      )
-    )
+    exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
       .isEqualTo("Out:some-blob")
@@ -114,25 +132,10 @@ class ExchangeTaskExecutorTest {
   fun timeout() = runBlockingTest {
     timeout.expired = true
 
-    testPrivateStorageSelector.storageDetailsMap["recurringId"] = storageDetails.toByteString()
-
     assertFailsWith<CancellationException> {
-      exchangeTaskExecutor.execute(
-        ExchangeStepAttemptKey("recurringId", "x", "y", "z"),
-        buildExchangeStep(
-          name = "some-name",
-          dataProviderName = "some-edp",
-          modelProviderName = "some-mp",
-          testedStep =
-            step {
-              encryptStep = encryptStep {}
-              inputLabels["a"] = "b"
-              outputLabels["Out:a"] = "c"
-            }
-        )
-      )
+      exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
     }
 
-    assertThat(testPrivateStorageSelector.blobs["c"]).isNull()
+    assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
 }

@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage.testing
+package org.wfanet.panelmatch.common
 
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import java.time.LocalDate
 
-class InMemoryVerifiedStorageTest : AbstractVerifiedStorageTest() {
-  override val privateStorage = makeTestVerifiedStorageClient(InMemoryStorageClient())
-  override val sharedStorage = makeTestVerifiedStorageClient(InMemoryStorageClient())
+data class ExchangeDateKey(val recurringExchangeId: String, val date: LocalDate) {
+  val path: String by lazy { "recurringExchanges/$recurringExchangeId/exchanges/$date" }
 }
