@@ -21,7 +21,7 @@ import org.wfanet.measurement.storage.BlobKeyGenerator
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store
 
-private const val BLOB_KEY_PREFIX = "/computations"
+private const val BLOB_KEY_PREFIX = "computations"
 
 /** A [Store] instance for managing Blobs associated with computations in the Duchy. */
 class ComputationStore
