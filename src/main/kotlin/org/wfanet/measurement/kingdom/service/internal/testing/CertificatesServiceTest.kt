@@ -424,8 +424,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
-  fun `revokeCertificate for MeasurementConsumer cancels pending Measurements`(): Unit =
-      runBlocking {
+  fun `revokeCertificate for MeasurementConsumer fails pending Measurements`(): Unit = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val measurementOne =
@@ -457,11 +456,11 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .comparingExpectedFieldsOnly()
       .containsExactly(
         measurement {
-          state = Measurement.State.CANCELLED
+          state = Measurement.State.FAILED
           externalMeasurementId = measurementOne.externalMeasurementId
         },
         measurement {
-          state = Measurement.State.CANCELLED
+          state = Measurement.State.FAILED
           externalMeasurementId = measurementTwo.externalMeasurementId
         }
       )
