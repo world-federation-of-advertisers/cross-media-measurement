@@ -80,8 +80,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_system:          string
 	_jvm_flags:       string | *""
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"0.5"
-	_resourceLimitCpu:      string | *"2"
+	_resourceRequestCpu:    string | *"250m"
+	_resourceLimitCpu:      string | *"500m"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
 	apiVersion:             "apps/v1"
