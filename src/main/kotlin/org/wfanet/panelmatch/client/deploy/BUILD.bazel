@@ -8,6 +8,7 @@ kt_jvm_library(
         exclude = ["*Main.kt"],
     ),
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
