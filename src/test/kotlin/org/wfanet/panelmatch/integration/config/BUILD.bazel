@@ -1,0 +1,9 @@
+filegroup(
+    name = "config",
+    srcs = [
+        "mini_exchange_workflow.textproto",
+    ],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/panelmatch/integration:__pkg__",
+    ],
+)

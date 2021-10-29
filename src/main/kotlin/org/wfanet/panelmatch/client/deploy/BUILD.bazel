@@ -1,11 +1,18 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
 kt_jvm_library(
     name = "deploy",
     srcs = glob(
         ["*.kt"],
-        exclude = ["*Main.kt"],
+        exclude = [
+            "*Main.kt",
+        ],
     ),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
