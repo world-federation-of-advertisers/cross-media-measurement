@@ -19,7 +19,7 @@ import org.wfanet.measurement.storage.BlobKeyGenerator
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store
 
-private const val BLOB_KEY_PREFIX = "/requisitions"
+private const val BLOB_KEY_PREFIX = "requisitions"
 
 /** A [Store] instance for managing Blobs associated with requisitions in the Duchy. */
 class RequisitionStore
@@ -47,5 +47,5 @@ data class RequisitionBlobContext(
 
 /** Generates a Blob key using the [RequisitionBlobContext]. */
 private fun generateBlobKey(context: RequisitionBlobContext): String {
-  return "/${context.externalDataProviderId}/${context.externalRequisitionId}/${UUID.randomUUID()}"
+  return "${context.externalDataProviderId}/${context.externalRequisitionId}/${UUID.randomUUID()}"
 }

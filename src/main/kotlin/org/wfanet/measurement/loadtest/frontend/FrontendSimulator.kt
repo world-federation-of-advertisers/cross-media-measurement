@@ -105,7 +105,7 @@ class FrontendSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val storageClient: SketchStore,
+  private val sketchStore: SketchStore,
   private val runId: String
 ) {
 
@@ -212,7 +212,7 @@ class FrontendSimulator(
     val anySketches =
       requisitions.map {
         val storedSketch =
-          storageClient.get(it.name)?.read(DEFAULT_BUFFER_SIZE_BYTES)?.flatten()
+          sketchStore.get(it.name)?.read(DEFAULT_BUFFER_SIZE_BYTES)?.flatten()
             ?: error("Sketch blob not found for ${it.name}.")
         SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
       }
