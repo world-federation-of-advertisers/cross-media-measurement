@@ -18,6 +18,7 @@ import com.google.api.services.bigquery.model.TableFieldSchema
 import com.google.api.services.bigquery.model.TableRow
 import com.google.api.services.bigquery.model.TableSchema
 import com.google.protobuf.ByteString
+import java.nio.channels.WritableByteChannel
 import java.util.Base64
 import java.util.logging.Logger
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
@@ -107,17 +108,39 @@ fun main(args: Array<String>) {
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)
 
-  val dictionaryFileNaming = FileNaming { _, _, _, _, _ -> options.dictionaryOutputPath }
+  val dictionaryFileNaming = FileNaming { _, _, _, _, _ -> "dictionary" }
   dictionary
     .map { it.toByteString() }
     .apply(
       "Write Dictionary",
-      FileIO.write<ByteString>().withNumShards(1).withNaming(dictionaryFileNaming)
+      FileIO.write<ByteString>()
+        .withNumShards(1)
+        .withNaming(dictionaryFileNaming)
+        .via(ByteStringSink())
+        .to(options.dictionaryOutputPath)
     )
 
   val pipelineResult = pipeline.run()
   check(pipelineResult.waitUntilFinish() == PipelineResult.State.DONE)
   logMetrics(pipelineResult)
+}
+
+private class ByteStringSink : FileIO.Sink<ByteString> {
+  private lateinit var channel: WritableByteChannel
+
+  override fun open(channel: WritableByteChannel) {
+    this.channel = channel
+  }
+
+  override fun write(element: ByteString) {
+    for (buffer in element.asReadOnlyByteBufferList()) {
+      while (buffer.hasRemaining()) {
+        channel.write(buffer)
+      }
+    }
+  }
+
+  override fun flush() {}
 }
 
 private fun readFromBigQuery(
