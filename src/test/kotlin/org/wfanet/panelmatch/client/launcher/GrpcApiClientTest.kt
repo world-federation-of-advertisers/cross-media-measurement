@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.panelmatch.client.common.Identity
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private const val EXCHANGE_ID = "some-exchange-id"

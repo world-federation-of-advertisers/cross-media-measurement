@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.appendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.launcher.ApiClient.ClaimedExchangeStep
 
 class GrpcApiClient(

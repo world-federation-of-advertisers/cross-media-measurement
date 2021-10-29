@@ -15,10 +15,10 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
@@ -42,49 +42,44 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   abstract val certificateManager: CertificateManager
   abstract val inputTaskThrottler: Throttler
 
-  override suspend fun getExchangeTaskForStep(
-    step: ExchangeWorkflow.Step,
-    attemptKey: ExchangeStepAttemptKey
-  ): ExchangeTask {
+  override suspend fun getExchangeTaskForStep(context: ExchangeContext): ExchangeTask {
+    return context.getExchangeTask()
+  }
+
+  private suspend fun ExchangeContext.getExchangeTask(): ExchangeTask {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     return when (step.stepCase) {
       StepCase.ENCRYPT_STEP -> CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
       StepCase.REENCRYPT_STEP ->
         CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
       StepCase.DECRYPT_STEP -> CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
-      StepCase.INPUT_STEP -> getInputStepTask(step, attemptKey)
-      StepCase.INTERSECT_AND_VALIDATE_STEP -> getIntersectAndValidateStepTask(step)
+      StepCase.INPUT_STEP -> getInputStepTask()
+      StepCase.INTERSECT_AND_VALIDATE_STEP -> getIntersectAndValidateStepTask()
       StepCase.GENERATE_COMMUTATIVE_DETERMINISTIC_KEY_STEP ->
         GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
-      StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP -> getGenerateSerializedRLWEKeysStepTask(step)
+      StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP -> getGenerateSerializedRlweKeysStepTask()
       StepCase.GENERATE_CERTIFICATE_STEP -> TODO()
-      StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP ->
-        getExecutePrivateMembershipQueriesTask(step, attemptKey)
-      StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP ->
-        getBuildPrivateMembershipQueriesTask(step, attemptKey)
-      StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP ->
-        getDecryptMembershipResultsTask(step, attemptKey)
+      StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getExecutePrivateMembershipQueriesTask()
+      StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getBuildPrivateMembershipQueriesTask()
+      StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> getDecryptMembershipResultsTask()
       StepCase.COPY_FROM_SHARED_STORAGE_STEP -> TODO()
       StepCase.COPY_TO_SHARED_STORAGE_STEP -> TODO()
-      else -> error("Unsupported step type")
+      else -> error("Unsupported step type: ${step.stepCase}")
     }
   }
 
-  private suspend fun getInputStepTask(
-    step: ExchangeWorkflow.Step,
-    attemptKey: ExchangeStepAttemptKey
-  ): ExchangeTask {
+  private suspend fun ExchangeContext.getInputStepTask(): ExchangeTask {
     require(step.stepCase == StepCase.INPUT_STEP)
     require(step.inputLabelsMap.isEmpty())
     val blobKey = step.outputLabelsMap.values.single()
     return InputTask(
-      storage = privateStorageSelector.getStorageClient(attemptKey),
+      storage = privateStorageSelector.getStorageClient(this),
       blobKey = blobKey,
       throttler = inputTaskThrottler
     )
   }
 
-  private fun getIntersectAndValidateStepTask(step: ExchangeWorkflow.Step): ExchangeTask {
+  private fun ExchangeContext.getIntersectAndValidateStepTask(): ExchangeTask {
     require(step.stepCase == StepCase.INTERSECT_AND_VALIDATE_STEP)
 
     val maxSize = step.intersectAndValidateStep.maxSize
@@ -93,89 +88,76 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     return IntersectValidateTask(
       maxSize = maxSize,
       maximumNewItemsAllowed = maximumNewItemsAllowed,
-      // TODO: set this based on Exchange data and ExchangeWorkflow first_exchange_date
-      isFirstExchange = false
+      isFirstExchange = date == workflow.firstExchangeDate.toLocalDate()
     )
   }
 
-  private fun getGenerateSerializedRLWEKeysStepTask(step: ExchangeWorkflow.Step): ExchangeTask {
+  private fun ExchangeContext.getGenerateSerializedRlweKeysStepTask(): ExchangeTask {
     require(step.stepCase == StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP)
     val privateMembershipCryptor =
       getPrivateMembershipCryptor(step.generateSerializedRlweKeysStep.serializedParameters)
     return GenerateAsymmetricKeysTask(generateKeys = privateMembershipCryptor::generateKeys)
   }
 
-  private suspend fun getBuildPrivateMembershipQueriesTask(
-    step: ExchangeWorkflow.Step,
-    attemptKey: ExchangeStepAttemptKey
-  ): ExchangeTask {
+  private suspend fun ExchangeContext.getBuildPrivateMembershipQueriesTask(): ExchangeTask {
     require(step.stepCase == StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP)
-    val privateMembershipCryptor =
-      getPrivateMembershipCryptor(step.buildPrivateMembershipQueriesStep.serializedParameters)
+    val stepDetails = step.buildPrivateMembershipQueriesStep
+    val privateMembershipCryptor = getPrivateMembershipCryptor(stepDetails.serializedParameters)
     val outputs =
       BuildPrivateMembershipQueriesTask.Outputs(
-        encryptedQueryBundlesFileCount =
-          step.buildPrivateMembershipQueriesStep.encryptedQueryBundleFileCount,
+        encryptedQueryBundlesFileCount = stepDetails.encryptedQueryBundleFileCount,
         encryptedQueryBundlesFileName = step.outputLabelsMap.getValue("encrypted-queries"),
-        queryIdAndJoinKeysFileCount =
-          step.buildPrivateMembershipQueriesStep.queryIdAndPanelistKeyFileCount,
+        queryIdAndJoinKeysFileCount = stepDetails.queryIdAndPanelistKeyFileCount,
         queryIdAndJoinKeysFileName = step.outputLabelsMap.getValue("query-decryption-keys"),
       )
     return BuildPrivateMembershipQueriesTask(
-      storageFactory = privateStorageSelector.getStorageFactory(attemptKey),
+      storageFactory = privateStorageSelector.getStorageFactory(this),
       parameters =
         CreateQueriesParameters(
-          numShards = step.buildPrivateMembershipQueriesStep.numShards,
-          numBucketsPerShard = step.buildPrivateMembershipQueriesStep.numBucketsPerShard,
-          maxQueriesPerShard = step.buildPrivateMembershipQueriesStep.numQueriesPerShard,
-          padQueries = step.buildPrivateMembershipQueriesStep.addPaddingQueries,
+          numShards = stepDetails.numShards,
+          numBucketsPerShard = stepDetails.numBucketsPerShard,
+          maxQueriesPerShard = stepDetails.numQueriesPerShard,
+          padQueries = stepDetails.addPaddingQueries,
         ),
       privateMembershipCryptor = privateMembershipCryptor,
       outputs = outputs,
     )
   }
 
-  private suspend fun getDecryptMembershipResultsTask(
-    step: ExchangeWorkflow.Step,
-    attemptKey: ExchangeStepAttemptKey
-  ): ExchangeTask {
+  private suspend fun ExchangeContext.getDecryptMembershipResultsTask(): ExchangeTask {
     require(step.stepCase == StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP)
+    val stepDetails = step.decryptPrivateMembershipQueryResultsStep
     val outputs =
       DecryptPrivateMembershipResultsTask.Outputs(
-        keyedDecryptedEventDataSetFileCount =
-          step.decryptPrivateMembershipQueryResultsStep.decryptEventDataSetFileCount,
+        keyedDecryptedEventDataSetFileCount = stepDetails.decryptEventDataSetFileCount,
         keyedDecryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
       )
     return DecryptPrivateMembershipResultsTask(
-      storageFactory = privateStorageSelector.getStorageFactory(attemptKey),
-      serializedParameters = step.decryptPrivateMembershipQueryResultsStep.serializedParameters,
+      storageFactory = privateStorageSelector.getStorageFactory(this),
+      serializedParameters = stepDetails.serializedParameters,
       queryResultsDecryptor = queryResultsDecryptor,
       compressorFactory = compressorFactory,
       outputs = outputs,
     )
   }
 
-  private suspend fun getExecutePrivateMembershipQueriesTask(
-    step: ExchangeWorkflow.Step,
-    attemptKey: ExchangeStepAttemptKey
-  ): ExchangeTask {
+  private suspend fun ExchangeContext.getExecutePrivateMembershipQueriesTask(): ExchangeTask {
     require(step.stepCase == StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP)
+    val stepDetails = step.executePrivateMembershipQueriesStep
     val outputs =
       ExecutePrivateMembershipQueriesTask.Outputs(
-        encryptedQueryResultFileCount =
-          step.executePrivateMembershipQueriesStep.encryptedQueryResultFileCount,
+        encryptedQueryResultFileCount = stepDetails.encryptedQueryResultFileCount,
         encryptedQueryResultFileName = step.outputLabelsMap.getValue("encrypted-results")
       )
     val parameters =
       EvaluateQueriesParameters(
-        numShards = step.executePrivateMembershipQueriesStep.numShards,
-        numBucketsPerShard = step.executePrivateMembershipQueriesStep.numBucketsPerShard,
-        maxQueriesPerShard = step.executePrivateMembershipQueriesStep.maxQueriesPerShard
+        numShards = stepDetails.numShards,
+        numBucketsPerShard = stepDetails.numBucketsPerShard,
+        maxQueriesPerShard = stepDetails.maxQueriesPerShard
       )
-    val queryResultsEvaluator =
-      getQueryResultsEvaluator(step.executePrivateMembershipQueriesStep.serializedParameters)
+    val queryResultsEvaluator = getQueryResultsEvaluator(stepDetails.serializedParameters)
     return ExecutePrivateMembershipQueriesTask(
-      storageFactory = privateStorageSelector.getStorageFactory(attemptKey),
+      storageFactory = privateStorageSelector.getStorageFactory(this),
       evaluateQueriesParameters = parameters,
       queryEvaluator = queryResultsEvaluator,
       outputs = outputs

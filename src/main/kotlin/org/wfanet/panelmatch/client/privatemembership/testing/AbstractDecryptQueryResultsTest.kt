@@ -37,7 +37,6 @@ import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResults
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.plaintext
-import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKeys
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf

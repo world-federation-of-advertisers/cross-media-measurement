@@ -21,8 +21,6 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.secrets.testing.AbstractMutableSecretMapTest
 import org.wfanet.panelmatch.common.storage.createBlob
 
-private const val BLOB_KEY = "some-blob-key"
-
 @RunWith(JUnit4::class)
 class StorageClientSecretMapTest : AbstractMutableSecretMapTest<StorageClientSecretMap>() {
   override suspend fun secretMapOf(vararg items: Pair<String, ByteString>): StorageClientSecretMap {

@@ -19,13 +19,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 
 /** Executes an [ExchangeStep] in a new coroutine in [scope]. */
 class CoroutineLauncher(
   private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default),
   private val stepExecutor: ExchangeStepExecutor
 ) : JobLauncher {
-  override suspend fun execute(exchangeStep: ExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    scope.launch { stepExecutor.execute(attemptKey = attemptKey, exchangeStep = exchangeStep) }
+  override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
+    scope.launch { stepExecutor.execute(step, attemptKey) }
   }
 }

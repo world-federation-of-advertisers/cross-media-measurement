@@ -28,5 +28,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+        "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
     ],
 )

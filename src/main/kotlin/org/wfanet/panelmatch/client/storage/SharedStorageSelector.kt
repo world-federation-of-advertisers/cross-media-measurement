@@ -14,10 +14,10 @@
 
 package org.wfanet.panelmatch.client.storage
 
-import com.google.common.collect.ImmutableMap
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
@@ -48,27 +48,29 @@ class SharedStorageSelector(
   private val certificateManager: CertificateManager,
   private val ownerName: String,
   private val sharedStorageFactories:
-    ImmutableMap<StorageDetails.PlatformCase, (StorageDetails, ExchangeKey) -> StorageFactory>,
+    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>,
   private val sharedStorageInfo: SecretMap
 ) {
 
-  private suspend fun getStorageFactory(
+  private fun getStorageFactory(
     storageDetails: StorageDetails,
-    exchangeKey: ExchangeKey
+    context: ExchangeContext
   ): StorageFactory {
-    val storageFactoryBuilder =
-      requireNotNull(sharedStorageFactories[storageDetails.platformCase]) {
-        "Missing private StorageFactory for ${storageDetails.platformCase}"
+    val platform = storageDetails.platformCase
+    val buildStorageFactory =
+      requireNotNull(sharedStorageFactories[platform]) {
+        "Missing private StorageFactory for $platform"
       }
-    return storageFactoryBuilder(storageDetails, exchangeKey)
+    return context.buildStorageFactory(storageDetails)
   }
 
   private suspend fun getStorageDetails(recurringExchangeId: String): StorageDetails {
-    val storageDetails =
-      StorageDetails.parseFrom(
-        sharedStorageInfo.get(recurringExchangeId)
-          ?: throw StorageNotFoundException("Shared storage for exchange $recurringExchangeId")
-      )
+    val serializedStorageDetails =
+      sharedStorageInfo.get(recurringExchangeId)
+        ?: throw StorageNotFoundException("Shared storage for exchange $recurringExchangeId")
+
+    @Suppress("BlockingMethodInNonBlockingContext")
+    val storageDetails = StorageDetails.parseFrom(serializedStorageDetails)
 
     require(storageDetails.visibility == StorageDetails.Visibility.SHARED)
     return storageDetails
@@ -82,49 +84,37 @@ class SharedStorageSelector(
    *
    * @param[storageType] is grabbed from the exchange workflow to validate that our local
    * information is accurate.
-   * @param[partnerName] The API resource name of the partner in this exchange. Required to look up
-   * the certificate required to validate reads.
    * @param[ownerCertificateResourceName] Optional. The API resource name of the certificate that
-   * has been created for this exchange. Only required for [CopyToSharedStorageTask] tasks, it is
+   * has been created for this exchange. Only required for CopyToSharedStorageTask tasks, it is
    * expected to be passed through an input label for the tasks that need it. Tasks that do not
    * write to shared shared storage are expected to leave this as null so they don't need to depend
    * on the task that generates the certificate when they don't use it.
    */
   suspend fun getSharedStorage(
     storageType: ExchangeWorkflow.StorageType,
-    attemptKey: ExchangeStepAttemptKey,
-    partnerName: String,
+    context: ExchangeContext,
     ownerCertificateResourceName: String?
   ): VerifiedStorageClient {
-    val storageDetails = getStorageDetails(attemptKey.recurringExchangeId)
+    val storageDetails = getStorageDetails(context.recurringExchangeId)
     when (storageType) {
       ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE -> requireNotNull(storageDetails.gcs)
       ExchangeWorkflow.StorageType.AMAZON_S3 -> requireNotNull(storageDetails.aws)
       else -> throw IllegalArgumentException("No supported shared storage type specified.")
     }
 
-    return getVerifiedStorageClient(
-      storageDetails,
-      ExchangeKey(attemptKey.recurringExchangeId, attemptKey.exchangeId),
-      partnerName,
-      ownerCertificateResourceName
-    )
+    return getVerifiedStorageClient(storageDetails, context, ownerCertificateResourceName)
   }
 
-  private suspend fun getVerifiedStorageClient(
+  private fun getVerifiedStorageClient(
     storageDetails: StorageDetails,
-    exchangeKey: ExchangeKey,
-    partnerName: String,
-    ownerCertificateResourceName: String?
+    context: ExchangeContext,
+    ownerCertificateName: String?
   ): VerifiedStorageClient {
-
     return VerifiedStorageClient(
-      storageClient = getStorageFactory(storageDetails, exchangeKey).build(),
-      exchangeKey = exchangeKey,
-      ownerName,
-      partnerName,
-      ownerCertificateResourceName,
-      certificateManager
+      storageClient = getStorageFactory(storageDetails, context).build(),
+      context = context,
+      ownerCertificateName = ownerCertificateName,
+      certificateManager = certificateManager
     )
   }
 }

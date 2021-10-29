@@ -16,25 +16,13 @@ package org.wfanet.panelmatch.client.storage
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.panelmatch.client.storage.testing.AbstractVerifiedStorageTest
+import org.wfanet.panelmatch.client.storage.testing.VerifiedStorageClientTest
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 
-class GcsVerifiedStorageTest : AbstractVerifiedStorageTest() {
+private const val BUCKET = "some-test-bucket"
 
-  override val privateStorage by lazy {
-    makeTestVerifiedStorageClient(
-      GcsStorageClient(LocalStorageHelper.getOptions().service, PRIVATE_BUCKET)
-    )
-  }
-
-  override val sharedStorage by lazy {
-    makeTestVerifiedStorageClient(
-      GcsStorageClient(LocalStorageHelper.getOptions().service, SHARED_BUCKET)
-    )
-  }
-
-  companion object {
-    private const val PRIVATE_BUCKET = "private-test-bucket"
-    private const val SHARED_BUCKET = "shared-test-bucket"
+class GcsVerifiedStorageClientTest : VerifiedStorageClientTest() {
+  override val storage by lazy {
+    makeTestVerifiedStorageClient(GcsStorageClient(LocalStorageHelper.getOptions().service, BUCKET))
   }
 }

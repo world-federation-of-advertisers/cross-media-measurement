@@ -18,13 +18,14 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.logger.loggerFor
@@ -32,7 +33,7 @@ import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.storage.createBlob
 
-const val DONE_TASKS_PATH: String = "done-tasks"
+private const val DONE_TASKS_PATH: String = "done-tasks"
 
 /**
  * Maps ExchangeWorkflow.Step to respective tasks. Retrieves necessary inputs. Executes step. Stores
@@ -42,15 +43,14 @@ class ExchangeTaskExecutor(
   private val apiClient: ApiClient,
   private val timeout: Timeout,
   private val privateStorageSelector: PrivateStorageSelector,
-  private val getExchangeTaskForStep: suspend (Step, ExchangeStepAttemptKey) -> ExchangeTask
+  private val exchangeTaskMapper: ExchangeTaskMapper
 ) : ExchangeStepExecutor {
-  /** Reads inputs for [step], executes [step], and writes the outputs to [privateStorage]. */
-  override suspend fun execute(attemptKey: ExchangeStepAttemptKey, exchangeStep: ExchangeStep) {
+
+  override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
     withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {
+      val context = ExchangeContext(attemptKey, step.date, step.workflow, step.step)
       try {
-        @Suppress("BlockingMethodInNonBlockingContext") // Proto parsing is lightweight
-        val workflow = ExchangeWorkflow.parseFrom(exchangeStep.serializedExchangeWorkflow)
-        tryExecute(attemptKey, workflow.getSteps(exchangeStep.stepIndex))
+        context.tryExecute()
       } catch (e: Exception) {
         logger.addToTaskLog(e.toString())
         markAsFinished(attemptKey, ExchangeStepAttempt.State.FAILED)
@@ -86,24 +86,21 @@ class ExchangeTaskExecutor(
     apiClient.finishExchangeStepAttempt(attemptKey, state, getAndClearTaskLog())
   }
 
-  private suspend fun tryExecute(attemptKey: ExchangeStepAttemptKey, step: Step) {
-    logger.addToTaskLog("Executing $step with attempt $attemptKey")
-    val privateStorageClient: StorageClient = privateStorageSelector.getStorageClient(attemptKey)
+  private suspend fun ExchangeContext.tryExecute() {
+    logger.addToTaskLog("Executing ${step.stepId} with attempt $attemptKey for $this")
+    val privateStorageClient: StorageClient = privateStorageSelector.getStorageClient(this)
     if (!isAlreadyComplete(step, privateStorageClient)) {
-      runStep(attemptKey, step, privateStorageClient)
+      runStep(privateStorageClient)
       writeDoneBlob(step, privateStorageClient)
     }
+    // The Kingdom will be able to detect if it's handing out duplicate tasks because it will
+    // attempt to transition an ExchangeStep from some terminal state to `SUCCEEDED`.
     markAsFinished(attemptKey, ExchangeStepAttempt.State.SUCCEEDED)
   }
 
-  private suspend fun runStep(
-    attemptKey: ExchangeStepAttemptKey,
-    step: Step,
-    privateStorage: StorageClient
-  ) {
+  private suspend fun ExchangeContext.runStep(privateStorage: StorageClient) {
     timeout.runWithTimeout {
-      val exchangeTask: ExchangeTask = getExchangeTaskForStep(step, attemptKey)
-
+      val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(this@runStep)
       val taskInput: Map<String, StorageClient.Blob> = readInputs(step, privateStorage)
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
       writeOutputs(step, taskOutput, privateStorage)
@@ -115,8 +112,8 @@ class ExchangeTaskExecutor(
   }
 
   private suspend fun writeDoneBlob(step: Step, privateStorage: StorageClient) {
-    // TODO: consider writing the state into the file.
-    //  This would then require reading the file and knowing when failures are permanent.
+    // TODO: write the state into the blob.
+    //   This will prevent re-execution of tasks that failed.
     privateStorage.createBlob("$DONE_TASKS_PATH/${step.stepId}", ByteString.EMPTY)
   }
 

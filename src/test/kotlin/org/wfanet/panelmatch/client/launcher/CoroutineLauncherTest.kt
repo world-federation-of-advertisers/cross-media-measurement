@@ -14,19 +14,22 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import com.google.common.truth.Truth.assertThat
+import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
-import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.common.CountDownLatch
+import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.testing.buildWorkflow
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -39,11 +42,6 @@ class CoroutineLauncherTest {
   fun launches() = runBlockingTest {
     val workflowStep = step { encryptStep = encryptStep {} }
     val workflow = buildWorkflow(workflowStep, "some-edp", "some-mp")
-    val step = exchangeStep {
-      name = "some-exchange-step-name"
-      stepIndex = 0
-      serializedExchangeWorkflow = workflow.toByteString()
-    }
 
     val startLatch = CountDownLatch(1)
     val middleLatch = CountDownLatch(1)
@@ -57,12 +55,20 @@ class CoroutineLauncherTest {
     }
 
     val attemptKey = ExchangeStepAttemptKey("w", "x", "y", "z")
-    launcher.execute(step, attemptKey)
+    val date = LocalDate.of(2021, 11, 29)
+
+    val validatedExchangeStep = ValidatedExchangeStep(workflow, workflow.getSteps(0), date)
+
+    launcher.execute(validatedExchangeStep, attemptKey)
 
     startLatch.await()
     middleLatch.countDown()
     endLatch.await()
 
-    verify(stepExecutor).execute(attemptKey, step)
+    val stepCaptor = argumentCaptor<ValidatedExchangeStep>()
+    val attemptKeyCaptor = argumentCaptor<ExchangeStepAttemptKey>()
+    verify(stepExecutor).execute(stepCaptor.capture(), attemptKeyCaptor.capture())
+    assertThat(stepCaptor.firstValue).isEqualTo(validatedExchangeStep)
+    assertThat(attemptKeyCaptor.firstValue).isEqualTo(attemptKey)
   }
 }

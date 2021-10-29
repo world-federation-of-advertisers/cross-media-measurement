@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.client.storage.testing
 
-import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
-/** Maps ExchangeWorkflow.Step to respective task. */
-interface ExchangeTaskMapper {
-  suspend fun getExchangeTaskForStep(context: ExchangeContext): ExchangeTask
+class InMemoryVerifiedStorageClientTest : VerifiedStorageClientTest() {
+  override val storage = makeTestVerifiedStorageClient(InMemoryStorageClient())
 }
