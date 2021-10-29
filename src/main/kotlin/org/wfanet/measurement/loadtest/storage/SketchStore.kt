@@ -18,7 +18,7 @@ import org.wfanet.measurement.storage.BlobKeyGenerator
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store
 
-private const val BLOB_KEY_PREFIX = "/sketches"
+private const val BLOB_KEY_PREFIX = "sketches"
 
 /** A [Store] instance for managing Blobs associated with sketches (for test purpose only). */
 class SketchStore
