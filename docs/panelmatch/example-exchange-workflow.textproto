@@ -82,27 +82,14 @@ steps {
   output_labels { key: "input" value: "mp-commutative-deterministic-key" }
 }
 
-# MP provides unencrypted hashed join keys previously hashed using identifier hash pepper
+# MP provides unencrypted join keys
 steps {
-  step_id: "input-hashed-join-keys"
+  step_id: "input-join-keys"
   party: MODEL_PROVIDER
 
   input_step {}
 
-  output_labels { key: "input" value: "mp-raw-hashed-join-keys" }
-}
-
-# MP generates ids for join keys that are to be shared with EDP.
-steps {
-  step_id: "generate-join-key-ids"
-  party: MODEL_PROVIDER
-
-  generate_join_key_ids_step {}
-
-  input_labels { key: "input" value: "mp-commutative-deterministic-key" }
-  input_labels { key: "input" value: "mp-raw-hashed-join-keys" }
-
-  output_labels { key: "input" value: "mp-hashed-join-keys" }
+  output_labels { key: "input" value: "mp-join-keys" }
 }
 
 # EDP provides previously generated private key as input.
@@ -136,7 +123,7 @@ steps {
 
   encrypt_step {}
 
-  input_labels { key: "data" value: "mp-hashed-join-keys" }
+  input_labels { key: "data" value: "mp-join-keys" }
   input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
 
   output_labels { key: "output" value: "mp-single-blinded-join-keys" }
@@ -247,14 +234,15 @@ steps {
   step_id: "prepare-event-lookup-queries"
   party: MODEL_PROVIDER
 
-  build_encrypted_queries_step {
+  build_private_membership_queries_step {
     serialized_parameters: "..."
   }
 
   input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
-  input_labels { key: "hashed-join-keys" value: "mp-hashed-join-keys" }
+  input_labels { key: "join-keys" value: "mp-join-keys" }
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
+  input_labels { key: "pepper" value: "mp-identifier-hash-pepper" }
 
   output_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
   output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
@@ -351,7 +339,7 @@ steps {
   step_id: "execute-encrypted-queries"
   party: DATA_PROVIDER
 
-  execute_encrypted_queries_step {
+  execute_private_membership_queries_step {
     serialized_parameters: "..."
   }
 
@@ -389,7 +377,7 @@ steps {
   step_id: "decrypt-encrypted-query-results"
   party: MODEL_PROVIDER
 
-  decrypt_encrypted_query_results_step {
+  decrypt_private_membership_query_results_step {
     serialized_parameters: "..."
   }
 
@@ -398,6 +386,7 @@ steps {
   input_labels { key: "event-data-dictionary" value: "mp-event-data-dictionary" }
   input_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
   input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
+  input_labels { key: "pepper" value: "mp-hkdf-pepper" }
 
   output_labels { key: "results" value: "results" }
 }
