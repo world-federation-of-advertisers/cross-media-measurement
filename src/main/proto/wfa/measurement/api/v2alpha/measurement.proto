@@ -150,4 +150,22 @@ message Measurement {
   // `MeasurementConsumer`. This serves as an idempotency key for the
   // `Measurement`.
   string measurement_reference_id = 11;
+
+  message Failure {
+    enum Reason {
+      REASON_UNSPECIFIED = 0;
+      // An associated certificate was revoked.
+      CERTIFICATE_REVOKED = 1;
+      // Requisition state was set to REFUSED.
+      REQUISITION_REFUSED = 2;
+      // ComputationParticipant state was set to FAILED.
+      COMPUTATION_PARTICIPANT_FAILED = 3;
+    }
+    Reason reason = 1;
+    // Human-readable message. This should not contain any sensitive
+    // information.
+    string message = 2;
+  }
+  // Set when the state is set to FAILED. Output-only.
+  Failure failure = 12;
 }
