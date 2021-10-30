@@ -85,7 +85,7 @@ class CreateExchangesAndSteps(
         appendClause(
           """
           WHERE State = @recurringExchangeState
-            AND NextExchangeDate <= CURRENT_DATE()
+            AND NextExchangeDate <= CURRENT_DATE("+0")
             AND @exchangeState NOT IN (
               SELECT Exchanges.State
               FROM Exchanges

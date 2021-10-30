@@ -23,6 +23,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -282,7 +283,7 @@ abstract class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep creates multiple Exchanges`() = runBlocking {
-    val date = LocalDate.now().minusDays(3)
+    val date = LocalDate.now(ZoneOffset.UTC).minusDays(3)
 
     recurringExchangesService.createRecurringExchange(
       createRecurringExchangeRequest {
@@ -304,7 +305,7 @@ abstract class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep does not create new Exchanges if one is failed`() = runBlocking {
-    val exchangeDate = LocalDate.now().minusDays(3).toProtoDate()
+    val exchangeDate = LocalDate.now(ZoneOffset.UTC).minusDays(3).toProtoDate()
 
     recurringExchangesService.createRecurringExchange(
       createRecurringExchangeRequest {
