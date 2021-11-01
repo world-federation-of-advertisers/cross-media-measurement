@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.integration
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import com.google.type.Date
 import java.time.Clock
 import java.time.Duration
@@ -35,14 +34,12 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.integration.deploy.gcloud.buildKingdomSpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.deploy.gcloud.buildSpannerInProcessKingdom
@@ -77,22 +74,8 @@ class InProcessPanelMatchIntegrationTest {
   private lateinit var modelProviderKey: ModelProviderKey
   private lateinit var recurringExchangeKey: RecurringExchangeKey
 
-  private fun createFolder(provider: String, exchangeKey: ExchangeKey) {
-    temporaryFolder.newFolder(
-      provider,
-      "recurringExchanges",
-      exchangeKey.recurringExchangeId,
-      "exchanges",
-      exchangeKey.exchangeId
-    )
-  }
-
   private fun createScope(name: String): CoroutineScope {
     return CoroutineScope(CoroutineName(name + Dispatchers.Default))
-  }
-
-  private fun Date.format(): String {
-    return toLocalDate().toString()
   }
 
   @Before
@@ -113,10 +96,8 @@ class InProcessPanelMatchIntegrationTest {
   @Test
   fun `entire process`() = runBlocking {
     val recurringExchangeId = recurringExchangeKey.recurringExchangeId
-    val secretMap =
-      TestSecretMap(
-        mutableMapOf<String, ByteString>(Pair(recurringExchangeId, exchangeWorkflow.toByteString()))
-      )
+    val edpSecretMap = TestSecretMap(mapOf(recurringExchangeId to exchangeWorkflow.toByteString()))
+    val mpSecretMap = TestSecretMap(mapOf(recurringExchangeId to exchangeWorkflow.toByteString()))
 
     // TODO(@yunyeng): Build storage from InputBlobs map.
     val edpStorageClient = InMemoryStorageClient()
@@ -126,11 +107,11 @@ class InProcessPanelMatchIntegrationTest {
     val edpScope = createScope("EDP SCOPE")
     val edpDaemon =
       ExchangeWorkflowDaemonForTest(
-        privateStorageSelector = makeTestPrivateStorageSelector(secretMap, edpStorageClient),
-        sharedStorageSelector = makeTestSharedStorageSelector(secretMap, edpStorageClient),
+        privateStorageSelector = makeTestPrivateStorageSelector(edpSecretMap, edpStorageClient),
+        sharedStorageSelector = makeTestSharedStorageSelector(edpSecretMap, edpStorageClient),
         clock = CLOCK,
         scope = edpScope,
-        validExchangeWorkflows = secretMap,
+        validExchangeWorkflows = edpSecretMap,
         channel = inProcessKingdom.publicApiChannel,
         providerKey = dataProviderKey,
         taskTimeoutDuration = TASK_TIMEOUT_DURATION,
@@ -140,11 +121,11 @@ class InProcessPanelMatchIntegrationTest {
     val mpScope = createScope("MP SCOPE")
     val mpDaemon =
       ExchangeWorkflowDaemonForTest(
-        privateStorageSelector = makeTestPrivateStorageSelector(secretMap, mpStorageClient),
-        sharedStorageSelector = makeTestSharedStorageSelector(secretMap, mpStorageClient),
+        privateStorageSelector = makeTestPrivateStorageSelector(mpSecretMap, mpStorageClient),
+        sharedStorageSelector = makeTestSharedStorageSelector(mpSecretMap, mpStorageClient),
         clock = CLOCK,
         scope = mpScope,
-        validExchangeWorkflows = secretMap,
+        validExchangeWorkflows = mpSecretMap,
         channel = inProcessKingdom.publicApiChannel,
         providerKey = modelProviderKey,
         taskTimeoutDuration = TASK_TIMEOUT_DURATION,
