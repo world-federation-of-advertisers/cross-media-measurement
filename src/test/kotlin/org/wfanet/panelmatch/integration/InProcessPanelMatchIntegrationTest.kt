@@ -27,6 +27,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -108,6 +109,7 @@ class InProcessPanelMatchIntegrationTest {
     recurringExchangeKey = providers.recurringExchangeKey
   }
 
+  @Ignore // TODO: this test is still a work-in-progress.
   @Test
   fun `entire process`() = runBlocking {
     val recurringExchangeId = recurringExchangeKey.recurringExchangeId

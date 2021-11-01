@@ -19,14 +19,16 @@ import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.common.crypto.signFlow
-import org.wfanet.measurement.common.crypto.verifySignedFlow
+import org.wfanet.measurement.common.crypto.SignedBlob
+import org.wfanet.measurement.common.crypto.createSignedBlob
+import org.wfanet.measurement.common.crypto.newSigner
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.common.certificates.CertificateManager
+import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.protocol.NamedSignature
 import org.wfanet.panelmatch.protocol.namedSignature
 
@@ -37,10 +39,6 @@ class VerifiedStorageClient(
   private val ownerCertificateName: String?,
   private val certificateManager: CertificateManager,
 ) {
-
-  private val defaultBufferSizeBytes: Int
-    get() = storageClient.defaultBufferSizeBytes
-
   /** A helper function to get the implicit path for a input's signature. */
   private fun getSigPath(blobKey: String): String = "${blobKey}_signature"
 
@@ -59,8 +57,7 @@ class VerifiedStorageClient(
     val namedSignature = parseSignature(blobKey)
 
     return VerifiedBlob(
-      sourceBlob,
-      namedSignature.signature,
+      SignedBlob(sourceBlob, namedSignature.signature),
       certificateManager.getCertificate(
         context.exchangeDateKey,
         context.partnerName,
@@ -73,7 +70,7 @@ class VerifiedStorageClient(
     val signatureBlob: Blob =
       storageClient.getBlob(getSigPath(blobKey))
         ?: throw StorageNotFoundException(getSigPath(blobKey))
-    val serializedSignature = signatureBlob.read(defaultBufferSizeBytes).flatten()
+    val serializedSignature = signatureBlob.toByteString()
 
     @Suppress("BlockingMethodInNonBlockingContext")
     return NamedSignature.parseFrom(serializedSignature)
@@ -84,7 +81,6 @@ class VerifiedStorageClient(
    * [PrivateKey] , this creates a signature in shared storage for the written blob that can be
    * verified by the other party using a pre-provided [X509Certificate].
    */
-  @Suppress("EXPERIMENTAL_API_USAGE") // For Deferred.getCompleted.
   suspend fun createBlob(blobKey: String, content: Flow<ByteString>): VerifiedBlob {
     // Since StorageClient has no concept of "overwriting" a blob, we first delete existing blobs.
     // This is to ensure that transient failures after some blobs are written do not cause problems
@@ -98,52 +94,42 @@ class VerifiedStorageClient(
         context.localName,
         requireNotNull(ownerCertificateName)
       )
-    val (signedContent, deferredSig) = privateKey.signFlow(ownerCertificate, content)
-    val sourceBlob = storageClient.createBlob(blobKey = blobKey, content = signedContent)
+    val signedBlob =
+      storageClient.createSignedBlob(blobKey, content) { privateKey.newSigner(ownerCertificate) }
 
-    val signatureVal = deferredSig.getCompleted()
     val namedSignature = namedSignature {
       certificateName = ownerCertificateName
-      signature = signatureVal
+      signature = signedBlob.signature
     }
     storageClient.createBlob(blobKey = getSigPath(blobKey), content = namedSignature.toByteString())
-    return VerifiedBlob(sourceBlob, signatureVal, ownerCertificate)
+    return VerifiedBlob(signedBlob, ownerCertificate)
   }
 
-  suspend fun createBlob(blobKey: String, content: ByteString): VerifiedBlob =
-    createBlob(blobKey, content.asBufferedFlow(defaultBufferSizeBytes))
+  suspend fun createBlob(blobKey: String, content: ByteString): VerifiedBlob {
+    return createBlob(blobKey, content.asBufferedFlow(storageClient.defaultBufferSizeBytes))
+  }
 
   private fun deleteExistingBlobs(blobKey: String) {
     storageClient.getBlob(blobKey)?.delete()
     storageClient.getBlob(getSigPath(blobKey))?.delete()
   }
 
-  class VerifiedBlob(
-    private val sourceBlob: Blob,
-    private val signature: ByteString,
-    private val cert: X509Certificate
-  ) {
+  /** [Blob] wrapper that ensures the blob's signature is verified when read. */
+  class VerifiedBlob(private val sourceBlob: SignedBlob, private val cert: X509Certificate) {
     val size: Long
       get() = sourceBlob.size
 
-    /**
-     * Stub for verified read function. Intended to be used in combination with a the other party's
-     * provided [X509Certificate], this validates that the data in the blob has been generated (or
-     * at least signed as valid) by the other party.
-     *
-     * Note that the validation happens in a separate thread and is non-blocking, but will throw a
-     * terminal error if it fails.
-     */
-    private fun verifiedRead(bufferSize: Int): Flow<ByteString> {
-      return cert.verifySignedFlow(sourceBlob.read(bufferSize), signature)
+    /** Reads the underlying blob. Throws if the signature was invalid . */
+    fun read(
+      bufferSizeBytes: Int = sourceBlob.storageClient.defaultBufferSizeBytes
+    ): Flow<ByteString> {
+      return sourceBlob.readVerifying(cert, bufferSizeBytes)
     }
 
-    fun read(bufferSize: Int = sourceBlob.storageClient.defaultBufferSizeBytes): Flow<ByteString> {
-      return verifiedRead(bufferSize)
-    }
+    /** @see [StorageClient::toByteString]. */
+    suspend fun toByteString(): ByteString = read().flatten()
 
-    suspend fun toByteString(): ByteString = this.read().flatten()
-
+    /** Reads the blob into a UTF8 String. */
     suspend fun toStringUtf8(): String = toByteString().toStringUtf8()
   }
 }

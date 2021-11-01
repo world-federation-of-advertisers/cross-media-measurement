@@ -7,6 +7,9 @@ spanner_emulator_test(
     resources = [
         "//src/test/kotlin/org/wfanet/panelmatch/integration/config",
     ],
+    tags = [
+        "manual",
+    ],
     test_class = "org.wfanet.panelmatch.integration.InProcessPanelMatchIntegrationTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing",
