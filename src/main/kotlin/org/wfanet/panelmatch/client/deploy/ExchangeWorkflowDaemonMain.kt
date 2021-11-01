@@ -34,6 +34,10 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromF
   lateinit var approvedWorkflowFlags: PlaintextApprovedWorkflowFileFlags
     private set
 
+  @CommandLine.Mixin
+  lateinit var blobSizeFlags: BlobSizeFlags
+    private set
+
   override val certificateManager: CertificateManager
     get() = TODO("Not yet implemented")
 
