@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
@@ -22,22 +23,31 @@ import org.wfanet.measurement.api.v2alpha.GetExchangeRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangesResponse
 import org.wfanet.measurement.api.v2alpha.UploadAuditTrailRequest
+import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 
 class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
   ExchangesCoroutineImplBase() {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
+    val provider = getProviderFromContext()
+
     val key = grpcRequireNotNull(ExchangeKey.fromName(request.name))
     val internalExchange =
       internalExchanges.getExchange(
         getExchangeRequest {
           externalRecurringExchangeId = apiIdToExternalId(key.recurringExchangeId)
-          date = LocalDate.parse(key.exchangeId)
+          date = LocalDate.parse(key.exchangeId).toProtoDate()
+          this.provider = provider
         }
       )
+    return internalExchange.toV2Alpha()
   }
 
   override suspend fun listExchanges(request: ListExchangesRequest): ListExchangesResponse {
@@ -46,5 +56,19 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
 
   override suspend fun uploadAuditTrail(requests: Flow<UploadAuditTrailRequest>): Exchange {
     TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
+  }
+
+  private fun InternalExchange.toV2Alpha(): Exchange {
+    val exchangeKey =
+      ExchangeKey(
+        recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+        exchangeId = date.toLocalDate().toString()
+      )
+    return exchange {
+      name = exchangeKey.toName()
+      date = this@toV2Alpha.date
+      auditTrailHash = details.auditTrailHash
+      graphvizRepresentation = ""
+    }
   }
 }
