@@ -132,6 +132,7 @@ private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
   parentMeasurement =
     parentMeasurement {
       apiVersion = Version.V2_ALPHA.string
+      externalMeasurementConsumerCertificateId = 8L
       protocolConfig =
         internalProtocolConfig {
           externalProtocolConfigId = "llv2"
