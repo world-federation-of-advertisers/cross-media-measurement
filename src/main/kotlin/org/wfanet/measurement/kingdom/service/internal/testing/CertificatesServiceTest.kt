@@ -472,7 +472,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           state = Measurement.State.FAILED
           externalMeasurementId = measurementTwo.externalMeasurementId
           details =
-            measurementOne.details.copy {
+            measurementTwo.details.copy {
               failure =
                 MeasurementKt.failure {
                   reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
