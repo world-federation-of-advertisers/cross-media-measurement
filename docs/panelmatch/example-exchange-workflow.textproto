@@ -110,9 +110,10 @@ steps {
   step_id: "input-previous-single-blinded-join-keys"
   party: DATA_PROVIDER
 
-  input_step {}
+  copy_from_previous_exchange_step {}
 
-  output_labels { key: "input" value: "edp-previous-single-blinded-join-keys" }
+  input_labels { key: "input" value: "edp-single-blinded-join-keys-audit-trail" }
+  output_labels { key: "output" value: "edp-previous-single-blinded-join-keys" }
 }
 
 # MP wraps their hashed join keys in a layer of deterministic commutative
@@ -159,14 +160,14 @@ steps {
   # appeared in the previous protocol.
   intersect_and_validate_step {
     max_size: 10000
-    minimum_overlap: 0.99
+    maximum_new_items_allowed: 100
   }
 
   input_labels { key: "previous-data" value: "edp-previous-single-blinded-join-keys" }
   input_labels { key: "current-data" value: "edp-single-blinded-join-keys" }
 
   # Outputs "current-data" as a local copy for long-term auditing storage.
-  output_labels { key: "output" value: "edp-single-blinded-joinkeys-copy" }
+  output_labels { key: "output" value: "edp-single-blinded-joinkeys-audit-trail" }
 }
 
 # EDP wraps the single-encrypted join keys in another layer of
