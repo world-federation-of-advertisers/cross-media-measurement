@@ -85,7 +85,13 @@ class ExchangesServiceTest {
   @Test
   fun `getExchange unauthenticated`() {
     val exchangeKey = ExchangeKey(externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
-    val e = assertFailsWith<StatusRuntimeException> { getExchange { name = exchangeKey.toName() } }
+    val e =
+      assertFailsWith<StatusRuntimeException> {
+        getExchange {
+          name = exchangeKey.toName()
+          dataProvider = externalIdToApiId(12345L)
+        }
+      }
     Truth.assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
@@ -98,7 +104,13 @@ class ExchangesServiceTest {
     }
 
     val exchangeKey = ExchangeKey(externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
-    val response = withPrincipal(principal) { getExchange { name = exchangeKey.toName() } }
+    val response =
+      withPrincipal(principal) {
+        getExchange {
+          name = exchangeKey.toName()
+          dataProvider = externalIdToApiId(12345L)
+        }
+      }
 
     ProtoTruth.assertThat(response)
       .isEqualTo(

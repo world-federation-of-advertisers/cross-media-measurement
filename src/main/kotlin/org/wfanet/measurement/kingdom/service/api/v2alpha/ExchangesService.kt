@@ -24,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangesResponse
 import org.wfanet.measurement.api.v2alpha.UploadAuditTrailRequest
 import org.wfanet.measurement.api.v2alpha.exchange
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -31,12 +32,24 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 
 class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
   ExchangesCoroutineImplBase() {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
     val provider = getProviderFromContext()
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enums are not null.
+    val parentFromRequest: String =
+      when (provider.type) {
+        Provider.Type.MODEL_PROVIDER -> request.modelProvider
+        Provider.Type.DATA_PROVIDER -> request.dataProvider
+        Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED -> error("Unsupported Principal")
+      }
+    grpcRequire(externalIdToApiId(provider.externalId) == parentFromRequest) {
+      "Principal from authentication does not match request"
+    }
 
     val key = grpcRequireNotNull(ExchangeKey.fromName(request.name))
     val internalExchange =
