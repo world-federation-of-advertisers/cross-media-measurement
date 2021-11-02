@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -129,6 +130,15 @@ class ExchangesServiceTest {
           this.provider = provider
         }
       )
+  }
+
+  @Test
+  fun `getExchange for DataProvider with wrong parent in Request`() {
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+
+    withPrincipal(principal) {
+      assertFails { getExchange { modelProvider = externalIdToApiId(12345L) } }
+    }
   }
 
   @Test
