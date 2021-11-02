@@ -14,11 +14,19 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Statement
+import com.google.common.truth.Truth.assertThat
 import java.time.Clock
+import java.time.LocalDate
+import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
@@ -67,5 +75,20 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
   private fun makeKingdomDataServices(idGenerator: IdGenerator): KingdomDataServices {
     return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
+  }
+
+  @Test
+  fun spannerDateAndLocalDateMatch() = runBlocking {
+    val spannerDate =
+      spannerDatabase
+        .databaseClient
+        .singleUse()
+        .executeQuery(Statement.of("SELECT CURRENT_DATE(\"+0\")"))
+        .single()
+        .getDate(0)
+        .toProtoDate()
+        .toLocalDate()
+
+    assertThat(spannerDate).isEqualTo(LocalDate.now(clock))
   }
 }
