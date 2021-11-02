@@ -18,6 +18,7 @@ import com.google.common.truth.extensions.proto.FieldScope
 import com.google.common.truth.extensions.proto.FieldScopes
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.LocalDate
+import java.time.ZoneOffset
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
@@ -40,7 +41,7 @@ private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
 private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private const val STEP_INDEX = 1
 
-internal val EXCHANGE_DATE = LocalDate.now().toProtoDate()
+internal val EXCHANGE_DATE = LocalDate.now(ZoneOffset.UTC).toProtoDate()
 
 internal val PROVIDER = provider {
   externalId = EXTERNAL_MODEL_PROVIDER_ID
