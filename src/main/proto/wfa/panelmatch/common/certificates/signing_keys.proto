@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression.testing
+syntax = "proto3";
 
-import com.google.protobuf.kotlin.toByteStringUtf8
-import org.wfanet.panelmatch.client.combinedEvents
+package wfa.panelmatch;
 
-class FakeCompressorTest : AbstractCompressorTest() {
-  private val eventList = listOf("a", "b", "c")
-  override val events = combinedEvents {
-    serializedEvents += eventList.map { it.toByteStringUtf8() }
-  }
-  override val compressor = FakeCompressor()
+option java_package = "org.wfanet.panelmatch.common.certificates";
+option java_multiple_files = true;
+
+message SigningKeys {
+  string certResourceName = 1;
+  bytes private_key = 2;
 }

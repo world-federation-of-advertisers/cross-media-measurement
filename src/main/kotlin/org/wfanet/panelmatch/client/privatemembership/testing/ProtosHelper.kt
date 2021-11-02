@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.decryptedQueryOf
 import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
@@ -36,7 +37,6 @@ import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKeys
-import org.wfanet.panelmatch.common.toByteString
 
 /** Constructs a [UnencryptedQuery]. */
 fun unencryptedQueryOf(shard: Int, query: Int, bucket: Int): UnencryptedQuery =
@@ -53,25 +53,25 @@ fun encryptedEventDataSetOf(ciphertexts: List<String>, query: Int): EncryptedEve
     encryptedEventDataSet {
   queryId = queryIdOf(query)
   this.encryptedEventData =
-    encryptedEventData { this.ciphertexts += ciphertexts.map { it.toByteString() } }
+    encryptedEventData { this.ciphertexts += ciphertexts.map { it.toByteStringUtf8() } }
 }
 
 /** Constructs a [DecryptedQueryResult]. */
 fun decryptedQueryOf(query: Int, queryResult: ByteString): DecryptedQueryResult =
   decryptedQueryOf(queryIdOf(query), listOf(queryResult))
 
-fun plaintextOf(payload: String): Plaintext = plaintextOf(payload.toByteString())
+fun plaintextOf(payload: String): Plaintext = plaintextOf(payload.toByteStringUtf8())
 
-fun joinKeyOf(key: String): JoinKey = joinKeyOf(key.toByteString())
+fun joinKeyOf(key: String): JoinKey = joinKeyOf(key.toByteStringUtf8())
 
 fun joinKeyOf(key: Long): JoinKey = joinKeyOf("joinKey of $key")
 
 fun joinKeyIdentifierOf(key: Long): JoinKeyIdentifier =
-  joinKeyIdentifierOf("joinKeyIdentifier of $key".toByteString())
+  joinKeyIdentifierOf("joinKeyIdentifier of $key".toByteStringUtf8())
 
 fun queryIdAndJoinKeysOf(query: Int, lookup: String, join: String): QueryIdAndJoinKeys =
     queryIdAndJoinKeys {
   queryId = queryIdOf(query)
-  lookupKey = joinKey { key = lookup.toByteString() }
-  hashedJoinKey = joinKey { key = join.toByteString() }
+  lookupKey = joinKey { key = lookup.toByteStringUtf8() }
+  hashedJoinKey = joinKey { key = join.toByteStringUtf8() }
 }

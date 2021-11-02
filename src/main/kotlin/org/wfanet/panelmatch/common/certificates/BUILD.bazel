@@ -14,6 +14,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/common/certificates:signing_keys_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],

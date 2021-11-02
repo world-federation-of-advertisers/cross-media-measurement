@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
@@ -34,7 +35,6 @@ import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.storage.toStringUtf8
-import org.wfanet.panelmatch.common.toByteString
 
 class BuildPrivateMembershipQueriesTask(
   override val storageFactory: StorageFactory,
@@ -96,8 +96,8 @@ class BuildPrivateMembershipQueriesTask(
     pipeline.run()
 
     return mapOf(
-      "query-to-join-keys-map" to flowOf(queryIdAndJoinKeysFileSpec.spec.toByteString()),
-      "encrypted-queries" to flowOf(encryptedQueryBundlesFileSpec.spec.toByteString())
+      "query-to-join-keys-map" to flowOf(queryIdAndJoinKeysFileSpec.spec.toByteStringUtf8()),
+      "encrypted-queries" to flowOf(encryptedQueryBundlesFileSpec.spec.toByteStringUtf8())
     )
   }
 

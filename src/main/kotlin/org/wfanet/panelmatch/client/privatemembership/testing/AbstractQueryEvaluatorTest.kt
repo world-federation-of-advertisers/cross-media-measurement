@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.bucketOf
@@ -29,7 +30,6 @@ import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
 import org.wfanet.panelmatch.client.privatemembership.testing.QueryEvaluatorTestHelper.DecodedResult
-import org.wfanet.panelmatch.common.toByteString
 
 /** Tests for [QueryEvaluator]s. */
 abstract class AbstractQueryEvaluatorTest {
@@ -117,5 +117,5 @@ private fun databaseShardOf(shard: Int, buckets: List<Int>): DatabaseShard {
 }
 
 private fun makeFakeBucketData(bucket: Int, shard: Int): BucketContents {
-  return bucketContents { items += "bucket:$bucket-shard:$shard".toByteString() }
+  return bucketContents { items += "bucket:$bucket-shard:$shard".toByteStringUtf8() }
 }

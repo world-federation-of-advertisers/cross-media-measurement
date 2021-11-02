@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,6 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.JOIN_KEYS
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.storage.createBlob
-import org.wfanet.panelmatch.common.toByteString
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
@@ -191,7 +191,7 @@ private fun buildJoinKeysAndIds(joinKeys: List<ByteString>): List<JoinKeyAndId> 
   return joinKeys.zip(1..joinKeys.size) { joinKeyData, keyId ->
     joinKeyAndId {
       this.joinKey = joinKey { key = joinKeyData }
-      this.joinKeyIdentifier = joinKeyIdentifier { id = "joinKeyId of $keyId".toByteString() }
+      this.joinKeyIdentifier = joinKeyIdentifier { id = "joinKeyId of $keyId".toByteStringUtf8() }
     }
   }
 }

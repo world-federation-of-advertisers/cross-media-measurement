@@ -15,18 +15,20 @@
 package org.wfanet.panelmatch.common.compression
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.combinedEvents
 import org.wfanet.panelmatch.common.compression.testing.AbstractCompressorTest
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class NoOpCompressorTest : AbstractCompressorTest() {
   override val compressor = NoOpCompressor()
   private val eventList = listOf("a", "b", "c")
-  override val events = combinedEvents { serializedEvents += eventList.map { it.toByteString() } }
+  override val events = combinedEvents {
+    serializedEvents += eventList.map { it.toByteStringUtf8() }
+  }
 
   @Test
   fun `compressed data size is equal to uncompressed data size`() {

@@ -21,6 +21,6 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class TestSecretMapTest : AbstractSecretMapTest<TestSecretMap>() {
   override suspend fun secretMapOf(vararg items: Pair<String, ByteString>): TestSecretMap {
-    return TestSecretMap(items.toMap())
+    return TestSecretMap(*items)
   }
 }

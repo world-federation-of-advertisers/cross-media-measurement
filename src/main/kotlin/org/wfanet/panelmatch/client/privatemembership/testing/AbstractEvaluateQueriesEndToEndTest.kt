@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.random.Random
 import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.PCollection
@@ -37,7 +38,6 @@ import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
-import org.wfanet.panelmatch.common.toByteString
 
 /** Base test class for testing the full pipeline, including a specific [QueryEvaluator]. */
 abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
@@ -71,7 +71,7 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
     assertThat(keys).containsNoDuplicates() // Sanity check: 10 different keys
 
     val rawDatabase: Map<Long, ByteString> =
-      keys.associateWith { "<this is the payload for $it>".toByteString() }
+      keys.associateWith { "<this is the payload for $it>".toByteStringUtf8() }
 
     val database: List<DatabaseEntry> =
       rawDatabase.map { databaseEntryOf(databaseKeyOf(it.key), plaintextOf(it.value)) }

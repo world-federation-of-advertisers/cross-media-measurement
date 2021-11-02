@@ -12,15 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression.testing
+package org.wfanet.panelmatch.common.secrets.testing
 
-import com.google.protobuf.kotlin.toByteStringUtf8
-import org.wfanet.panelmatch.client.combinedEvents
+import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 
-class FakeCompressorTest : AbstractCompressorTest() {
-  private val eventList = listOf("a", "b", "c")
-  override val events = combinedEvents {
-    serializedEvents += eventList.map { it.toByteStringUtf8() }
+/** [MutableSecretMap] backed by a [MutableMap]. */
+class TestMutableSecretMap(val underlyingMap: MutableMap<String, ByteString> = mutableMapOf()) :
+  MutableSecretMap {
+  override suspend fun put(key: String, value: ByteString) {
+    require(underlyingMap.putIfAbsent(key, value) == null) { "$key already exists" }
   }
-  override val compressor = FakeCompressor()
+
+  override suspend fun get(key: String): ByteString? {
+    return underlyingMap[key]
+  }
 }

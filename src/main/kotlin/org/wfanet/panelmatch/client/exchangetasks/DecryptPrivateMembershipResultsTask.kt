@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
@@ -38,7 +39,6 @@ import org.wfanet.panelmatch.common.compression.Dictionary
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.storage.toStringUtf8
-import org.wfanet.panelmatch.common.toByteString
 
 class DecryptPrivateMembershipResultsTask(
   override val storageFactory: StorageFactory,
@@ -107,7 +107,7 @@ class DecryptPrivateMembershipResultsTask(
     pipeline.run()
 
     return mapOf(
-      "decrypted-event-data" to flowOf(keyedDecryptedEventDataSetFileSpec.spec.toByteString())
+      "decrypted-event-data" to flowOf(keyedDecryptedEventDataSetFileSpec.spec.toByteStringUtf8())
     )
   }
 }

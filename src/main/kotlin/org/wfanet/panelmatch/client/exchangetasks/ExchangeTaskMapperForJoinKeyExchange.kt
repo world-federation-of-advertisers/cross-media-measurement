@@ -58,7 +58,8 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       StepCase.GENERATE_COMMUTATIVE_DETERMINISTIC_KEY_STEP ->
         GenerateSymmetricKeyTask(generateKey = deterministicCommutativeCryptor::generateKey)
       StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP -> getGenerateSerializedRlweKeysStepTask()
-      StepCase.GENERATE_CERTIFICATE_STEP -> TODO()
+      StepCase.GENERATE_CERTIFICATE_STEP ->
+        GenerateExchangeCertificateTask(certificateManager, exchangeDateKey)
       StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getExecutePrivateMembershipQueriesTask()
       StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getBuildPrivateMembershipQueriesTask()
       StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> getDecryptMembershipResultsTask()

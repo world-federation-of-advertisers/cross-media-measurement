@@ -15,10 +15,10 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
-import org.wfanet.panelmatch.common.toByteString
 
 /**
  * Fake [PlaintextPrivateMembershipCryptor] for testing purposes.
@@ -31,8 +31,8 @@ class PlaintextPrivateMembershipCryptor(private val serializedParameters: ByteSt
 
   override fun generateKeys(): AsymmetricKeys {
     return AsymmetricKeys(
-      serializedPublicKey = "some public key".toByteString(),
-      serializedPrivateKey = "some private key".toByteString(),
+      serializedPublicKey = "some public key".toByteStringUtf8(),
+      serializedPrivateKey = "some private key".toByteStringUtf8(),
     )
   }
 

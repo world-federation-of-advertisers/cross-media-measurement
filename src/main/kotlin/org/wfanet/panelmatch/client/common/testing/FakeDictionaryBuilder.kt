@@ -15,11 +15,11 @@
 package org.wfanet.panelmatch.client.common.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.Dictionary
 import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 import org.wfanet.panelmatch.common.compression.dictionary
-import org.wfanet.panelmatch.common.toByteString
 
 class FakeDictionaryBuilder : DictionaryBuilder {
   override val preferredSampleSize: Int = 3
@@ -28,7 +28,7 @@ class FakeDictionaryBuilder : DictionaryBuilder {
 
   override fun buildDictionary(eventsSample: Iterable<ByteString>): Dictionary {
     val sortedJoinedSample = eventsSample.map { it.toStringUtf8() }.sorted().joinToString(", ")
-    val dictionary = "Dictionary: $sortedJoinedSample".toByteString()
+    val dictionary = "Dictionary: $sortedJoinedSample".toByteStringUtf8()
     return dictionary { contents = dictionary }
   }
 }

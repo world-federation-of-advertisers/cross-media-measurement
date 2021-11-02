@@ -16,11 +16,11 @@ package org.wfanet.panelmatch.client.eventpreprocessing.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEvents
 import org.wfanet.panelmatch.client.preprocessEventsRequest
-import org.wfanet.panelmatch.common.toByteString
 
 /** Abstract base class for testing implementations of [PreprocessEvents]. */
 abstract class AbstractPreprocessEventsTest {
@@ -28,12 +28,12 @@ abstract class AbstractPreprocessEventsTest {
 
   @Test
   fun testPreprocessEvents() {
-    val arbitraryId: ByteString = "arbitrary-id".toByteString()
-    val arbitraryData: ByteString = "arbitrary-data".toByteString()
-    val arbitraryCryptoKey: ByteString = "arbitrary-crypto-key".toByteString()
-    val arbitraryHkdfPepper: ByteString = "arbitrary-hkdf-pepper".toByteString()
+    val arbitraryId: ByteString = "arbitrary-id".toByteStringUtf8()
+    val arbitraryData: ByteString = "arbitrary-data".toByteStringUtf8()
+    val arbitraryCryptoKey: ByteString = "arbitrary-crypto-key".toByteStringUtf8()
+    val arbitraryHkdfPepper: ByteString = "arbitrary-hkdf-pepper".toByteStringUtf8()
     val arbitraryIdentifierHashPepper: ByteString =
-      "arbitrary-identifier-hash-pepper".toByteString()
+      "arbitrary-identifier-hash-pepper".toByteStringUtf8()
 
     val request = preprocessEventsRequest {
       cryptoKey = arbitraryCryptoKey

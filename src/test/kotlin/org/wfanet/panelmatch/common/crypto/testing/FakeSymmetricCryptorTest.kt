@@ -14,10 +14,10 @@
 
 package org.wfanet.panelmatch.common.crypto.testing
 
-import org.wfanet.panelmatch.common.toByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 
 class FakeSymmetricCryptorTest : AbstractSymmetricCryptorTest() {
   override val cipher = FakeSymmetricCryptor()
-  override val privateKey1 = "some private key".toByteString()
-  override val privateKey2 = "some other private key".toByteString()
+  override val privateKey1 = "some private key".toByteStringUtf8()
+  override val privateKey2 = "some other private key".toByteStringUtf8()
 }

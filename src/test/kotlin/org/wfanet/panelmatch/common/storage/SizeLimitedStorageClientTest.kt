@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.storage
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFails
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.toList
@@ -27,7 +28,6 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-import org.wfanet.panelmatch.common.toByteString
 
 private const val KEY = "some-blob-key"
 private const val SAFE_CONTENTS = "0123456789"
@@ -39,7 +39,7 @@ class SizeLimitedStorageClientTest {
   private val storageClient = SizeLimitedStorageClient(10L, delegate)
 
   private fun createBlob(vararg elements: String) = runBlocking {
-    val flow = elements.map { it.toByteString() }.asFlow()
+    val flow = elements.map { it.toByteStringUtf8() }.asFlow()
     storageClient.createBlob(KEY, flow)
   }
 
@@ -78,7 +78,7 @@ class SizeLimitedStorageClientTest {
 
   @Test
   fun getBlobFailsForTooLargeBlob() = runBlockingTest {
-    delegate.createBlob(KEY, UNSAFE_CONTENTS.toByteString())
+    delegate.createBlob(KEY, UNSAFE_CONTENTS.toByteStringUtf8())
     val blob = storageClient.getBlob(KEY)
     assertThat(blob).isNotNull()
     assertFails { blob?.size }

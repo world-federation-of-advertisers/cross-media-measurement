@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
@@ -27,13 +28,12 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.storage.createBlob
-import org.wfanet.panelmatch.common.toByteString
 
 private val JOIN_KEYS: List<JoinKeyAndId> =
   (1..10).map {
     joinKeyAndId {
-      joinKey = joinKey { key = "join-key-$it".toByteString() }
-      joinKeyIdentifier = joinKeyIdentifier { id = "join-key-identifier-$it".toByteString() }
+      joinKey = joinKey { key = "join-key-$it".toByteStringUtf8() }
+      joinKeyIdentifier = joinKeyIdentifier { id = "join-key-identifier-$it".toByteStringUtf8() }
     }
   }
 

@@ -17,11 +17,6 @@ package org.wfanet.panelmatch.common
 import com.google.protobuf.ByteString
 import java.util.Base64
 
-/** Assuming the receiver is UTF8, converts it into a [ByteString]. */
-fun String.toByteString(): ByteString {
-  return ByteString.copyFromUtf8(this)
-}
-
 /** Converts the receiver to Base64. */
 fun ByteString.toBase64(): String {
   return Base64.getEncoder().encodeToString(toByteArray())

@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -24,9 +25,8 @@ import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
-import org.wfanet.panelmatch.common.toByteString
 
-private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteString()
+private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 class PlaintextPrivateMembershipCryptorTest {
@@ -97,11 +97,11 @@ class PlaintextPrivateMembershipCryptorTest {
           .flatten()
       )
       .containsExactly(
-        decryptedQueryOf(1, "<some encrypted data a>".toByteString()),
-        decryptedQueryOf(1, "<some encrypted data b>".toByteString()),
-        decryptedQueryOf(2, "<some encrypted data c>".toByteString()),
-        decryptedQueryOf(2, "<some encrypted data d>".toByteString()),
-        decryptedQueryOf(3, "<some encrypted data e>".toByteString())
+        decryptedQueryOf(1, "<some encrypted data a>".toByteStringUtf8()),
+        decryptedQueryOf(1, "<some encrypted data b>".toByteStringUtf8()),
+        decryptedQueryOf(2, "<some encrypted data c>".toByteStringUtf8()),
+        decryptedQueryOf(2, "<some encrypted data d>".toByteStringUtf8()),
+        decryptedQueryOf(3, "<some encrypted data e>".toByteStringUtf8())
       )
   }
 

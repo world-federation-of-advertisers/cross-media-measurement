@@ -39,6 +39,15 @@ class TestCertificateManager : CertificateManager {
   }
 
   override suspend fun getExchangePrivateKey(exchange: ExchangeDateKey): PrivateKey {
+    @Suppress("BlockingMethodInNonBlockingContext")
     return readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM)
+  }
+
+  override suspend fun createForExchange(exchange: ExchangeDateKey): String {
+    return RESOURCE_NAME
+  }
+
+  companion object {
+    const val RESOURCE_NAME = "some-resource-name"
   }
 }

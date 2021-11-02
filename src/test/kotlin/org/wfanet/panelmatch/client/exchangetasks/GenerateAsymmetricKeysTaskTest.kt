@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -24,14 +25,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
-import org.wfanet.panelmatch.common.toByteString
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
 class GenerateAsymmetricKeysTaskTest {
   private val keyGenerator =
-    PlaintextPrivateMembershipCryptor("some-serialized-parameters".toByteString())::generateKeys
+    PlaintextPrivateMembershipCryptor("some-serialized-parameters".toByteStringUtf8())::generateKeys
 
   @Test
   fun `public key is not equal to private key`() = withTestContext {
@@ -40,8 +40,8 @@ class GenerateAsymmetricKeysTaskTest {
         it.value.flatten()
       }
 
-    assertThat(result.getValue("public-key")).isEqualTo("some public key".toByteString())
-    assertThat(result.getValue("private-key")).isEqualTo("some private key".toByteString())
+    assertThat(result.getValue("public-key")).isEqualTo("some public key".toByteStringUtf8())
+    assertThat(result.getValue("private-key")).isEqualTo("some private key".toByteStringUtf8())
   }
 }
 

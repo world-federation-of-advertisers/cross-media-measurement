@@ -15,8 +15,8 @@
 package org.wfanet.panelmatch.common.crypto.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.common.crypto.SymmetricCryptor
-import org.wfanet.panelmatch.common.toByteString
 
 private const val SEPARATOR = " encrypted by "
 
@@ -28,11 +28,11 @@ class FakeSymmetricCryptor : SymmetricCryptor {
     for (i in 1..20) {
       key += ('A'..'Z').random()
     }
-    return key.toByteString()
+    return key.toByteStringUtf8()
   }
 
   override fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString> {
-    return plaintexts.map { it.concat(SEPARATOR.toByteString()).concat(privateKey) }
+    return plaintexts.map { it.concat(SEPARATOR.toByteStringUtf8()).concat(privateKey) }
   }
 
   override fun decrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString> {
@@ -40,7 +40,7 @@ class FakeSymmetricCryptor : SymmetricCryptor {
     return ciphertexts.map {
       val dataString = it.toStringUtf8()
       require(dataString.endsWith(suffix))
-      dataString.removeSuffix(suffix).toByteString()
+      dataString.removeSuffix(suffix).toByteStringUtf8()
     }
   }
 }

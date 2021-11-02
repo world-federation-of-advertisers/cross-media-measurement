@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.privatemembership
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFails
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
@@ -32,7 +33,6 @@ import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEval
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluatorTestHelper
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class EvaluateQueriesTest : BeamTestBase() {
@@ -157,7 +157,7 @@ class EvaluateQueriesTest : BeamTestBase() {
     return pcollectionOf(
       "Create Database",
       entries.map {
-        databaseEntryOf(databaseKeyOf(it.first), plaintextOf(it.second.toByteString()))
+        databaseEntryOf(databaseKeyOf(it.first), plaintextOf(it.second.toByteStringUtf8()))
       }
     )
   }
@@ -166,7 +166,7 @@ class EvaluateQueriesTest : BeamTestBase() {
 private fun resultOf(query: Int, rawPayload: String): EncryptedQueryResult {
   return PlaintextQueryEvaluatorTestHelper.makeResult(
     queryIdOf(query),
-    bucketContents { items += rawPayload.toByteString() }.toByteString()
+    bucketContents { items += rawPayload.toByteStringUtf8() }.toByteString()
   )
 }
 

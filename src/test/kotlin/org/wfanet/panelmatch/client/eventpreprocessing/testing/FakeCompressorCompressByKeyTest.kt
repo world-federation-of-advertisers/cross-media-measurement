@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.eventpreprocessing.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,7 +28,6 @@ import org.wfanet.panelmatch.client.eventpreprocessing.compressByKey
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.compression.testing.FakeCompressor
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class FakeCompressorCompressByKeyTest : BeamTestBase() {
@@ -41,8 +41,8 @@ class FakeCompressorCompressByKeyTest : BeamTestBase() {
     assertThat(compressedEvents.events).satisfies {
       val decodedEvents =
         it.map { kv ->
-          assertThat(kv.value.startsWith(FakeCompressor.PREFIX.toByteString()))
-          val suffix = kv.value.substring(FakeCompressor.PREFIX.toByteString().size())
+          assertThat(kv.value.startsWith(FakeCompressor.PREFIX.toByteStringUtf8()))
+          val suffix = kv.value.substring(FakeCompressor.PREFIX.toByteStringUtf8().size())
           val combinedEvents = CombinedEvents.parseFrom(suffix)
           val stringEvents =
             combinedEvents.serializedEventsList.map(ByteString::toStringUtf8).sorted()

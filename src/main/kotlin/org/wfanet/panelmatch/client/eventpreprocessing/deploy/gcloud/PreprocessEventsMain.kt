@@ -18,6 +18,7 @@ import com.google.api.services.bigquery.model.TableFieldSchema
 import com.google.api.services.bigquery.model.TableRow
 import com.google.api.services.bigquery.model.TableSchema
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.channels.WritableByteChannel
 import java.util.Base64
 import java.util.logging.Logger
@@ -41,7 +42,6 @@ import org.wfanet.panelmatch.client.eventpreprocessing.preprocessEventsInPipelin
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.compression.BrotliDictionaryBuilder
-import org.wfanet.panelmatch.common.toByteString
 
 interface Options : DataflowPipelineOptions {
   @get:Description("Batch Size") @get:Validation.Required var batchSize: Int
@@ -100,9 +100,9 @@ fun main(args: Array<String>) {
     preprocessEventsInPipeline(
       unencryptedEvents,
       options.batchSize,
-      HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteString()),
-      HardCodedHkdfPepperProvider(options.hkdfPepper.toByteString()),
-      HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteString()),
+      HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteStringUtf8()),
+      HardCodedHkdfPepperProvider(options.hkdfPepper.toByteStringUtf8()),
+      HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteStringUtf8()),
       BrotliDictionaryBuilder()
     )
 
@@ -158,7 +158,10 @@ private fun readFromBigQuery(
     )
   // Convert TableRow to KV<Long,ByteString>
   return rowsFromBigQuery.map(name = "Map to ByteStrings") {
-    kvOf((it["UserId"] as String).toByteString(), (it["UserEvent"] as String).toByteString())
+    kvOf(
+      (it["UserId"] as String).toByteStringUtf8(),
+      (it["UserEvent"] as String).toByteStringUtf8()
+    )
   }
 }
 

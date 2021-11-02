@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.assertFailsWith
@@ -45,15 +46,14 @@ import org.wfanet.panelmatch.client.storage.testing.makeTestPrivateStorageSelect
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
 import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-import org.wfanet.panelmatch.common.toByteString
 
 // TODO: move somewhere for reuse
 class TestPrivateStorageSelector {
-  val storageDetailsMap = mutableMapOf<String, ByteString>()
-  val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
+  private val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
+
   val storageClient = InMemoryStorageClient(blobs)
-  private val secrets = TestSecretMap(storageDetailsMap)
-  val selector = makeTestPrivateStorageSelector(secrets, storageClient)
+  val storageDetails = TestSecretMap()
+  val selector = makeTestPrivateStorageSelector(storageDetails, storageClient)
 }
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
@@ -90,7 +90,7 @@ class ExchangeTaskExecutorTest {
       ): Map<String, Flow<ByteString>> {
         return input.mapKeys { "Out:${it.key}" }.mapValues {
           val valString: String = it.value.toStringUtf8()
-          "Out:$valString".toByteString().asBufferedFlow(1024)
+          "Out:$valString".toByteStringUtf8().asBufferedFlow(1024)
         }
       }
     }
@@ -112,13 +112,13 @@ class ExchangeTaskExecutorTest {
 
   @Before
   fun setUpStorage() {
-    testPrivateStorageSelector.storageDetailsMap[RECURRING_EXCHANGE_ID] =
+    testPrivateStorageSelector.storageDetails.underlyingMap[RECURRING_EXCHANGE_ID] =
       storageDetails.toByteString()
   }
 
   @Test
   fun `reads inputs and writes outputs`() = runBlockingTest {
-    val blob = "some-blob".toByteString()
+    val blob = "some-blob".toByteStringUtf8()
 
     testPrivateStorageSelector.storageClient.createBlob("b", blob.asBufferedFlow(1024))
 

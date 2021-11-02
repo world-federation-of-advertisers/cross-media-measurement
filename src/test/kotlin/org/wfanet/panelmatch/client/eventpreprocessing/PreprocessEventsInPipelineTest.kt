@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.apache.beam.sdk.values.KV
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,14 +26,13 @@ import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.compression.UncompressedDictionaryBuilder
 import org.wfanet.panelmatch.common.compression.dictionary
-import org.wfanet.panelmatch.common.toByteString
 
 private const val MAX_BYTE_SIZE = 8
 private val IDENTIFIER_HASH_PEPPER_PROVIDER =
-  HardCodedIdentifierHashPepperProvider("identifier-hash-pepper".toByteString())
-private val HKDF_PEPPER_PROVIDER = HardCodedHkdfPepperProvider("hkdf-pepper".toByteString())
+  HardCodedIdentifierHashPepperProvider("identifier-hash-pepper".toByteStringUtf8())
+private val HKDF_PEPPER_PROVIDER = HardCodedHkdfPepperProvider("hkdf-pepper".toByteStringUtf8())
 private val CRYPTO_KEY_PROVIDER =
-  HardCodedDeterministicCommutativeCipherKeyProvider("crypto-key".toByteString())
+  HardCodedDeterministicCommutativeCipherKeyProvider("crypto-key".toByteStringUtf8())
 
 /** Unit tests for [preprocessEventsInPipeline]. */
 @RunWith(JUnit4::class)
@@ -56,7 +56,7 @@ class PreprocessEventsInPipelineTest : BeamTestBase() {
       val results: List<KV<Long, ByteString>> = it.toList()
       assertThat(results).hasSize(2)
       assertThat(results.map { kv -> kv.value })
-        .containsNoneOf("B".toByteString(), "D".toByteString())
+        .containsNoneOf("B".toByteStringUtf8(), "D".toByteStringUtf8())
       null
     }
 
