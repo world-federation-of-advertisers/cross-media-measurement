@@ -15,15 +15,15 @@
 package org.wfanet.panelmatch.client.storage.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.wfanet.panelmatch.client.storage.StorageNotFoundException
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-import org.wfanet.panelmatch.common.toByteString
 
 private const val KEY = "some/arbitrary.key"
-private val VALUE = "<some-arbitrary-value>".toByteString()
+private val VALUE = "<some-arbitrary-value>".toByteStringUtf8()
 
 abstract class VerifiedStorageClientTest {
   abstract val storage: VerifiedStorageClient
@@ -41,7 +41,7 @@ abstract class VerifiedStorageClientTest {
 
   @Test
   fun writeSameKeyTwice() = runBlockingTest {
-    storage.createBlob(KEY, "a-different-value".toByteString())
+    storage.createBlob(KEY, "a-different-value".toByteStringUtf8())
     storage.createBlob(KEY, VALUE)
     assertThat(storage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
   }

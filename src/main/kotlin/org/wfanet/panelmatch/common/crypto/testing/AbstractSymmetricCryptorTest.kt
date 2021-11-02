@@ -16,18 +16,18 @@ package org.wfanet.panelmatch.common.crypto.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.panelmatch.common.crypto.SymmetricCryptor
-import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS: List<ByteString> =
   listOf(
-    "some plaintext0".toByteString(),
-    "some plaintext1".toByteString(),
-    "some plaintext2".toByteString(),
-    "some plaintext3".toByteString(),
-    "some plaintext4".toByteString()
+    "some plaintext0".toByteStringUtf8(),
+    "some plaintext1".toByteStringUtf8(),
+    "some plaintext2".toByteStringUtf8(),
+    "some plaintext3".toByteStringUtf8(),
+    "some plaintext4".toByteStringUtf8()
   )
 
 abstract class AbstractSymmetricCryptorTest {

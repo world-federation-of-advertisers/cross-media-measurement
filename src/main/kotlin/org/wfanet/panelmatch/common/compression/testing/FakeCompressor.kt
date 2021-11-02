@@ -15,17 +15,17 @@
 package org.wfanet.panelmatch.common.compression.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.common.compression.Compressor
-import org.wfanet.panelmatch.common.toByteString
 
 /** For testing only. Does not play nicely with non-Utf8 source data. */
 class FakeCompressor : Compressor {
   override fun compress(events: ByteString): ByteString {
-    return PREFIX.toByteString().concat(events)
+    return PREFIX.toByteStringUtf8().concat(events)
   }
 
   override fun uncompress(compressedEvents: ByteString): ByteString {
-    return compressedEvents.toStringUtf8().removePrefix(PREFIX).toByteString()
+    return compressedEvents.toStringUtf8().removePrefix(PREFIX).toByteStringUtf8()
   }
 
   companion object {

@@ -15,13 +15,13 @@
 package org.wfanet.panelmatch.common.secrets.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-import org.wfanet.panelmatch.common.toByteString
 
 private const val NEW_KEY = "some-new-key"
-private val VALUE = "some-value".toByteString()
+private val VALUE = "some-value".toByteStringUtf8()
 
 abstract class AbstractMutableSecretMapTest<T : MutableSecretMap> : AbstractSecretMapTest<T>() {
 

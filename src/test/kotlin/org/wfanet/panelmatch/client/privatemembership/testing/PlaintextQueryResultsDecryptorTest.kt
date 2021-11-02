@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -23,7 +24,6 @@ import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.En
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
-import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
   listOf(
@@ -32,8 +32,8 @@ private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
     3 to listOf(plaintextOf("<some long data e>"))
   )
 private val JOINKEYS = listOf(1 to "some joinkey 1", 2 to "some joinkey 2", 3 to "some joinkey 3")
-private val HKDF_PEPPER = "some-pepper".toByteString()
-private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteString()
+private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
+private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 class PlaintextQueryResultsDecryptorTest {

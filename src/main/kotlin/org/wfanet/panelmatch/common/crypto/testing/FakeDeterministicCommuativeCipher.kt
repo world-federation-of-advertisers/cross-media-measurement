@@ -15,33 +15,33 @@
 package org.wfanet.panelmatch.common.crypto.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
-import org.wfanet.panelmatch.common.toByteString
 
 private const val SEPARATOR = " encrypted by "
 
 /** For testing only. Does not play nicely with non-Utf8 source data. */
 object FakeDeterministicCommutativeCipher : DeterministicCommutativeCipher {
-  val INVALID_KEY = "invalid key".toByteString()
+  val INVALID_KEY = "invalid key".toByteStringUtf8()
 
   override fun generateKey(): ByteString {
     var key = ""
     for (i in 1..20) {
       key += ('A'..'Z').random()
     }
-    return key.toByteString()
+    return key.toByteStringUtf8()
   }
 
   override fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString> {
     require(privateKey != INVALID_KEY) { "Invalid Key" }
-    return plaintexts.map { it.concat(SEPARATOR.toByteString()).concat(privateKey) }
+    return plaintexts.map { it.concat(SEPARATOR.toByteStringUtf8()).concat(privateKey) }
   }
 
   override fun reEncrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString> {
     require(privateKey != INVALID_KEY) { "Invalid Key" }
     return ciphertexts.map {
       require(it.toStringUtf8().contains(SEPARATOR)) { "invalid ciphertext" }
-      it.concat(SEPARATOR.toByteString()).concat(privateKey)
+      it.concat(SEPARATOR.toByteStringUtf8()).concat(privateKey)
     }
   }
 
@@ -51,7 +51,7 @@ object FakeDeterministicCommutativeCipher : DeterministicCommutativeCipher {
     return ciphertexts.map {
       val dataString = it.toStringUtf8()
       require(dataString.contains(encryptionString)) { "invalid ciphertext" }
-      dataString.replace(encryptionString, "").toByteString()
+      dataString.replace(encryptionString, "").toByteStringUtf8()
     }
   }
 }

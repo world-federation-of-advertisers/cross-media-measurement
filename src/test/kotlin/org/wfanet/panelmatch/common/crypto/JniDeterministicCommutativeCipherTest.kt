@@ -15,15 +15,15 @@
 package org.wfanet.panelmatch.common.crypto
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.crypto.testing.AbstractDeterministicCommutativeCipherTest
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class JniDeterministicCommutativeCipherTest : AbstractDeterministicCommutativeCipherTest() {
   override val cipher: DeterministicCommutativeCipher = JniDeterministicCommutativeCipher()
-  override val invalidKey: ByteString = "this key is too large to be valid".toByteString()
+  override val invalidKey: ByteString = "this key is too large to be valid".toByteStringUtf8()
   override val privateKey1 = cipher.generateKey()
   override val privateKey2 = cipher.generateKey()
 }

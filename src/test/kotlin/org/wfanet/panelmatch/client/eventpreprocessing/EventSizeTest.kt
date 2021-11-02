@@ -16,12 +16,12 @@ package org.wfanet.panelmatch.client.eventpreprocessing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.apache.beam.sdk.values.KV
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.beam.kvOf
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class EventSizeTest {
@@ -63,5 +63,5 @@ class EventSizeTest {
 }
 
 private fun byteStringKvOf(key: String, value: String): KV<ByteString, ByteString> {
-  return kvOf(key.toByteString(), value.toByteString())
+  return kvOf(key.toByteStringUtf8(), value.toByteStringUtf8())
 }

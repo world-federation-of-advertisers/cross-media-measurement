@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.compression.testing
+package org.wfanet.panelmatch.common.certificates
 
-import com.google.protobuf.kotlin.toByteStringUtf8
-import org.wfanet.panelmatch.client.combinedEvents
+import java.security.PublicKey
+import java.security.cert.X509Certificate
 
-class FakeCompressorTest : AbstractCompressorTest() {
-  private val eventList = listOf("a", "b", "c")
-  override val events = combinedEvents {
-    serializedEvents += eventList.map { it.toByteStringUtf8() }
-  }
-  override val compressor = FakeCompressor()
+/** Creates X509Certificates signed by a protected, root private key. */
+interface CertificateAuthority {
+
+  /** Creates an [X509Certificate] from [publicKey]. */
+  suspend fun makeX509Certificate(
+    publicKey: PublicKey,
+    subjectKeyIdentifier: String
+  ): X509Certificate
 }

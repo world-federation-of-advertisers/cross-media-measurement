@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
@@ -48,7 +49,6 @@ import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.compression.DictionaryBuilder
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
-import org.wfanet.panelmatch.common.toByteString
 
 private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
   listOf(
@@ -62,7 +62,7 @@ private val QUERY_ID_AND_JOIN_KEYS =
     queryIdAndJoinKeysOf(2, "some lookup key 2", "some hashed joinkey 2"),
     queryIdAndJoinKeysOf(3, "some lookup key 3", "some hashed joinkey 3")
   )
-private val HKDF_PEPPER = "some-pepper".toByteString()
+private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 abstract class AbstractDecryptQueryResultsTest : BeamTestBase() {

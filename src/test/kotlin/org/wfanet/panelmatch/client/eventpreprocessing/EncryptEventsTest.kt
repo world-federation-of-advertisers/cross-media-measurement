@@ -14,12 +14,12 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.preprocessEventsRequest
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class EncryptEventsTest {
@@ -27,13 +27,13 @@ class EncryptEventsTest {
   @Test
   fun test() {
     val request = preprocessEventsRequest {
-      cryptoKey = "crypto-key".toByteString()
-      identifierHashPepper = "identifier-hash-pepper".toByteString()
-      hkdfPepper = "hkdf-pepper".toByteString()
+      cryptoKey = "crypto-key".toByteStringUtf8()
+      identifierHashPepper = "identifier-hash-pepper".toByteStringUtf8()
+      hkdfPepper = "hkdf-pepper".toByteStringUtf8()
       unprocessedEvents +=
         unprocessedEvent {
-          id = "identifier".toByteString()
-          data = "event-data".toByteString()
+          id = "identifier".toByteStringUtf8()
+          data = "event-data".toByteStringUtf8()
         }
     }
     val encryptEvents = EncryptEvents()

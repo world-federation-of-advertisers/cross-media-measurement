@@ -47,20 +47,20 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 // TODO: move elsewhere to enable reuse.
 class TestPrivateStorageSelector {
-  val storageDetailsMap = mutableMapOf<String, ByteString>()
-  val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
+  private val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
+
   val storageClient = InMemoryStorageClient(blobs)
-  private val secrets = TestSecretMap(storageDetailsMap)
-  val selector = makeTestPrivateStorageSelector(secrets, storageClient)
+  val storageDetails = TestSecretMap()
+  val selector = makeTestPrivateStorageSelector(storageDetails, storageClient)
 }
 
 // TODO: move elsewhere to enable reuse.
 class TestSharedStorageSelector {
-  val storageInfo = mutableMapOf<String, ByteString>()
-  val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
+  private val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
+
   val storageClient = InMemoryStorageClient(blobs)
-  private val secrets = TestSecretMap(storageInfo)
-  val selector = makeTestSharedStorageSelector(secrets, storageClient)
+  val storageDetails = TestSecretMap()
+  val selector = makeTestSharedStorageSelector(storageDetails, storageClient)
 }
 
 private val WORKFLOW = exchangeWorkflow {
@@ -98,7 +98,7 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
 
   @Before
   fun setUpStorageDetails() {
-    testPrivateStorageSelector.storageDetailsMap[RECURRING_EXCHANGE_ID] =
+    testPrivateStorageSelector.storageDetails.underlyingMap[RECURRING_EXCHANGE_ID] =
       testStorageDetails.toByteString()
   }
 

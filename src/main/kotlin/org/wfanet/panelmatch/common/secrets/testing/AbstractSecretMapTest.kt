@@ -16,14 +16,14 @@ package org.wfanet.panelmatch.common.secrets.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-import org.wfanet.panelmatch.common.toByteString
 
-private val ITEM1 = "key1" to "value1".toByteString()
-private val ITEM2 = "key2" to "value2".toByteString()
+private val ITEM1 = "key1" to "value1".toByteStringUtf8()
+private val ITEM2 = "key2" to "value2".toByteStringUtf8()
 
 abstract class AbstractSecretMapTest<T : SecretMap> {
   abstract suspend fun secretMapOf(vararg items: Pair<String, ByteString>): T

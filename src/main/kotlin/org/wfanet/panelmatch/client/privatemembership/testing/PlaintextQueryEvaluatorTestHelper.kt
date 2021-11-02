@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.listValue
 import com.google.protobuf.value
 import org.wfanet.panelmatch.client.common.queryBundleOf
@@ -25,7 +26,6 @@ import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
-import org.wfanet.panelmatch.common.toByteString
 
 /**
  * Helper with [PlaintextQueryEvaluator].
@@ -62,5 +62,5 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
     return makeResult(query, ByteString.EMPTY)
   }
 
-  override val serializedPublicKey: ByteString = "some-serialized-public-key".toByteString()
+  override val serializedPublicKey: ByteString = "some-serialized-public-key".toByteStringUtf8()
 }

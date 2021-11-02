@@ -18,7 +18,9 @@ import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** [SecretMap] backed by a [Map]. */
-class TestSecretMap(private val underlyingMap: Map<String, ByteString>) : SecretMap {
+class TestSecretMap(vararg initialData: Pair<String, ByteString>) : SecretMap {
+  val underlyingMap: MutableMap<String, ByteString> = mutableMapOf(*initialData)
+
   override suspend fun get(key: String): ByteString? {
     return underlyingMap[key]
   }

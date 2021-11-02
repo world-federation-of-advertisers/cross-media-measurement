@@ -26,6 +26,7 @@ import com.google.privatemembership.batch.client.decryptQueriesRequest
 import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.parameters
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.lang.Long.parseUnsignedLong
 import java.util.Base64
 import kotlin.random.Random
@@ -62,7 +63,6 @@ import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
-import org.wfanet.panelmatch.common.toByteString
 
 interface Options : DataflowPipelineOptions {
   @get:Description("Table where results should be written (<project_id>:<dataset_id>.<table_id>)")
@@ -132,8 +132,8 @@ fun main(args: Array<String>) {
         val joinkeyIndex = Random.nextInt(JOINKEY_UNIVERSE_SIZE)
         yield(
           joinKeyAndIdOf(
-            "joinKeyId of ${i + j * SHARD_COUNT}".toByteString(),
-            "LookupKey-$joinkeyIndex".toByteString()
+            "joinKeyId of ${i + j * SHARD_COUNT}".toByteStringUtf8(),
+            "LookupKey-$joinkeyIndex".toByteStringUtf8()
           )
         )
       }
@@ -146,8 +146,8 @@ fun main(args: Array<String>) {
         val joinkeyIndex = Random.nextInt(JOINKEY_UNIVERSE_SIZE)
         yield(
           joinKeyAndIdOf(
-            "joinKeyId of ${i + j * SHARD_COUNT}".toByteString(),
-            "HashedJoinKey-$joinkeyIndex".toByteString()
+            "joinKeyId of ${i + j * SHARD_COUNT}".toByteStringUtf8(),
+            "HashedJoinKey-$joinkeyIndex".toByteStringUtf8()
           )
         )
       }
@@ -267,5 +267,5 @@ private fun makeOptions(args: Array<String>): Options {
 
 private fun makeFakeUserDataPayload(suffix: String): ByteString {
   val prefix = (0 until 2000).joinToString { " " }
-  return "$prefix-$suffix".toByteString()
+  return "$prefix-$suffix".toByteStringUtf8()
 }

@@ -14,15 +14,16 @@
 
 package org.wfanet.panelmatch.client.privatemembership.testing
 
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.testing.FakeCompressorFactory
 import org.wfanet.panelmatch.client.common.testing.FakeDictionaryBuilder
-import org.wfanet.panelmatch.common.toByteString
 
 @RunWith(JUnit4::class)
 class PlaintextDecryptQueryResultsTest : AbstractDecryptQueryResultsTest() {
-  override val privateMembershipSerializedParameters = "some serialized parameters".toByteString()
+  override val privateMembershipSerializedParameters =
+    "some serialized parameters".toByteStringUtf8()
   override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
   override val privateMembershipCryptor =
     PlaintextPrivateMembershipCryptor(privateMembershipSerializedParameters)

@@ -1,0 +1,28 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
+load("@rules_cc//cc:defs.bzl", "cc_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "signing_keys_proto",
+    srcs = ["signing_keys.proto"],
+    strip_import_prefix = "/src/main/proto",
+)
+
+cc_proto_library(
+    name = "signing_keys_cc_proto",
+    deps = [":signing_keys_proto"],
+)
+
+java_proto_library(
+    name = "signing_keys_java_proto",
+    deps = [":signing_keys_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "signing_keys_kt_jvm_proto",
+    srcs = [":signing_keys_proto"],
+    deps = [":signing_keys_java_proto"],
+)

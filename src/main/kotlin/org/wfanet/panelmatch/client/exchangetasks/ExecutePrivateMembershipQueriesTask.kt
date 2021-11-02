@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
@@ -30,7 +31,6 @@ import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.storage.toStringUtf8
-import org.wfanet.panelmatch.common.toByteString
 
 /** Evaluates Private Membership queries. */
 class ExecutePrivateMembershipQueriesTask(
@@ -75,6 +75,6 @@ class ExecutePrivateMembershipQueriesTask(
 
     pipeline.run()
 
-    return mapOf("encrypted-results" to flowOf(encryptedResultsFileSpec.spec.toByteString()))
+    return mapOf("encrypted-results" to flowOf(encryptedResultsFileSpec.spec.toByteStringUtf8()))
   }
 }
