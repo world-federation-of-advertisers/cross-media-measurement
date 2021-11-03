@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.server
 
-import com.google.protobuf.ByteString
 import io.grpc.ServerServiceDefinition
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -38,8 +37,6 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.Principal
-import org.wfanet.measurement.kingdom.service.api.v2alpha.PrincipalServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import picocli.CommandLine
@@ -55,7 +52,8 @@ private const val SERVER_NAME = "V2alphaPublicApiServer"
 private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
-  @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags
+  @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags,
+  @CommandLine.Mixin v2alphaFlags: V2alphaFlags
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
 
@@ -73,13 +71,8 @@ private fun run(
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
 
-  // TODO(@efoxepstein): load AKID->Principal map from a secret config file.
   val principalLookup =
-    object : PrincipalServerInterceptor.PrincipalLookup {
-      override fun get(authorityKeyIdentifier: ByteString): Principal<*>? {
-        TODO("Not yet implemented")
-      }
-    }
+    TextprotoFilePrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
   val internalExchangeStepsCoroutineStub = InternalExchangeStepsCoroutineStub(channel)
 

@@ -119,6 +119,7 @@ import ("strings")
 				_kingdom_cert_collection_file_flag,
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
+				"--authority-key-identifier-to-principal-map-file=/var/run/secrets/files/authority_key_identifier_to_principal_map.textproto",
 				"--port=8443",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
