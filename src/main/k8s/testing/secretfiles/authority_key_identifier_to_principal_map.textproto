@@ -1,0 +1,12 @@
+# proto-file: src/main/proto/wfa/measurement/api/v2alpha/authority_key_to_principal_map.proto
+# proto-message: AuthorityKeyToPrincipalMap
+
+entries {
+  authority_key_identifier: "test-edp-akid"
+  principal_resource_name: "dataProviders/AAAAAAAAAHs"
+}
+
+entries {
+  authority_key_identifier: "test-mp-akid"
+  principal_resource_name: "modelProviders/AAAAAAAAAHs"
+}

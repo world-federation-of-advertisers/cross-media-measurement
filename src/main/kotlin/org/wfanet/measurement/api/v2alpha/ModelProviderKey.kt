@@ -16,8 +16,6 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("modelProviders/{model_provider}")
-
 /** [ModelProviderKey] of a Model Provider. */
 data class ModelProviderKey(val modelProviderId: String) : ResourceKey {
   override fun toName(): String {
@@ -25,7 +23,10 @@ data class ModelProviderKey(val modelProviderId: String) : ResourceKey {
   }
 
   companion object {
+    const val COLLECTION_NAME = "modelProviders"
     val defaultValue = ModelProviderKey("")
+
+    private val parser = ResourceNameParser("$COLLECTION_NAME/{model_provider}")
 
     fun fromName(resourceName: String): ModelProviderKey? {
       return parser.parseIdVars(resourceName)?.let {

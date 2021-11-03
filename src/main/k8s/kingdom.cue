@@ -33,6 +33,7 @@ import ("strings")
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_akid_to_principal_map_file_flag:        "--authority-key-identifier-to-principal-map-file=/var/run/secrets/files/authority_key_identifier_to_principal_map.textproto"
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 
@@ -119,6 +120,7 @@ import ("strings")
 				_kingdom_cert_collection_file_flag,
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
+				_akid_to_principal_map_file_flag,
 				"--port=8443",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
