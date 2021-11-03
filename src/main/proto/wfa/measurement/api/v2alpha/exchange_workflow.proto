@@ -111,18 +111,16 @@ message ExchangeWorkflow {
       int32 maximum_new_items_allowed = 2;
     }
 
-    // Generates public ids for a list of hashed join keys
-    message GenerateJoinKeyIdsStep {}
-
     // Applies deterministic, commutative encryption to the input plaintext
-    // data.
+    // join keys.
     message EncryptStep {}
 
     // Applies an additional layer of deterministic, commutative encryption to
-    // the input data. Requires ciphertexts as input.
+    // already encrypted join keys.
     message ReEncryptStep {}
 
-    // Removes a layer of deterministic, commutative encryption from the input.
+    // Removes a layer of deterministic, commutative encryption from a set of
+    // encrypted join keys.
     message DecryptStep {}
 
     // Represents an input to the protocol derived from some unknown process by
@@ -177,6 +175,9 @@ message ExchangeWorkflow {
     // Copies an input from a previous exchange into this one.
     message CopyFromPreviousExchangeStep {}
 
+    // Hashes a set of decrypted join keys
+    message GenerateLookupKeys {}
+
     oneof step {
       CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
       CopyToSharedStorageStep copy_to_shared_storage_step = 6;
@@ -195,10 +196,10 @@ message ExchangeWorkflow {
       DecryptPrivateMembershipQueryResultsStep
           decrypt_private_membership_query_results_step = 16;
       GenerateCertificateStep generate_certificate_step = 17;
-      GenerateJoinKeyIdsStep generate_join_key_ids_step = 18;
-      GenerateEncryptionKeysStep generate_encryption_keys_step = 19;
-      PreprocessEventsStep preprocess_events_step = 20;
-      CopyFromPreviousExchangeStep copy_from_previous_exchange_step = 21;
+      GenerateEncryptionKeysStep generate_encryption_keys_step = 18;
+      PreprocessEventsStep preprocess_events_step = 19;
+      CopyFromPreviousExchangeStep copy_from_previous_exchange_step = 20;
+      GenerateLookupKeys generate_lookup_keys = 21;
     }
   }
 

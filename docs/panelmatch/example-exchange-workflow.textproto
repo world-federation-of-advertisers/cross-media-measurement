@@ -84,12 +84,12 @@ steps {
 
 # MP provides unencrypted join keys
 steps {
-  step_id: "input-join-keys"
+  step_id: "input-plaintext-join-keys"
   party: MODEL_PROVIDER
 
   input_step {}
 
-  output_labels { key: "input" value: "mp-join-keys" }
+  output_labels { key: "input" value: "mp-plaintext-join-keys" }
 }
 
 # EDP provides previously generated private key as input.
@@ -124,7 +124,7 @@ steps {
 
   encrypt_step {}
 
-  input_labels { key: "data" value: "mp-join-keys" }
+  input_labels { key: "data" value: "mp-plaintext-join-keys" }
   input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
 
   output_labels { key: "output" value: "mp-single-blinded-join-keys" }
@@ -206,7 +206,7 @@ steps {
 
 # MP removes their layer of commutative, deterministic encryption.
 steps {
-  step_id: "prepare-lookup-keys"
+  step_id: "remove-blinding"
   party: MODEL_PROVIDER
 
   decrypt_step {}
@@ -214,7 +214,20 @@ steps {
   input_labels { key: "crypto-key" value: "mp-commutative-deterministic-key" }
   input_labels { key: "data" value: "mp-double-blinded-join-keys" }
 
-  output_labels { key: "output" value: "mp-lookup-keys" }
+  output_labels { key: "output" value: "mp-decrypted-join-keys" }
+}
+
+# MP generates lookup keys from EDP's identifier hash pepper and decrypted join keys.
+steps {
+  step_id: "generate-lookup-keys-step"
+  party: MODEL_PROVIDER
+
+  generate_join_keys_step {}
+
+  input_labels { key: "decrypted-join-keys" value: "mp-decrypted-join-keys" }
+  input_labels { key: "pepper" value: "mp-identifier-hash-pepper" }
+
+  output_labels { key: "join-keys" value: "mp-lookup-keys" }
 }
 
 # MP generates rlwe private and public keys.
@@ -240,10 +253,9 @@ steps {
   }
 
   input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
-  input_labels { key: "join-keys" value: "mp-join-keys" }
+  input_labels { key: "plaintext-join-keys" value: "mp-plaintext-join-keys" }
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
-  input_labels { key: "pepper" value: "mp-identifier-hash-pepper" }
 
   output_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
   output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
