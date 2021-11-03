@@ -8,6 +8,8 @@ cc_library(
     hdrs = ["preprocess_events.h"],
     strip_include_prefix = "/src/main/cc",
     deps = [
+        "//src/main/cc/wfa/panelmatch/common/compression:compressor",
+        "//src/main/cc/wfa/panelmatch/common/compression:make_compressor",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
         "//src/main/cc/wfa/panelmatch/common/crypto:aes_with_hkdf",
         "//src/main/cc/wfa/panelmatch/common/crypto:deterministic_commutative_cipher",
@@ -15,6 +17,7 @@ cc_library(
         "//src/main/cc/wfa/panelmatch/common/crypto:key_loader",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",

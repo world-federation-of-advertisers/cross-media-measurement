@@ -91,24 +91,3 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
-
-kt_jvm_test(
-    name = "PlaintextDecryptQueryResultsTest",
-    timeout = "short",
-    srcs = ["PlaintextDecryptQueryResultsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextDecryptQueryResultsTest",
-    deps = [
-        "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/compression/testing",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/org/junit",
-    ],
-)

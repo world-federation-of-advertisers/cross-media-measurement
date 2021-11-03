@@ -22,7 +22,6 @@ import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.common.buildAsPCollectionView
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
@@ -34,8 +33,7 @@ import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
-import org.wfanet.panelmatch.common.compression.CompressorFactory
-import org.wfanet.panelmatch.common.compression.Dictionary
+import org.wfanet.panelmatch.common.compression.CompressionParameters
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.storage.toStringUtf8
@@ -44,7 +42,6 @@ class DecryptPrivateMembershipResultsTask(
   override val storageFactory: StorageFactory,
   private val serializedParameters: ByteString,
   private val queryResultsDecryptor: QueryResultsDecryptor,
-  private val compressorFactory: CompressorFactory,
   private val outputs: Outputs
 ) : ApacheBeamTask() {
 
@@ -65,12 +62,10 @@ class DecryptPrivateMembershipResultsTask(
     val queryAndJoinKeysFileSpec = input.getValue("query-to-join-keys-map")
     val queryAndJoinKeys = readFromManifest(queryAndJoinKeysFileSpec, queryIdAndJoinKeys {})
 
-    val dictionary =
-      readSingleBlobAsPCollection(input.getValue("compression-dictionary").toStringUtf8()).map(
-        "Parse as Dictionary"
-      ) { Dictionary.parseFrom(it) }
-
-    val compressor = compressorFactory.buildAsPCollectionView(dictionary)
+    val compressionParameters =
+      readSingleBlobAsPCollection(input.getValue("compression-parameters").toStringUtf8())
+        .map("Parse as CompressionParameters") { CompressionParameters.parseFrom(it) }
+        .toSingletonView()
 
     val hkdfPepper = input.getValue("hkdf-pepper").toByteString()
 
@@ -90,7 +85,7 @@ class DecryptPrivateMembershipResultsTask(
       decryptQueryResults(
         encryptedQueryResults,
         queryAndJoinKeys,
-        compressor,
+        compressionParameters,
         privateMembershipKeys,
         serializedParameters,
         queryResultsDecryptor,

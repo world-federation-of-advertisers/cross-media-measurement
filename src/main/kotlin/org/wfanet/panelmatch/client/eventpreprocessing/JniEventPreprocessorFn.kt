@@ -14,28 +14,18 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
+import org.apache.beam.sdk.transforms.SerializableFunction
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
-import org.wfanet.panelmatch.common.loadLibraryFromResource
-import org.wfanet.panelmatch.common.wrapJniException
 
-/** A [PreprocessEvents] implementation using the JNI [PreprocessEvents]. */
-class JniPreprocessEvents : PreprocessEvents {
-
-  override fun preprocess(request: PreprocessEventsRequest): PreprocessEventsResponse {
-    return wrapJniException {
-      PreprocessEventsResponse.parseFrom(
-        EventPreprocessing.preprocessEventsWrapper(request.toByteArray())
-      )
-    }
-  }
-
-  companion object {
-    init {
-      loadLibraryFromResource(
-        libraryName = "preprocess_events",
-        resourcePathPrefix = "/main/swig/wfanet/panelmatch/client/eventpreprocessing"
-      )
-    }
+/**
+ * Takes in a PreprocessEventsRequest, preprocesses it using JniEventPreprocessor and returns a
+ * PreprocessEventsResponse
+ */
+class JniEventPreprocessorFn :
+  SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse> {
+  override fun apply(request: PreprocessEventsRequest): PreprocessEventsResponse {
+    val eventPreprocessor: EventPreprocessor = JniEventPreprocessor()
+    return eventPreprocessor.preprocess(request)
   }
 }

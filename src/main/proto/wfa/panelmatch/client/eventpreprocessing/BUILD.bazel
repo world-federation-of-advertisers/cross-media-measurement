@@ -11,6 +11,9 @@ proto_library(
     name = "preprocess_events_proto",
     srcs = ["preprocess_events.proto"],
     strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_proto",
+    ],
 )
 
 cc_proto_library(

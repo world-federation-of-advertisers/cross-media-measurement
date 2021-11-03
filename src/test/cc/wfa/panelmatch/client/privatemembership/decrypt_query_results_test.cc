@@ -110,6 +110,7 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
       request.public_key().SerializeAsString());
   test_request.set_serialized_parameters(
       request.parameters().SerializeAsString());
+  test_request.mutable_compression_parameters()->mutable_uncompressed();
   for (const ClientEncryptedQueryResult& client_encrypted_query_result :
        request.encrypted_queries()) {
     EncryptedQueryResult* encrypted_query_result =
@@ -208,6 +209,7 @@ TEST(DecryptQueryResults, ParseCiphertextsWithDifferentKeys) {
       request.public_key().SerializeAsString());
   test_request.set_serialized_parameters(
       request.parameters().SerializeAsString());
+  test_request.mutable_compression_parameters()->mutable_uncompressed();
   for (const ClientEncryptedQueryResult& client_encrypted_query_result :
        request.encrypted_queries()) {
     EncryptedQueryResult* encrypted_query_result =

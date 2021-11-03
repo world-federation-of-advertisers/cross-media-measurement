@@ -22,7 +22,6 @@ import org.wfanet.panelmatch.client.privatemembership.JniQueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.certificates.CertificateManager
-import org.wfanet.panelmatch.common.compression.NoOpCompressorFactory
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 
 class InProcessExchangeTaskMapper(
@@ -31,7 +30,6 @@ class InProcessExchangeTaskMapper(
   override val certificateManager: CertificateManager,
   override val inputTaskThrottler: Throttler
 ) : ExchangeTaskMapperForJoinKeyExchange() {
-  override val compressorFactory by lazy { NoOpCompressorFactory }
   override val deterministicCommutativeCryptor by lazy { JniDeterministicCommutativeCipher() }
   override val getPrivateMembershipCryptor = ::JniPrivateMembershipCryptor
   override val getQueryResultsEvaluator = ::JniQueryEvaluator

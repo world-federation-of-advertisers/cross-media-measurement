@@ -14,17 +14,20 @@
 
 #include "wfa/panelmatch/common/compression/brotli.h"
 
+#include <memory>
 #include <string>
 
+#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "riegeli/brotli/brotli_reader.h"
 #include "riegeli/brotli/brotli_writer.h"
 #include "riegeli/bytes/string_reader.h"
 #include "riegeli/bytes/string_writer.h"
-#include "wfa/panelmatch/common/compression/compression.pb.h"
+#include "wfa/panelmatch/common/compression/compressor.h"
 
 namespace wfa::panelmatch {
+namespace {
 using ::riegeli::BrotliReader;
 using ::riegeli::BrotliReaderBase;
 using ::riegeli::BrotliWriter;
@@ -32,41 +35,53 @@ using ::riegeli::BrotliWriterBase;
 using ::riegeli::StringReader;
 using ::riegeli::StringWriter;
 
-absl::StatusOr<CompressResponse> BrotliCompress(
-    const CompressRequest& request) {
-  auto options = BrotliWriterBase::Options()
-                     .set_compression_level(
-                         BrotliWriterBase::Options::kMaxCompressionLevel)
-                     .set_dictionaries(BrotliWriterBase::Dictionaries().add_raw(
-                         request.dictionary().contents()));
+BrotliWriterBase::Options MakeWriterOptions(absl::string_view dictionary) {
+  return BrotliWriterBase::Options()
+      .set_compression_level(BrotliWriterBase::Options::kMaxCompressionLevel)
+      .set_dictionaries(BrotliWriterBase::Dictionaries().add_raw(dictionary));
+}
 
-  CompressResponse response;
-  for (const std::string& uncompressed_data : request.uncompressed_data()) {
-    BrotliWriter brotli_writer(StringWriter(response.add_compressed_data()),
-                               options);
+BrotliReaderBase::Options MakeReaderOptions(absl::string_view dictionary) {
+  return BrotliReaderBase::Options().set_dictionaries(
+      BrotliReaderBase::Dictionaries().add_raw(dictionary));
+}
+
+class Brotli : public Compressor {
+ public:
+  explicit Brotli(absl::string_view dictionary)
+      : writer_options_(MakeWriterOptions(dictionary)),
+        reader_options_(MakeReaderOptions(dictionary)) {}
+
+  absl::StatusOr<std::string> Compress(
+      absl::string_view uncompressed_data) const override {
+    std::string result;
+    BrotliWriter brotli_writer(StringWriter(&result), writer_options_);
     if (!brotli_writer.Write(uncompressed_data) || !brotli_writer.Close()) {
       return brotli_writer.status();
     }
+    return result;
   }
 
-  return response;
-}
-
-absl::StatusOr<DecompressResponse> BrotliDecompress(
-    const DecompressRequest& request) {
-  auto options = BrotliReaderBase::Options().set_dictionaries(
-      BrotliReaderBase::Dictionaries().add_raw_unowned(
-          request.dictionary().contents()));
-
-  DecompressResponse response;
-  for (const std::string& compressed_data : request.compressed_data()) {
-    BrotliReader brotli_reader(StringReader(&compressed_data), options);
-    if (!brotli_reader.ReadAll(*response.add_decompressed_data()) ||
-        !brotli_reader.Close()) {
+  absl::StatusOr<std::string> Decompress(
+      absl::string_view compressed_data) const override {
+    std::string result;
+    BrotliReader brotli_reader(StringReader(&compressed_data), reader_options_);
+    if (!brotli_reader.ReadAll(result) || !brotli_reader.Close()) {
       return brotli_reader.status();
     }
+    return result;
   }
 
-  return response;
+ private:
+  BrotliWriterBase::Options writer_options_;
+  BrotliReaderBase::Options reader_options_;
+};
+
+}  // namespace
+
+std::unique_ptr<Compressor> BuildBrotliCompressor(
+    absl::string_view dictionary) {
+  return absl::make_unique<Brotli>(dictionary);
 }
+
 }  // namespace wfa::panelmatch

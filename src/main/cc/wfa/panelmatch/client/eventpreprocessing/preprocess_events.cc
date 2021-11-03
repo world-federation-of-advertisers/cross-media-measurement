@@ -20,6 +20,7 @@
 
 #include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
@@ -27,6 +28,8 @@
 #include "common_cpp/macros/macros.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+#include "wfa/panelmatch/common/compression/compressor.h"
+#include "wfa/panelmatch/common/compression/make_compressor.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
 #include "wfa/panelmatch/common/crypto/deterministic_commutative_cipher.h"
@@ -67,6 +70,9 @@ absl::StatusOr<PreprocessEventsResponse> PreprocessEvents(
 
   ASSIGN_OR_RETURN(auto cipher, NewDeterministicCommutativeCipher(key));
 
+  ASSIGN_OR_RETURN(std::unique_ptr<Compressor> compressor,
+                   MakeCompressor(request.compression_parameters()));
+
   const Fingerprinter& fingerprinter = GetSha256Fingerprinter();
 
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
@@ -78,8 +84,10 @@ absl::StatusOr<PreprocessEventsResponse> PreprocessEvents(
   PreprocessEventsResponse processed;
   for (const PreprocessEventsRequest::UnprocessedEvent& u :
        request.unprocessed_events()) {
+    ASSIGN_OR_RETURN(std::string compressed_data,
+                     compressor->Compress(u.data()));
     ASSIGN_OR_RETURN(ProcessedData data,
-                     preprocessor.Process(u.id(), u.data()));
+                     preprocessor.Process(u.id(), compressed_data));
     PreprocessEventsResponse::ProcessedEvent* processed_event =
         processed.add_processed_events();
     processed_event->set_encrypted_data(data.encrypted_event_data);
