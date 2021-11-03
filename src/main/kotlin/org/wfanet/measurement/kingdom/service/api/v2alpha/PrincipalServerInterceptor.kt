@@ -45,13 +45,16 @@ sealed class Principal<T : ResourceKey> {
 
   companion object {
     fun fromName(name: String): Principal<*>? {
-      val dataProviderKey = DataProviderKey.fromName(name)
-      val modelProviderKey = ModelProviderKey.fromName(name)
-      if (dataProviderKey != null) {
-        return DataProvider(dataProviderKey)
-      } else if (modelProviderKey != null) {
-        return ModelProvider(modelProviderKey)
+      val parsers: List<(String) -> Principal<*>?> =
+        listOf(
+          { s: String -> DataProviderKey.fromName(s)?.let(::DataProvider) },
+          { s: String -> ModelProviderKey.fromName(s)?.let(::ModelProvider) },
+        )
+
+      for (parse in parsers) {
+        return parse(name) ?: continue
       }
+
       return null
     }
   }
