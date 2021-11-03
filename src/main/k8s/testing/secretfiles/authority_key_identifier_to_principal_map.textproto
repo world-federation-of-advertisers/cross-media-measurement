@@ -1,0 +1,14 @@
+# proto-file: src/main/proto/wfa/measurement/api/v2alpha/authority_key_to_principal_map.proto
+# proto-message: AuthorityKeyToPrincipalMap
+
+entries {
+  authority_key_identifier: "TODO(@wangyaopw): update this"
+  # TODO(@wangyaopw): Replace with real resource name
+  principal_resource_name: "dataProviders/AAAAAAAAAHs"
+}
+
+entries {
+  authority_key_identifier: "TODO(@wangyaopw): update this too"
+  # TODO(@wangyaopw): Replace with real resource name
+  principal_resource_name: "modelProviders/AAAAAAAAAHs"
+}

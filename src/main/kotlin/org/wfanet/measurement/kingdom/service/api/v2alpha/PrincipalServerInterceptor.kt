@@ -25,37 +25,9 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
-
-/**
- * Identifies the sender of an inbound gRPC request.
- *
- * TODO: once using Kotlin 1.5, switch to a sealed interface.
- */
-sealed class Principal<T : ResourceKey> {
-  abstract val resourceKey: T
-
-  class DataProvider(override val resourceKey: DataProviderKey) : Principal<DataProviderKey>()
-  class ModelProvider(override val resourceKey: ModelProviderKey) : Principal<ModelProviderKey>()
-
-  companion object {
-    fun fromName(name: String): Principal<*>? {
-      val dataProviderKey = DataProviderKey.fromName(name)
-      val modelProviderKey = ModelProviderKey.fromName(name)
-      if (dataProviderKey != null) {
-        return DataProvider(dataProviderKey)
-      } else if (modelProviderKey != null) {
-        return ModelProvider(modelProviderKey)
-      }
-      return null
-    }
-  }
-}
 
 /**
  * Returns a [Principal] in the current gRPC context. Requires [PrincipalServerInterceptor] to be
