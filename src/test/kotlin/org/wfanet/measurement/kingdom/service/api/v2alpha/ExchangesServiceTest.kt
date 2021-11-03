@@ -14,8 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.common.truth.Truth
-import com.google.common.truth.extensions.proto.ProtoTruth
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
@@ -93,7 +93,7 @@ class ExchangesServiceTest {
           dataProvider = externalIdToApiId(12345L)
         }
       }
-    Truth.assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -113,7 +113,7 @@ class ExchangesServiceTest {
         }
       }
 
-    ProtoTruth.assertThat(response)
+    assertThat(response)
       .isEqualTo(
         exchange {
           name = exchangeKey.toName()

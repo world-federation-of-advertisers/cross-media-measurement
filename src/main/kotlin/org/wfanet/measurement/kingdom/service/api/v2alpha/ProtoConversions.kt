@@ -14,10 +14,18 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import io.grpc.Status
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.Exchange
+import org.wfanet.measurement.api.v2alpha.ExchangeKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStep
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt
+import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.State
@@ -30,14 +38,24 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.exchange
+import org.wfanet.measurement.api.v2alpha.exchangeStep
+import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
+import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as ImternalExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
@@ -213,3 +231,107 @@ fun Measurement.toInternal(
       }
   }
 }
+
+fun InternalExchange.toV2Alpha(): Exchange {
+  val exchangeKey =
+    ExchangeKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString()
+    )
+  return exchange {
+    name = exchangeKey.toName()
+    date = this@toV2Alpha.date
+    auditTrailHash = details.auditTrailHash
+    // TODO(@yunyeng): Add graphvizRepresentation to Exchange proto.
+    graphvizRepresentation = ""
+  }
+}
+
+fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
+  val exchangeStepKey =
+    ExchangeStepKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = stepIndex.toString()
+    )
+  return exchangeStep {
+    name = exchangeStepKey.toName()
+    state = v2AlphaState
+    stepIndex = this@toV2Alpha.stepIndex
+    exchangeDate = date
+    serializedExchangeWorkflow = this@toV2Alpha.serializedExchangeWorkflow
+  }
+}
+
+fun ExchangeStepAttempt.State.toInternal(): ImternalExchangeStepAttempt.State {
+  return when (this) {
+    ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
+      failGrpc { "Invalid State: $this" }
+    ExchangeStepAttempt.State.ACTIVE -> ImternalExchangeStepAttempt.State.ACTIVE
+    ExchangeStepAttempt.State.SUCCEEDED -> ImternalExchangeStepAttempt.State.SUCCEEDED
+    ExchangeStepAttempt.State.FAILED -> ImternalExchangeStepAttempt.State.FAILED
+    ExchangeStepAttempt.State.FAILED_STEP -> ImternalExchangeStepAttempt.State.FAILED_STEP
+  }
+}
+
+fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
+  Iterable<ExchangeStepAttemptDetails.DebugLog> {
+  return map { apiProto ->
+    ExchangeStepAttemptDetailsKt.debugLog {
+      time = apiProto.time
+      message = apiProto.message
+    }
+  }
+}
+
+fun ImternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
+  val key =
+    ExchangeStepAttemptKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = stepIndex.toString(),
+      exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString()
+    )
+  return exchangeStepAttempt {
+    name = key.toName()
+    attemptNumber = this@toV2Alpha.attemptNumber
+    state = this@toV2Alpha.state.toV2Alpha()
+    debugLogEntries += details.debugLogEntriesList.map { it.toV2Alpha() }
+    startTime = details.startTime
+    updateTime = details.updateTime
+  }
+}
+
+private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
+  return ExchangeStepAttemptKt.debugLog {
+    time = this@toV2Alpha.time
+    message = this@toV2Alpha.message
+  }
+}
+
+private fun ImternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
+  return when (this) {
+    ImternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
+    ImternalExchangeStepAttempt.State.UNRECOGNIZED ->
+      failGrpc(Status.INTERNAL) { "Invalid State: $this" }
+    ImternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
+    ImternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
+    ImternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
+    ImternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED_STEP
+  }
+}
+
+private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
+  get() {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    return when (this.state) {
+      InternalExchangeStep.State.BLOCKED -> ExchangeStep.State.BLOCKED
+      InternalExchangeStep.State.READY -> ExchangeStep.State.READY
+      InternalExchangeStep.State.READY_FOR_RETRY -> ExchangeStep.State.READY_FOR_RETRY
+      InternalExchangeStep.State.IN_PROGRESS -> ExchangeStep.State.IN_PROGRESS
+      InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
+      InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
+      InternalExchangeStep.State.STATE_UNSPECIFIED, InternalExchangeStep.State.UNRECOGNIZED ->
+        failGrpc(Status.INTERNAL) { "Invalid state: $this" }
+    }
+  }

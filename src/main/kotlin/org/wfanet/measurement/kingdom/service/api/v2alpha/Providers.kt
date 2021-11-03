@@ -18,7 +18,9 @@ import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.provider
 
@@ -40,4 +42,19 @@ fun getProviderFromContext(): Provider {
         }
     }
   }
+}
+
+fun validateRequestProvider(requestModelProvider: String, requestDataProvider: String): Provider {
+  val provider = getProviderFromContext()
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enums are not null.
+  val parentFromRequest: String =
+    when (provider.type) {
+      Provider.Type.MODEL_PROVIDER -> requestModelProvider
+      Provider.Type.DATA_PROVIDER -> requestDataProvider
+      Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED -> error("Unsupported Principal")
+    }
+  grpcRequire(externalIdToApiId(provider.externalId) == parentFromRequest) {
+    "Principal from authentication does not match request"
+  }
+  return provider
 }

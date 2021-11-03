@@ -48,9 +48,9 @@ class SpannerExchangesService(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
         when (request.provider.type) {
           Provider.Type.DATA_PROVIDER ->
-            appendClause("AND DataProviders.ExternalDataProviderId = @external_provider_id")
+            appendClause("  AND DataProviders.ExternalDataProviderId = @external_provider_id")
           Provider.Type.MODEL_PROVIDER ->
-            appendClause("AND ModelProviders.ExternalModelProviderId = @external_provider_id")
+            appendClause("  AND ModelProviders.ExternalModelProviderId = @external_provider_id")
           Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
             failGrpc(Status.INVALID_ARGUMENT) {
               "external_data_provider_id or external_model_provider_id must be provided."
