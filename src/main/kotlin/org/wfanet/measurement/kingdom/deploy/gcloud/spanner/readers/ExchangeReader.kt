@@ -33,6 +33,8 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
     SELECT $SELECT_COLUMNS_SQL
     FROM Exchanges
     JOIN RecurringExchanges USING (RecurringExchangeId)
+    LEFT JOIN ModelProviders USING (ModelProviderId)
+    LEFT JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
   override suspend fun translate(struct: Struct): Result {

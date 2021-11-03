@@ -18,6 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "google/type/date.proto";
 import "wfa/measurement/internal/kingdom/exchange.proto";
+import "wfa/measurement/internal/kingdom/provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -43,6 +44,7 @@ message GetExchangeRequest {
   // there is at most one `Exchange` for any given date -- this is part of the
   // `Exchange`'s primary key.
   google.type.Date date = 2;
+  Provider provider = 3;
 }
 
 // Request for `/Exchanges.CreateExchange`.

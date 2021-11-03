@@ -19,22 +19,16 @@ import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt.debugLog
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsResponse
-import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
@@ -136,61 +130,3 @@ private val ExchangeStepAttemptKey.attemptNumber: Int
       0
     }
   }
-
-private fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
-  val key =
-    ExchangeStepAttemptKey(
-      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-      exchangeId = date.toLocalDate().toString(),
-      exchangeStepId = stepIndex.toString(),
-      exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString()
-    )
-  return exchangeStepAttempt {
-    name = key.toName()
-    attemptNumber = this@toV2Alpha.attemptNumber
-    state = this@toV2Alpha.state.toV2Alpha()
-    debugLogEntries += details.debugLogEntriesList.map { it.toV2Alpha() }
-    startTime = details.startTime
-    updateTime = details.updateTime
-  }
-}
-
-private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
-  return when (this) {
-    InternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
-    InternalExchangeStepAttempt.State.UNRECOGNIZED ->
-      failGrpc(Status.INTERNAL) { "Invalid State: $this" }
-    InternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
-    InternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
-    InternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
-    InternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED_STEP
-  }
-}
-
-private fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
-  return when (this) {
-    ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
-      failGrpc { "Invalid State: $this" }
-    ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
-    ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
-    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
-    ExchangeStepAttempt.State.FAILED_STEP -> InternalExchangeStepAttempt.State.FAILED_STEP
-  }
-}
-
-private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
-  return debugLog {
-    time = this@toV2Alpha.time
-    message = this@toV2Alpha.message
-  }
-}
-
-private fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
-  Iterable<ExchangeStepAttemptDetails.DebugLog> {
-  return map { apiProto ->
-    ExchangeStepAttemptDetailsKt.debugLog {
-      time = apiProto.time
-      message = apiProto.message
-    }
-  }
-}
