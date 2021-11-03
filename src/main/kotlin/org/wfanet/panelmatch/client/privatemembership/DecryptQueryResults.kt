@@ -24,13 +24,11 @@ import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionTuple
 import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
-import org.wfanet.panelmatch.client.eventpostprocessing.UncompressEventsFn
 import org.wfanet.panelmatch.common.beam.keyBy
-import org.wfanet.panelmatch.common.beam.map
-import org.wfanet.panelmatch.common.beam.mapWithSideInput
+import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.strictOneToOneJoin
-import org.wfanet.panelmatch.common.compression.Compressor
+import org.wfanet.panelmatch.common.compression.CompressionParameters
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.withTime
 
@@ -42,7 +40,7 @@ import org.wfanet.panelmatch.common.withTime
  *
  * @param encryptedQueryResults data to be decrypted and decompressed
  * @param queryIdAndJoinKeys lookup keys from which AES keys are derived and a hashed join key
- * @param compressor decompresses compressed payloads
+ * @param compressionParameters specifies how to decompress the decrypted event data
  * @param serializedParameters parameters for decryption
  * @param queryResultsDecryptor decryptor
  * @param hkdfPepper pepper used in AES key derivation
@@ -50,7 +48,7 @@ import org.wfanet.panelmatch.common.withTime
 fun decryptQueryResults(
   encryptedQueryResults: PCollection<EncryptedQueryResult>,
   queryIdAndJoinKeys: PCollection<QueryIdAndJoinKeys>,
-  compressor: PCollectionView<Compressor>,
+  compressionParameters: PCollectionView<CompressionParameters>,
   privateMembershipKeys: PCollectionView<AsymmetricKeys>,
   serializedParameters: ByteString,
   queryResultsDecryptor: QueryResultsDecryptor,
@@ -61,20 +59,20 @@ fun decryptQueryResults(
     .apply(
       "Decrypt Query Results",
       DecryptQueryResults(
-        serializedParameters,
         queryResultsDecryptor,
+        serializedParameters,
         hkdfPepper,
-        compressor,
+        compressionParameters,
         privateMembershipKeys
       )
     )
 }
 
 private class DecryptQueryResults(
-  private val serializedParameters: ByteString,
   private val queryResultsDecryptor: QueryResultsDecryptor,
+  private val serializedParameters: ByteString,
   private val hkdfPepper: ByteString,
-  private val compressor: PCollectionView<Compressor>,
+  private val compressionParameters: PCollectionView<CompressionParameters>,
   private val privateMembershipKeys: PCollectionView<AsymmetricKeys>
 ) : PTransform<PCollectionTuple, PCollection<KeyedDecryptedEventDataSet>>() {
 
@@ -82,37 +80,25 @@ private class DecryptQueryResults(
     val encryptedQueryResults = input[encryptedQueryResultsTag]
     val queryIdAndJoinKeys = input[queryIdAndKeysTag]
 
-    val keyedEncryptedQueryResults =
-      encryptedQueryResults.keyBy("Key by Query Id") { requireNotNull(it.queryId) }
+    val keyedEncryptedQueryResults: PCollection<KV<QueryId, EncryptedQueryResult>> =
+      encryptedQueryResults.keyBy("Key by QueryId") { requireNotNull(it.queryId) }
 
-    val requestTemplate = decryptQueryResultsRequest {
-      serializedParameters = this@DecryptQueryResults.serializedParameters
-      hkdfPepper = this@DecryptQueryResults.hkdfPepper
-    }
     val keyedQueryIdAndKeys = queryIdAndJoinKeys.keyBy { it.queryId }
-    val decryptedQueryResults: PCollection<DecryptedEventDataSet> =
-      keyedQueryIdAndKeys
-        .strictOneToOneJoin(keyedEncryptedQueryResults, name = "Join JoinKeys+QueryResults")
-        .mapWithSideInput(privateMembershipKeys, name = "Make Decryption Requests") { kv, keys ->
-          requestTemplate.copy {
-            lookupKey = kv.key.lookupKey
-            this.encryptedQueryResults += kv.value
-            serializedPublicKey = keys.serializedPublicKey
-            serializedPrivateKey = keys.serializedPrivateKey
-          }
-        }
-        .parDo(DecryptResultsFn(queryResultsDecryptor), name = "Decrypt")
-
-    return decryptedQueryResults
-      .apply("Uncompress", ParDo.of(UncompressEventsFn(compressor)).withSideInputs(compressor))
-      .keyBy { it.queryId }
-      .strictOneToOneJoin(keyedQueryIdAndKeys, name = "Join JoinKeys+UnCompressedResults")
-      .map<KV<DecryptedEventDataSet, QueryIdAndJoinKeys>, KeyedDecryptedEventDataSet> {
-        keyedDecryptedEventDataSet {
-          hashedJoinKey = it.value.hashedJoinKey
-          decryptedEventData += it.key.decryptedEventDataList
-        }
-      }
+    return keyedQueryIdAndKeys
+      .strictOneToOneJoin(keyedEncryptedQueryResults, name = "Join JoinKeys+QueryResults")
+      .apply(
+        "Make DecryptResultsFnRequests",
+        ParDo.of(
+            BuildDecryptQueryResultsRequestsFn(
+              privateMembershipKeys,
+              compressionParameters,
+              serializedParameters,
+              hkdfPepper
+            )
+          )
+          .withSideInputs(privateMembershipKeys, compressionParameters)
+      )
+      .parDo(DecryptResultsFn(queryResultsDecryptor), name = "Decrypt")
   }
 
   companion object {
@@ -121,8 +107,36 @@ private class DecryptQueryResults(
   }
 }
 
+private class BuildDecryptQueryResultsRequestsFn(
+  private val keysView: PCollectionView<AsymmetricKeys>,
+  private val compressionParametersView: PCollectionView<CompressionParameters>,
+  private val serializedParameters: ByteString,
+  private val hkdfPepper: ByteString
+) :
+  DoFn<
+    KV<QueryIdAndJoinKeys, EncryptedQueryResult>,
+    KV<QueryIdAndJoinKeys, DecryptQueryResultsRequest>>() {
+  @ProcessElement
+  fun processElement(context: ProcessContext) {
+    val keys = context.sideInput(keysView)
+    val compressionParameters = context.sideInput(compressionParametersView)
+
+    val request = decryptQueryResultsRequest {
+      serializedParameters = this@BuildDecryptQueryResultsRequestsFn.serializedParameters
+      hkdfPepper = this@BuildDecryptQueryResultsRequestsFn.hkdfPepper
+      serializedPublicKey = keys.serializedPublicKey
+      serializedPrivateKey = keys.serializedPrivateKey
+      this.compressionParameters = compressionParameters
+      lookupKey = context.element().key.lookupKey
+      encryptedQueryResults += context.element().value
+    }
+
+    context.output(kvOf(context.element().key, request))
+  }
+}
+
 private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDecryptor) :
-  DoFn<DecryptQueryResultsRequest, DecryptedEventDataSet>() {
+  DoFn<KV<QueryIdAndJoinKeys, DecryptQueryResultsRequest>, KeyedDecryptedEventDataSet>() {
   private val metricsNamespace = "DecryptQueryResults"
   private val decryptionTimes = Metrics.distribution(metricsNamespace, "decryption-times")
   private val outputCounts = Metrics.distribution(metricsNamespace, "output-counts")
@@ -130,11 +144,17 @@ private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDe
   @ProcessElement
   fun processElement(context: ProcessContext) {
     val (decryptedResults, time) =
-      withTime { queryResultsDecryptor.decryptQueryResults(context.element()) }
+      withTime { queryResultsDecryptor.decryptQueryResults(context.element().value) }
 
     decryptionTimes.update(time.toNanos())
     outputCounts.update(decryptedResults.eventDataSetsCount.toLong())
 
-    decryptedResults.eventDataSetsList.forEach(context::output)
+    for (eventDataSet in decryptedResults.eventDataSetsList) {
+      val result = keyedDecryptedEventDataSet {
+        hashedJoinKey = context.element().key.hashedJoinKey
+        decryptedEventData += eventDataSet.decryptedEventDataList
+      }
+      context.output(result)
+    }
   }
 }

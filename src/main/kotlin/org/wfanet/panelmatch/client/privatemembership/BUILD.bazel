@@ -29,11 +29,9 @@ kt_jvm_library(
     runtime_deps = [":swig_resources"],
     deps = [
         "//imports/java/org/apache/beam:core",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpostprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/compression",
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
         "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
         "//src/main/proto/private_membership/batch:client_kt_jvm_proto",

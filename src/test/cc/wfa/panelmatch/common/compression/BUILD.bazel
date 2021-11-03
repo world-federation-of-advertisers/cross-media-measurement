@@ -6,7 +6,7 @@ cc_test(
     srcs = ["brotli_test.cc"],
     deps = [
         "//src/main/cc/wfa/panelmatch/common/compression:brotli",
-        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+        "//src/main/cc/wfa/panelmatch/common/compression:compressor",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

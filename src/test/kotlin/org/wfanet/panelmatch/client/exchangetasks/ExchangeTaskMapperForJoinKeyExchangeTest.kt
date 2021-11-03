@@ -39,7 +39,6 @@ import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.client.storage.testing.makeTestPrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.testing.makeTestSharedStorageSelector
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
-import org.wfanet.panelmatch.common.compression.NoOpCompressorFactory
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
 import org.wfanet.panelmatch.common.testing.AlwaysReadyThrottler
@@ -80,7 +79,6 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
   private val testPrivateStorageSelector = TestPrivateStorageSelector()
   private val exchangeTaskMapper =
     object : ExchangeTaskMapperForJoinKeyExchange() {
-      override val compressorFactory = NoOpCompressorFactory
       override val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
       override val getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor
       override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()

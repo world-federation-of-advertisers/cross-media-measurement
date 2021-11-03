@@ -69,10 +69,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "JniPreprocessEventsTest",
+    name = "JniEventPreprocessorTest",
     timeout = "short",
-    srcs = ["JniPreprocessEventsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniPreprocessEventsTest",
+    srcs = ["JniEventPreprocessorTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessorTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
@@ -86,10 +86,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PreprocessEventsInPipelineTest",
+    name = "PreprocessEventsTest",
     timeout = "short",
-    srcs = ["PreprocessEventsInPipelineTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEventsInPipelineTest",
+    srcs = ["PreprocessEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEventsTest",
     deps = [
         "//imports/java/com/google/common:guava",
         "//imports/java/org/apache/beam:core",

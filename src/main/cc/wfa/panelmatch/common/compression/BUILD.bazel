@@ -9,8 +9,13 @@ cc_library(
     srcs = ["brotli.cc"],
     hdrs = ["brotli.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
+    visibility = [
+        ":__pkg__",
+        "//src/test/cc/wfa/panelmatch/common/compression:__pkg__",
+    ],
     deps = [
-        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+        ":compressor",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_riegeli//riegeli/brotli:brotli_reader",
@@ -21,15 +26,38 @@ cc_library(
 )
 
 cc_library(
-    name = "brotli_wrapper",
-    srcs = ["brotli_wrapper.cc"],
-    hdrs = ["brotli_wrapper.h"],
+    name = "compressor",
+    hdrs = ["compressor.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "make_compressor",
+    srcs = ["make_compressor.cc"],
+    hdrs = ["make_compressor.h"],
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":brotli",
+        ":compressor",
+        ":no_op",
         "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+    ],
+)
+
+cc_library(
+    name = "no_op",
+    srcs = ["no_op.cc"],
+    hdrs = ["no_op.h"],
+    strip_include_prefix = _INCLUDE_PREFIX,
+    visibility = ["//visibility:private"],
+    deps = [
+        ":compressor",
+        "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@wfa_common_cpp//src/main/cc/common_cpp/jni:jni_wrap",
     ],
 )

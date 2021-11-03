@@ -12,25 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "wfa/panelmatch/common/compression/brotli_wrapper.h"
+#include "src/main/cc/wfa/panelmatch/common/compression/make_compressor.h"
 
-#include <string>
+#include <memory>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
-#include "common_cpp/jni/jni_wrap.h"
 #include "wfa/panelmatch/common/compression/brotli.h"
+#include "wfa/panelmatch/common/compression/compression.pb.h"
+#include "wfa/panelmatch/common/compression/compressor.h"
+#include "wfa/panelmatch/common/compression/no_op.h"
 
 namespace wfa::panelmatch {
 
-absl::StatusOr<std::string> BrotliCompressWrapper(
-    const std::string& serialized_request) {
-  return JniWrap(serialized_request, BrotliCompress);
-}
-
-absl::StatusOr<std::string> BrotliDecompressWrapper(
-    const std::string& serialized_request) {
-  return JniWrap(serialized_request, BrotliDecompress);
+absl::StatusOr<std::unique_ptr<Compressor>> MakeCompressor(
+    const CompressionParameters& parameters) {
+  switch (parameters.type_case()) {
+    case CompressionParameters::TypeCase::TYPE_NOT_SET:
+      return absl::InvalidArgumentError("Missing CompressionParameters");
+    case CompressionParameters::TypeCase::kBrotli:
+      return BuildBrotliCompressor(parameters.brotli().dictionary());
+    case CompressionParameters::TypeCase::kUncompressed:
+      return BuildNoOpCompressor();
+  }
 }
 
 }  // namespace wfa::panelmatch

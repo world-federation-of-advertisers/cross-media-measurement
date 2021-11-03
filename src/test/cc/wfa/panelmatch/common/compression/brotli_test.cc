@@ -20,49 +20,44 @@
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
 #include "gtest/gtest.h"
-#include "wfa/panelmatch/common/compression/compression.pb.h"
+#include "wfa/panelmatch/common/compression/compressor.h"
 
 namespace wfa::panelmatch {
 namespace {
 using ::testing::ElementsAreArray;
+using ::testing::IsNull;
+using ::testing::Not;
 using ::testing::SizeIs;
 
 TEST(BrotliTest, RoundTrip) {
-  CompressRequest compress_request;
-  compress_request.mutable_dictionary()->set_contents("abcde");
+  std::string dictionary = "abcde";
+
+  std::unique_ptr<Compressor> brotli = BuildBrotliCompressor(dictionary);
+  ASSERT_THAT(brotli, Not(IsNull()));
 
   // The last item should take up the least amount of space because of the
   // dictionary. This shows the dictionary is used because the second item takes
   // up more space than the first and last, despite the similar pattern.
-  compress_request.add_uncompressed_data("some first item");
-  compress_request.add_uncompressed_data("123451234512345 1234512345");
-  compress_request.add_uncompressed_data("this should take up even more space");
-  compress_request.add_uncompressed_data("abcdeabcdeabcde abcdeabcde");
+  std::vector<std::string> items = {
+      "some first item", "123451234512345 1234512345",
+      "this should take up even more space", "abcdeabcdeabcde abcdeabcde"};
 
-  EXPECT_EQ(BrotliCompress(compress_request).status(), absl::OkStatus());
-  ASSERT_OK_AND_ASSIGN(CompressResponse compress_response,
-                       BrotliCompress(compress_request));
-
-  ASSERT_THAT(compress_response.compressed_data(), SizeIs(4));
-
-  std::vector<int> sizes;
-  for (const std::string& item : compress_response.compressed_data()) {
-    sizes.push_back(item.size());
+  std::vector<std::string> compressed_items;
+  for (const std::string& item : items) {
+    ASSERT_OK_AND_ASSIGN(compressed_items.emplace_back(),
+                         brotli->Compress(item));
   }
-  EXPECT_LT(sizes[3], sizes[0]);
-  EXPECT_LT(sizes[0], sizes[1]);
-  EXPECT_LT(sizes[1], sizes[2]);
 
-  DecompressRequest decompress_request;
-  *decompress_request.mutable_dictionary() = compress_request.dictionary();
-  decompress_request.mutable_compressed_data()->CopyFrom(
-      compress_response.compressed_data());
+  EXPECT_LT(compressed_items[3].size(), compressed_items[0].size());
+  EXPECT_LT(compressed_items[0].size(), compressed_items[1].size());
+  EXPECT_LT(compressed_items[1].size(), compressed_items[2].size());
 
-  ASSERT_OK_AND_ASSIGN(DecompressResponse decompress_response,
-                       BrotliDecompress(decompress_request));
-
-  EXPECT_THAT(decompress_response.decompressed_data(),
-              ElementsAreArray(compress_request.uncompressed_data()));
+  std::vector<std::string> decompressed_items;
+  for (const std::string& item : compressed_items) {
+    ASSERT_OK_AND_ASSIGN(decompressed_items.emplace_back(),
+                         brotli->Decompress(item));
+  }
+  EXPECT_THAT(decompressed_items, ElementsAreArray(items));
 }
 
 }  // namespace

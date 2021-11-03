@@ -14,16 +14,55 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
-import org.wfanet.panelmatch.client.PreprocessEventsResponse
+import com.google.protobuf.ByteString
+import org.apache.beam.sdk.transforms.PTransform
+import org.apache.beam.sdk.transforms.ParDo
+import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionView
+import org.wfanet.panelmatch.client.combinedEvents
+import org.wfanet.panelmatch.common.beam.groupByKey
+import org.wfanet.panelmatch.common.beam.mapValues
+import org.wfanet.panelmatch.common.beam.parDo
+import org.wfanet.panelmatch.common.compression.CompressionParameters
 
 /**
- * Implements several encryption schemes to encrypt event data and an identifier. A deterministic
- * commutative encryption scheme is used to encrypt the identifier, which is hashed using a Sha256
- * method. The encrypted identifier is also used in an HKDF to create an AES key, which is used for
- * an AES encryption/decryption of event data.
+ * Preprocesses events for use in Private Membership.
+ *
+ * The basic steps are:
+ * 1. Group events by key -- and combine into a CombinedEvents proto.
+ * 2. Group into batches to minimize JNI overhead.
+ * 3. Compress and encrypt each key-value pair.
+ *
+ * This is a [PTransform] so it can fit in easily with existing Apache Beam pipelines.
  */
-interface PreprocessEvents {
-  /** Preprocesses each of the events in [request] as described above */
-  fun preprocess(request: PreprocessEventsRequest): PreprocessEventsResponse
+class PreprocessEvents(
+  private val maxByteSize: Int,
+  private val identifierHashPepperProvider: IdentifierHashPepperProvider,
+  private val hkdfPepperProvider: HkdfPepperProvider,
+  private val cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
+  private val compressionParametersView: PCollectionView<CompressionParameters>
+) : PTransform<PCollection<KV<ByteString, ByteString>>, PCollection<KV<Long, ByteString>>>() {
+
+  override fun expand(
+    events: PCollection<KV<ByteString, ByteString>>
+  ): PCollection<KV<Long, ByteString>> {
+    return events
+      .groupByKey()
+      .mapValues("Make CombinedEvents") { combinedEvents { serializedEvents += it }.toByteString() }
+      .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
+      .apply(
+        "Encrypt Batches",
+        ParDo.of(
+            EncryptEventsDoFn(
+              JniEventPreprocessorFn(),
+              identifierHashPepperProvider,
+              hkdfPepperProvider,
+              cryptoKeyProvider,
+              compressionParametersView
+            ),
+          )
+          .withSideInputs(compressionParametersView)
+      )
+  }
 }

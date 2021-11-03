@@ -14,20 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_BROTLI_H_
-#define SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_BROTLI_H_
+#ifndef SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_COMPRESSOR_H_
+#define SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_COMPRESSOR_H_
 
-#include <memory>
 #include <string>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "wfa/panelmatch/common/compression/compressor.h"
 
 namespace wfa::panelmatch {
 
-std::unique_ptr<Compressor> BuildBrotliCompressor(absl::string_view dictionary);
+class Compressor {
+ public:
+  virtual ~Compressor() = default;
+
+  virtual absl::StatusOr<std::string> Compress(
+      absl::string_view uncompressed_data) const = 0;
+  virtual absl::StatusOr<std::string> Decompress(
+      absl::string_view compressed_data) const = 0;
+};
 
 }  // namespace wfa::panelmatch
 
-#endif  // SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_BROTLI_H_
+#endif  // SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_COMPRESSOR_H_

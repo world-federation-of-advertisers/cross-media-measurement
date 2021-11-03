@@ -20,15 +20,15 @@
 #include <string>
 #include <utility>
 
-#include "absl/algorithm/container.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
 #include "common_cpp/macros/macros.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
 #include "private_membership/rlwe/batch/proto/client.pb.h"
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
+#include "wfa/panelmatch/common/compression/compressor.h"
+#include "wfa/panelmatch/common/compression/make_compressor.h"
 
 namespace wfa::panelmatch::client::privatemembership {
 
@@ -42,6 +42,7 @@ using ClientDecryptQueriesRequest =
 using ClientDecryptQueriesResponse =
     ::private_membership::batch::DecryptQueriesResponse;
 using ::private_membership::batch::DecryptQueries;
+
 absl::StatusOr<ClientDecryptQueriesResponse> RemoveRlwe(
     const DecryptQueryResultsRequest& request) {
   ClientDecryptQueriesRequest client_decrypt_queries_request;
@@ -96,6 +97,19 @@ absl::StatusOr<DecryptQueryResultsResponse> RemoveAes(
   }
   return result;
 }
+
+absl::Status Decompress(const CompressionParameters& compression_parameters,
+                        DecryptQueryResultsResponse& response) {
+  ASSIGN_OR_RETURN(std::unique_ptr<Compressor> compressor,
+                   MakeCompressor(compression_parameters));
+  for (auto& data_set : *response.mutable_event_data_sets()) {
+    for (Plaintext& plaintext : *data_set.mutable_decrypted_event_data()) {
+      ASSIGN_OR_RETURN(*plaintext.mutable_payload(),
+                       compressor->Decompress(plaintext.payload()));
+    }
+  }
+  return absl::OkStatus();
+}
 }  // namespace
 
 absl::StatusOr<DecryptQueryResultsResponse> DecryptQueryResults(
@@ -103,9 +117,14 @@ absl::StatusOr<DecryptQueryResultsResponse> DecryptQueryResults(
   // Step 1: Decrypt the encrypted query response
   ASSIGN_OR_RETURN(ClientDecryptQueriesResponse client_decrypt_queries_response,
                    RemoveRlwe(request));
+
   // Step 2: Decrypt the encrypted event data
   ASSIGN_OR_RETURN(DecryptQueryResultsResponse result,
                    RemoveAes(request, client_decrypt_queries_response));
+
+  // Step 3: Decompress the decrypted event data
+  RETURN_IF_ERROR(Decompress(request.compression_parameters(), result));
+
   return result;
 }
 }  // namespace wfa::panelmatch::client::privatemembership

@@ -96,7 +96,10 @@ cc_library(
     strip_include_prefix = _INCLUDE_PREFIX,
     deps = [
         ":event_data_decryptor",
+        "//src/main/cc/wfa/panelmatch/common/compression:compressor",
+        "//src/main/cc/wfa/panelmatch/common/compression:make_compressor",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_cc_proto",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",

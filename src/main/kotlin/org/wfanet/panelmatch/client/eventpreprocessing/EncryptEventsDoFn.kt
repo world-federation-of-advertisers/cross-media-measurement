@@ -21,11 +21,13 @@ import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.values.KV
+import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
 import org.wfanet.panelmatch.client.preprocessEventsRequest
 import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.common.compression.CompressionParameters
 
 /**
  * Encrypts each of a batch of pairs of ByteStrings.
@@ -38,6 +40,7 @@ class EncryptEventsDoFn(
   private val identifierHashPepperProvider: IdentifierHashPepperProvider,
   private val hkdfPepperProvider: HkdfPepperProvider,
   private val deterministicCommutativeCipherKeyProvider: DeterministicCommutativeCipherKeyProvider,
+  private val compressionParametersView: PCollectionView<CompressionParameters>
 ) : DoFn<MutableList<KV<ByteString, ByteString>>, KV<Long, ByteString>>() {
   private val jniCallTimeDistribution =
     Metrics.distribution(BatchingDoFn::class.java, "jni-call-time-micros")
@@ -49,6 +52,7 @@ class EncryptEventsDoFn(
       cryptoKey = deterministicCommutativeCipherKeyProvider.get()
       identifierHashPepper = identifierHashPepperProvider.get()
       hkdfPepper = hkdfPepperProvider.get()
+      compressionParameters = c.sideInput(compressionParametersView)
       for (event in events) {
         unprocessedEvents +=
           unprocessedEvent {

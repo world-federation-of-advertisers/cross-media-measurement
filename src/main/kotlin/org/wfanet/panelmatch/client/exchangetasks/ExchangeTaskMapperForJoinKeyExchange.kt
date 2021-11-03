@@ -27,12 +27,10 @@ import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.certificates.CertificateManager
-import org.wfanet.panelmatch.common.compression.CompressorFactory
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
 /** Maps join key exchange steps to exchange tasks */
 abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
-  abstract val compressorFactory: CompressorFactory
   abstract val deterministicCommutativeCryptor: DeterministicCommutativeCipher
   abstract val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor
   abstract val queryResultsDecryptor: QueryResultsDecryptor
@@ -137,7 +135,6 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       storageFactory = privateStorageSelector.getStorageFactory(this),
       serializedParameters = stepDetails.serializedParameters,
       queryResultsDecryptor = queryResultsDecryptor,
-      compressorFactory = compressorFactory,
       outputs = outputs,
     )
   }

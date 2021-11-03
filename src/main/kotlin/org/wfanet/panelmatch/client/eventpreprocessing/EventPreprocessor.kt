@@ -14,17 +14,16 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-import org.apache.beam.sdk.transforms.SerializableFunction
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
 
 /**
- * Takes in a PreprocessEventsRequest, preprocesses it using JniPreprocessEvents and returns a
- * PreprocessEventsResponse
+ * Implements several encryption schemes to encrypt event data and an identifier. A deterministic
+ * commutative encryption scheme is used to encrypt the identifier, which is hashed using a Sha256
+ * method. The encrypted identifier is also used in an HKDF to create an AES key, which is used for
+ * an AES encryption/decryption of event data.
  */
-class EncryptEvents : SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse> {
-  override fun apply(request: PreprocessEventsRequest): PreprocessEventsResponse {
-    val preprocessEvents: PreprocessEvents = JniPreprocessEvents()
-    return preprocessEvents.preprocess(request)
-  }
+interface EventPreprocessor {
+  /** Preprocesses each of the events in [request] as described above */
+  fun preprocess(request: PreprocessEventsRequest): PreprocessEventsResponse
 }

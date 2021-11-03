@@ -19,14 +19,12 @@ import com.google.api.services.bigquery.model.TableRow
 import com.google.api.services.bigquery.model.TableSchema
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import java.nio.channels.WritableByteChannel
 import java.util.Base64
 import java.util.logging.Logger
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.PipelineResult
 import org.apache.beam.sdk.io.FileIO
-import org.apache.beam.sdk.io.FileIO.Write.FileNaming
 import org.apache.beam.sdk.io.FileSystems
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.TypedRead.Method
@@ -38,10 +36,11 @@ import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
-import org.wfanet.panelmatch.client.eventpreprocessing.preprocessEventsInPipeline
+import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEvents
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
-import org.wfanet.panelmatch.common.compression.BrotliDictionaryBuilder
+import org.wfanet.panelmatch.common.beam.toSingletonView
+import org.wfanet.panelmatch.common.compression.CompressionParameters
 
 interface Options : DataflowPipelineOptions {
   @get:Description("Batch Size") @get:Validation.Required var batchSize: Int
@@ -65,11 +64,9 @@ interface Options : DataflowPipelineOptions {
   @get:Validation.Required
   var bigQueryOutputTable: String
 
-  @get:Description(
-    "File path to write the compression dictionary to (e.g. gs://some-bucket/some/file)"
-  )
+  @get:Description("URI to read the compression parameters from (e.g. gs://some-bucket/some/file)")
   @get:Validation.Required
-  var dictionaryOutputPath: String
+  var compressionParametersUri: String
 }
 /**
  * Runs relevant DoFns to preprocess events in a condensed main function
@@ -96,51 +93,30 @@ fun main(args: Array<String>) {
 
   val pipeline = Pipeline.create(options)
   val unencryptedEvents = readFromBigQuery(options.bigQueryInputTable, pipeline)
-  val (encryptedEvents, dictionary) =
-    preprocessEventsInPipeline(
-      unencryptedEvents,
-      options.batchSize,
-      HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteStringUtf8()),
-      HardCodedHkdfPepperProvider(options.hkdfPepper.toByteStringUtf8()),
-      HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteStringUtf8()),
-      BrotliDictionaryBuilder()
+  val compressionParameters =
+    pipeline
+      .apply(FileIO.match().filepattern(options.compressionParametersUri))
+      .apply(FileIO.readMatches())
+      .map { CompressionParameters.parseFrom(it.readFullyAsBytes()) }
+      .toSingletonView()
+
+  val encryptedEvents =
+    unencryptedEvents.apply(
+      "PreprocessEvents",
+      PreprocessEvents(
+        options.batchSize,
+        HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteStringUtf8()),
+        HardCodedHkdfPepperProvider(options.hkdfPepper.toByteStringUtf8()),
+        HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteStringUtf8()),
+        compressionParameters
+      )
     )
 
   writeToBigQuery(encryptedEvents, options.bigQueryOutputTable)
 
-  val dictionaryFileNaming = FileNaming { _, _, _, _, _ -> "dictionary" }
-  dictionary
-    .map { it.toByteString() }
-    .apply(
-      "Write Dictionary",
-      FileIO.write<ByteString>()
-        .withNumShards(1)
-        .withNaming(dictionaryFileNaming)
-        .via(ByteStringSink())
-        .to(options.dictionaryOutputPath)
-    )
-
   val pipelineResult = pipeline.run()
   check(pipelineResult.waitUntilFinish() == PipelineResult.State.DONE)
   logMetrics(pipelineResult)
-}
-
-private class ByteStringSink : FileIO.Sink<ByteString> {
-  private lateinit var channel: WritableByteChannel
-
-  override fun open(channel: WritableByteChannel) {
-    this.channel = channel
-  }
-
-  override fun write(element: ByteString) {
-    for (buffer in element.asReadOnlyByteBufferList()) {
-      while (buffer.hasRemaining()) {
-        channel.write(buffer)
-      }
-    }
-  }
-
-  override fun flush() {}
 }
 
 private fun readFromBigQuery(

@@ -14,22 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_BROTLI_WRAPPER_H_
-#define SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_BROTLI_WRAPPER_H_
+#ifndef SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_MAKE_COMPRESSOR_H_
+#define SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_MAKE_COMPRESSOR_H_
 
-#include <string>
+#include <memory>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
+#include "wfa/panelmatch/common/compression/compression.pb.h"
+#include "wfa/panelmatch/common/compression/compressor.h"
 
 namespace wfa::panelmatch {
 
-absl::StatusOr<std::string> BrotliCompressWrapper(
-    const std::string& serialized_request);
-
-absl::StatusOr<std::string> BrotliDecompressWrapper(
-    const std::string& serialized_request);
+absl::StatusOr<std::unique_ptr<Compressor>> MakeCompressor(
+    const CompressionParameters& parameters);
 
 }  // namespace wfa::panelmatch
 
-#endif  // SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_BROTLI_WRAPPER_H_
+#endif  // SRC_MAIN_CC_WFA_PANELMATCH_COMMON_COMPRESSION_MAKE_COMPRESSOR_H_

@@ -15,14 +15,9 @@
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
 
 #include <memory>
-#include <string>
 #include <utility>
 
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
-#include "common_cpp/macros/macros.h"
 #include "tink/util/secret_data.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"

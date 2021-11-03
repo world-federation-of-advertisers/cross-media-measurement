@@ -18,7 +18,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/compression/testing",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
     ],
