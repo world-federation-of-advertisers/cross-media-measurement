@@ -25,11 +25,13 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.inOrder
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -54,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvide
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
@@ -69,6 +72,7 @@ import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.provider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -381,9 +385,92 @@ abstract class ExchangeStepsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
-  private suspend fun createRecurringExchange() {
+  @Test
+  fun `streamExchangeSteps returns all exchangeSteps in order`(): Unit = runBlocking {
+    createRecurringExchangeWithMultipleSteps()
+    claimReadyExchangeStep()
+
+    val response =
+      exchangeStepsService
+        .streamExchangeSteps(
+          streamExchangeStepsRequest {
+            filter =
+              filter {
+                externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+                provider = PROVIDER
+              }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
+      .containsExactly(
+        EXCHANGE_STEP.copy {
+          state = ExchangeStep.State.BLOCKED
+          stepIndex = 3
+        },
+        EXCHANGE_STEP
+      )
+      .inOrder()
+  }
+
+  @Test
+  fun `streamExchangeSteps respects limit`(): Unit = runBlocking {
+    createRecurringExchangeWithMultipleSteps()
+    claimReadyExchangeStep()
+
+    val response =
+      exchangeStepsService
+        .streamExchangeSteps(
+          streamExchangeStepsRequest {
+            filter =
+              filter {
+                externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
+                provider = PROVIDER
+              }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
+      .containsExactly(
+        EXCHANGE_STEP.copy {
+          state = ExchangeStep.State.BLOCKED
+          stepIndex = 3
+        }
+      )
+  }
+
+  private suspend fun createRecurringExchange(recExchange: RecurringExchange? = null) {
     recurringExchangesService.createRecurringExchange(
-      createRecurringExchangeRequest { recurringExchange = RECURRING_EXCHANGE }
+      createRecurringExchangeRequest { recurringExchange = recExchange ?: RECURRING_EXCHANGE }
+    )
+  }
+
+  private suspend fun createRecurringExchangeWithMultipleSteps() {
+    val workflow = exchangeWorkflow {
+      steps +=
+        step {
+          party = ExchangeWorkflow.Party.MODEL_PROVIDER
+          stepIndex = 1
+        }
+      steps +=
+        step {
+          party = ExchangeWorkflow.Party.DATA_PROVIDER
+          stepIndex = 2
+        }
+      steps +=
+        step {
+          party = ExchangeWorkflow.Party.MODEL_PROVIDER
+          stepIndex = 3
+          prerequisiteStepIndices += 1
+        }
+    }
+    createRecurringExchange(
+      RECURRING_EXCHANGE.copy { details = details.copy { exchangeWorkflow = workflow } }
     )
   }
 }
