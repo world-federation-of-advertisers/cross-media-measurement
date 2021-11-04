@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Statement
 import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.gcloud.common.toCloudDate
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.Provider
@@ -79,6 +80,11 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
       bind(Params.STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
 
+    if (filter.hasUpdatedAfter()) {
+      conjuncts.add("ExchangeSteps.UpdateTime > @${Params.UPDATED_AFTER}")
+      bind(Params.UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
+    }
+
     check(conjuncts.isNotEmpty())
     appendClause("WHERE ")
     append(conjuncts.joinToString(" AND "))
@@ -90,5 +96,6 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
     const val DATES = "dates"
     const val STATES = "states"
+    const val UPDATED_AFTER = "updatedAfter"
   }
 }
