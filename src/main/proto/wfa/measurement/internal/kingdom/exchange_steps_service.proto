@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "google/type/date.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/exchange_step.proto";
 import "wfa/measurement/internal/kingdom/provider.proto";
 
@@ -67,6 +68,7 @@ message StreamExchangeStepsRequest {
     fixed64 external_recurring_exchange_id = 2;
     repeated google.type.Date dates = 3;
     repeated ExchangeStep.State states = 4;
+    google.protobuf.Timestamp updated_after = 5;
   }
   Filter filter = 1;
 
