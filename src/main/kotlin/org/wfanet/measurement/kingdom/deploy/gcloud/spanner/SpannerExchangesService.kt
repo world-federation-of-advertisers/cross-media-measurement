@@ -21,10 +21,12 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.CreateExchangeRequest
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
+import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchange
 
@@ -43,8 +45,20 @@ class SpannerExchangesService(
           "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
         )
         appendClause("AND Exchanges.Date = @date")
-        bind("external_recurring_exchange_id").to(request.externalRecurringExchangeId)
-        bind("date").to(request.date.toCloudDate())
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (request.provider.type) {
+          Provider.Type.DATA_PROVIDER ->
+            appendClause("  AND DataProviders.ExternalDataProviderId = @external_provider_id")
+          Provider.Type.MODEL_PROVIDER ->
+            appendClause("  AND ModelProviders.ExternalModelProviderId = @external_provider_id")
+          Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
+            failGrpc(Status.INVALID_ARGUMENT) {
+              "external_data_provider_id or external_model_provider_id must be provided."
+            }
+        }
+        bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
+        bind("date" to request.date.toCloudDate())
+        bind("external_provider_id" to request.provider.externalId)
         appendClause("LIMIT 1")
       }
       .execute(client.singleUse())

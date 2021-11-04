@@ -557,3 +557,19 @@ kt_jvm_proto_library(
     ],
     deps = [":requisition_spec_java_proto"],
 )
+
+proto_library(
+    name = "authority_key_to_principal_map_proto",
+    srcs = ["authority_key_to_principal_map.proto"],
+)
+
+java_proto_library(
+    name = "authority_key_to_principal_map_java_proto",
+    deps = [":authority_key_to_principal_map_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "authority_key_to_principal_map_kt_jvm_proto",
+    srcs = [":authority_key_to_principal_map_proto"],
+    deps = [":authority_key_to_principal_map_java_proto"],
+)
