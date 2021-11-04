@@ -42,7 +42,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider failing all
- * associated active measurements if a certificate is revoked
+ * associated active measurements if a DataProvider certificate or a Duchy certificate is revoked
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
