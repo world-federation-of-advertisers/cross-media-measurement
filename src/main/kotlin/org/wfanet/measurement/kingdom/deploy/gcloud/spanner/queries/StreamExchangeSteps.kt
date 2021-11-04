@@ -38,8 +38,8 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
       appendWhereClause(requestFilter)
       appendClause("ORDER BY Date, ExchangeSteps.UpdateTime ASC")
       if (limit > 0) {
-        appendClause("LIMIT @${LIMIT_PARAM}")
-        bind(LIMIT_PARAM to limit.toLong())
+        appendClause("LIMIT @${Params.LIMIT}")
+        bind(Params.LIMIT to limit.toLong())
       }
     }
 
@@ -52,31 +52,31 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (filter.provider.type) {
       Provider.Type.DATA_PROVIDER ->
-        conjuncts.add("DataProviders.ExternalDataProviderId = @${EXTERNAL_PROVIDER_ID_PARAM}")
+        conjuncts.add("DataProviders.ExternalDataProviderId = @${Params.EXTERNAL_PROVIDER_ID}")
       Provider.Type.MODEL_PROVIDER ->
-        conjuncts.add("ModelProviders.ExternalModelProviderId = @${EXTERNAL_PROVIDER_ID_PARAM}")
+        conjuncts.add("ModelProviders.ExternalModelProviderId = @${Params.EXTERNAL_PROVIDER_ID}")
       Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
         failGrpc(Status.INVALID_ARGUMENT) {
           "external_data_provider_id or external_model_provider_id must be provided."
         }
     }
-    bind(EXTERNAL_PROVIDER_ID_PARAM to filter.provider.externalId)
+    bind(Params.EXTERNAL_PROVIDER_ID to filter.provider.externalId)
 
     if (filter.externalRecurringExchangeId != 0L) {
       conjuncts.add(
-        "RecurringExchanges.ExternalRecurringExchangeId = @${EXTERNAL_RECURRING_EXCHANGE_ID_PARAM}"
+        "RecurringExchanges.ExternalRecurringExchangeId = @${Params.EXTERNAL_RECURRING_EXCHANGE_ID}"
       )
-      bind(EXTERNAL_RECURRING_EXCHANGE_ID_PARAM to filter.externalRecurringExchangeId)
+      bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID to filter.externalRecurringExchangeId)
     }
 
     if (filter.datesList.isNotEmpty()) {
-      conjuncts.add("ExchangeSteps.Date IN UNNEST(@${DATES_PARAM})")
-      bind(DATES_PARAM).toDateArray(filter.datesList.map { it.toCloudDate() })
+      conjuncts.add("ExchangeSteps.Date IN UNNEST(@${Params.DATES})")
+      bind(Params.DATES).toDateArray(filter.datesList.map { it.toCloudDate() })
     }
 
     if (filter.statesValueList.isNotEmpty()) {
-      conjuncts.add("ExchangeSteps.State IN UNNEST(@${STATES_PARAM})")
-      bind(STATES_PARAM).toInt64Array(filter.statesValueList.map { it.toLong() })
+      conjuncts.add("ExchangeSteps.State IN UNNEST(@${Params.STATES})")
+      bind(Params.STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
 
     if (conjuncts.isEmpty()) {
@@ -87,11 +87,11 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     append(conjuncts.joinToString(" AND "))
   }
 
-  companion object {
-    const val LIMIT_PARAM = "limit"
-    const val EXTERNAL_PROVIDER_ID_PARAM = "externalModelProviderId"
-    const val EXTERNAL_RECURRING_EXCHANGE_ID_PARAM = "externalRecurringExchangeId"
-    const val DATES_PARAM = "dates"
-    const val STATES_PARAM = "states"
+  private object Params {
+    const val LIMIT = "limit"
+    const val EXTERNAL_PROVIDER_ID = "externalModelProviderId"
+    const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
+    const val DATES = "dates"
+    const val STATES = "states"
   }
 }
