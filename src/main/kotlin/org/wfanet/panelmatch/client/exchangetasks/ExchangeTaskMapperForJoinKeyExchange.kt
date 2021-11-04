@@ -63,6 +63,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> getDecryptMembershipResultsTask()
       StepCase.COPY_FROM_SHARED_STORAGE_STEP -> TODO()
       StepCase.COPY_TO_SHARED_STORAGE_STEP -> TODO()
+      StepCase.COPY_FROM_PREVIOUS_EXCHANGE_STEP -> getCopyFromPreviousExchangeTask()
       else -> error("Unsupported step type: ${step.stepCase}")
     }
   }
@@ -72,9 +73,9 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     require(step.inputLabelsMap.isEmpty())
     val blobKey = step.outputLabelsMap.values.single()
     return InputTask(
-      storage = privateStorageSelector.getStorageClient(this),
+      storage = privateStorageSelector.getStorageClient(exchangeDateKey),
+      throttler = inputTaskThrottler,
       blobKey = blobKey,
-      throttler = inputTaskThrottler
     )
   }
 
@@ -110,7 +111,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
         queryIdAndJoinKeysFileName = step.outputLabelsMap.getValue("query-decryption-keys"),
       )
     return BuildPrivateMembershipQueriesTask(
-      storageFactory = privateStorageSelector.getStorageFactory(this),
+      storageFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
       parameters =
         CreateQueriesParameters(
           numShards = stepDetails.numShards,
@@ -132,7 +133,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
         keyedDecryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
       )
     return DecryptPrivateMembershipResultsTask(
-      storageFactory = privateStorageSelector.getStorageFactory(this),
+      storageFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
       serializedParameters = stepDetails.serializedParameters,
       queryResultsDecryptor = queryResultsDecryptor,
       outputs = outputs,
@@ -155,10 +156,29 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       )
     val queryResultsEvaluator = getQueryResultsEvaluator(stepDetails.serializedParameters)
     return ExecutePrivateMembershipQueriesTask(
-      storageFactory = privateStorageSelector.getStorageFactory(this),
+      storageFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
       evaluateQueriesParameters = parameters,
       queryEvaluator = queryResultsEvaluator,
       outputs = outputs
+    )
+  }
+
+  private suspend fun ExchangeContext.getCopyFromPreviousExchangeTask(): ExchangeTask {
+    val previousBlobKey = step.inputLabelsMap.getValue("input")
+
+    if (exchangeDateKey.date == workflow.firstExchangeDate.toLocalDate()) {
+      return InputTask(
+        previousBlobKey,
+        inputTaskThrottler,
+        privateStorageSelector.getStorageClient(exchangeDateKey)
+      )
+    }
+
+    return CopyFromPreviousExchangeTask(
+      privateStorageSelector,
+      workflow.repetitionSchedule,
+      exchangeDateKey,
+      previousBlobKey
     )
   }
 }
