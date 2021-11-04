@@ -16,8 +16,8 @@ package org.wfanet.panelmatch.client.storage
 
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /**
@@ -42,20 +42,20 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
  */
 class PrivateStorageSelector(
   private val privateStorageFactories:
-    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>,
+    Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory>,
   private val privateStorageInfo: SecretMap
 ) {
 
   private fun getStorageFactory(
     storageDetails: StorageDetails,
-    context: ExchangeContext
+    key: ExchangeDateKey
   ): StorageFactory {
     val platform = storageDetails.platformCase
     val buildStorageFactory =
       requireNotNull(privateStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    return context.buildStorageFactory(storageDetails)
+    return key.buildStorageFactory(storageDetails)
   }
 
   private suspend fun getStorageDetails(recurringExchangeId: String): StorageDetails {
@@ -75,15 +75,15 @@ class PrivateStorageSelector(
    * active with private storage recorded in our secret map. Note that since we only expect to need
    * a StorageFactory for private storage, this does not ever check [privateStorageInfo].
    */
-  suspend fun getStorageFactory(context: ExchangeContext): StorageFactory {
-    return getStorageFactory(getStorageDetails(context.recurringExchangeId), context)
+  suspend fun getStorageFactory(key: ExchangeDateKey): StorageFactory {
+    return getStorageFactory(getStorageDetails(key.recurringExchangeId), key)
   }
 
   /**
    * Gets the appropriate [StorageClient] for the current exchange. Requires the exchange to be
    * active with private storage recorded in our secret map.
    */
-  suspend fun getStorageClient(context: ExchangeContext): StorageClient {
-    return getStorageFactory(context).build()
+  suspend fun getStorageClient(key: ExchangeDateKey): StorageClient {
+    return getStorageFactory(key).build()
   }
 }

@@ -88,7 +88,8 @@ class ExchangeTaskExecutor(
 
   private suspend fun ExchangeContext.tryExecute() {
     logger.addToTaskLog("Executing ${step.stepId} with attempt $attemptKey for $this")
-    val privateStorageClient: StorageClient = privateStorageSelector.getStorageClient(this)
+    val privateStorageClient: StorageClient =
+      privateStorageSelector.getStorageClient(exchangeDateKey)
     if (!isAlreadyComplete(step, privateStorageClient)) {
       runStep(privateStorageClient)
       writeDoneBlob(step, privateStorageClient)
