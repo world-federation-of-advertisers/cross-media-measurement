@@ -14,17 +14,24 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import java.lang.IllegalStateException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
@@ -34,8 +41,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
  *
- * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
- * associated active measurements if a certificate is revoked
+ * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider failing all
+ * associated active measurements if a DataProvider certificate or a Duchy certificate is revoked
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
@@ -83,6 +90,39 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       set("CertificateId" to certificateResult.certificateId.value)
       set("RevocationState" to request.revocationState)
     }
+
+    if (request.parentCase == RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID
+    ) {
+      val filter =
+        StreamMeasurementsRequestKt.filter {
+          externalMeasurementConsumerId = request.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId = request.externalCertificateId
+          states += Measurement.State.PENDING_COMPUTATION
+          states += Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+          states += Measurement.State.PENDING_REQUISITION_FULFILLMENT
+          states += Measurement.State.PENDING_REQUISITION_PARAMS
+        }
+
+      StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
+        val details =
+          it.measurement.details.copy {
+            failure =
+              MeasurementKt.failure {
+                reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                message = "The associated Measurement Consumer certificate has been revoked."
+              }
+          }
+        transactionContext.bufferUpdateMutation("Measurements") {
+          set("MeasurementConsumerId" to it.measurementConsumerId)
+          set("MeasurementId" to it.measurementId)
+          set("State" to Measurement.State.FAILED)
+          set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+          set("MeasurementDetails" to details)
+          setJson("MeasurementDetailsJson" to details)
+        }
+      }
+    }
+
     return certificateResult.certificate.copy { revocationState = request.revocationState }
   }
 

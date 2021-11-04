@@ -83,6 +83,22 @@ message Measurement {
   }
   State state = 8;
 
+  message Failure {
+    enum Reason {
+      REASON_UNSPECIFIED = 0;
+      // An associated certificate was revoked.
+      CERTIFICATE_REVOKED = 1;
+      // Requisition state was set to REFUSED.
+      REQUISITION_REFUSED = 2;
+      // ComputationParticipant state was set to FAILED.
+      COMPUTATION_PARTICIPANT_FAILED = 3;
+    }
+    Reason reason = 1;
+    // Human-readable message. This should not contain any sensitive
+    // information.
+    string message = 2;
+  }
+
   message DataProviderValue {
     fixed64 external_data_provider_certificate_id = 1;
 
@@ -115,6 +131,9 @@ message Measurement {
     bytes aggregator_certificate = 8;
     bytes result_public_key = 9;
     bytes encrypted_result = 10;
+
+    // Set when the state is set to FAILED.
+    Failure failure = 11;
   }
   Details details = 10;
 

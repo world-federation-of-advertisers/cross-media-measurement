@@ -24,6 +24,7 @@ import java.time.Clock
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -32,7 +33,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -40,23 +40,25 @@ import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
+import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
 private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
 private const val NOT_AN_ID = 13579L
-
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 private val X509_DER = ByteString.copyFromUtf8("This is a X.509 certificate in DER format.")
@@ -65,7 +67,7 @@ private val CERTIFICATE = certificate {
   notValidBefore = timestamp { seconds = 12345 }
   notValidAfter = timestamp { seconds = 23456 }
   subjectKeyIdentifier = ByteString.copyFromUtf8("This is an SKID")
-  details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+  details = details { x509Der = CERTIFICATE_DER }
 }
 
 @RunWith(JUnit4::class)
@@ -75,11 +77,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected data class Services<T>(
     val certificatesService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val modelProvidersService: ModelProvidersCoroutineImplBase
   )
 
-  private val clock: Clock = TestClockWithNamedInstants(TEST_INSTANT)
+  private val clock: Clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
 
@@ -87,6 +90,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     private set
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    private set
+
+  protected lateinit var measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase
     private set
 
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
@@ -102,6 +108,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val services = newServices(idGenerator)
     certificatesService = services.certificatesService
     measurementConsumersService = services.measurementConsumersService
+    measurementsService = services.measurementsService
     dataProvidersService = services.dataProvidersService
     modelProvidersService = services.modelProvidersService
   }
@@ -384,14 +391,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `revokeCertificate succeeds for MeasurementConsumerCertificate`() = runBlocking {
-    val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
-        .externalMeasurementConsumerId
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val certificate =
       certificatesService.createCertificate(
         certificate {
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
           details = details { x509Der = X509_DER }
@@ -399,7 +404,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       )
 
     val request = revokeCertificateRequest {
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
       externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
@@ -410,13 +415,72 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       .isEqualTo(
         certificatesService.getCertificate(
           getCertificateRequest {
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalCertificateId = certificate.externalCertificateId
           }
         )
       )
 
     assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
+  }
+
+  @Test
+  fun `revokeCertificate for MeasurementConsumer fails pending Measurements`(): Unit = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+
+    val measurementOne =
+      population.createMeasurement(measurementsService, measurementConsumer, "measurement one")
+    val measurementTwo =
+      population.createMeasurement(measurementsService, measurementConsumer, "measurement two")
+
+    val request = revokeCertificateRequest {
+      externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      externalCertificateId = measurementConsumer.certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    certificatesService.revokeCertificate(request)
+
+    val measurements =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              StreamMeasurementsRequestKt.filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        measurement {
+          state = Measurement.State.FAILED
+          externalMeasurementId = measurementOne.externalMeasurementId
+          details =
+            measurementOne.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "The associated Measurement Consumer certificate has been revoked."
+                }
+            }
+        },
+        measurement {
+          state = Measurement.State.FAILED
+          externalMeasurementId = measurementTwo.externalMeasurementId
+          details =
+            measurementTwo.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "The associated Measurement Consumer certificate has been revoked."
+                }
+            }
+        }
+      )
   }
 
   @Test
