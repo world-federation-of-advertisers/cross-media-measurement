@@ -444,9 +444,9 @@ abstract class ExchangeStepsServiceTest {
       )
   }
 
-  private suspend fun createRecurringExchange(recExchange: RecurringExchange? = null) {
+  private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
     recurringExchangesService.createRecurringExchange(
-      createRecurringExchangeRequest { recurringExchange = recExchange ?: RECURRING_EXCHANGE }
+      createRecurringExchangeRequest { recurringExchange = recExchange }
     )
   }
 

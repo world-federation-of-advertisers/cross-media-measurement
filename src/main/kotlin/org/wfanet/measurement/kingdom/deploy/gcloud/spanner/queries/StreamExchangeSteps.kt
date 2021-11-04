@@ -79,10 +79,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
       bind(Params.STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
 
-    if (conjuncts.isEmpty()) {
-      return
-    }
-
+    check(conjuncts.isNotEmpty())
     appendClause("WHERE ")
     append(conjuncts.joinToString(" AND "))
   }
