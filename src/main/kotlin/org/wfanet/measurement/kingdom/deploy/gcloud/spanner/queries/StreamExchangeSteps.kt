@@ -37,7 +37,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
   override val reader =
     ExchangeStepReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY Date, ExchangeSteps.UpdateTime ASC")
+      appendClause("ORDER BY ExchangeSteps.UpdateTime, Date ASC")
       if (limit > 0) {
         appendClause("LIMIT @${Params.LIMIT}")
         bind(Params.LIMIT to limit.toLong())
