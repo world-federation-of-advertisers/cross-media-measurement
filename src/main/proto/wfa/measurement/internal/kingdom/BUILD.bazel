@@ -7,6 +7,30 @@ load(":macros.bzl", "IMPORT_PREFIX", "proto_and_java_proto_library")
 package(default_visibility = ["//:__subpackages__"])
 
 proto_and_java_proto_library(
+    name = "account",
+)
+
+proto_library(
+    name = "accounts_service_proto",
+    srcs = ["accounts_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":account_proto",
+    ],
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "accounts_service_kt_jvm_grpc",
+    srcs = [":accounts_service_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "accounts_service_kt_jvm_proto",
+    srcs = [":accounts_service_proto"],
+    deps = [":accounts_service_java_proto"],
+)
+
+proto_and_java_proto_library(
     name = "computation_participant",
     deps = [
         ":certificate_proto",
