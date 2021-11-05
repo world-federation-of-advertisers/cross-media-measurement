@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.db.computation.testing
 
 import io.grpc.Status
+import kotlin.experimental.ExperimentalTypeInference
+import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
@@ -23,8 +25,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
-import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.duchy.db.computation.toCompletedReason
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
@@ -34,19 +34,21 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTokenKt
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionEntry
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
 /** In-memory [ComputationsDatabase] */
 class FakeComputationsDatabase
 private constructor(
   /** Map of local computation ID to [ComputationToken]. */
   private val tokens: MutableMap<Long, ComputationToken>,
-  /**
-   * Map of external_requisition_id to local computation id. External_data_provider_id is ignored in
-   * this fake implementation.
-   */
-  private val requisitionMap: MutableMap<String, Long>
+  /** Map of [ExternalRequisitionKey] to local computation ID. */
+  private val requisitionMap: MutableMap<ExternalRequisitionKey, Long>
 ) :
   Map<Long, ComputationToken> by tokens,
   ComputationsDatabase,
@@ -65,7 +67,7 @@ private constructor(
     initialStage: ComputationStage,
     stageDetails: ComputationStageDetails,
     computationDetails: ComputationDetails,
-    requisitions: List<ExternalRequisitionKey>
+    requisitions: List<RequisitionEntry>
   ) {
     if (globalId.toLong() in tokens) {
       throw Status.fromCode(Status.Code.ALREADY_EXISTS).asRuntimeException()
@@ -78,12 +80,10 @@ private constructor(
       blobs = listOf(newEmptyOutputBlobMetadata(id = 0L)),
       requisitions =
         requisitions.map {
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = it.externalDataProviderId
-              externalRequisitionId = it.externalRequisitionId
-            }
-            .build()
+          requisitionMetadata {
+            externalKey = it.key
+            details = it.value
+          }
         }
     )
   }
@@ -111,10 +111,7 @@ private constructor(
           addAllRequisitions(requisitions)
         }
         .build()
-    requisitions.forEach {
-      // externalDataProviderId is ignored in this fake implementation.
-      requisitionMap[it.externalRequisitionId] = localId
-    }
+    requisitions.forEach { requisitionMap[it.externalKey] = localId }
   }
 
   /** @see addComputation */
@@ -146,6 +143,8 @@ private constructor(
    * @param changedTokenBuilderFunc function which returns a [ComputationToken.Builder] used to
    * replace the [tokenToUpdate]. The version of the token is always incremented.
    */
+  @OptIn(ExperimentalTypeInference::class)
+  @OverloadResolutionByLambdaReturnType
   private fun updateToken(
     tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
     changedTokenBuilderFunc: (ComputationToken) -> ComputationToken.Builder
@@ -153,6 +152,20 @@ private constructor(
     val current = requireTokenFromCurrent(tokenToUpdate)
     tokens[tokenToUpdate.localId] =
       changedTokenBuilderFunc(current).setVersion(tokenToUpdate.editVersion + 1).build()
+  }
+
+  /** @see [updateToken] */
+  @JvmName("updateTokenDsl")
+  private inline fun updateToken(
+    tokenToUpdate: ComputationEditToken<ComputationType, ComputationStage>,
+    fillUpdatedToken: ComputationTokenKt.Dsl.() -> Unit
+  ) {
+    val current = requireTokenFromCurrent(tokenToUpdate)
+    tokens[tokenToUpdate.localId] =
+      current.copy {
+        fillUpdatedToken()
+        version = tokenToUpdate.editVersion + 1
+      }
   }
 
   private fun requireTokenFromCurrent(
@@ -234,17 +247,24 @@ private constructor(
   override suspend fun updateComputationDetails(
     token: ComputationEditToken<ComputationType, ComputationStage>,
     computationDetails: ComputationDetails,
-    requisitionDetailUpdates: List<RequisitionDetailUpdate>
+    requisitions: List<RequisitionEntry>
   ) {
-    updateToken(token) { existing ->
-      val tokenBuilder = existing.toBuilder().setComputationDetails(computationDetails)
-      val requisitionBuildersByExternalId =
-        tokenBuilder.requisitionsBuilderList.associateBy { it.externalRequisitionId }
-      for (update in requisitionDetailUpdates) {
-        requisitionBuildersByExternalId[update.key.externalRequisitionId]?.setDetails(update.detail)
-          ?: error("requisition not found")
+    @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
+    updateToken(token) {
+      this.computationDetails = computationDetails
+
+      val requisitionMetadataByKey =
+        this.requisitions.associateByTo(mutableMapOf()) { it.externalKey }
+      for (requisition in requisitions) {
+        val existingMetadata =
+          requisitionMetadataByKey[requisition.key]
+            ?: error("Requisition not found: ${requisition.key.toJson()}")
+        requisitionMetadataByKey[requisition.key] =
+          existingMetadata.copy { details = requisition.value }
       }
-      tokenBuilder
+
+      this.requisitions.clear()
+      this.requisitions += requisitionMetadataByKey.values
     }
   }
 
@@ -286,14 +306,13 @@ private constructor(
     externalRequisitionKey: ExternalRequisitionKey,
     pathToBlob: String
   ) {
-    updateToken(token) { existing ->
-      val tokenBuilder = existing.toBuilder()
-      tokenBuilder
-        .requisitionsBuilderList
-        .find { it.externalRequisitionId == externalRequisitionKey.externalRequisitionId }
-        ?.setPath(pathToBlob)
-        ?: error("requisition not found")
-      tokenBuilder
+    @Suppress("CANDIDATE_CHOSEN_USING_OVERLOAD_RESOLUTION_BY_LAMBDA_ANNOTATION")
+    updateToken(token) {
+      val requisitionIndex = requisitions.indexOfFirst { it.externalKey == externalRequisitionKey }
+      if (requisitionIndex < 0) {
+        error("Requisition not found: ${externalRequisitionKey.toJson()}")
+      }
+      requisitions[requisitionIndex] = requisitions[requisitionIndex].copy { path = pathToBlob }
     }
   }
 
@@ -343,7 +362,7 @@ private constructor(
 
   override suspend fun readComputationToken(
     externalRequisitionKey: ExternalRequisitionKey
-  ): ComputationToken? = tokens[requisitionMap[externalRequisitionKey.externalRequisitionId]]
+  ): ComputationToken? = tokens[requisitionMap[externalRequisitionKey]]
 
   override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
     tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()

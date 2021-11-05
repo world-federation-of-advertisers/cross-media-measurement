@@ -21,11 +21,11 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 
 /** Implementation of [ComputationsDatabaseReader] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseReader(

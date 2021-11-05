@@ -366,14 +366,14 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     // Step 2 - FulfillRequisitions for all Requisitions. This transitions the measurement state to
     // PENDING_PARTICIPANT_CONFIRMATION.
-    val participationSignature = ByteString.copyFromUtf8("Participation signature")
+    val nonce = 3127743798281582205L
     for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
       requisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
           externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
           externalFulfillingDuchyId = duchyId
-          dataProviderParticipationSignature = participationSignature
+          this.nonce = nonce
         }
       )
     }
@@ -448,15 +448,14 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
     // Step 2 - FulfillRequisitions for all Requisitions. This transitions the measurement state to
     // PENDING_PARTICIPANT_CONFIRMATION.
-    val participationSignature = ByteString.copyFromUtf8("Participation signature")
-
+    val nonce = 3127743798281582205L
     for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
       requisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
           externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
           externalFulfillingDuchyId = duchyId
-          dataProviderParticipationSignature = participationSignature
+          this.nonce = nonce
         }
       )
     }

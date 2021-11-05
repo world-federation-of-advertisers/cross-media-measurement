@@ -14,19 +14,22 @@
 
 package org.wfanet.measurement.duchy.service.api.v2alpha
 
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
+import org.wfanet.measurement.consent.client.duchy.verifyRequisitionFulfillment
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -35,9 +38,12 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
-import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
 
 private val FULFILLED_RESPONSE =
   FulfillRequisitionResponse.newBuilder().apply { state = Requisition.State.FULFILLED }.build()
@@ -58,35 +64,23 @@ class RequisitionFulfillmentService(
         grpcRequireNotNull(RequisitionKey.fromName(header.name)) {
           "Resource name unspecified or invalid."
         }
-      grpcRequire(!header.dataProviderParticipationSignature.isEmpty) {
-        "DataProviderParticipationSignature is missing in the header."
+      grpcRequire(header.nonce != 0L) { "nonce unspecified" }
+
+      val externalRequisitionKey = externalRequisitionKey {
+        externalRequisitionId = key.requisitionId
+        requisitionFingerprint = header.requisitionFingerprint
       }
-
-      val externalRequisitionKey =
-        ExternalRequisitionKey.newBuilder()
-          .apply {
-            externalDataProviderId = key.dataProviderId
-            externalRequisitionId = key.requisitionId
-          }
-          .build()
-
-      val computationToken = externalRequisitionKey.toComputationToken()
-
-      // The requisition is guaranteed to exist in the token, so the find() will always succeed.
-      val alreadyMarkedFulfilled =
-        computationToken.requisitionsList.find {
-            it.externalDataProviderId == externalRequisitionKey.externalDataProviderId &&
-              it.externalRequisitionId == externalRequisitionKey.externalRequisitionId
-          }!!
-          .path.isNotBlank()
+      val computationToken = getComputationToken(externalRequisitionKey)
+      val requisitionMetadata =
+        verifyRequisitionFulfillment(computationToken, externalRequisitionKey, header.nonce)
 
       // Only try writing to the blob store if it is not already marked fulfilled.
       // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
       //  is already marked fulfilled locally.
-      if (!alreadyMarkedFulfilled) {
+      if (requisitionMetadata.path.isBlank()) {
         val blob =
           requisitionStore.write(
-            RequisitionBlobContext(key.dataProviderId, key.requisitionId),
+            RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
             consumed.remaining.map { it.bodyChunk.data }
           )
         recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
@@ -95,17 +89,18 @@ class RequisitionFulfillmentService(
       fulfillRequisitionAtKingdom(
         computationToken.globalComputationId,
         externalRequisitionKey.externalRequisitionId,
-        header.dataProviderParticipationSignature
+        header.nonce
       )
 
       return FULFILLED_RESPONSE
     }
   }
 
-  /** Gets the token of the computation that this requisition is used in. */
-  private suspend fun ExternalRequisitionKey.toComputationToken(): ComputationToken {
-    val request = GetComputationTokenRequest.newBuilder().also { it.requisitionKey = this }.build()
-    return getComputationToken(request).token
+  private suspend fun getComputationToken(
+    requisitionKey: ExternalRequisitionKey
+  ): ComputationToken {
+    return getComputationToken(getComputationTokenRequest { this.requisitionKey = requisitionKey })
+      .token
   }
 
   /** Sends a request to get computation token. */
@@ -123,6 +118,38 @@ class RequisitionFulfillmentService(
         throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
+  }
+
+  private fun verifyRequisitionFulfillment(
+    computationToken: ComputationToken,
+    requisitionKey: ExternalRequisitionKey,
+    nonce: Long
+  ): RequisitionMetadata {
+    val kingdomComputation = computationToken.computationDetails.kingdomComputation
+    when (Version.fromString(kingdomComputation.publicApiVersion)) {
+      Version.V2_ALPHA -> {}
+      Version.VERSION_UNSPECIFIED ->
+        throw Status.FAILED_PRECONDITION
+          .withDescription("Public API version invalid or unspecified")
+          .asRuntimeException()
+    }
+
+    val measurementSpec = MeasurementSpec.parseFrom(kingdomComputation.measurementSpec)
+    val requisitionMetadata =
+      checkNotNull(computationToken.requisitionsList.find { it.externalKey == requisitionKey })
+    if (!verifyRequisitionFulfillment(
+        measurementSpec,
+        requisitionMetadata.toConsentSignalingRequisition(),
+        requisitionKey.requisitionFingerprint,
+        nonce
+      )
+    ) {
+      throw Status.FAILED_PRECONDITION
+        .withDescription("Requisition fulfillment could not be verified")
+        .asRuntimeException()
+    }
+
+    return requisitionMetadata
   }
 
   /** Sends rpc to the duchy's internal ComputationsService to record requisition blob path. */
@@ -146,20 +173,16 @@ class RequisitionFulfillmentService(
   private suspend fun fulfillRequisitionAtKingdom(
     computationId: String,
     requisitionId: String,
-    signature: ByteString
+    nonce: Long
   ) {
     systemRequisitionsClient.fulfillRequisition(
-      SystemFulfillRequisitionRequest.newBuilder()
-        .apply {
-          name = SystemRequisitionKey(computationId, requisitionId).toName()
-          dataProviderParticipationSignature = signature
-        }
-        .build()
+      systemFulfillRequisitionRequest {
+        name = SystemRequisitionKey(computationId, requisitionId).toName()
+        this.nonce = nonce
+      }
     )
   }
-
-  /** Returns a blob key derived from this [ExternalRequisitionKey]. */
-  private fun ExternalRequisitionKey.toBlobKey(): String {
-    return "/requisitions/$externalDataProviderId/$externalRequisitionId"
-  }
 }
+
+private fun RequisitionMetadata.toConsentSignalingRequisition() =
+  ConsentSignalingRequisition(externalKey.requisitionFingerprint, details.nonceHash)
