@@ -41,7 +41,6 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -74,8 +73,6 @@ private val MEASUREMENT = measurement {
       apiVersion = API_VERSION
       measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
       measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      dataProviderList = ByteString.copyFromUtf8("EDP list")
-      dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
       duchyProtocolConfig =
         duchyProtocolConfig {
           liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
@@ -139,6 +136,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for missing data provider`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataProvidersService)
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val exception =
@@ -148,7 +146,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId =
               measurementConsumer.certificate.externalCertificateId
-            dataProviders[404L] = Measurement.DataProviderValue.getDefaultInstance()
+            dataProviders[404L] = dataProvider.toDataProviderValue()
           }
         )
       }
@@ -159,10 +157,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for missing measurement consumer`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementsService.createMeasurement(
-          MEASUREMENT.copy { externalMeasurementConsumerId = 404L }
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = 404L
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+          }
         )
       }
 
@@ -266,13 +272,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId =
               measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] =
-              dataProviderValue {
-                externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-                dataProviderPublicKey = dataProvider.details.publicKey
-                dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-                encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-              }
+            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
           }
         )
       }
@@ -299,13 +299,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId =
               measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] =
-              dataProviderValue {
-                externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-                dataProviderPublicKey = dataProvider.details.publicKey
-                dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-                encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-              }
+            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
           }
         )
       }
@@ -332,13 +326,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId =
               measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] =
-              dataProviderValue {
-                externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-                dataProviderPublicKey = dataProvider.details.publicKey
-                dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-                encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-              }
+            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
           }
         )
       }
@@ -357,10 +345,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         externalMeasurementConsumerCertificateId =
           measurementConsumer.certificate.externalCertificateId
-        dataProviders[dataProvider.externalDataProviderId] =
-          dataProviderValue {
-            externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-          }
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
       }
 
     val createdMeasurement = measurementsService.createMeasurement(measurement)
@@ -489,19 +474,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     runBlocking<Unit> {
       val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
       val dataProvider = population.createDataProvider(dataProvidersService)
+      val dataProviderValue = dataProvider.toDataProviderValue()
       val createdMeasurement =
         measurementsService.createMeasurement(
           MEASUREMENT.copy {
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId =
               measurementConsumer.certificate.externalCertificateId
-            dataProviders[dataProvider.externalDataProviderId] =
-              dataProviderValue {
-                externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-                dataProviderPublicKey = dataProvider.details.publicKey
-                dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-                encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-              }
+            dataProviders[dataProvider.externalDataProviderId] = dataProviderValue
           }
         )
 
@@ -545,11 +525,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               }
             details =
               details {
-                dataProviderPublicKey = dataProvider.details.publicKey
-                dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-                encryptedRequisitionSpec =
-                  createdMeasurement.dataProvidersMap[dataProvider.externalDataProviderId]!!
-                    .encryptedRequisitionSpec
+                dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+                dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+                encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+                nonceHash = dataProviderValue.nonceHash
               }
             duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()
             duchies["Rippon"] = Requisition.DuchyValue.getDefaultInstance()
@@ -618,7 +597,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val expectedMeasurementDetails =
       createdMeasurement.details.copy {
         aggregatorCertificate = request.aggregatorCertificate
-        resultPublicKey = request.resultPublicKey
         encryptedResult = request.encryptedResult
       }
     assertThat(measurementWithResult.updateTime.toInstant())
