@@ -21,12 +21,16 @@
 --   │   ├── DataProviderCertificates
 --   │   └── EventGroups
 --   ├── DuchyCertificates
---   └── MeasurementConsumers
---       ├── MeasurementConsumerCertificates
---       └── Measurements
---           ├── ComputationParticipants
---           ├── MeasurementLogEntries
---           └── Requisitions
+--   ├── MeasurementConsumers
+--   │   ├── MeasurementConsumerCertificates
+--   │   └── Measurements
+--   │       ├── ComputationParticipants
+--   │       ├── MeasurementLogEntries
+--   │       └── Requisitions
+--   └── Accounts
+--       ├── OpenIdConnectIdentities
+--       ├── OpenIdConnectClaims
+--       └── MeasurementConsumersOwners
 --
 -- Note that there is no Duchies table. Instead, a well-known set of Duchies
 -- should be defined in a configuration file for a given Kingdom deployment.
@@ -81,6 +85,7 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
+-- TODO: add MeasurementConsumerCreationToken and a unique index on it
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId INT64 NOT NULL,
 
@@ -354,3 +359,63 @@ CREATE TABLE DuchyMeasurementLogEntries (
 
 CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
   ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
+
+CREATE TABLE Accounts (
+  AccountId INT64 NOT NULL,
+
+  CreatorAccountId INT64,
+
+  ExternalAccountId INT64 NOT NULL,
+
+  -- org.wfanet.measurement.internal.kingdom.Account.ActivationState
+  -- protobuf enum encoded as an integer.
+  ActivationState INT64 NOT NULL,
+
+  OwnedMeasurementConsumerId INT64,
+  ActivationToken INT64 NOT NULL,
+
+  MeasurementConsumerCreationToken INT64 NOT NULL,
+
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+  UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  FOREIGN KEY (CreatorAccountId) REFERENCES Accounts(AccountId),
+  FOREIGN KEY (OwnedMeasurementConsumerId) REFERENCES MeasurementConsumers(MeasurementConsumerId),
+) PRIMARY KEY (AccountId);
+
+CREATE UNIQUE INDEX AccountsByExternalId
+  ON Accounts(ExternalAccountId);
+
+CREATE TABLE OpenIdConnectIdentities (
+  AccountId INT64 NOT NULL,
+  OpenIdConnectIdentityId INT64 NOT NULL,
+
+  Issuer STRING(MAX) NOT NULL,
+  Subject STRING(MAX) NOT NULL,
+) PRIMARY KEY (AccountId, OpenIdConnectIdentityId),
+INTERLEAVE IN PARENT Accounts ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX OpenIdConnectIdentitiesByIssuerAndSubject
+  ON OpenIdConnectIdentities(Issuer, Subject);
+
+CREATE TABLE OpenIdConnectClaims (
+  OpenIdConnectClaimsId INT64 NOT NULL,
+
+  -- Used as the state
+  ExternalOpenIdConnectClaimsId INT64 NOT NULL,
+
+  Nonce INT64 NOT NULL,
+  AuthTime INT64,
+) PRIMARY KEY (OpenIdConnectClaimsId);
+
+CREATE UNIQUE INDEX OpenIdConnectClaimsByExternalId
+  ON OpenIdConnectClaims(ExternalOpenIdConnectClaimsId);
+
+CREATE TABLE MeasurementConsumerOwners (
+  MeasurementConsumerId INT64 NOT NULL,
+  AccountId INT64 NOT NULL,
+
+  FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId),
+) PRIMARY KEY (MeasurementConsumerId, AccountId),
+INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
