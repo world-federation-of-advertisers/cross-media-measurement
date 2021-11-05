@@ -4,14 +4,6 @@ load("//build:repositories.bzl", "wfa_measurement_system_repositories")
 
 wfa_measurement_system_repositories()
 
-load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
-
-common_cpp_repositories()
-
-load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
-
-common_cpp_deps()
-
 load("@wfa_common_jvm//build:common_jvm_repositories.bzl", "common_jvm_repositories")
 
 common_jvm_repositories()
@@ -19,6 +11,14 @@ common_jvm_repositories()
 load("@wfa_common_jvm//build:common_jvm_deps.bzl", "common_jvm_deps")
 
 common_jvm_deps()
+
+load("@wfa_common_cpp//build:common_cpp_repositories.bzl", "common_cpp_repositories")
+
+common_cpp_repositories()
+
+load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
+
+common_cpp_deps()
 
 # Maven
 load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_OVERRIDE_TARGETS", "common_jvm_maven_artifacts")

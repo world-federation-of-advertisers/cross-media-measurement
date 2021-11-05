@@ -148,7 +148,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId =
               measurementConsumer.certificate.externalCertificateId
-            dataProviders[0L] = dataProviderValue {}
+            dataProviders[404L] = Measurement.DataProviderValue.getDefaultInstance()
           }
         )
       }
@@ -160,7 +160,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement fails for missing measurement consumer`() = runBlocking {
     val exception =
-      assertFailsWith<StatusRuntimeException> { measurementsService.createMeasurement(MEASUREMENT) }
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy { externalMeasurementConsumerId = 404L }
+        )
+      }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
