@@ -40,12 +40,14 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -68,12 +70,12 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.liquidLegionsV2 as internalLiquidLegionsV2
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
@@ -100,7 +102,7 @@ private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
   externalProtocolConfigId = "llv2"
   measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
   liquidLegionsV2 =
-    internalLiquidLegionsV2 {
+    InternalProtocolConfigKt.liquidLegionsV2 {
       sketchParams =
         internalLiquidLegionsSketchParams {
           decayRate = 1.1
@@ -177,6 +179,11 @@ private val MEASUREMENT = measurement {
     }
   protocolConfig = PUBLIC_PROTOCOL_CONFIG
   measurementReferenceId = "ref_id"
+  failure =
+    failure {
+      reason = Failure.Reason.CERTIFICATE_REVOKED
+      message = "Measurement Consumer Certificate has been revoked"
+    }
 }
 
 private val INTERNAL_MEASUREMENT = internalMeasurement {
@@ -198,7 +205,7 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
     MEASUREMENT.dataProvidersList.associateBy(
       { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
       {
-        dataProviderValue {
+        InternalMeasurementKt.dataProviderValue {
           externalDataProviderCertificateId =
             apiIdToExternalId(
               DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!.certificateId
@@ -211,7 +218,7 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
     )
   )
   details =
-    details {
+    InternalMeasurementKt.details {
       apiVersion = Version.V2_ALPHA.string
       measurementSpec = MEASUREMENT.measurementSpec.data
       measurementSpecSignature = MEASUREMENT.measurementSpec.signature
@@ -219,6 +226,11 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
       dataProviderListSalt = MEASUREMENT.dataProviderListSalt
       protocolConfig = INTERNAL_PROTOCOL_CONFIG
       duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
+      failure =
+        InternalMeasurementKt.failure {
+          reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
+          message = MEASUREMENT.failure.message
+        }
     }
 }
 
@@ -293,6 +305,7 @@ class MeasurementsServiceTest {
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
           clearExternalMeasurementId()
+          details = details.copy { clearFailure() }
         }
       )
 
