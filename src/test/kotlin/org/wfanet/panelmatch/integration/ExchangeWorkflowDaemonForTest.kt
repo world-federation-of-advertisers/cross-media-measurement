@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemon
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
@@ -36,6 +37,8 @@ import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
+import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.certificates.CertificateManager
@@ -53,6 +56,14 @@ class ExchangeWorkflowDaemonForTest(
   private val providerKey: ResourceKey,
   private val taskTimeoutDuration: Duration,
   private val pollingInterval: Duration,
+  override val rootCertificates: SecretMap,
+  override val privateKeys: SecretMap,
+  override val privateStorageFactories:
+    Map<StorageDetails.PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>,
+  override val privateStorageInformation: SecretMap,
+  override val sharedStorageFactories:
+    Map<StorageDetails.PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>,
+  override val sharedStorageInformation: SecretMap,
 ) : ExchangeWorkflowDaemon() {
 
   override val certificateManager: CertificateManager by lazy { TestCertificateManager() }

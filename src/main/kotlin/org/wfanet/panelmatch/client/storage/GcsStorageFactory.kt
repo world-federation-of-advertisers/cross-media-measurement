@@ -15,21 +15,41 @@
 package org.wfanet.panelmatch.client.storage
 
 import com.google.cloud.storage.StorageOptions
-import com.google.type.Date
+import java.security.MessageDigest
+import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.storage.StorageDetails.BucketType
+import org.wfanet.panelmatch.common.ExchangeDateKey
 
 class GcsStorageFactory(
   private val storageDetails: StorageDetails,
-  private val recurringExchangeId: String,
-  private val exchangeDate: Date
+  private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
-
-  // TODO(jonmolle): Add support for per-exchange buckets here.
   override fun build(): StorageClient {
+    val gcs = storageDetails.gcs
+    val bucketId: String =
+      when (val bucketType: BucketType = gcs.bucketType) {
+        BucketType.STATIC_BUCKET -> gcs.bucket
+        BucketType.ROTATING_BUCKET -> {
+          val storageDetailsFingerprint =
+            fingerprint("${gcs.bucket}-${gcs.projectName}-${storageDetails.visibility.name}")
+          val exchangeFingerprint = fingerprint(exchangeDateKey.path)
+          // Maximum bucket size is 63 characters. 512 bits in hex is 32 characters, so we drop one.
+          storageDetailsFingerprint + exchangeFingerprint.take(31)
+        }
+        BucketType.UNKNOWN_TYPE, BucketType.UNRECOGNIZED ->
+          error("Invalid bucket_type: $bucketType")
+      }
     return GcsStorageClient(
-      StorageOptions.newBuilder().setProjectId(storageDetails.gcs.projectName).build().service,
-      storageDetails.gcs.bucket
+      StorageOptions.newBuilder().setProjectId(gcs.projectName).build().service,
+      bucketId
     )
   }
+}
+
+private fun fingerprint(data: String): String {
+  val digest = MessageDigest.getInstance("SHA-512").digest(data.toByteArray(Charsets.UTF_8))
+  return HexString(digest.toByteString()).value.toLowerCase()
 }

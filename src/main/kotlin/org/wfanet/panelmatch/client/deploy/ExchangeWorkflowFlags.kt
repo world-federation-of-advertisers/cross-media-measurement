@@ -49,6 +49,15 @@ class ExchangeWorkflowFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--storage-signing-algorithm"],
+    defaultValue = "EC",
+    description = ["The algorithm used in signing data written to shared storage."],
+    required = true
+  )
+  lateinit var certAlgorithm: String
+    private set
+
+  @CommandLine.Option(
     names = ["--polling-interval"],
     defaultValue = "1m",
     description = ["How long to sleep between finding and running an ExchangeStep."],

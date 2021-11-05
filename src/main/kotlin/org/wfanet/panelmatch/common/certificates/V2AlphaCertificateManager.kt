@@ -32,7 +32,13 @@ import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
-/** [CertificateManager] that loads [X509Certificate]s from [certificateService]. */
+/**
+ * [CertificateManager] that loads [X509Certificate]s from [certificateService].
+ *
+ * [certificateAuthority] should be a private CA that's capable of signing with the party's root
+ * private key. This abstraction is important because this private key is extraordinarily sensitive
+ * and should be locked down.
+ */
 class V2AlphaCertificateManager(
   private val certificateService: CertificatesCoroutineStub,
   private val rootCerts: SecretMap,

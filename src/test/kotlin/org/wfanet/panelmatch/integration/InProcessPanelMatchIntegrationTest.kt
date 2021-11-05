@@ -116,6 +116,12 @@ class InProcessPanelMatchIntegrationTest {
         providerKey = dataProviderKey,
         taskTimeoutDuration = TASK_TIMEOUT_DURATION,
         pollingInterval = POLLING_INTERVAL,
+        rootCertificates = secretMap,
+        privateKeys = secretMap,
+        privateStorageFactories = emptyMap(),
+        privateStorageInformation = secretMap,
+        sharedStorageFactories = emptyMap(),
+        sharedStorageInformation = secretMap,
       )
 
     val mpScope = createScope("MP SCOPE")
@@ -130,6 +136,12 @@ class InProcessPanelMatchIntegrationTest {
         providerKey = modelProviderKey,
         taskTimeoutDuration = TASK_TIMEOUT_DURATION,
         pollingInterval = POLLING_INTERVAL,
+        rootCertificates = secretMap,
+        privateKeys = secretMap,
+        privateStorageFactories = emptyMap(),
+        privateStorageInformation = secretMap,
+        sharedStorageFactories = emptyMap(),
+        sharedStorageInformation = secretMap,
       )
     edpDaemon.run()
     mpDaemon.run()

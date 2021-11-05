@@ -14,13 +14,12 @@
 
 package org.wfanet.panelmatch.client.storage
 
-import com.google.type.Date
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.common.ExchangeDateKey
 
 class S3StorageFactory(
   private val storageDetails: StorageDetails,
-  private val recurringExchangeId: String,
-  private val exchangeDate: Date
+  private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
 
   override fun build(): StorageClient {

@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
@@ -29,30 +30,29 @@ import org.wfanet.panelmatch.client.launcher.ExchangeStepValidatorImpl
 import org.wfanet.panelmatch.client.launcher.ExchangeTaskExecutor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
+import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
+import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.CertificateManager
+import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** Runs ExchangeWorkflows. */
 abstract class ExchangeWorkflowDaemon : Runnable {
-
   /** Identity of the party executing this daemon. */
   abstract val identity: Identity
 
   /** Kingdom [ApiClient]. */
   abstract val apiClient: ApiClient
 
-  /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
-  abstract val privateStorageSelector: PrivateStorageSelector
+  /** Holds partners' root certificates. */
+  abstract val rootCertificates: SecretMap
 
-  /** [SharedStorageSelector] for writing to shared storage. */
-  abstract val sharedStorageSelector: SharedStorageSelector
-
-  /**
-   * [CertificateManager] for managing access to the certificate API service and private
-   * (exchange-agnostic) storage containing saved certs.
-   */
-  abstract val certificateManager: CertificateManager
+  /** Stores private keys associated with exchange certificates. */
+  abstract val privateKeys: MutableSecretMap
 
   /** [SecretMap] from RecurringExchange ID to serialized ExchangeWorkflow. */
   abstract val validExchangeWorkflows: SecretMap
@@ -72,8 +72,42 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Scope in which to run the daemon loop. */
   abstract val scope: CoroutineScope
 
-  override fun run() {
+  /** [CertificateAuthority] for use in [sharedStorageSelector]. */
+  protected abstract val certificateAuthority: CertificateAuthority
 
+  /** How to build private storage. */
+  protected abstract val privateStorageFactories:
+    Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory>
+
+  /** Serialized [StorageDetails] protos by RecurringExchange. */
+  protected abstract val privateStorageInfo: SecretMap
+
+  /** How to build shared storage. */
+  protected abstract val sharedStorageFactories:
+    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>
+
+  /** Serialized [StorageDetails] protos by RecurringExchange. */
+  protected abstract val sharedStorageInfo: SecretMap
+
+  /** [CertificateManager] for [sharedStorageSelector]. */
+  protected abstract val certificateManager: CertificateManager
+
+  /** [PrivateStorageSelector] for writing to local (non-shared) storage. */
+  protected val privateStorageSelector: PrivateStorageSelector by lazy {
+    PrivateStorageSelector(privateStorageFactories, privateStorageInfo)
+  }
+
+  /** [SharedStorageSelector] for writing to shared storage. */
+  protected val sharedStorageSelector: SharedStorageSelector by lazy {
+    SharedStorageSelector(
+      certificateManager,
+      identity.toName(),
+      sharedStorageFactories,
+      sharedStorageInfo
+    )
+  }
+
+  override fun run() {
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,

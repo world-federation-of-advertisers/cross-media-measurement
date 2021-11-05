@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.deploy
 import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -30,6 +31,7 @@ import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
+import org.wfanet.panelmatch.common.certificates.V2AlphaCertificateManager
 import picocli.CommandLine
 
 /** Executes ExchangeWorkflows. */
@@ -38,7 +40,34 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   protected lateinit var flags: ExchangeWorkflowFlags
     private set
 
-  // TODO(jonmolle): Implement certificateManager and the storage SecretMaps here.
+  override val certificateManager: V2AlphaCertificateManager by lazy {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = flags.tlsFlags.certFile,
+        privateKeyFile = flags.tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+      )
+
+    val channel =
+      buildMutualTlsChannel(
+          flags.exchangeApiTarget.toString(),
+          clientCerts,
+          flags.exchangeApiCertHost
+        )
+        .withShutdownTimeout(flags.channelShutdownTimeout)
+
+    val certificateService = CertificatesGrpcKt.CertificatesCoroutineStub(channel)
+
+    V2AlphaCertificateManager(
+      certificateService = certificateService,
+      rootCerts = rootCertificates,
+      privateKeys = privateKeys,
+      algorithm = flags.certAlgorithm,
+      certificateAuthority = certificateAuthority,
+      localName = identity.toName()
+    )
+  }
+
   override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(
       inputTaskThrottler = throttler,
@@ -68,12 +97,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
 
     val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
 
-    GrpcApiClient(
-      Identity(flags.id, flags.partyType),
-      exchangeStepsClient,
-      exchangeStepAttemptsClient,
-      Clock.systemUTC()
-    )
+    GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, Clock.systemUTC())
   }
 
   override val throttler: Throttler by lazy {
