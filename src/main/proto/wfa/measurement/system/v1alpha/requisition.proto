@@ -31,18 +31,13 @@ message Requisition {
   // Resource name. Output-only. Immutable.
   string name = 1;
 
-  // Public API Resource name of the `DataProvider` who should fulfill this
-  // requisition. Required. Immutable.
-  string data_provider = 2
-      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
-
-  // X.509 certificate in DER format which can be verified using the
-  // `DataProvider`'s root certificate. Required. Immutable.
-  bytes data_provider_certificate_der = 3;
-
   // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
   // Immutable.
-  bytes requisition_spec_hash = 4;
+  bytes requisition_spec_hash = 2;
+
+  // SHA256 hash of the `nonce` from the encrypted `RequisitionSpec` from the
+  // public API. Required. Immutable.
+  bytes nonce_hash = 3;
 
   // State of a `Requisition`.
   enum State {
@@ -58,22 +53,17 @@ message Requisition {
     REFUSED = 3;
   }
   // The state of this `Requisition`.
-  State state = 5;
-
-  // Cryptographic digital signature of the "requisition fingerprint" which
-  // can be verified using `data_provider_certificate`. Set when `state` is
-  // `FULFILLED`.
-  //
-  // The requisition fingerprint is defined as the concatenation of:
-  // 1. `requisition_spec_hash`
-  // 2. The SHA256 hash of the concatenation of `data_provider_list` and
-  //    `data_provider_list_salt` from the parent `Computation`.
-  // 3. `measurement_spec` from the parent `Computation`.
-  bytes data_provider_participation_signature = 6;
+  State state = 4;
 
   // Resource name of the `ComputationParticipant` that marked this
   // `Requisition` as `FULFILLED`. Output-only.
-  string fulfilling_computation_participant = 7
+  string fulfilling_computation_participant = 5
       [(google.api.resource_reference).type =
            "halo-system.wfanet.org/ComputationParticipant"];
+
+  // `nonce` value from the encrypted `RequisitionSpec` from the public API.
+  // Output-only.
+  //
+  // Set when `state` is `FULFILLED`.
+  fixed64 nonce = 6;
 }

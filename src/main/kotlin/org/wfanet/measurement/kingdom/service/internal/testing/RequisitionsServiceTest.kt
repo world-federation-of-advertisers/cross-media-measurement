@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -367,18 +366,17 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(dataServices.measurementConsumersService)
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val dataProviderValue = dataProvider.toDataProviderValue()
     val providedMeasurementId = "measurement"
     val measurement =
       population.createMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         providedMeasurementId,
-        dataProvider
+        mapOf(dataProvider.externalDataProviderId to dataProviderValue)
       )
 
     val externalDataProviderId = dataProvider.externalDataProviderId
-    val dataProviderValue: Measurement.DataProviderValue =
-      measurement.dataProvidersMap[externalDataProviderId]!!
     val listedRequisition =
       service
         .streamRequisitions(
@@ -414,6 +412,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+          nonceHash = dataProviderValue.nonceHash
         }
       dataProviderCertificate = dataProvider.certificate
       parentMeasurement =
@@ -509,21 +508,20 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         )
         .first()
 
-    val participationSignature = ByteString.copyFromUtf8("Participation signature")
+    val nonce = 3127743798281582205L
     val response =
       service.fulfillRequisition(
         fulfillRequisitionRequest {
           externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
           externalFulfillingDuchyId = "Buck"
-          dataProviderParticipationSignature = participationSignature
+          this.nonce = nonce
         }
       )
 
     assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
     assertThat(response.externalFulfillingDuchyId).isEqualTo("Buck")
-    assertThat(response.details.dataProviderParticipationSignature)
-      .isEqualTo(participationSignature)
+    assertThat(response.details.nonce).isEqualTo(nonce)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
     assertThat(response)
       .isEqualTo(
@@ -568,13 +566,12 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
         .toList()
-    val participationSignature = ByteString.copyFromUtf8("Participation signature")
     service.fulfillRequisition(
       fulfillRequisitionRequest {
         externalComputationId = measurement.externalComputationId
         externalRequisitionId = requisitions[0].externalRequisitionId
         externalFulfillingDuchyId = "Buck"
-        dataProviderParticipationSignature = participationSignature
+        nonce = 3127743798281582205L
       }
     )
 
@@ -584,7 +581,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisitions[1].externalRequisitionId
           externalFulfillingDuchyId = "Rippon"
-          dataProviderParticipationSignature = participationSignature
+          nonce = -7004399847946251733L
         }
       )
 
@@ -621,7 +618,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = nonExistantExternalRequisitionId.value
             externalFulfillingDuchyId = "Buck"
-            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+            nonce = 3127743798281582205L
           }
         )
       }
@@ -660,7 +657,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
             externalFulfillingDuchyId = nonExistantExternalDuchyId
-            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+            nonce = 3127743798281582205L
           }
         )
       }
@@ -699,7 +696,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
             externalFulfillingDuchyId = "Buck"
-            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+            nonce = 3127743798281582205L
           }
         )
       }

@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -44,7 +43,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
-fun InternalRequisition.toSystemRequisition(publicApiVersion: Version): Requisition {
+fun InternalRequisition.toSystemRequisition(): Requisition {
   return Requisition.newBuilder()
     .also {
       it.name =
@@ -53,17 +52,10 @@ fun InternalRequisition.toSystemRequisition(publicApiVersion: Version): Requisit
             externalIdToApiId(externalRequisitionId)
           )
           .toName()
-      it.dataProvider =
-        when (publicApiVersion) {
-          Version.V2_ALPHA -> DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
-          Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-        }
-      it.dataProviderCertificateDer = dataProviderCertificate.details.x509Der
       it.requisitionSpecHash = hashSha256(details.encryptedRequisitionSpec)
+      it.nonceHash = details.nonceHash
       it.state = state.toSystemRequisitionState()
-      if (!details.dataProviderParticipationSignature.isEmpty) {
-        it.dataProviderParticipationSignature = details.dataProviderParticipationSignature
-      }
+      it.nonce = details.nonce
       if (externalFulfillingDuchyId.isNotBlank()) {
         it.fulfillingComputationParticipant =
           ComputationParticipantKey(
@@ -179,11 +171,8 @@ fun InternalMeasurement.toSystemComputation(): Computation {
       it.name = ComputationKey(externalIdToApiId(externalComputationId)).toName()
       it.publicApiVersion = details.apiVersion
       it.measurementSpec = details.measurementSpec
-      it.dataProviderList = details.dataProviderList
-      it.dataProviderListSalt = details.dataProviderListSalt
       it.state = state.toSystemComputationState()
       it.aggregatorCertificate = details.aggregatorCertificate
-      it.resultPublicKey = details.resultPublicKey
       it.encryptedResult = details.encryptedResult
       it.addAllComputationParticipants(
         computationParticipantsList.map { participant ->
@@ -191,9 +180,7 @@ fun InternalMeasurement.toSystemComputation(): Computation {
         }
       )
       it.addAllRequisitions(
-        requisitionsList.map { requisition ->
-          requisition.toSystemRequisition(Version.fromString(details.apiVersion))
-        }
+        requisitionsList.map { requisition -> requisition.toSystemRequisition() }
       )
       it.mpcProtocolConfig =
         buildMpcProtocolConfig(details.duchyProtocolConfig, details.protocolConfig)

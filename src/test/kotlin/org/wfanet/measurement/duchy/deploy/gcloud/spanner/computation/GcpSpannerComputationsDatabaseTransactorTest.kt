@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.ValueBinder
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -37,8 +38,6 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
-import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.A
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.B
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.C
@@ -48,7 +47,9 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtoc
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Y
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Z
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.struct
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
@@ -59,6 +60,8 @@ import org.wfanet.measurement.internal.db.gcp.FakeProtocolStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.requisitionEntry
 
 /**
  * Protocol Zero: +--------------+ | | | v A -> B -> C -> E
@@ -216,7 +219,7 @@ class ProtocolStageDetailsHelper :
 class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
 
   companion object {
-    val FAKE_COMPUTATION_DETAILS =
+    val FAKE_COMPUTATION_DETAILS: FakeComputationDetails =
       FakeComputationDetails.newBuilder().apply { role = "foo" }.build()
 
     val TEST_INSTANT: Instant = Instant.ofEpochMilli(123456789L)
@@ -1161,6 +1164,14 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   fun `update computation details and requisition details`() = runBlocking {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
+    val requisitionKey1 = externalRequisitionKey {
+      externalRequisitionId = "11111"
+      requisitionFingerprint = "A".toByteStringUtf8()
+    }
+    val requisitionKey2 = externalRequisitionKey {
+      externalRequisitionId = "22222"
+      requisitionFingerprint = "B".toByteStringUtf8()
+    }
     val token =
       ComputationEditToken(
         localId = 4315,
@@ -1184,25 +1195,21 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       computationMutations.insertRequisition(
         localComputationId = token.localId,
         requisitionId = 1L,
-        externalDataProviderId = "A",
-        externalRequisitionId = "11111"
+        externalRequisitionId = requisitionKey1.externalRequisitionId,
+        requisitionFingerprint = requisitionKey1.requisitionFingerprint
       )
     val requisition2 =
       computationMutations.insertRequisition(
         localComputationId = token.localId,
         requisitionId = 2L,
-        externalDataProviderId = "B",
-        externalRequisitionId = "22222",
+        externalRequisitionId = requisitionKey2.externalRequisitionId,
+        requisitionFingerprint = requisitionKey2.requisitionFingerprint,
         pathToBlob = "foo/B"
       )
     val requisitionDetails1 =
       RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "duchy-1" }.build()
     val requisitionDetails2 =
       RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "duchy-2" }.build()
-    val requisitionDetailUpdate1 =
-      RequisitionDetailUpdate(ExternalRequisitionKey("A", "11111"), requisitionDetails1)
-    val requisitionDetailUpdate2 =
-      RequisitionDetailUpdate(ExternalRequisitionKey("B", "22222"), requisitionDetails2)
 
     testClock.tickSeconds("time-ended")
     databaseClient.write(listOf(computation, requisition1, requisition2))
@@ -1212,7 +1219,16 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     database.updateComputationDetails(
       token,
       newComputationDetails,
-      listOf(requisitionDetailUpdate1, requisitionDetailUpdate2)
+      listOf(
+        requisitionEntry {
+          key = requisitionKey1
+          value = requisitionDetails1
+        },
+        requisitionEntry {
+          key = requisitionKey2
+          value = requisitionDetails2
+        }
+      )
     )
 
     assertQueryReturns(
@@ -1239,34 +1255,30 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     assertQueryReturns(
       databaseClient,
       """
-      SELECT r.ComputationId, r.RequisitionId, r.ExternalDataProviderId, r.ExternalRequisitionId,
+      SELECT r.ComputationId, r.RequisitionId, r.ExternalRequisitionId, r.RequisitionFingerprint,
              r.PathToBlob, r.RequisitionDetails, c.UpdateTime
       FROM Requisitions AS r
       JOIN Computations AS c USING(ComputationId)
       ORDER BY RequisitionId
       """.trimIndent(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(token.localId)
-          set("RequisitionId").to(1)
-          set("ExternalDataProviderId").to("A")
-          set("ExternalRequisitionId").to("11111")
-          set("PathToBlob").to(null as String?)
-          set("RequisitionDetails").toProtoBytes(requisitionDetails1)
-          set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        }
-        .build(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(token.localId)
-          set("RequisitionId").to(2)
-          set("ExternalDataProviderId").to("B")
-          set("ExternalRequisitionId").to("22222")
-          set("PathToBlob").to("foo/B")
-          set("RequisitionDetails").toProtoBytes(requisitionDetails2)
-          set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        }
-        .build()
+      struct {
+        set("ComputationId").to(token.localId)
+        set("RequisitionId").to(1)
+        set("ExternalRequisitionId").to(requisitionKey1.externalRequisitionId)
+        set("RequisitionFingerprint").to(requisitionKey1.requisitionFingerprint.toGcloudByteArray())
+        set("PathToBlob").to(null as String?)
+        set("RequisitionDetails").toProtoBytes(requisitionDetails1)
+        set("UpdateTime").to(testClock.last().toGcloudTimestamp())
+      },
+      struct {
+        set("ComputationId").to(token.localId)
+        set("RequisitionId").to(2)
+        set("ExternalRequisitionId").to(requisitionKey2.externalRequisitionId)
+        set("RequisitionFingerprint").to(requisitionKey2.requisitionFingerprint.toGcloudByteArray())
+        set("PathToBlob").to("foo/B")
+        set("RequisitionDetails").toProtoBytes(requisitionDetails2)
+        set("UpdateTime").to(testClock.last().toGcloudTimestamp())
+      }
     )
   }
 
@@ -1274,6 +1286,14 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
   fun `write requisition blob path`() = runBlocking {
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
     val lockExpires = Instant.now().plusSeconds(300)
+    val requisitionKey1 = externalRequisitionKey {
+      externalRequisitionId = "11111"
+      requisitionFingerprint = "A".toByteStringUtf8()
+    }
+    val requisitionKey2 = externalRequisitionKey {
+      externalRequisitionId = "22222"
+      requisitionFingerprint = "B".toByteStringUtf8()
+    }
     val requisitionDetails1 =
       RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "xxx" }.build()
     val token =
@@ -1299,16 +1319,16 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
       computationMutations.insertRequisition(
         localComputationId = token.localId,
         requisitionId = 1L,
-        externalDataProviderId = "A",
-        externalRequisitionId = "11111",
+        externalRequisitionId = requisitionKey1.externalRequisitionId,
+        requisitionFingerprint = requisitionKey1.requisitionFingerprint,
         requisitionDetails = requisitionDetails1
       )
     val requisition2 =
       computationMutations.insertRequisition(
         localComputationId = token.localId,
         requisitionId = 2L,
-        externalDataProviderId = "B",
-        externalRequisitionId = "22222",
+        externalRequisitionId = requisitionKey2.externalRequisitionId,
+        requisitionFingerprint = requisitionKey2.requisitionFingerprint,
         pathToBlob = "foo/B"
       )
 
@@ -1318,73 +1338,61 @@ class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUT
     assertQueryReturns(
       databaseClient,
       """
-      SELECT r.ComputationId, r.RequisitionId, r.ExternalDataProviderId, r.ExternalRequisitionId,
+      SELECT r.ComputationId, r.RequisitionId, r.ExternalRequisitionId, r.RequisitionFingerprint,
              r.PathToBlob, r.RequisitionDetails, c.UpdateTime
       FROM Requisitions AS r
       JOIN Computations AS c USING(ComputationId)
       ORDER BY RequisitionId
       """.trimIndent(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(token.localId)
-          set("RequisitionId").to(1)
-          set("ExternalDataProviderId").to("A")
-          set("ExternalRequisitionId").to("11111")
-          set("PathToBlob").to(null as String?)
-          set("RequisitionDetails").toProtoBytes(requisitionDetails1)
-          set("UpdateTime").to(lastUpdated.toGcloudTimestamp())
-        }
-        .build(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(token.localId)
-          set("RequisitionId").to(2)
-          set("ExternalDataProviderId").to("B")
-          set("ExternalRequisitionId").to("22222")
-          set("PathToBlob").to("foo/B")
-          set("RequisitionDetails").toProtoBytes(RequisitionDetails.getDefaultInstance())
-          set("UpdateTime").to(lastUpdated.toGcloudTimestamp())
-        }
-        .build()
+      struct {
+        set("ComputationId").to(token.localId)
+        set("RequisitionId").to(1)
+        set("ExternalRequisitionId").to(requisitionKey1.externalRequisitionId)
+        set("RequisitionFingerprint").to(requisitionKey1.requisitionFingerprint.toGcloudByteArray())
+        set("PathToBlob").to(null as String?)
+        set("RequisitionDetails").toProtoBytes(requisitionDetails1)
+        set("UpdateTime").to(lastUpdated.toGcloudTimestamp())
+      },
+      struct {
+        set("ComputationId").to(token.localId)
+        set("RequisitionId").to(2)
+        set("ExternalRequisitionId").to(requisitionKey2.externalRequisitionId)
+        set("RequisitionFingerprint").to(requisitionKey2.requisitionFingerprint.toGcloudByteArray())
+        set("PathToBlob").to("foo/B")
+        set("RequisitionDetails").toProtoBytes(RequisitionDetails.getDefaultInstance())
+        set("UpdateTime").to(lastUpdated.toGcloudTimestamp())
+      }
     )
 
-    database.writeRequisitionBlobPath(
-      token,
-      ExternalRequisitionKey("A", "11111"),
-      "this is a new path"
-    )
+    database.writeRequisitionBlobPath(token, requisitionKey1, "this is a new path")
 
     assertQueryReturns(
       databaseClient,
       """
-      SELECT r.ComputationId, r.RequisitionId, r.ExternalDataProviderId, r.ExternalRequisitionId,
+      SELECT r.ComputationId, r.RequisitionId, r.ExternalRequisitionId, r.RequisitionFingerprint,
              r.PathToBlob, r.RequisitionDetails, c.UpdateTime
       FROM Requisitions AS r
       JOIN Computations AS c USING(ComputationId)
       ORDER BY RequisitionId
       """.trimIndent(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(token.localId)
-          set("RequisitionId").to(1)
-          set("ExternalDataProviderId").to("A")
-          set("ExternalRequisitionId").to("11111")
-          set("PathToBlob").to("this is a new path")
-          set("RequisitionDetails").toProtoBytes(requisitionDetails1)
-          set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        }
-        .build(),
-      Struct.newBuilder()
-        .apply {
-          set("ComputationId").to(token.localId)
-          set("RequisitionId").to(2)
-          set("ExternalDataProviderId").to("B")
-          set("ExternalRequisitionId").to("22222")
-          set("PathToBlob").to("foo/B")
-          set("RequisitionDetails").toProtoBytes(RequisitionDetails.getDefaultInstance())
-          set("UpdateTime").to(testClock.last().toGcloudTimestamp())
-        }
-        .build()
+      struct {
+        set("ComputationId").to(token.localId)
+        set("RequisitionId").to(1)
+        set("ExternalRequisitionId").to(requisitionKey1.externalRequisitionId)
+        set("RequisitionFingerprint").to(requisitionKey1.requisitionFingerprint.toGcloudByteArray())
+        set("PathToBlob").to("this is a new path")
+        set("RequisitionDetails").toProtoBytes(requisitionDetails1)
+        set("UpdateTime").to(testClock.last().toGcloudTimestamp())
+      },
+      struct {
+        set("ComputationId").to(token.localId)
+        set("RequisitionId").to(2)
+        set("ExternalRequisitionId").to(requisitionKey2.externalRequisitionId)
+        set("RequisitionFingerprint").to(requisitionKey2.requisitionFingerprint.toGcloudByteArray())
+        set("PathToBlob").to("foo/B")
+        set("RequisitionDetails").toProtoBytes(RequisitionDetails.getDefaultInstance())
+        set("UpdateTime").to(testClock.last().toGcloudTimestamp())
+      }
     )
   }
 
