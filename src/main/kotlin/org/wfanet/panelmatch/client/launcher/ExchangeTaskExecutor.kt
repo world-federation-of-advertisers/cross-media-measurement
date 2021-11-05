@@ -75,7 +75,9 @@ class ExchangeTaskExecutor(
     privateStorage: StorageClient
   ) {
     for ((genericLabel, flow) in taskOutput) {
-      privateStorage.createBlob(step.outputLabelsMap.getValue(genericLabel), flow)
+      val blobKey = step.outputLabelsMap.getValue(genericLabel)
+      privateStorage.getBlob(blobKey)?.delete()
+      privateStorage.createBlob(blobKey, flow)
     }
   }
 
