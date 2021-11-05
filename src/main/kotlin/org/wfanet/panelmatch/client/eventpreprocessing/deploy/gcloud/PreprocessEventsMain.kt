@@ -28,11 +28,13 @@ import org.apache.beam.sdk.io.FileIO
 import org.apache.beam.sdk.io.FileSystems
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO.TypedRead.Method
+import org.apache.beam.sdk.options.Default
 import org.apache.beam.sdk.options.Description
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.apache.beam.sdk.options.Validation
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.panelmatch.client.common.compression.CreateDefaultCompressionParameters
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
@@ -64,8 +66,10 @@ interface Options : DataflowPipelineOptions {
   @get:Validation.Required
   var bigQueryOutputTable: String
 
-  @get:Description("URI to read the compression parameters from (e.g. gs://some-bucket/some/file)")
-  @get:Validation.Required
+  @get:Description(
+    "[Optional] URI to read the compression parameters from (e.g. gs://some-bucket/some/file)"
+  )
+  @get:Default.String("")
   var compressionParametersUri: String
 }
 /**
@@ -74,18 +78,19 @@ interface Options : DataflowPipelineOptions {
  * All logic and transforms featured in this pipeline are thoroughly unit tested
  *
  * To test this pipeline, it must be run on Google Cloud Platform on a machine that also has the
- * cross-media-measurement repository cloned and docker installed. The command to run the pipeline
- * on GCP is:
+ * cross-media-measurement repository cloned and docker installed.
+ *
+ * To build the pipeline:
  *
  * ```
- * ../cross-media-measurement/tools/bazel-container build //src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud:process_events && bazel-bin/src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud/process_events '--batchSize=SIZE' '--cryptokey=KEY' '--hkdfPepper=HKDFPEPPER' '--identifierHashPepper=IDHPEPPER' '--bigQueryInputTable=INPUT_TABLE' '--bigQueryOutputTable=OUTPUT_TABLE' '--dictionaryGcsPath=DICTIONARY_OUTPUT_PATH' '--project=PROJECT' '--runner=dataflow' '--region=us-central1' '--tempLocation=TEMP_LOCATION' '--defaultWorkerLogLevel=DEBUG'
+ * ../cross-media-measurement/tools/bazel-container build //src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud:process_events
  * ```
  *
- * Where SIZE is the desired batch size, KEY is the desired crypto key, IDHPEPPER is the desired
- * Identifier Hash pepper, HKDFPEPPER is the desired HKDF pepper, INPUT_TABLE is the BigQuery table
- * to read from, OUTPUT_TABLE is the BigQuery table to write to, DICTIONARY_OUTPUT_PATH is the path
- * to write the compression dictionary to, PROJECT is the project name, and TEMP_LOCATION is the
- * desired location to store temp files. Performance and outputs can be tracked on the GCP console.
+ * And to run it:
+ *
+ * ```
+ * bazel-bin/src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/deploy/gcloud/process_events --batchSize=SIZE --cryptokey=KEY --hkdfPepper=HKDFPEPPER --identifierHashPepper=IDHPEPPER --bigQueryInputTable=INPUT_TABLE --bigQueryOutputTable=OUTPUT_TABLE --project=PROJECT --runner=dataflow --region=us-central1 --tempLocation=TEMP_LOCATION --defaultWorkerLogLevel=DEBUG
+ * ```
  */
 fun main(args: Array<String>) {
   val options = makeOptions(args)
@@ -93,12 +98,17 @@ fun main(args: Array<String>) {
 
   val pipeline = Pipeline.create(options)
   val unencryptedEvents = readFromBigQuery(options.bigQueryInputTable, pipeline)
+
   val compressionParameters =
-    pipeline
-      .apply(FileIO.match().filepattern(options.compressionParametersUri))
-      .apply(FileIO.readMatches())
-      .map { CompressionParameters.parseFrom(it.readFullyAsBytes()) }
-      .toSingletonView()
+    if (options.compressionParametersUri.isEmpty()) {
+      pipeline.apply(CreateDefaultCompressionParameters()).toSingletonView()
+    } else {
+      pipeline
+        .apply(FileIO.match().filepattern(options.compressionParametersUri))
+        .apply(FileIO.readMatches())
+        .map { CompressionParameters.parseFrom(it.readFullyAsBytes()) }
+        .toSingletonView()
+    }
 
   val encryptedEvents =
     unencryptedEvents.apply(

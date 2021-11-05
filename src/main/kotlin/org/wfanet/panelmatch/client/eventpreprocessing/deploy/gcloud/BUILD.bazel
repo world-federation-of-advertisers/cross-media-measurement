@@ -16,6 +16,7 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/io:google_cloud_platform",
         "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common/compression",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
     ],
