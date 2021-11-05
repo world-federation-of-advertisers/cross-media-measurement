@@ -1,0 +1,6 @@
+# TODO: consider adding a Bazel rule to regenerate brotli-dictionary.
+filegroup(
+    name = "brotli_dictionary",
+    srcs = ["brotli-dictionary"],
+    visibility = ["//visibility:public"],
+)
