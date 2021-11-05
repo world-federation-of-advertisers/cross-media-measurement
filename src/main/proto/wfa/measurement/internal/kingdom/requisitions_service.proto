@@ -76,8 +76,8 @@ message FulfillRequisitionRequest {
   // as `FULFILLED`.
   string external_fulfilling_duchy_id = 3;
 
-  // Cryptographic digital signature of the "requisition fingerprint".
-  bytes data_provider_participation_signature = 4;
+  // Cryptographic nonce from the `RequisitionSpec`.
+  fixed64 nonce = 4;
 }
 
 message RefuseRequisitionRequest {

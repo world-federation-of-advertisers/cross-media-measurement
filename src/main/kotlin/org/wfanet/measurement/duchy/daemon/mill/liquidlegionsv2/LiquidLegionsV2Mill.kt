@@ -20,12 +20,11 @@ import java.time.Clock
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2alphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.client.duchy.Computation as ConsentSignalingComputation
-import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
@@ -254,33 +253,30 @@ class LiquidLegionsV2Mill(
   }
 
   /**
-   * Verifies the Edp signature and the local existence of requisitions. Returns a list of error
-   * messages if anything is wrong. Otherwise return an empty list.
+   * Verifies that all EDPs have participated.
+   *
+   * @return a list of error messages if anything is wrong, otherwise an empty list.
    */
-  private fun verifyEdpSignatureAndRequisition(
-    requisition: RequisitionMetadata,
-    details: KingdomComputationDetails
+  private fun verifyEdpParticipation(
+    details: KingdomComputationDetails,
+    requisitions: Iterable<RequisitionMetadata>,
   ): List<String> {
-    val errorList = mutableListOf<String>()
-    if (!verifyDataProviderParticipation(
-        requisition.details.dataProviderParticipationSignature,
-        ConsentSignalingRequisition(
-          readCertificate(requisition.details.dataProviderCertificateDer),
-          requisition.details.requisitionSpecHash
-        ),
-        ConsentSignalingComputation(
-          details.dataProviderList,
-          details.dataProviderListSalt,
-          details.measurementSpec
-        )
-      )
-    ) {
-      errorList.add(
-        "Data provider participation signature of ${requisition.externalDataProviderId} is invalid."
-      )
+    when (Version.fromString(details.publicApiVersion)) {
+      Version.V2_ALPHA -> {}
+      Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
     }
-    if (requisition.details.externalFulfillingDuchyId == duchyId && requisition.path.isBlank()) {
-      errorList.add("Missing expected data for requisition ${requisition.externalRequisitionId}.")
+
+    val errorList = mutableListOf<String>()
+    val measurementSpec = MeasurementSpec.parseFrom(details.measurementSpec)
+    if (!verifyDataProviderParticipation(measurementSpec, requisitions.map { it.details.nonce })) {
+      errorList.add("Cannot verify participation of all DataProviders.")
+    }
+    for (requisition in requisitions) {
+      if (requisition.details.externalFulfillingDuchyId == duchyId && requisition.path.isBlank()) {
+        errorList.add(
+          "Missing expected data for requisition ${requisition.externalKey.externalRequisitionId}."
+        )
+      }
     }
     return errorList
   }
@@ -408,9 +404,7 @@ class LiquidLegionsV2Mill(
   private suspend fun confirmationPhase(token: ComputationToken): ComputationToken {
     val errorList = mutableListOf<String>()
     val kingdomComputation = token.computationDetails.kingdomComputation
-    token.requisitionsList.forEach {
-      errorList.addAll(verifyEdpSignatureAndRequisition(it, kingdomComputation))
-    }
+    errorList.addAll(verifyEdpParticipation(kingdomComputation, token.requisitionsList))
     token.computationDetails.liquidLegionsV2.participantList.forEach {
       errorList.addAll(
         verifyDuchySignature(it, Version.fromString(kingdomComputation.publicApiVersion))

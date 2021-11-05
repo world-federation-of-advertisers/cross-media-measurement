@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -58,6 +57,8 @@ import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1L
+private const val NONCE_1 = 3127743798281582205L
+private const val NONCE_2 = -7004399847946251733L
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 
 private val REFUSAL = refusal {
@@ -367,18 +368,17 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(dataServices.measurementConsumersService)
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val dataProviderValue = dataProvider.toDataProviderValue()
     val providedMeasurementId = "measurement"
     val measurement =
       population.createMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         providedMeasurementId,
-        dataProvider
+        mapOf(dataProvider.externalDataProviderId to dataProviderValue)
       )
 
     val externalDataProviderId = dataProvider.externalDataProviderId
-    val dataProviderValue: Measurement.DataProviderValue =
-      measurement.dataProvidersMap[externalDataProviderId]!!
     val listedRequisition =
       service
         .streamRequisitions(
@@ -414,6 +414,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
           dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
           encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+          nonceHash = dataProviderValue.nonceHash
         }
       dataProviderCertificate = dataProvider.certificate
       parentMeasurement =
@@ -509,21 +510,19 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         )
         .first()
 
-    val participationSignature = ByteString.copyFromUtf8("Participation signature")
     val response =
       service.fulfillRequisition(
         fulfillRequisitionRequest {
           externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
           externalFulfillingDuchyId = "Buck"
-          dataProviderParticipationSignature = participationSignature
+          nonce = NONCE_1
         }
       )
 
     assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
     assertThat(response.externalFulfillingDuchyId).isEqualTo("Buck")
-    assertThat(response.details.dataProviderParticipationSignature)
-      .isEqualTo(participationSignature)
+    assertThat(response.details.nonce).isEqualTo(NONCE_1)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
     assertThat(response)
       .isEqualTo(
@@ -568,13 +567,12 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
         .toList()
-    val participationSignature = ByteString.copyFromUtf8("Participation signature")
     service.fulfillRequisition(
       fulfillRequisitionRequest {
         externalComputationId = measurement.externalComputationId
         externalRequisitionId = requisitions[0].externalRequisitionId
         externalFulfillingDuchyId = "Buck"
-        dataProviderParticipationSignature = participationSignature
+        nonce = NONCE_1
       }
     )
 
@@ -584,7 +582,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisitions[1].externalRequisitionId
           externalFulfillingDuchyId = "Rippon"
-          dataProviderParticipationSignature = participationSignature
+          nonce = NONCE_2
         }
       )
 
@@ -621,7 +619,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = nonExistantExternalRequisitionId.value
             externalFulfillingDuchyId = "Buck"
-            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+            nonce = NONCE_1
           }
         )
       }
@@ -660,7 +658,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
             externalFulfillingDuchyId = nonExistantExternalDuchyId
-            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+            nonce = NONCE_1
           }
         )
       }
@@ -699,7 +697,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
             externalFulfillingDuchyId = "Buck"
-            dataProviderParticipationSignature = ByteString.copyFromUtf8("Participation signature")
+            nonce = NONCE_1
           }
         )
       }

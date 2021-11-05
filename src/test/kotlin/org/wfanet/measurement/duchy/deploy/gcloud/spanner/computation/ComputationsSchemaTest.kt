@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
+import com.google.cloud.ByteArray as GcloudByteArray
 import com.google.cloud.ByteArray
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
@@ -74,10 +75,10 @@ class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
         .to(computationId)
         .set("RequisitionId")
         .to(2)
-        .set("ExternalDataProviderId")
-        .to("123")
         .set("ExternalRequisitionId")
         .to("567")
+        .set("RequisitionFingerprint")
+        .to(GcloudByteArray.copyFrom("fingerprint"))
         .set("PathToBlob")
         .to("a/b/c")
         .set("RequisitionDetails")
