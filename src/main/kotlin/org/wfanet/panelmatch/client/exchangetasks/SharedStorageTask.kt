@@ -21,37 +21,34 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.common.flatten
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 
 /** Implements CopyFromSharedStorageStep and CopyToSharedStorageStep. */
 class SharedStorageTask(
-  private val step: ExchangeWorkflow.Step,
+  private val readFromSource: suspend (String) -> Flow<ByteString>,
+  private val writeToDestination: suspend (String, Flow<ByteString>) -> Unit,
   private val copyOptions: ExchangeWorkflow.Step.CopyOptions,
-  private val sourceStorageClient: VerifiedStorageClient,
-  private val destinationStorageClient: VerifiedStorageClient
+  private val sourceBlobKey: String,
+  private val destinationBlobKey: String
 ) : CustomIOExchangeTask() {
-  private val inputLabel: String by lazy { step.inputLabelsMap.values.single() }
-  private val outputLabel: String by lazy { step.outputLabelsMap.values.single() }
-
   override suspend fun execute() {
-    val inputBlob = sourceStorageClient.getBlob(inputLabel).read()
+    val input = readFromSource(sourceBlobKey)
 
     val outputs: Map<String, Flow<ByteString>> =
       when (copyOptions.labelType) {
-        BLOB -> getBlobOutputs(inputBlob)
-        MANIFEST -> getManifestOutputs(inputBlob)
-        else -> error("Unrecognized CopyOptions label type: $step")
+        BLOB -> getBlobOutputs(input)
+        MANIFEST -> getManifestOutputs(input)
+        else -> error("Unrecognized CopyOptions: $copyOptions")
       }
 
     // TODO: if this is too slow, launch in parallel.
     for ((key, value) in outputs) {
-      destinationStorageClient.createBlob(key, value)
+      writeToDestination(key, value)
     }
   }
 
   private fun getBlobOutputs(blobData: Flow<ByteString>): Map<String, Flow<ByteString>> {
-    return mapOf(outputLabel to blobData)
+    return mapOf(destinationBlobKey to blobData)
   }
 
   private suspend fun getManifestOutputs(
@@ -59,10 +56,10 @@ class SharedStorageTask(
   ): Map<String, Flow<ByteString>> {
     val manifestBytes = blobData.flatten()
     val shardedFileName = ShardedFileName(manifestBytes.toStringUtf8())
-    val outputs = mutableMapOf(outputLabel to flowOf(manifestBytes))
+    val outputs = mutableMapOf(destinationBlobKey to flowOf(manifestBytes))
 
     for (shardName in shardedFileName.fileNames) {
-      outputs[shardName] = sourceStorageClient.getBlob(shardName).read()
+      outputs[shardName] = readFromSource(shardName)
     }
 
     return outputs

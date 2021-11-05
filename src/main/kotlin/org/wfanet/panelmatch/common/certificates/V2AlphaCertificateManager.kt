@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
@@ -71,6 +72,13 @@ class V2AlphaCertificateManager(
   override suspend fun getExchangePrivateKey(exchange: ExchangeDateKey): PrivateKey {
     val signingKeys = requireNotNull(getSigningKeys(exchange.path)) { "Missing keys for $exchange" }
     return parsePrivateKey(signingKeys.privateKey)
+  }
+
+  override suspend fun getExchangeKeyPair(exchange: ExchangeDateKey): KeyPair {
+    val signingKeys = requireNotNull(getSigningKeys(exchange.path)) { "Missing keys for $exchange" }
+    val x509Certificate = getCertificate(exchange, localName, signingKeys.certResourceName)
+    val privateKey = parsePrivateKey(signingKeys.privateKey)
+    return KeyPair(x509Certificate, privateKey, signingKeys.certResourceName)
   }
 
   override suspend fun getPartnerRootCertificate(partnerName: String): X509Certificate {
