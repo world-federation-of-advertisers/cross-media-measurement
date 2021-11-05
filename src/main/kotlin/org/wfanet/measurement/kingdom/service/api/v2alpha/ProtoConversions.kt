@@ -149,8 +149,6 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         data = source.details.measurementSpec
         signature = source.details.measurementSpecSignature
       }
-    serializedDataProviderList = source.details.dataProviderList
-    dataProviderListSalt = source.details.dataProviderListSalt
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
     protocolConfig = source.details.protocolConfig.toProtocolConfig()
@@ -177,6 +175,7 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
         signature = dataProviderPublicKeySignature
       }
     encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+    nonceHash = dataProviderValue.nonceHash
   }
 }
 
@@ -224,8 +223,6 @@ fun Measurement.toInternal(
         apiVersion = Version.V2_ALPHA.string
         measurementSpec = publicMeasurement.measurementSpec.data
         measurementSpecSignature = publicMeasurement.measurementSpec.signature
-        dataProviderList = publicMeasurement.serializedDataProviderList
-        dataProviderListSalt = publicMeasurement.dataProviderListSalt
         protocolConfig = internalProtocolConfig
         duchyProtocolConfig = internalDuchyProtocolConfig
       }

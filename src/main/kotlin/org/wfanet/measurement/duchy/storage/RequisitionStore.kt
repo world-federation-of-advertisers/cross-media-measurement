@@ -41,11 +41,11 @@ private constructor(
 
 /** The context used to generate blob key for the [RequisitionStore]. */
 data class RequisitionBlobContext(
-  val externalDataProviderId: String,
+  val globalComputationId: String,
   val externalRequisitionId: String
 )
 
 /** Generates a Blob key using the [RequisitionBlobContext]. */
 private fun generateBlobKey(context: RequisitionBlobContext): String {
-  return "${context.externalDataProviderId}/${context.externalRequisitionId}/${UUID.randomUUID()}"
+  return "${context.globalComputationId}/${context.externalRequisitionId}/${UUID.randomUUID()}"
 }

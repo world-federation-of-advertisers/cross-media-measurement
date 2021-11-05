@@ -85,9 +85,7 @@ class SpannerRequisitionsService(
       grpcRequire(externalFulfillingDuchyId.isNotEmpty()) {
         "external_fulfilling_duchy_id not specified"
       }
-      grpcRequire(!dataProviderParticipationSignature.isEmpty) {
-        "data_provider_participation_signature not specified"
-      }
+      grpcRequire(nonce != 0L) { "nonce not specified" }
     }
 
     try {

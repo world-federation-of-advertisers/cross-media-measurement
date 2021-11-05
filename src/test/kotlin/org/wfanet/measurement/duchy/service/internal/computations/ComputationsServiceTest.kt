@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.service.internal.computations
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,6 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationIdsRequest
@@ -39,10 +39,16 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
-import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
+import org.wfanet.measurement.internal.duchy.computationStage
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
+import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.requisitionEntry
+import org.wfanet.measurement.internal.duchy.requisitionMetadata
+import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -81,35 +87,31 @@ class ComputationsServiceTest {
   @Test
   fun `get computation token`() = runBlocking {
     val id = "1234"
+    val requisitionMetadata = requisitionMetadata {
+      externalKey =
+        externalRequisitionKey {
+          externalRequisitionId = "1234"
+          requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
+        }
+    }
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
-      requisitions =
-        listOf(
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = "edp1"
-              externalRequisitionId = "1234"
-            }
-            .build()
-        )
+      requisitions = listOf(requisitionMetadata)
     )
 
-    val expectedToken =
-      ComputationToken.newBuilder()
-        .apply {
-          localComputationId = 1234
-          globalComputationId = "1234"
-          computationStageBuilder.liquidLegionsSketchAggregationV2 =
+    val expectedToken = computationToken {
+      localComputationId = 1234
+      globalComputationId = "1234"
+      computationStage =
+        computationStage {
+          liquidLegionsSketchAggregationV2 =
             LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
-          computationDetails = AGGREGATOR_COMPUTATION_DETAILS
-          addRequisitionsBuilder().apply {
-            externalDataProviderId = "edp1"
-            externalRequisitionId = "1234"
-          }
         }
-        .build()
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      requisitions += requisitionMetadata
+    }
 
     assertThat(fakeService.getComputationToken(id.toGetTokenRequest()))
       .isEqualTo(expectedToken.toGetComputationTokenResponse())
@@ -155,24 +157,22 @@ class ComputationsServiceTest {
   @Test
   fun `update computations details and requisition details`() = runBlocking {
     val id = "1234"
+    val requisition1Key = externalRequisitionKey {
+      externalRequisitionId = "1234"
+      requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
+    }
+    val requisition2Key = externalRequisitionKey {
+      externalRequisitionId = "5678"
+      requisitionFingerprint = "Another requisition fingerprint".toByteStringUtf8()
+    }
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions =
         listOf(
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = "edp1"
-              externalRequisitionId = "1234"
-            }
-            .build(),
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = "edp2"
-              externalRequisitionId = "5678"
-            }
-            .build()
+          requisitionMetadata { externalKey = requisition1Key },
+          requisitionMetadata { externalKey = requisition2Key }
         )
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
@@ -185,44 +185,40 @@ class ComputationsServiceTest {
       RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "duchy-1" }.build()
     val requisitionDetails2 =
       RequisitionDetails.newBuilder().apply { externalFulfillingDuchyId = "duchy-2" }.build()
-    val request =
-      UpdateComputationDetailsRequest.newBuilder()
-        .apply {
-          token = tokenAtStart
-          details = newComputationDetails
-          addRequisitionDetailUpdatesBuilder().apply {
-            externalDataProviderId = "edp1"
-            externalRequisitionId = "1234"
-            details = requisitionDetails1
-          }
-          addRequisitionDetailUpdatesBuilder().apply {
-            externalDataProviderId = "edp2"
-            externalRequisitionId = "5678"
-            details = requisitionDetails2
-          }
+    val request = updateComputationDetailsRequest {
+      token = tokenAtStart
+      details = newComputationDetails
+      requisitions +=
+        requisitionEntry {
+          key = requisition1Key
+          value = requisitionDetails1
         }
-        .build()
+      requisitions +=
+        requisitionEntry {
+          key = requisition2Key
+          value = requisitionDetails2
+        }
+    }
 
     assertThat(fakeService.updateComputationDetails(request))
       .isEqualTo(
         tokenAtStart
-          .toBuilder()
-          .clearRequisitions()
-          .apply {
+          .copy {
             version = 1
             computationDetails = newComputationDetails
-            addRequisitionsBuilder().apply {
-              externalDataProviderId = "edp1"
-              externalRequisitionId = "1234"
-              details = requisitionDetails1
-            }
-            addRequisitionsBuilder().apply {
-              externalDataProviderId = "edp2"
-              externalRequisitionId = "5678"
-              details = requisitionDetails2
-            }
+
+            requisitions.clear()
+            requisitions +=
+              requisitionMetadata {
+                externalKey = requisition1Key
+                details = requisitionDetails1
+              }
+            requisitions +=
+              requisitionMetadata {
+                externalKey = requisition2Key
+                details = requisitionDetails2
+              }
           }
-          .build()
           .toUpdateComputationDetailsResponse()
       )
   }
@@ -461,19 +457,15 @@ class ComputationsServiceTest {
   @Test
   fun `record requisition blob path`() = runBlocking {
     val id = "1234"
+    val requisitionKey = externalRequisitionKey {
+      externalRequisitionId = "1234"
+      requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
+    }
     fakeDatabase.addComputation(
       globalId = id,
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
-      requisitions =
-        listOf(
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = "edp1"
-              externalRequisitionId = "1234"
-            }
-            .build()
-        )
+      requisitions = listOf(requisitionMetadata { externalKey = requisitionKey })
     )
 
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
@@ -482,10 +474,7 @@ class ComputationsServiceTest {
       RecordRequisitionBlobPathRequest.newBuilder()
         .apply {
           token = tokenAtStart
-          keyBuilder.apply {
-            externalDataProviderId = "edp1"
-            externalRequisitionId = "1234"
-          }
+          key = requisitionKey
           blobPath = "this is a new path"
         }
         .build()
@@ -498,8 +487,7 @@ class ComputationsServiceTest {
           .apply {
             version = 1
             addRequisitionsBuilder().apply {
-              externalDataProviderId = "edp1"
-              externalRequisitionId = "1234"
+              externalKey = requisitionKey
               path = "this is a new path"
             }
           }

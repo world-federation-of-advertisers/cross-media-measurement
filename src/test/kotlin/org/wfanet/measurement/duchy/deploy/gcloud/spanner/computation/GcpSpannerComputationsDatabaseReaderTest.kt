@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -25,7 +26,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
@@ -162,6 +163,18 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
     val globalId = "998877665555"
     val localId = 100L
     val lastUpdated = Instant.ofEpochMilli(12345678910L)
+    val requisition1Key = externalRequisitionKey {
+      externalRequisitionId = "111"
+      requisitionFingerprint = "A".toByteStringUtf8()
+    }
+    val requisition2Key = externalRequisitionKey {
+      externalRequisitionId = "222"
+      requisitionFingerprint = "B".toByteStringUtf8()
+    }
+    val requisition3Key = externalRequisitionKey {
+      externalRequisitionId = "333"
+      requisitionFingerprint = "B".toByteStringUtf8()
+    }
     val computationRow =
       computationMutations.insertComputation(
         localId = localId,
@@ -223,24 +236,24 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
       computationMutations.insertRequisition(
         localComputationId = localId,
         requisitionId = 1L,
-        externalDataProviderId = "A",
-        externalRequisitionId = "111",
+        externalRequisitionId = requisition1Key.externalRequisitionId,
+        requisitionFingerprint = requisition1Key.requisitionFingerprint,
         pathToBlob = "foo/111"
       )
     val fulfilledRequisitionRowTwo =
       computationMutations.insertRequisition(
         localComputationId = localId,
         requisitionId = 2L,
-        externalDataProviderId = "B",
-        externalRequisitionId = "222",
+        externalRequisitionId = requisition2Key.externalRequisitionId,
+        requisitionFingerprint = requisition3Key.requisitionFingerprint,
         pathToBlob = "foo/222"
       )
     val unfulfilledRequisitionRowOne =
       computationMutations.insertRequisition(
         localComputationId = localId,
         requisitionId = 3L,
-        externalDataProviderId = "C",
-        externalRequisitionId = "333"
+        externalRequisitionId = requisition3Key.externalRequisitionId,
+        requisitionFingerprint = requisition3Key.requisitionFingerprint,
       )
     databaseClient.write(
       listOf(
@@ -275,20 +288,17 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
           addBlobs(newInputBlobMetadata(33L, "blob-key"))
           addBlobs(newEmptyOutputBlobMetadata(44L))
           addRequisitionsBuilder().apply {
-            externalDataProviderId = "A"
-            externalRequisitionId = "111"
+            externalKey = requisition1Key
             path = "foo/111"
             details = RequisitionDetails.getDefaultInstance()
           }
           addRequisitionsBuilder().apply {
-            externalDataProviderId = "B"
-            externalRequisitionId = "222"
+            externalKey = requisition2Key
             path = "foo/222"
             details = RequisitionDetails.getDefaultInstance()
           }
           addRequisitionsBuilder().apply {
-            externalDataProviderId = "C"
-            externalRequisitionId = "333"
+            externalKey = requisition3Key
             path = ""
             details = RequisitionDetails.getDefaultInstance()
           }
@@ -297,11 +307,7 @@ class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIO
 
     assertThat(liquidLegionsSketchAggregationSpannerReader.readComputationToken(globalId))
       .isEqualTo(expectedTokenWhenOutputNotWritten)
-    assertThat(
-        liquidLegionsSketchAggregationSpannerReader.readComputationToken(
-          ExternalRequisitionKey("A", "111")
-        )
-      )
+    assertThat(liquidLegionsSketchAggregationSpannerReader.readComputationToken(requisition1Key))
       .isEqualTo(expectedTokenWhenOutputNotWritten)
 
     val writenOutputBlobForWaitExecutionPhaseOneStageRow =

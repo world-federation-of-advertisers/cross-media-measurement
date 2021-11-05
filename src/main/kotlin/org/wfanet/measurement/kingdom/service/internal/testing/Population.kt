@@ -15,9 +15,12 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlin.random.Random
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -146,7 +149,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    vararg dataProviders: DataProvider
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
   ): Measurement {
     return measurementsService.createMeasurement(
       measurement {
@@ -159,8 +162,6 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             apiVersion = API_VERSION
             measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
             measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-            dataProviderList = ByteString.copyFromUtf8("EDP list")
-            dataProviderListSalt = ByteString.copyFromUtf8("EDP list salt")
             duchyProtocolConfig =
               duchyProtocolConfig {
                 liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
@@ -170,18 +171,22 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
                 liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
           }
-        for (dataProvider in dataProviders) {
-          this.dataProviders.put(
-            dataProvider.externalDataProviderId,
-            dataProviderValue {
-              externalDataProviderCertificateId = dataProvider.certificate.externalCertificateId
-              dataProviderPublicKey = dataProvider.details.publicKey
-              dataProviderPublicKeySignature = dataProvider.details.publicKeySignature
-              encryptedRequisitionSpec = ByteString.copyFromUtf8("Encrypted RequisitionSpec")
-            }
-          )
-        }
+        this.dataProviders.putAll(dataProviders)
       }
+    )
+  }
+
+  suspend fun createMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    vararg dataProviders: DataProvider
+  ): Measurement {
+    return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() }
     )
   }
 
@@ -203,4 +208,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       }
     )
   }
+}
+
+fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = dataProviderValue {
+  externalDataProviderCertificateId = certificate.externalCertificateId
+  dataProviderPublicKey = details.publicKey
+  dataProviderPublicKeySignature = details.publicKeySignature
+  encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()
+  nonceHash = hashSha256(nonce)
 }

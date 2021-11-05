@@ -67,30 +67,26 @@ private const val EXTERNAL_COMPUTATION_ID = 1L
 private const val EXTERNAL_REQUISITION_ID = 2L
 private const val EXTERNAL_DATA_PROVIDER_ID = 3L
 private const val EXTERNAL_DUCHY_CERTIFICATE_ID = 4L
-private const val EXTERNAL_PROTOCOL_CONFIG_ID = "protocol config 1"
+private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
+/** SHA-256 hash of [NONCE] */
+private val NONCE_HASH =
+  HexString("A4EA9C2984AE1D0F7D0B026B0BB41C136FC0767E29DF40951CFE019B7D9F1CE1")
 private val EXTERNAL_COMPUTATION_ID_STRING = externalIdToApiId(EXTERNAL_COMPUTATION_ID)
 private val EXTERNAL_REQUISITION_ID_STRING = externalIdToApiId(EXTERNAL_REQUISITION_ID)
-private val EXTERNAL_DATA_PROVIDER_ID_STRING = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
 private val EXTERNAL_DUCHY_CERTIFICATE_ID_STRING = externalIdToApiId(EXTERNAL_DUCHY_CERTIFICATE_ID)
-private val DATA_PROVIDER_PUBLIC_API_NAME = "dataProviders/$EXTERNAL_DATA_PROVIDER_ID_STRING"
 private val DUCHY_CERTIFICATE_PUBLIC_API_NAME =
   "duchies/$DUCHY_ID/certificates/$EXTERNAL_DUCHY_CERTIFICATE_ID_STRING"
-private const val PROTOCOL_CONFIG_PUBLIC_API_NAME = "protocolConfigs/$EXTERNAL_PROTOCOL_CONFIG_ID"
 private val SYSTEM_COMPUTATION_NAME = "computations/$EXTERNAL_COMPUTATION_ID_STRING"
 private val SYSTEM_COMPUTATION_PARTICIPATE_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
 private val SYSTEM_REQUISITION_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/requisitions/$EXTERNAL_REQUISITION_ID_STRING"
-private val DATA_PROVIDER_PARTICIPATION_SIGNATURE =
-  ByteString.copyFromUtf8("a data provider signature")
 private val ENCRYPTED_REQUISITION_SPEC = ByteString.copyFromUtf8("foo")
 /** The hash of the above ENCRYPTED_REQUISITION_SPEC. */
 private val ENCRYPTED_REQUISITION_SPEC_HASH =
   HexString("2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE")
 
 private val MEASUREMENT_SPEC = ByteString.copyFromUtf8("a measurement spec.")
-private val DATA_PROVIDER_LIST = ByteString.copyFromUtf8("a data provide list.")
-private val DATA_PROVIDER_LIST_SALT = ByteString.copyFromUtf8("a data provide list salt.")
 private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
 private val AGGREGATOR_CERTIFICATE = ByteString.copyFromUtf8("aggregator certificate.")
@@ -107,7 +103,8 @@ private val INTERNAL_REQUISITION =
       state = InternalRequisition.State.FULFILLED
       detailsBuilder.apply {
         encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
-        dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+        nonceHash = NONCE_HASH.bytes
+        nonce = NONCE
       }
     }
     .build()
@@ -165,8 +162,6 @@ private val INTERNAL_MEASUREMENT =
       detailsBuilder.apply {
         apiVersion = PUBLIC_API_VERSION
         measurementSpec = MEASUREMENT_SPEC
-        dataProviderList = DATA_PROVIDER_LIST
-        dataProviderListSalt = DATA_PROVIDER_LIST_SALT
         duchyProtocolConfigBuilder.liquidLegionsV2Builder.apply {
           mpcNoiseBuilder.apply {
             blindedHistogramNoiseBuilder.apply {
@@ -189,7 +184,6 @@ private val INTERNAL_MEASUREMENT =
           maximumFrequency = 12
         }
         aggregatorCertificate = AGGREGATOR_CERTIFICATE
-        resultPublicKey = RESULT_PUBLIC_KEY
         encryptedResult = ENCRYPTED_RESULT
         addComputationParticipants(INTERNAL_COMPUTATION_PARTICIPANT)
         addRequisitions(INTERNAL_REQUISITION)
@@ -232,11 +226,8 @@ class ComputationsServiceTest {
             name = SYSTEM_COMPUTATION_NAME
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = MEASUREMENT_SPEC
-            dataProviderList = DATA_PROVIDER_LIST
-            dataProviderListSalt = DATA_PROVIDER_LIST_SALT
             state = Computation.State.FAILED
             aggregatorCertificate = AGGREGATOR_CERTIFICATE
-            resultPublicKey = RESULT_PUBLIC_KEY
             encryptedResult = ENCRYPTED_RESULT
             mpcProtocolConfigBuilder.liquidLegionsV2Builder.apply {
               sketchParamsBuilder.apply {
@@ -260,11 +251,11 @@ class ComputationsServiceTest {
             addRequisitions(
               Requisition.newBuilder().apply {
                 name = SYSTEM_REQUISITION_NAME
-                dataProvider = DATA_PROVIDER_PUBLIC_API_NAME
                 state = Requisition.State.FULFILLED
                 requisitionSpecHash = ENCRYPTED_REQUISITION_SPEC_HASH.bytes
-                dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+                nonceHash = NONCE_HASH.bytes
                 fulfillingComputationParticipant = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+                nonce = NONCE
               }
             )
             addComputationParticipants(
