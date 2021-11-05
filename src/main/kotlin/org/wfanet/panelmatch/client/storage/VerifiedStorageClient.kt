@@ -36,7 +36,6 @@ import org.wfanet.panelmatch.protocol.namedSignature
 class VerifiedStorageClient(
   private val storageClient: StorageClient,
   private val context: ExchangeContext,
-  private val ownerCertificateName: String?,
   private val certificateManager: CertificateManager,
 ) {
   /** A helper function to get the implicit path for a input's signature. */
@@ -87,22 +86,17 @@ class VerifiedStorageClient(
     // when re-attempting to write.
     deleteExistingBlobs(blobKey)
 
-    val privateKey = certificateManager.getExchangePrivateKey(context.exchangeDateKey)
-    val ownerCertificate =
-      certificateManager.getCertificate(
-        context.exchangeDateKey,
-        context.localName,
-        requireNotNull(ownerCertificateName)
-      )
-    val signedBlob =
-      storageClient.createSignedBlob(blobKey, content) { privateKey.newSigner(ownerCertificate) }
+    val (x509, privateKey, certName) =
+      certificateManager.getExchangeKeyPair(context.exchangeDateKey)
+
+    val signedBlob = storageClient.createSignedBlob(blobKey, content) { privateKey.newSigner(x509) }
 
     val namedSignature = namedSignature {
-      certificateName = ownerCertificateName
+      certificateName = certName
       signature = signedBlob.signature
     }
     storageClient.createBlob(blobKey = getSigPath(blobKey), content = namedSignature.toByteString())
-    return VerifiedBlob(signedBlob, ownerCertificate)
+    return VerifiedBlob(signedBlob, x509)
   }
 
   suspend fun createBlob(blobKey: String, content: ByteString): VerifiedBlob {

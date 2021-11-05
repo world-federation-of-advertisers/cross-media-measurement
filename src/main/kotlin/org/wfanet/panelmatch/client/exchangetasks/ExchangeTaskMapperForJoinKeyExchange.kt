@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.storage.read
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
@@ -61,15 +62,15 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getExecutePrivateMembershipQueriesTask()
       StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> getBuildPrivateMembershipQueriesTask()
       StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> getDecryptMembershipResultsTask()
-      StepCase.COPY_FROM_SHARED_STORAGE_STEP -> TODO()
-      StepCase.COPY_TO_SHARED_STORAGE_STEP -> TODO()
+      StepCase.COPY_FROM_SHARED_STORAGE_STEP -> getCopyFromSharedStorageTask()
+      StepCase.COPY_TO_SHARED_STORAGE_STEP -> getCopyToSharedStorageTask()
       StepCase.COPY_FROM_PREVIOUS_EXCHANGE_STEP -> getCopyFromPreviousExchangeTask()
-      else -> error("Unsupported step type: ${step.stepCase}")
+      else -> throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
     }
   }
 
   private suspend fun ExchangeContext.getInputStepTask(): ExchangeTask {
-    require(step.stepCase == StepCase.INPUT_STEP)
+    check(step.stepCase == StepCase.INPUT_STEP)
     require(step.inputLabelsMap.isEmpty())
     val blobKey = step.outputLabelsMap.values.single()
     return InputTask(
@@ -80,7 +81,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   }
 
   private fun ExchangeContext.getIntersectAndValidateStepTask(): ExchangeTask {
-    require(step.stepCase == StepCase.INTERSECT_AND_VALIDATE_STEP)
+    check(step.stepCase == StepCase.INTERSECT_AND_VALIDATE_STEP)
 
     val maxSize = step.intersectAndValidateStep.maxSize
     val maximumNewItemsAllowed = step.intersectAndValidateStep.maximumNewItemsAllowed
@@ -93,14 +94,14 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   }
 
   private fun ExchangeContext.getGenerateSerializedRlweKeysStepTask(): ExchangeTask {
-    require(step.stepCase == StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP)
+    check(step.stepCase == StepCase.GENERATE_SERIALIZED_RLWE_KEYS_STEP)
     val privateMembershipCryptor =
       getPrivateMembershipCryptor(step.generateSerializedRlweKeysStep.serializedParameters)
     return GenerateAsymmetricKeysTask(generateKeys = privateMembershipCryptor::generateKeys)
   }
 
   private suspend fun ExchangeContext.getBuildPrivateMembershipQueriesTask(): ExchangeTask {
-    require(step.stepCase == StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP)
+    check(step.stepCase == StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP)
     val stepDetails = step.buildPrivateMembershipQueriesStep
     val privateMembershipCryptor = getPrivateMembershipCryptor(stepDetails.serializedParameters)
     val outputs =
@@ -125,7 +126,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   }
 
   private suspend fun ExchangeContext.getDecryptMembershipResultsTask(): ExchangeTask {
-    require(step.stepCase == StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP)
+    check(step.stepCase == StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP)
     val stepDetails = step.decryptPrivateMembershipQueryResultsStep
     val outputs =
       DecryptPrivateMembershipResultsTask.Outputs(
@@ -141,7 +142,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   }
 
   private suspend fun ExchangeContext.getExecutePrivateMembershipQueriesTask(): ExchangeTask {
-    require(step.stepCase == StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP)
+    check(step.stepCase == StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP)
     val stepDetails = step.executePrivateMembershipQueriesStep
     val outputs =
       ExecutePrivateMembershipQueriesTask.Outputs(
@@ -163,7 +164,36 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     )
   }
 
+  private suspend fun ExchangeContext.getCopyFromSharedStorageTask(): ExchangeTask {
+    check(step.stepCase == StepCase.COPY_FROM_SHARED_STORAGE_STEP)
+    val source = sharedStorageSelector.getSharedStorage(workflow.exchangeIdentifiers.storage, this)
+    val destination = privateStorageSelector.getStorageClient(exchangeDateKey)
+    return SharedStorageTask(
+      { blobKey -> source.getBlob(blobKey).read() },
+      destination::createBlob,
+      step.copyToSharedStorageStep.copyOptions,
+      step.inputLabelsMap.values.single(),
+      step.outputLabelsMap.values.single()
+    )
+  }
+
+  private suspend fun ExchangeContext.getCopyToSharedStorageTask(): ExchangeTask {
+    check(step.stepCase == StepCase.COPY_TO_SHARED_STORAGE_STEP)
+    val source = privateStorageSelector.getStorageClient(exchangeDateKey)
+    val destination =
+      sharedStorageSelector.getSharedStorage(workflow.exchangeIdentifiers.storage, this)
+    return SharedStorageTask(
+      { blobKey -> requireNotNull(source.getBlob(blobKey)) { "Missing blob: $blobKey" }.read() },
+      destination::createBlob,
+      step.copyToSharedStorageStep.copyOptions,
+      step.inputLabelsMap.values.single(),
+      step.outputLabelsMap.values.single()
+    )
+  }
+
   private suspend fun ExchangeContext.getCopyFromPreviousExchangeTask(): ExchangeTask {
+    check(step.stepCase == StepCase.COPY_FROM_PREVIOUS_EXCHANGE_STEP)
+
     val previousBlobKey = step.inputLabelsMap.getValue("input")
 
     if (exchangeDateKey.date == workflow.firstExchangeDate.toLocalDate()) {

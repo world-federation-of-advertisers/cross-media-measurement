@@ -84,16 +84,10 @@ class SharedStorageSelector(
    *
    * @param[storageType] is grabbed from the exchange workflow to validate that our local
    * information is accurate.
-   * @param[ownerCertificateResourceName] Optional. The API resource name of the certificate that
-   * has been created for this exchange. Only required for CopyToSharedStorageTask tasks, it is
-   * expected to be passed through an input label for the tasks that need it. Tasks that do not
-   * write to shared shared storage are expected to leave this as null so they don't need to depend
-   * on the task that generates the certificate when they don't use it.
    */
   suspend fun getSharedStorage(
     storageType: ExchangeWorkflow.StorageType,
-    context: ExchangeContext,
-    ownerCertificateResourceName: String?
+    context: ExchangeContext
   ): VerifiedStorageClient {
     val storageDetails = getStorageDetails(context.recurringExchangeId)
     when (storageType) {
@@ -102,19 +96,17 @@ class SharedStorageSelector(
       else -> throw IllegalArgumentException("No supported shared storage type specified.")
     }
 
-    return getVerifiedStorageClient(storageDetails, context, ownerCertificateResourceName)
+    return getVerifiedStorageClient(storageDetails, context)
   }
 
   private fun getVerifiedStorageClient(
     storageDetails: StorageDetails,
-    context: ExchangeContext,
-    ownerCertificateName: String?
+    context: ExchangeContext
   ): VerifiedStorageClient {
     return VerifiedStorageClient(
-      storageClient = getStorageFactory(storageDetails, context).build(),
-      context = context,
-      ownerCertificateName = ownerCertificateName,
-      certificateManager = certificateManager
+      getStorageFactory(storageDetails, context).build(),
+      context,
+      certificateManager
     )
   }
 }
