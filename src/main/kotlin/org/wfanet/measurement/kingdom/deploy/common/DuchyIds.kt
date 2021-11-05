@@ -52,7 +52,7 @@ object DuchyIds {
   }
 
   fun setForTest(duchyIds: List<String>) {
-    entries = duchyIds.mapIndexed { idx, value -> Entry(idx.toLong(), value) }
+    entries = duchyIds.mapIndexed { idx, value -> Entry((idx + 1).toLong(), value) }
   }
 
   data class Entry(val internalDuchyId: Long, val externalDuchyId: String)
