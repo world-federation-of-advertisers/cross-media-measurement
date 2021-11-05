@@ -1,0 +1,61 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "wfa/measurement/internal/kingdom/account.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+// Internal service for persistence of Account entities.
+service Accounts {
+  rpc CreateAccount(Account) returns (Account);
+
+  // Credentials for new identity will be passed-in via call credentials.
+  rpc ActivateAccount(ActivateAccountRequest) returns (Account);
+
+  // Credentials for old and new identities will be passed-in via call
+  // credentials.
+  rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account);
+
+  // Credentials to authenticate will be passed-in via call credentials and
+  // returns the authenticated Account for the call credentials.
+  rpc AuthenticateAccount(AuthenticateAccountRequest) returns (Account);
+
+  // Generates state and nonce.
+  rpc GenerateOpenIdRequestParams(GenerateOpenIdRequestParamsRequest)
+      returns (OpenIdRequestParams);
+}
+
+message ActivateAccountRequest {
+  fixed64 external_account_id = 1;
+  fixed64 activation_token = 2;
+}
+
+message ReplaceAccountIdentityRequest {
+  fixed64 external_account_id = 1;
+}
+
+message AuthenticateAccountRequest {}
+
+message GenerateOpenIdRequestParamsRequest {}
+
+message OpenIdRequestParams {
+  fixed64 state = 1;
+  fixed64 nonce = 2;
+  fixed64 max_age = 3;
+}
