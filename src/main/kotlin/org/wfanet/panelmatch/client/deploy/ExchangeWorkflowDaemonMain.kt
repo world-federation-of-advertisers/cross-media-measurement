@@ -16,20 +16,30 @@ package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
-import org.wfanet.panelmatch.client.storage.SharedStorageSelector
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.common.certificates.CertificateManager
+import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
+import org.wfanet.panelmatch.client.storage.GcsStorageFactory
+import org.wfanet.panelmatch.client.storage.S3StorageFactory
+import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.certificates.CertificateAuthority
+import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine
 
 @CommandLine.Command(
-  name = "ExchangeWorkflowDaemonFromFlags",
+  name = "ExchangeWorkflowDaemonMain",
   description = ["Daemon for executing ExchangeWorkflows"],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
+private object MainExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
+  /**
+   * This is one approach to providing [validExchangeWorkflows]. Some implementations may wish to
+   * use a different method.
+   */
   @CommandLine.Mixin
   lateinit var approvedWorkflowFlags: PlaintextApprovedWorkflowFileFlags
     private set
@@ -38,25 +48,63 @@ private object UnimplementedExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromF
   lateinit var blobSizeFlags: BlobSizeFlags
     private set
 
-  override val certificateManager: CertificateManager
-    get() = TODO("Not yet implemented")
-
-  override val privateStorageSelector: PrivateStorageSelector
-    get() = TODO("Not yet implemented")
-
-  override val sharedStorageSelector: SharedStorageSelector
-    get() = TODO("Not yet implemented")
-
   override val clock: Clock = Clock.systemUTC()
 
+  /** This can be customized per deployment. */
   override val validExchangeWorkflows: SecretMap by lazy {
     approvedWorkflowFlags.approvedExchangeWorkflows
   }
+
+  /** This should be customized per deployment. */
+  override val privateKeys: MutableSecretMap
+    get() = TODO("Customize this per deployment")
+
+  /** This should be customized per deployment. */
+  override val rootCertificates: SecretMap
+    get() = TODO("Customize this per deployment")
+
+  /** This should be customized per deployment. */
+  override val privateStorageInfo: SecretMap
+    get() = TODO("Customize this per deployment")
+
+  /** This should be customized per deployment. */
+  override val sharedStorageInfo: SecretMap
+    get() = TODO("Not yet implemented")
+
+  /** This should be customized per deployment. */
+  override val privateStorageFactories:
+    Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory> by lazy {
+    mapOf(
+      PlatformCase.FILE to ::FileSystemStorageFactory,
+      PlatformCase.GCS to ::GcsStorageFactory,
+      PlatformCase.AWS to ::S3StorageFactory,
+    )
+      .mapValues { (_, makeFactory) -> { storageDetails -> makeFactory(storageDetails, this) } }
+  }
+
+  /** This should be customized per deployment. */
+  override val sharedStorageFactories:
+    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory> by lazy {
+    mapOf(
+      PlatformCase.FILE to ::FileSystemStorageFactory,
+      PlatformCase.GCS to ::GcsStorageFactory,
+      PlatformCase.AWS to ::S3StorageFactory,
+    )
+      .mapValues { (_, makeFactory) ->
+        { storageDetails ->
+          blobSizeFlags.wrapStorageFactory(makeFactory(storageDetails, exchangeDateKey))
+        }
+      }
+  }
+
+  /** This should be customized per deployment. */
+  override val certificateAuthority: CertificateAuthority
+    get() = TODO("Not yet implemented")
 }
 
 /**
  * Reference implementation of a daemon for executing Exchange Workflows.
  *
- * TODO(@jonmolle): implement the proper [VerifiedStorageClient]s and any flags to support them.
+ * Before using this, customize the overrides above.
  */
-fun main(args: Array<String>) = commandLineMain(UnimplementedExchangeWorkflowDaemon, args)
+fun main(args: Array<String>) = commandLineMain(MainExchangeWorkflowDaemon, args)

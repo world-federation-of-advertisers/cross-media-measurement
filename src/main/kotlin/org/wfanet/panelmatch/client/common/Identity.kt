@@ -14,7 +14,9 @@
 
 package org.wfanet.panelmatch.client.common
 
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 
 /** Set of valid parties -- to allow excluding unknown or unspecified proto enum values. */
 private val VALID_PARTIES = setOf(Party.DATA_PROVIDER, Party.MODEL_PROVIDER)
@@ -23,5 +25,13 @@ private val VALID_PARTIES = setOf(Party.DATA_PROVIDER, Party.MODEL_PROVIDER)
 data class Identity(val id: String, val party: Party) {
   init {
     require(party in VALID_PARTIES)
+  }
+
+  fun toName(): String {
+    return when (party) {
+      Party.DATA_PROVIDER -> DataProviderKey(id).toName()
+      Party.MODEL_PROVIDER -> ModelProviderKey(id).toName()
+      else -> error("Invalid Identity: $this")
+    }
   }
 }
