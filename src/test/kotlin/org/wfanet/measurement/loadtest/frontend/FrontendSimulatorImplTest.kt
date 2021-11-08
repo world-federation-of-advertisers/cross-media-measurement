@@ -40,8 +40,10 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
@@ -53,14 +55,18 @@ private const val BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val REQUISITION_ONE = "requisition_one"
 private const val REQUISITION_TWO = "requisition_two"
 
+private const val LLV2_DECAY_RATE = 12.0
+private const val LLV2_MAX_SIZE = 100_000L
+private const val MAX_FREQUENCY = 10
+
 private val SKETCH_CONFIG =
   SketchConfig.newBuilder()
     .apply {
       addIndexesBuilder().apply {
         name = "Index"
         distributionBuilder.exponentialBuilder.apply {
-          rate = 12.0
-          numValues = 100_000 // 100K
+          rate = LLV2_DECAY_RATE
+          numValues = LLV2_MAX_SIZE
         }
       }
       addValuesBuilder().apply {
@@ -79,6 +85,14 @@ private val SKETCH_CONFIG =
     .build()
 private val MEASUREMENT_CONSUMER_DATA = MeasurementConsumerData("name", "key1", "key2")
 private val OUTPUT_DP_PARAMS = DifferentialPrivacyParams.getDefaultInstance()
+private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
+  sketchParams =
+    liquidLegionsSketchParams {
+      decayRate = LLV2_DECAY_RATE
+      maxSize = LLV2_MAX_SIZE
+    }
+  maximumFrequency = MAX_FREQUENCY
+}
 
 @RunWith(JUnit4::class)
 class FrontendSimulatorImplTest {
@@ -147,7 +161,7 @@ class FrontendSimulatorImplTest {
         RUN_ID
       )
 
-    assertThat(frontendSimulator.getExpectedResult("foo"))
+    assertThat(frontendSimulator.getExpectedResult("foo", LIQUID_LEGIONS_V2_PROTOCOL_CONFIG))
       .isEqualTo(
         Measurement.Result.newBuilder()
           .apply {
