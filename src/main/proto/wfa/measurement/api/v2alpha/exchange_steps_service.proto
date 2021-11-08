@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
+import "google/type/date.proto";
 import "wfa/measurement/api/v2alpha/exchange_step.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
@@ -36,6 +37,10 @@ service ExchangeSteps {
   // error.
   rpc ClaimReadyExchangeStep(ClaimReadyExchangeStepRequest)
       returns (ClaimReadyExchangeStepResponse);
+
+  // Lists `ExchangeStep`s.
+  rpc ListExchangeSteps(ListExchangeStepsRequest)
+      returns (ListExchangeStepsResponse);
 }
 
 // Request message for `GetExchangeStep` method.
@@ -66,4 +71,55 @@ message ClaimReadyExchangeStepResponse {
   // Resource name of a new ExchangeStepAttempt for `exchange_step`.
   string exchange_step_attempt = 2 [(google.api.resource_reference).type =
                                         "halo.wfanet.org/ExchangeStepAttempt"];
+}
+
+// Request message for `ListExchangeSteps` method.
+message ListExchangeStepsRequest {
+  string parent = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Exchange"];
+
+  // The maximum number of `ExchangeStep`s to return.
+  // The service may return fewer than this value.
+  // If unspecified, at most 50 `ExchangeStep`s will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 2;
+
+  // A page token, received from a previous `ListExchangeStepsRequest` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to
+  // `ListExchangeStepsRequest` must match the call that provided the
+  // page token.
+  string page_token = 3;
+
+  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
+  // fields specified as logical ANDs.
+  message Filter {
+    repeated google.type.Date exchange_dates = 1;
+    repeated ExchangeStep.State states = 2;
+    repeated string recurring_exchange_data_providers = 3
+        [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+    repeated string recurring_exchange_model_providers = 4
+        [(google.api.resource_reference).type =
+             "halo.wfanet.org/ModelProvider"];
+
+    // Party name.
+    oneof party {
+      string data_provider = 5 [(google.api.resource_reference).type =
+                                    "halo.wfanet.org/DataProvider"];
+      string model_provider = 6 [(google.api.resource_reference).type =
+                                     "halo.wfanet.org/ModelProvider"];
+    }
+  }
+  Filter filter = 4;
+}
+
+message ListExchangeStepsResponse {
+  // List of `ExchangeStep`s that has all of the tags in the
+  // ListExchangeStepsRequest
+  repeated ExchangeStep exchange_step = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
 }

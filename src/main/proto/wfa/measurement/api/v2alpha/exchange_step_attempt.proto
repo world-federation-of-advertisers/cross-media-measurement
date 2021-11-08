@@ -28,6 +28,8 @@ message ExchangeStepAttempt {
   option (google.api.resource) = {
     type: "halo.wfanet.org/ExchangeStepAttempt"
     pattern: "recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
+    pattern: "dataProviders/{data_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
+    pattern: "modelProviders/{data_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}/steps/{exchange_step}/attempts/{exchange_step_attempt}"
   };
 
   // Resource name.
