@@ -63,7 +63,7 @@ class PrivateStorageSelector(
       privateStorageInfo.get(recurringExchangeId)
         ?: throw StorageNotFoundException("Private storage for exchange $recurringExchangeId")
 
-    @Suppress("BlockingMethodInNonBlockingContext")
+    @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
     val storageDetails = StorageDetails.parseFrom(serializedStorageDetails)
 
     require(storageDetails.visibility == StorageDetails.Visibility.PRIVATE)

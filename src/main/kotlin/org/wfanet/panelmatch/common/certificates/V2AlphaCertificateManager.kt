@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.common.certificates
 
 import com.google.protobuf.ByteString
 import java.security.KeyFactory
-import java.security.KeyPairGenerator
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
@@ -50,7 +49,6 @@ class V2AlphaCertificateManager(
 ) : CertificateManager {
 
   private val cache = ConcurrentHashMap<String, X509Certificate>()
-  private val generator by lazy { KeyPairGenerator.getInstance(algorithm, jceProvider) }
 
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
@@ -91,8 +89,8 @@ class V2AlphaCertificateManager(
       return existingKeys.certResourceName
     }
 
-    val pair = generator.generateKeyPair()
-    val x509 = certificateAuthority.makeX509Certificate(pair.public, exchange.path)
+    val rootKey = getRootCertificate(localName).publicKey
+    val (x509, privateKey) = certificateAuthority.generateX509CertificateAndPrivateKey(rootKey)
 
     val request = createCertificateRequest {
       parent = localName
@@ -101,11 +99,9 @@ class V2AlphaCertificateManager(
     val certificate = certificateService.createCertificate(request)
     val certResourceName = certificate.name
 
-    val privateKeyBytes = pair.private.encoded.toByteString()
-
     val signingKeys = signingKeys {
       this.certResourceName = certResourceName
-      privateKey = privateKeyBytes
+      this.privateKey = privateKey.encoded.toByteString()
     }
 
     privateKeys.put(exchange.path, signingKeys.toByteString())
@@ -117,7 +113,8 @@ class V2AlphaCertificateManager(
   private suspend fun getSigningKeys(name: String): SigningKeys? {
     val bytes = privateKeys.get(name) ?: return null
 
-    @Suppress("BlockingMethodInNonBlockingContext") return SigningKeys.parseFrom(bytes)
+    @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
+    return SigningKeys.parseFrom(bytes)
   }
 
   private fun parsePrivateKey(bytes: ByteString): PrivateKey {

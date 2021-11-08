@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.common.certificates
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.cert.X509Certificate
 import java.time.LocalDate
@@ -162,11 +163,11 @@ class V2AlphaCertificateManagerTest {
 
     assertThat(certificateManager.createForExchange(EXCHANGE_DATE_KEY)).isEqualTo(RESOURCE_NAME)
 
-    val newPrivateKey = certificateManager.getExchangePrivateKey(EXCHANGE_DATE_KEY)
-    assertThat(newPrivateKey).isNotEqualTo(PRIVATE_KEY) // This is a new key
+    val privateKey = certificateManager.getExchangePrivateKey(EXCHANGE_DATE_KEY)
+    assertThat(privateKey).isEqualTo(PRIVATE_KEY)
 
-    val newCert = certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, RESOURCE_NAME)
-    assertThat(newCert).isEqualTo(CERTIFICATE) // Because of TestCertificateAuthority.
+    val x509 = certificateManager.getCertificate(EXCHANGE_DATE_KEY, LOCAL_NAME, RESOURCE_NAME)
+    assertThat(x509).isEqualTo(CERTIFICATE)
 
     verifyBlocking(certificatesService) {
       argumentCaptor<CreateCertificateRequest> {
@@ -175,7 +176,7 @@ class V2AlphaCertificateManagerTest {
           .containsExactly(
             createCertificateRequest {
               parent = LOCAL_NAME
-              certificate = certificate { x509Der = newCert.encoded.toByteString() }
+              certificate = certificate { x509Der = x509.encoded.toByteString() }
             }
           )
       }
@@ -200,10 +201,9 @@ class V2AlphaCertificateManagerTest {
 }
 
 private object TestCertificateAuthority : CertificateAuthority {
-  override suspend fun makeX509Certificate(
-    publicKey: PublicKey,
-    subjectKeyIdentifier: String
-  ): X509Certificate {
-    return CERTIFICATE
+  override suspend fun generateX509CertificateAndPrivateKey(
+    rootPublicKey: PublicKey
+  ): Pair<X509Certificate, PrivateKey> {
+    return CERTIFICATE to PRIVATE_KEY
   }
 }

@@ -14,15 +14,19 @@
 
 package org.wfanet.panelmatch.common.certificates
 
+import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.cert.X509Certificate
 
 /** Creates X509Certificates signed by a protected, root private key. */
 interface CertificateAuthority {
 
-  /** Creates an [X509Certificate] from [publicKey]. */
-  suspend fun makeX509Certificate(
-    publicKey: PublicKey,
-    subjectKeyIdentifier: String
-  ): X509Certificate
+  /**
+   * Creates a [PrivateKey] and corresponding [X509Certificate] signed by [rootPublicKey].
+   *
+   * TODO(@efoxepstein): use SigningKeyHandle instead of a PrivateKey directly.
+   */
+  suspend fun generateX509CertificateAndPrivateKey(
+    rootPublicKey: PublicKey
+  ): Pair<X509Certificate, PrivateKey>
 }
