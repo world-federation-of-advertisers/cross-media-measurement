@@ -18,7 +18,6 @@ import com.google.protobuf.ByteString
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.StepCase
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.storage.read
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
@@ -168,9 +167,9 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     check(step.stepCase == StepCase.COPY_FROM_SHARED_STORAGE_STEP)
     val source = sharedStorageSelector.getSharedStorage(workflow.exchangeIdentifiers.storage, this)
     val destination = privateStorageSelector.getStorageClient(exchangeDateKey)
-    return SharedStorageTask(
-      { blobKey -> source.getBlob(blobKey).read() },
-      destination::createBlob,
+    return CopyFromSharedStorageTask(
+      source,
+      destination,
       step.copyToSharedStorageStep.copyOptions,
       step.inputLabelsMap.values.single(),
       step.outputLabelsMap.values.single()
@@ -182,9 +181,9 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     val source = privateStorageSelector.getStorageClient(exchangeDateKey)
     val destination =
       sharedStorageSelector.getSharedStorage(workflow.exchangeIdentifiers.storage, this)
-    return SharedStorageTask(
-      { blobKey -> requireNotNull(source.getBlob(blobKey)) { "Missing blob: $blobKey" }.read() },
-      destination::createBlob,
+    return CopyToSharedStorageTask(
+      source,
+      destination,
       step.copyToSharedStorageStep.copyOptions,
       step.inputLabelsMap.values.single(),
       step.outputLabelsMap.values.single()
