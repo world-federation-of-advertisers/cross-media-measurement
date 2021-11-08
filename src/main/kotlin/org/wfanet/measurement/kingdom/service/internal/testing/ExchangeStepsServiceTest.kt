@@ -201,7 +201,7 @@ abstract class ExchangeStepsServiceTest {
   }
 
   @Test
-  fun `claimReadyExchangeStepRequest fails for missing Provider id`() = runBlocking {
+  fun `claimReadyExchangeStepRequest fails for missing Provider`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepsService.claimReadyExchangeStep(claimReadyExchangeStepRequest {})
@@ -209,6 +209,17 @@ abstract class ExchangeStepsServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("Invalid Provider")
+  }
+
+  @Test
+  fun `claimReadyExchangeStepRequest returns empty for wrong Provider`() = runBlocking {
+    val response =
+      exchangeStepsService.claimReadyExchangeStep(claimReadyExchangeStepRequest { provider = provider {
+        externalId = EXTERNAL_DATA_PROVIDER_ID
+        type = Provider.Type.DATA_PROVIDER
+      } })
+
+    assertThat(response).isEqualToDefaultInstance()
   }
 
   @Test
@@ -374,7 +385,7 @@ abstract class ExchangeStepsServiceTest {
       stepIndex = 1
       provider =
         provider {
-          externalId = EXTERNAL_DATA_PROVIDER_ID
+          externalId = 555L
           type = Provider.Type.DATA_PROVIDER
         }
     }
@@ -396,8 +407,8 @@ abstract class ExchangeStepsServiceTest {
           streamExchangeStepsRequest {
             filter =
               filter {
-                externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-                provider = PROVIDER
+                stepProvider = PROVIDER
+                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
               }
           }
         )
@@ -406,6 +417,10 @@ abstract class ExchangeStepsServiceTest {
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
       .containsExactly(
+        EXCHANGE_STEP.copy {
+          state = ExchangeStep.State.BLOCKED
+          stepIndex = 2
+        },
         EXCHANGE_STEP.copy {
           state = ExchangeStep.State.BLOCKED
           stepIndex = 3
@@ -426,8 +441,8 @@ abstract class ExchangeStepsServiceTest {
           streamExchangeStepsRequest {
             filter =
               filter {
-                externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
-                provider = PROVIDER
+                stepProvider = PROVIDER
+                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
               }
             limit = 1
           }
@@ -436,12 +451,10 @@ abstract class ExchangeStepsServiceTest {
 
     assertThat(response)
       .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
-      .containsExactly(
-        EXCHANGE_STEP.copy {
-          state = ExchangeStep.State.BLOCKED
-          stepIndex = 3
-        }
-      )
+      .containsExactly(EXCHANGE_STEP.copy {
+        stepIndex = 2
+        state = ExchangeStep.State.BLOCKED
+      })
   }
 
   private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
@@ -461,12 +474,14 @@ abstract class ExchangeStepsServiceTest {
         step {
           party = ExchangeWorkflow.Party.DATA_PROVIDER
           stepIndex = 2
+          prerequisiteStepIndices += 1
         }
       steps +=
         step {
           party = ExchangeWorkflow.Party.MODEL_PROVIDER
           stepIndex = 3
           prerequisiteStepIndices += 1
+          prerequisiteStepIndices += 2
         }
     }
     createRecurringExchange(

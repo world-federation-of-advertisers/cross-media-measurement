@@ -35,7 +35,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
   override val reader =
     ExchangeStepReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExchangeSteps.UpdateTime, Date ASC")
+      appendClause("ORDER BY ExchangeSteps.UpdateTime ASC, Date ASC, StepIndex ASC")
       if (limit > 0) {
         appendClause("LIMIT @${Params.LIMIT}")
         bind(Params.LIMIT to limit.toLong())
@@ -59,8 +59,8 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     }
 
     if (filter.recurringExchangeParticipantsList.isNotEmpty()) {
-      for ((i, provider) in filter.recurringExchangeParticipantsList.withIndex()) {
-        val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + i
+      for ((index, provider) in filter.recurringExchangeParticipantsList.withIndex()) {
+        val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + index
         conjuncts.add(providerFilter(provider, param))
         bind(param to filter.stepProvider.externalId)
       }

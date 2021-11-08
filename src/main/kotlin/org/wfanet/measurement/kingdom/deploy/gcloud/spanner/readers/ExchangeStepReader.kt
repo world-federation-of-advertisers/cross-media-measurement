@@ -45,9 +45,9 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     """
     SELECT $SELECT_COLUMNS_SQL
     FROM ExchangeSteps${exchangeStepsIndex.sql}
-    LEFT JOIN ModelProviders USING (ModelProviderId)
-    LEFT JOIN DataProviders USING (DataProviderId)
     JOIN RecurringExchanges USING (RecurringExchangeId)
+    JOIN ModelProviders ON (RecurringExchanges.ModelProviderId = ModelProviders.ModelProviderId)
+    JOIN DataProviders ON (RecurringExchanges.DataProviderId = DataProviders.DataProviderId)
     """.trimIndent()
 
   override suspend fun translate(struct: Struct): Result {
