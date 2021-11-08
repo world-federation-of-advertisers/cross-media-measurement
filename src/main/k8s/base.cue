@@ -80,8 +80,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_system:          string
 	_jvm_flags:       string | *""
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"250m"
-	_resourceLimitCpu:      string | *"500m"
+	_resourceRequestCpu:    string | *"200m"
+	_resourceLimitCpu:      string | *"400m"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
 	apiVersion:             "apps/v1"
@@ -168,6 +168,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
+	_resourceRequestCpu:    string | *"200m"
+	_resourceLimitCpu:      string | *"400m"
+	_resourceRequestMemory: string | *"256Mi"
+	_resourceLimitMemory:   string | *"512Mi"
 
 	apiVersion: "batch/v1"
 	kind:       "Job"
@@ -177,8 +181,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	spec: template: spec: {
 		containers: [{
-			name:            _name + "-container"
-			image:           _image
+			name:  _name + "-container"
+			image: _image
+			resources: requests: {
+				memory: _resourceRequestMemory
+				cpu:    _resourceRequestCpu
+			}
+			resources: limits: {
+				memory: _resourceLimitMemory
+				cpu:    _resourceLimitCpu
+			}
 			imagePullPolicy: _imagePullPolicy
 			args:            _args
 			volumeMounts: [{
