@@ -28,11 +28,13 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
+import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
@@ -78,6 +80,17 @@ fun InternalMeasurement.State.toState(): State =
     InternalMeasurement.State.CANCELLED -> State.CANCELLED
     InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
       State.STATE_UNSPECIFIED
+  }
+
+/** Converts an internal [InternalMeasurement.Failure.Reason] to a public [Failure.Reason]. */
+fun InternalMeasurement.Failure.Reason.toReason(): Failure.Reason =
+  when (this) {
+    InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED -> Failure.Reason.CERTIFICATE_REVOKED
+    InternalMeasurement.Failure.Reason.REQUISITION_REFUSED -> Failure.Reason.REQUISITION_REFUSED
+    InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
+      Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+    InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED,
+    InternalMeasurement.Failure.Reason.UNRECOGNIZED -> Failure.Reason.REASON_UNSPECIFIED
   }
 
 fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): DifferentialPrivacyParams {
@@ -158,6 +171,11 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     aggregatorCertificate = source.details.aggregatorCertificate
     encryptedResult = source.details.encryptedResult
     measurementReferenceId = source.providedMeasurementId
+    failure =
+      failure {
+        reason = source.details.failure.reason.toReason()
+        message = source.details.failure.message
+      }
   }
 }
 
