@@ -85,7 +85,8 @@ private class WriteFilesFn<T : MessageLite>(
     val outputStream = ByteArrayOutputStream()
     val messageFlow = flow {
       for (message in context.element().value) {
-        @Suppress("BlockingMethodInNonBlockingContext") message.writeDelimitedTo(outputStream)
+        @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
+        message.writeDelimitedTo(outputStream)
 
         emit(outputStream.toByteArray().toByteString())
         outputStream.reset()

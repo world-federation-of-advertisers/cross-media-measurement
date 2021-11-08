@@ -69,7 +69,7 @@ class SharedStorageSelector(
       sharedStorageInfo.get(recurringExchangeId)
         ?: throw StorageNotFoundException("Shared storage for exchange $recurringExchangeId")
 
-    @Suppress("BlockingMethodInNonBlockingContext")
+    @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
     val storageDetails = StorageDetails.parseFrom(serializedStorageDetails)
 
     require(storageDetails.visibility == StorageDetails.Visibility.SHARED)

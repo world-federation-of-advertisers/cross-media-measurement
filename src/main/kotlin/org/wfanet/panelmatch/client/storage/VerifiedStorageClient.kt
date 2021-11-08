@@ -71,7 +71,7 @@ class VerifiedStorageClient(
         ?: throw StorageNotFoundException(getSigPath(blobKey))
     val serializedSignature = signatureBlob.toByteString()
 
-    @Suppress("BlockingMethodInNonBlockingContext")
+    @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
     return NamedSignature.parseFrom(serializedSignature)
   }
 

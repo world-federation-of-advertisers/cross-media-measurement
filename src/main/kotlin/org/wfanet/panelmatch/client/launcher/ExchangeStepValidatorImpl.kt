@@ -41,9 +41,9 @@ class ExchangeStepValidatorImpl(
       )
     }
 
-    @Suppress("BlockingMethodInNonBlockingContext") // Proto parsing is lightweight
     val workflow =
       try {
+        @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
         ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
       } catch (e: InvalidProtocolBufferException) {
         throw InvalidExchangeStepException(
