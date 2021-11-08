@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -61,6 +62,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -95,7 +97,11 @@ private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measureme
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+private const val DATA_PROVIDER_NONCE = 2330346028711713085L
+private val DATA_PROVIDER_NONCE_HASH: ByteString =
+  HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+
 private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
   externalProtocolConfigId = "llv2"
   measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
@@ -159,8 +165,6 @@ private val MEASUREMENT = measurement {
       data = MEASUREMENT_SPEC.toByteString()
       signature = UPDATE_TIME.toByteString()
     }
-  serializedDataProviderList = UPDATE_TIME.toByteString()
-  dataProviderListSalt = UPDATE_TIME.toByteString()
   dataProviders +=
     dataProviderEntry {
       key = DATA_PROVIDERS_NAME
@@ -173,6 +177,7 @@ private val MEASUREMENT = measurement {
               signature = UPDATE_TIME.toByteString()
             }
           encryptedRequisitionSpec = UPDATE_TIME.toByteString()
+          nonceHash = DATA_PROVIDER_NONCE_HASH
         }
     }
   protocolConfig = PUBLIC_PROTOCOL_CONFIG
@@ -206,6 +211,7 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
           dataProviderPublicKey = it.value.dataProviderPublicKey.data
           dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
           encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
+          nonceHash = it.value.nonceHash
         }
       }
     )
@@ -215,8 +221,6 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
       apiVersion = Version.V2_ALPHA.string
       measurementSpec = MEASUREMENT.measurementSpec.data
       measurementSpecSignature = MEASUREMENT.measurementSpec.signature
-      dataProviderList = MEASUREMENT.serializedDataProviderList
-      dataProviderListSalt = MEASUREMENT.dataProviderListSalt
       protocolConfig = INTERNAL_PROTOCOL_CONFIG
       duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
     }
@@ -449,39 +453,6 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when serialized data provider list is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement = MEASUREMENT.copy { clearSerializedDataProviderList() }
-            }
-          )
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Serialized Data Provider list is unspecified")
-  }
-
-  @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when data provider list salt is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement = MEASUREMENT.copy { clearDataProviderListSalt() }
-            }
-          )
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Provider list salt is unspecified")
-  }
-
-  @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -590,7 +561,27 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Encrypted Requisition spec is unspecified")
+    assertThat(exception.status.description).contains("spec")
+  }
+
+  @Test
+  fun `createMeasurement throws error when Data Providers Entry value is missing nonce hash`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(
+            createMeasurementRequest {
+              measurement =
+                MEASUREMENT.copy {
+                  dataProviders[0] =
+                    dataProviders[0].copy { value = value.copy { clearNonceHash() } }
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).contains("hash")
   }
 
   @Test
