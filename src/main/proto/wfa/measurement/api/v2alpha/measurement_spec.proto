@@ -31,6 +31,10 @@ message MeasurementSpec {
   // `RequisitionSpec`.
   bytes measurement_public_key = 1;
 
+  // List of `nonce_hash` values from `data_providers` of the corresponding
+  // `Measurement`. Required.
+  repeated bytes nonce_hashes = 2;
+
   message ReachAndFrequency {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1;
@@ -41,6 +45,6 @@ message MeasurementSpec {
 
   // Fields specific to the type of measurement.
   oneof measurement_type {
-    ReachAndFrequency reach_and_frequency = 2;
+    ReachAndFrequency reach_and_frequency = 3;
   }
 }

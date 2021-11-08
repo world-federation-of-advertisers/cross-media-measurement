@@ -42,21 +42,6 @@ message Measurement {
   // `measurement_consumer_certificate`. Required. Immutable.
   SignedData measurement_spec = 3;
 
-  // Serialized `DataProviderList` message containing the same `DataProvider`
-  // resource keys as `data_provider_entries`. The order of the entries does not
-  // matter. Required. Immutable.
-  //
-  // This is included as a separate field to provide a canonical serialization
-  // for hashing, as the protocol buffer binary encoding specification does not
-  // provide a deterministic serialization.
-  bytes serialized_data_provider_list = 4;
-
-  // A cryptographic salt for this `Measurement` that's used when computing the
-  // SHA256 hash of `serialized_data_provider_list`. Required. Immutable.
-  //
-  // A randomly-generated 32-byte value should be ample.
-  bytes data_provider_list_salt = 5;
-
   // TODO(b/175707034): Consider adding a field to hold the private keys which
   // is encrypted with some private/symmetric key belonging to the
   // `MeasurementConsumer`. This way the `MeasurementConsumer` need not store
@@ -82,20 +67,24 @@ message Measurement {
       // this entry, which can be verified using
       // `measurement_consumer_certificate`. Required.
       //
-      // The encryption uses the `cipher_suite` specified in `measurement_spec`,
-      // with `data_provider_public_key` as the recipient public key.
+      // The encryption uses `data_provider_public_key` as the recipient public
+      // key.
       bytes encrypted_requisition_spec = 3;
+
+      // SHA256 hash of the `nonce` from `encrypted_requisition_spec`, where the
+      // nonce value has big-endian byte ordering.
+      bytes nonce_hash = 4;
     }
     // Value of the map entry. Required.
     Value value = 2;
   }
   // Map of `DataProvider` name to parameters for that `DataProvider`. Required.
   // Immutable.
-  repeated DataProviderEntry data_providers = 6;
+  repeated DataProviderEntry data_providers = 4;
 
   // The `ProtocolConfig` selected for this measurement according to the
   // `measurement_spec`. Output-only. Immutable.
-  ProtocolConfig protocol_config = 7;
+  ProtocolConfig protocol_config = 5;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -110,7 +99,7 @@ message Measurement {
     // Cancelled by Measurement Consumer. Terminal state.
     CANCELLED = 5;
   }
-  State state = 8;
+  State state = 6;
 
   // The result of a `Measurement` computation.
   message Result {
@@ -133,15 +122,15 @@ message Measurement {
   // X.509 certificate in DER format which can be verified using the
   // Aggregator's root certificate. Output-only. Only set if `state` is
   // `SUCCEEDED`.
-  bytes aggregator_certificate = 9;
+  bytes aggregator_certificate = 7;
 
   // Encrypted `SignedData` containing the serialized `Result`, which can be
   // verified using `aggregator_certificate`. Output-only. Must be set if
   // `state` is `SUCCEEDED`.
   //
-  // The encryption uses the `cipher_suite` specified in `measurement_spec`,
-  // with `measurement_public_key` as the recipient public key.
-  bytes encrypted_result = 10;
+  // The encryption uses the `measurement_public_key` from `measurement_spec` as
+  // the recipient public key.
+  bytes encrypted_result = 8;
 
   // ID referencing the `Measurement` in an external system, provided by the
   // Measurement Consumer.
@@ -149,7 +138,7 @@ message Measurement {
   // If set, this value must be unique among `Measurement`s for the parent
   // `MeasurementConsumer`. This serves as an idempotency key for the
   // `Measurement`.
-  string measurement_reference_id = 11;
+  string measurement_reference_id = 9;
 
   message Failure {
     enum Reason {
@@ -167,5 +156,5 @@ message Measurement {
     string message = 2;
   }
   // Set when the state is set to FAILED. Output-only.
-  Failure failure = 12;
+  Failure failure = 10;
 }

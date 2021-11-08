@@ -38,15 +38,16 @@ message FulfillRequisitionRequest {
     string name = 1
         [(google.api.resource_reference).type = "halo.wfanet.org/Requisition"];
 
-    // Cryptographic digital signature of the "requisition fingerprint" which
-    // can be verified using the `DataProvider`'s certificate. Required.
+    // The fingerprint of the `Requisition`. Required.
     //
-    // The requisition fingerprint is defined as the concatenation of:
-    // 1. The SHA256 hash of `encrypted_requisition_spec` from the
+    // This is defined as the SHA256 hash of the concatenation of:
+    // 1. The `data` in `measurement_spec` from the `Requisition`.
+    // 2. The SHA256 hash of `encrypted_requisition_spec` from the
     //    `Requisition`.
-    // 2. `data_provider_list_hash` from the `Requisition`.
-    // 3. The `data` in `measurement_spec` from the `Requisition`.
-    bytes data_provider_participation_signature = 2;
+    bytes requisition_fingerprint = 2;
+
+    // The `nonce` value from the `encrypted_requisition_spec`. Required.
+    fixed64 nonce = 3;
   }
 
   // The chunk message for this streaming request.

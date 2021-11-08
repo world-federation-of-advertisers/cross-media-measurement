@@ -24,6 +24,7 @@ option java_multiple_files = true;
 option java_outer_classname = "RequisitionSpecProto";
 
 // Specification for a `Requisition` which can be cryptographically signed.
+// Immutable.
 message RequisitionSpec {
   // Filter to apply to events.
   message EventFilter {
@@ -72,23 +73,20 @@ message RequisitionSpec {
     Value value = 2;
   }
   // Map of `EventGroup` name to parameters for that `EventGroup`. Required.
-  // Immutable.
   //
   // All of the `EventGroup`s must belong to the same parent `DataProvider`
   // as this `Requisition`.
   repeated EventGroupEntry event_groups = 1;
 
   // Serialized `EncryptionPublicKey` for the `Measurement` that this
-  // `RequisitionSpec` is associated with. Required. Immutable.
+  // `RequisitionSpec` is associated with. Required.
   //
   // This is serialized so it can be easily compared with the same field in
   // `MeasurementSpec`.
   bytes measurement_public_key = 2;
 
-  // SHA256 hash of the concatenation of `serialized_data_provider_list` and
-  // `data_provider_list_salt` from the `Measurement` that this
-  // `RequisitionSpec` is associated with. Required. Immutable.
-  bytes data_provider_list_hash = 3;
+  // Non-zero cryptographic nonce for this `RequisitionSpec`. Required.
+  fixed64 nonce = 3;
 }
 
 // A time interval.
