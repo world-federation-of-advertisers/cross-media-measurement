@@ -52,7 +52,10 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
     if (filter.externalRecurringExchangeIdList.isNotEmpty()) {
       conjuncts.add(
-        "RecurringExchanges.ExternalRecurringExchangeId IN UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})"
+        """
+        RecurringExchanges.ExternalRecurringExchangeId IN
+        UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})
+        """.trimIndent()
       )
       bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID)
         .toInt64Array(filter.externalRecurringExchangeIdList.map { it.toLong() })
