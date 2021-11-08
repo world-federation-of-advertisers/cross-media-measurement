@@ -15,14 +15,12 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
-import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 
 /**
@@ -47,27 +45,25 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
   private fun Statement.Builder.appendWhereClause(filter: StreamExchangeStepsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
 
-    if (!filter.hasProvider()) {
-      failGrpc(Status.INVALID_ARGUMENT) { "Provider must be provided." }
+    if (filter.hasStepProvider()) {
+      conjuncts.add(providerFilter(filter.stepProvider, Params.EXTERNAL_PROVIDER_ID))
+      bind(Params.EXTERNAL_PROVIDER_ID to filter.stepProvider.externalId)
     }
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (filter.provider.type) {
-      Provider.Type.DATA_PROVIDER ->
-        conjuncts.add("DataProviders.ExternalDataProviderId = @${Params.EXTERNAL_PROVIDER_ID}")
-      Provider.Type.MODEL_PROVIDER ->
-        conjuncts.add("ModelProviders.ExternalModelProviderId = @${Params.EXTERNAL_PROVIDER_ID}")
-      Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
-        failGrpc(Status.INVALID_ARGUMENT) {
-          "external_data_provider_id or external_model_provider_id must be provided."
-        }
-    }
-    bind(Params.EXTERNAL_PROVIDER_ID to filter.provider.externalId)
 
-    if (filter.externalRecurringExchangeId != 0L) {
+    if (filter.externalRecurringExchangeIdList.isNotEmpty()) {
       conjuncts.add(
-        "RecurringExchanges.ExternalRecurringExchangeId = @${Params.EXTERNAL_RECURRING_EXCHANGE_ID}"
+        "RecurringExchanges.ExternalRecurringExchangeId IN UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})"
       )
-      bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID to filter.externalRecurringExchangeId)
+      bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID)
+        .toInt64Array(filter.externalRecurringExchangeIdList.map { it.toLong() })
+    }
+
+    if (filter.recurringExchangeParticipantsList.isNotEmpty()) {
+      for ((i, provider) in filter.recurringExchangeParticipantsList.withIndex()) {
+        val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + i
+        conjuncts.add(providerFilter(provider, param))
+        bind(param to filter.stepProvider.externalId)
+      }
     }
 
     if (filter.datesList.isNotEmpty()) {
@@ -92,8 +88,9 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
   private object Params {
     const val LIMIT = "limit"
-    const val EXTERNAL_PROVIDER_ID = "externalModelProviderId"
+    const val EXTERNAL_PROVIDER_ID = "externalProviderId"
     const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
+    const val RECURRING_EXCHANGE_PARTICIPANT_ID = "recurringExchangeParticipantId"
     const val DATES = "dates"
     const val STATES = "states"
     const val UPDATED_AFTER = "updatedAfter"
