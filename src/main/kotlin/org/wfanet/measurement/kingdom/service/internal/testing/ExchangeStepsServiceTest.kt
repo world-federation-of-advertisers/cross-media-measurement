@@ -402,7 +402,32 @@ abstract class ExchangeStepsServiceTest {
   }
 
   @Test
-  fun `streamExchangeSteps returns all exchangeSteps in order`(): Unit = runBlocking {
+  fun `streamExchangeSteps returns empty with wrong step provider`(): Unit = runBlocking {
+    createRecurringExchange()
+    claimReadyExchangeStep()
+
+    val response =
+      exchangeStepsService
+        .streamExchangeSteps(
+          streamExchangeStepsRequest {
+            filter =
+              filter {
+                stepProvider =
+                  provider {
+                    externalId = EXTERNAL_DATA_PROVIDER_ID
+                    type = Provider.Type.DATA_PROVIDER
+                  }
+                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
+              }
+          }
+        )
+        .toList()
+
+    assertThat(response).isEmpty()
+  }
+
+  @Test
+  fun `streamExchangeSteps returns only step provider's steps`(): Unit = runBlocking {
     createRecurringExchangeWithMultipleSteps()
     claimReadyExchangeStep()
 
@@ -413,6 +438,36 @@ abstract class ExchangeStepsServiceTest {
             filter =
               filter {
                 stepProvider = PROVIDER
+                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
+              }
+          }
+        )
+        .toList()
+
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
+      .containsExactly(
+        EXCHANGE_STEP.copy {
+          state = ExchangeStep.State.BLOCKED
+          stepIndex = 3
+        },
+        EXCHANGE_STEP
+      )
+      .inOrder()
+  }
+
+  @Test
+  fun `streamExchangeSteps returns all exchangeSteps in order`(): Unit = runBlocking {
+    createRecurringExchangeWithMultipleSteps()
+    claimReadyExchangeStep()
+
+    val response =
+      exchangeStepsService
+        .streamExchangeSteps(
+          streamExchangeStepsRequest {
+            filter =
+              filter {
+                recurringExchangeParticipants += PROVIDER
                 externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
               }
           }
@@ -446,7 +501,7 @@ abstract class ExchangeStepsServiceTest {
           streamExchangeStepsRequest {
             filter =
               filter {
-                stepProvider = PROVIDER
+                recurringExchangeParticipants += PROVIDER
                 externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
               }
             limit = 1
