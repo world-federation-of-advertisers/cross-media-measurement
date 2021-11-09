@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepProviderFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 
 /**
@@ -46,26 +47,24 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     val conjuncts = mutableListOf<String>()
 
     if (filter.hasStepProvider()) {
-      conjuncts.add(providerFilter(filter.stepProvider, Params.EXTERNAL_PROVIDER_ID))
-      bind(Params.EXTERNAL_PROVIDER_ID to filter.stepProvider.externalId)
+      conjuncts.add(stepProviderFilter(filter.stepProvider, Params.EXTERNAL_STEP_PROVIDER_ID))
+      bind(Params.EXTERNAL_STEP_PROVIDER_ID to filter.stepProvider.externalId)
     }
 
     if (filter.externalRecurringExchangeIdList.isNotEmpty()) {
       conjuncts.add(
-        """
-        RecurringExchanges.ExternalRecurringExchangeId IN
-        UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})
-        """.trimIndent()
+        "RecurringExchanges.ExternalRecurringExchangeId IN " +
+          "UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})"
       )
       bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID)
         .toInt64Array(filter.externalRecurringExchangeIdList.map { it.toLong() })
     }
 
     if (filter.recurringExchangeParticipantsList.isNotEmpty()) {
-      for ((index, provider) in filter.recurringExchangeParticipantsList.withIndex()) {
+      for ((index, participantProvider) in filter.recurringExchangeParticipantsList.withIndex()) {
         val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + index
-        conjuncts.add(providerFilter(provider, param))
-        bind(param to filter.stepProvider.externalId)
+        conjuncts.add(providerFilter(participantProvider, param))
+        bind(param to participantProvider.externalId)
       }
     }
 
@@ -91,7 +90,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
   private object Params {
     const val LIMIT = "limit"
-    const val EXTERNAL_PROVIDER_ID = "externalProviderId"
+    const val EXTERNAL_STEP_PROVIDER_ID = "externalStepProviderId"
     const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
     const val RECURRING_EXCHANGE_PARTICIPANT_ID = "recurringExchangeParticipantId"
     const val DATES = "dates"
