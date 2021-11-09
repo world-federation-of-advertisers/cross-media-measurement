@@ -82,6 +82,11 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
       bind(Params.STATES).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
 
+    if (filter.stepIndicesList.isNotEmpty()) {
+      conjuncts.add("ExchangeSteps.StepIndex IN UNNEST(@${Params.STEP_INDICES})")
+      bind(Params.STEP_INDICES).toInt64Array(filter.stepIndicesList.map { it.toLong() })
+    }
+
     if (filter.hasUpdatedAfter()) {
       conjuncts.add("ExchangeSteps.UpdateTime > @${Params.UPDATED_AFTER}")
       bind(Params.UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
@@ -99,6 +104,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     const val RECURRING_EXCHANGE_PARTICIPANT_ID = "recurringExchangeParticipantId"
     const val DATES = "dates"
     const val STATES = "states"
+    const val STEP_INDICES = "stepIndices"
     const val UPDATED_AFTER = "updatedAfter"
   }
 }

@@ -95,11 +95,7 @@ class SpannerExchangeStepsService(
     val externalModelProviderId = request.provider.externalModelProviderId
     val externalDataProviderId = request.provider.externalDataProviderId
 
-    CreateExchangesAndSteps(
-        externalModelProviderId = externalModelProviderId,
-        externalDataProviderId = externalDataProviderId
-      )
-      .execute(client, idGenerator)
+    CreateExchangesAndSteps(provider = request.provider).execute(client, idGenerator)
 
     // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
     val debugLogEntry = debugLog {
@@ -115,8 +111,7 @@ class SpannerExchangeStepsService(
       .map { it.exchangeStepAttempt }
       .collect { attempt: ExchangeStepAttempt ->
         FinishExchangeStepAttempt(
-            externalModelProviderId = request.provider.externalModelProviderId,
-            externalDataProviderId = request.provider.externalDataProviderId,
+            provider = request.provider,
             externalRecurringExchangeId = ExternalId(attempt.externalRecurringExchangeId),
             exchangeDate = attempt.date,
             stepIndex = attempt.stepIndex,
@@ -129,11 +124,7 @@ class SpannerExchangeStepsService(
       }
 
     val result =
-      ClaimReadyExchangeStep(
-          externalModelProviderId = externalModelProviderId,
-          externalDataProviderId = externalDataProviderId,
-          clock = clock
-        )
+      ClaimReadyExchangeStep(provider = request.provider, clock = clock)
         .execute(client, idGenerator)
 
     if (result.isPresent) {

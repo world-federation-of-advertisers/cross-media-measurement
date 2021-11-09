@@ -69,7 +69,8 @@ message StreamExchangeStepsRequest {
     repeated fixed64 external_recurring_exchange_id = 3;
     repeated google.type.Date dates = 4;
     repeated ExchangeStep.State states = 5;
-    google.protobuf.Timestamp updated_after = 6;
+    repeated int32 step_indices = 6;
+    google.protobuf.Timestamp updated_after = 7;
   }
   Filter filter = 1;
 

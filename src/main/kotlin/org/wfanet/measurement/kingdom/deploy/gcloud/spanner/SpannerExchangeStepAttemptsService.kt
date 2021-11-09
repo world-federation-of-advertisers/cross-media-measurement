@@ -32,8 +32,6 @@ import org.wfanet.measurement.internal.kingdom.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
-import org.wfanet.measurement.kingdom.service.internal.externalDataProviderId
-import org.wfanet.measurement.kingdom.service.internal.externalModelProviderId
 
 class SpannerExchangeStepAttemptsService(
   private val clock: Clock,
@@ -101,8 +99,7 @@ class SpannerExchangeStepAttemptsService(
   ): ExchangeStepAttempt {
     grpcRequire(request.hasDate()) { "Date must be provided in the request." }
     return FinishExchangeStepAttempt(
-        externalModelProviderId = request.provider.externalModelProviderId,
-        externalDataProviderId = request.provider.externalDataProviderId,
+        provider = request.provider,
         externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId),
         exchangeDate = request.date,
         stepIndex = request.stepIndex,

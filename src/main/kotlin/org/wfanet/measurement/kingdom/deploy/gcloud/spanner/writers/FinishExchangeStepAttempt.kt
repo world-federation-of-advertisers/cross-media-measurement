@@ -39,16 +39,16 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 class FinishExchangeStepAttempt(
-  private val externalModelProviderId: ExternalId?,
-  private val externalDataProviderId: ExternalId?,
+  private val provider: Provider,
   private val externalRecurringExchangeId: ExternalId,
   private val exchangeDate: Date,
   private val stepIndex: Int,
@@ -74,18 +74,18 @@ class FinishExchangeStepAttempt(
 
     // TODO: the above and below reads should be consolidated into a single query.
     exchangeStepResult =
-      GetExchangeStep(
-          getExchangeStepFilter(
-            externalDataProviderIds = listOfNotNull(externalDataProviderId),
-            externalModelProviderIds = listOfNotNull(externalModelProviderId),
-            recurringExchangeId = recurringExchangeId.value,
-            date = exchangeDate,
-            stepIndex = stepIndex.toLong(),
-          )
+      StreamExchangeSteps(
+          filter {
+            stepProvider = provider
+            externalRecurringExchangeId +=
+              this@FinishExchangeStepAttempt.externalRecurringExchangeId.value
+            dates += exchangeDate
+            stepIndices += this@FinishExchangeStepAttempt.stepIndex
+          }
         )
         .execute(transactionContext)
         .singleOrNull()
-        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStepAttempt not found" }
+        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
     // TODO: use a KingdomInternalException above
 
     // TODO(yunyeng): Think about an ACTIVE case for auto-fail scenario.

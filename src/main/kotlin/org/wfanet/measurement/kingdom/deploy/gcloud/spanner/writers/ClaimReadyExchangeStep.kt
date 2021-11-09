@@ -20,9 +20,9 @@ import com.google.common.base.Optional
 import com.google.type.Date
 import java.time.Clock
 import java.time.Duration
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
@@ -32,17 +32,17 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttemptDetails
-import org.wfanet.measurement.kingdom.db.getExchangeStepFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.GetExchangeStep
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep.Result
 
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
 class ClaimReadyExchangeStep(
-  private val externalModelProviderId: ExternalId?,
-  private val externalDataProviderId: ExternalId?,
+  private val provider: Provider,
   private val clock: Clock,
 ) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
@@ -50,12 +50,14 @@ class ClaimReadyExchangeStep(
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
     // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
     val exchangeStepResult =
-      GetExchangeStep(
-          getExchangeStepFilter(
-            externalModelProviderIds = listOfNotNull(externalModelProviderId),
-            externalDataProviderIds = listOfNotNull(externalDataProviderId),
-            states = listOf(ExchangeStep.State.READY_FOR_RETRY, ExchangeStep.State.READY)
-          )
+      StreamExchangeSteps(
+          requestFilter =
+            filter {
+              stepProvider = provider
+              states += ExchangeStep.State.READY_FOR_RETRY
+              states += ExchangeStep.State.READY
+            },
+          limit = 1
         )
         .execute(transactionContext)
         .singleOrNull()
