@@ -30,15 +30,13 @@ fun providerFilter(provider: Provider, param: String): String {
   }
 }
 
-fun stepProviderFilter(stepProvider: Provider, param: String): String {
+fun stepIsOwnedByProviderTypeFilter(type: Provider.Type): String {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-  return when (stepProvider.type) {
+  return when (type) {
     Provider.Type.DATA_PROVIDER ->
-      "ExchangeSteps.DataProviderId = (SELECT DataProviderId FROM DataProviders " +
-        "WHERE ExternalDataProviderId = @$param)"
+      "ExchangeSteps.DataProviderId = RecurringExchanges.DataProviderId"
     Provider.Type.MODEL_PROVIDER ->
-      "ExchangeSteps.ModelProviderId = (SELECT ModelProviderId FROM ModelProviders " +
-        "WHERE ExternalModelProviderId = @$param)"
+      "ExchangeSteps.ModelProviderId = RecurringExchanges.ModelProviderId"
     Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
       failGrpc(Status.INVALID_ARGUMENT) {
         "external_data_provider_id or external_model_provider_id must be provided."
