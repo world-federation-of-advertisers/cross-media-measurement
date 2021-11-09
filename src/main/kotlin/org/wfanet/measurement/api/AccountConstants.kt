@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api.v2alpha
+package org.wfanet.measurement.api
 
 import io.grpc.Context
 import io.grpc.Metadata

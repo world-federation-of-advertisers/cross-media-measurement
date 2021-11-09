@@ -14,10 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
 import org.wfanet.measurement.api.v2alpha.Account.OpenIdConnectIdentity
-import org.wfanet.measurement.api.v2alpha.AccountConstants
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountKt.activationParams
 import org.wfanet.measurement.api.v2alpha.AccountKt.openIdConnectIdentity
@@ -83,31 +83,32 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
 
   /** Converts an internal [InternalAccount] to a public [Account]. */
   private fun InternalAccount.toAccount(): Account {
+    val source = this
+
     return account {
       name = AccountKey(externalIdToApiId(externalAccountId)).toName()
       if (externalCreatorAccountId != 0L) {
         creator = AccountKey(externalIdToApiId(externalCreatorAccountId)).toName()
       }
 
-      activationState = this@toAccount.activationState.toActivationState()
+      activationState = source.activationState.toActivationState()
 
       activationParams =
         activationParams {
-          activationToken = externalIdToApiId(this@toAccount.activationToken)
-          with(this@toAccount.externalOwnedMeasurementConsumerId) {
-            if (this != 0L) {
-              ownedMeasurementConsumer = MeasurementConsumerKey(externalIdToApiId(this)).toName()
-            }
+          activationToken = externalIdToApiId(source.activationToken)
+          if (source.externalOwnedMeasurementConsumerId != 0L) {
+            ownedMeasurementConsumer =
+              MeasurementConsumerKey(externalIdToApiId(source.externalOwnedMeasurementConsumerId))
+                .toName()
           }
         }
 
-      measurementConsumerCreationToken =
-        externalIdToApiId(this@toAccount.measurementConsumerCreationToken)
+      measurementConsumerCreationToken = externalIdToApiId(source.measurementConsumerCreationToken)
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when (this@toAccount.identityCase) {
+      when (source.identityCase) {
         InternalAccount.IdentityCase.OPEN_ID_IDENTITY ->
-          openId = this@toAccount.openIdIdentity.toOpenIdConnectIdentity()
+          openId = source.openIdIdentity.toOpenIdConnectIdentity()
         InternalAccount.IdentityCase.IDENTITY_NOT_SET -> {}
       }
     }

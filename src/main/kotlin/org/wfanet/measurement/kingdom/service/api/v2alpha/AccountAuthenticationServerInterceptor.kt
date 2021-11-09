@@ -29,7 +29,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.AccountConstants
+import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
