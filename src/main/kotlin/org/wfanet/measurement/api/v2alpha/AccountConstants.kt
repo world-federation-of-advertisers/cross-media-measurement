@@ -16,8 +16,12 @@ package org.wfanet.measurement.api.v2alpha
 
 import io.grpc.Context
 import io.grpc.Metadata
+import org.wfanet.measurement.internal.kingdom.Account
 
 object AccountConstants {
+  /** Context key for an authenticated account. */
+  val CONTEXT_ACCOUNT_KEY: Context.Key<Account> = Context.key("account")
+
   /** Context key for a provided id token. */
   val CONTEXT_ID_TOKEN_KEY: Context.Key<String> = Context.key("id_token")
 

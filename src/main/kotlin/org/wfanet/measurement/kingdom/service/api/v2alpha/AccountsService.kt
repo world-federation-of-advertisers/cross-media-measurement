@@ -60,7 +60,9 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
       activationToken = apiIdToExternalId(request.activationToken)
     }
 
-    val idToken = AccountConstants.CONTEXT_ID_TOKEN_KEY.get()
+    val idToken =
+      grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "Id token is missing" }
+
     val result =
       internalAccountsStub.withIdToken(idToken).activateAccount(internalActivateAccountRequest)
 

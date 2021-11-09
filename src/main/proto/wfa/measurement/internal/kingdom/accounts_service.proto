@@ -32,6 +32,10 @@ service Accounts {
   // credentials.
   rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account);
 
+  // Credentials to authenticate will be passed-in via call credentials and
+  // returns the authenticated Account for the call credentials.
+  rpc AuthenticateAccount(AuthenticateAccountRequest) returns (Account);
+
   // Generates state and nonce.
   rpc GenerateOpenIdRequestParams(GenerateOpenIdRequestParamsRequest)
       returns (OpenIdRequestParams);
@@ -45,6 +49,8 @@ message ActivateAccountRequest {
 message ReplaceAccountIdentityRequest {
   fixed64 external_account_id = 1;
 }
+
+message AuthenticateAccountRequest {}
 
 message GenerateOpenIdRequestParamsRequest {}
 

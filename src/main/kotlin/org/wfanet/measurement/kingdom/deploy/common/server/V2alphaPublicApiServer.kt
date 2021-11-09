@@ -40,7 +40,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountServerInterceptor
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import picocli.CommandLine
 
@@ -77,12 +77,14 @@ private fun run(
   val principalLookup =
     TextprotoFilePrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
+  val internalAccountsCoroutineStub = InternalAccountsCoroutineStub(channel)
   val internalExchangeStepsCoroutineStub = InternalExchangeStepsCoroutineStub(channel)
 
   // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
   val services: List<ServerServiceDefinition> =
     listOf(
-      AccountsService(InternalAccountsCoroutineStub(channel)).withAccountServerInterceptor(),
+      AccountsService(internalAccountsCoroutineStub)
+        .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
       CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel)).bindService(),
