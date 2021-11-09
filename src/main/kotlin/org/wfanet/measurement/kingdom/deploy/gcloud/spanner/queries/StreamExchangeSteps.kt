@@ -19,9 +19,10 @@ import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepProviderFilter
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepIsOwnedByProviderTypeFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 
 /**
@@ -45,9 +46,12 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
   private fun Statement.Builder.appendWhereClause(filter: StreamExchangeStepsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
+    val recurringExchangeParticipants: MutableList<Provider> =
+      filter.recurringExchangeParticipantsList.filterNotNull().toMutableList()
 
     if (filter.hasStepProvider()) {
-      conjuncts.add(stepProviderFilter(filter.stepProvider, Params.EXTERNAL_STEP_PROVIDER_ID))
+      recurringExchangeParticipants.add(filter.stepProvider)
+      conjuncts.add(stepIsOwnedByProviderTypeFilter(filter.stepProvider.type))
       bind(Params.EXTERNAL_STEP_PROVIDER_ID to filter.stepProvider.externalId)
     }
 
@@ -60,8 +64,8 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
         .toInt64Array(filter.externalRecurringExchangeIdList.map { it.toLong() })
     }
 
-    if (filter.recurringExchangeParticipantsList.isNotEmpty()) {
-      for ((index, participantProvider) in filter.recurringExchangeParticipantsList.withIndex()) {
+    if (recurringExchangeParticipants.isNotEmpty()) {
+      for ((index, participantProvider) in recurringExchangeParticipants.withIndex()) {
         val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + index
         conjuncts.add(providerFilter(participantProvider, param))
         bind(param to participantProvider.externalId)
