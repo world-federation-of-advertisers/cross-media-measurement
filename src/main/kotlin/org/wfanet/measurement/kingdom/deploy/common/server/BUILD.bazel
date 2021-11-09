@@ -54,6 +54,7 @@ kt_jvm_library(
     deps = [
         ":utils",
         ":v2alpha_utils",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_groups_service",

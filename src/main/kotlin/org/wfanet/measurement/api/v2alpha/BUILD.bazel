@@ -25,3 +25,12 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
+
+kt_jvm_library(
+    name = "account_constants",
+    srcs = ["AccountConstants.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
