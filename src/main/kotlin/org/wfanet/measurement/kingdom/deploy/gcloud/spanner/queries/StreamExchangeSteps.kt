@@ -67,7 +67,7 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     if (recurringExchangeParticipants.isNotEmpty()) {
       for ((index, participantProvider) in recurringExchangeParticipants.withIndex()) {
         val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + index
-        conjuncts.add(providerFilter(participantProvider, param))
+        conjuncts.add(providerFilter(provider = participantProvider, param = param, prefix = ""))
         bind(param to participantProvider.externalId)
       }
     }

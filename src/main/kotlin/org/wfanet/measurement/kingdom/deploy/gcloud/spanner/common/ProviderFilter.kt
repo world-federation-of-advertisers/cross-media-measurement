@@ -18,11 +18,17 @@ import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.internal.kingdom.Provider
 
-fun providerFilter(provider: Provider, param: String): String {
+const val PROVIDER_PARAM = "external_provider_id"
+
+fun providerFilter(
+  provider: Provider,
+  param: String = PROVIDER_PARAM,
+  prefix: String = "  AND "
+): String {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (provider.type) {
-    Provider.Type.DATA_PROVIDER -> "DataProviders.ExternalDataProviderId = @$param"
-    Provider.Type.MODEL_PROVIDER -> "ModelProviders.ExternalModelProviderId = @$param"
+    Provider.Type.DATA_PROVIDER -> "${prefix}DataProviders.ExternalDataProviderId = @$param"
+    Provider.Type.MODEL_PROVIDER -> "${prefix}ModelProviders.ExternalModelProviderId = @$param"
     Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
       failGrpc(Status.INVALID_ARGUMENT) {
         "external_data_provider_id or external_model_provider_id must be provided."

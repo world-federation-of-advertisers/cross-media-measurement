@@ -26,7 +26,8 @@ import org.wfanet.measurement.internal.kingdom.CreateExchangeRequest
 import org.wfanet.measurement.internal.kingdom.Exchange
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
-import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateExchange
 
@@ -45,20 +46,11 @@ class SpannerExchangesService(
           "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
         )
         appendClause("AND Exchanges.Date = @date")
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-        when (request.provider.type) {
-          Provider.Type.DATA_PROVIDER ->
-            appendClause("  AND DataProviders.ExternalDataProviderId = @external_provider_id")
-          Provider.Type.MODEL_PROVIDER ->
-            appendClause("  AND ModelProviders.ExternalModelProviderId = @external_provider_id")
-          Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
-            failGrpc(Status.INVALID_ARGUMENT) {
-              "external_data_provider_id or external_model_provider_id must be provided."
-            }
-        }
+
+        appendClause(providerFilter(request.provider))
+        bind(PROVIDER_PARAM to request.provider.externalId)
         bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
         bind("date" to request.date.toCloudDate())
-        bind("external_provider_id" to request.provider.externalId)
         appendClause("LIMIT 1")
       }
       .execute(client.singleUse())
