@@ -52,20 +52,23 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
       AccountConstants.CONTEXT_ACCOUNT_KEY.get()
         ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
 
+    val ownedMeasurementConsumer = request.account.activationParams.ownedMeasurementConsumer
+    val externalOwnedMeasurementConsumerId =
+      if (ownedMeasurementConsumer.isNotBlank()) {
+        val measurementConsumerKey =
+          grpcRequireNotNull(MeasurementConsumerKey.fromName(ownedMeasurementConsumer)) {
+            "Owned Measurement Consumer Resource name invalid"
+          }
+        apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+      } else {
+        0L
+      }
+
     val internalCreateAccountRequest = internalAccount {
       externalCreatorAccountId = account.externalAccountId
-      with(request.account.activationParams.ownedMeasurementConsumer) {
-        if (this.isNotBlank()) {
-          val measurementConsumerKey =
-            grpcRequireNotNull(MeasurementConsumerKey.fromName(this)) {
-              "Owned Measurement Consumer Resource name invalid"
-            }
-
-          externalOwnedMeasurementConsumerId =
-            apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
-        }
-      }
+      this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
     }
+
     val result = internalAccountsStub.createAccount(internalCreateAccountRequest)
 
     return result.toAccount()
