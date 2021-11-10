@@ -1,0 +1,9 @@
+genrule(
+    name = "concat_kingdom",
+    srcs = [
+        "exchange.sdl",
+    ],
+    outs = ["kingdom.sdl"],
+    cmd = "cat $(SRCS) > $@",
+    visibility = ["//visibility:public"],
+)
