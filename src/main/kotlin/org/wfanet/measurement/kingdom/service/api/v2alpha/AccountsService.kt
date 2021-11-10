@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import io.grpc.Status
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
@@ -30,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -38,13 +40,35 @@ import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as InternalOpenIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
+import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 
 class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
   AccountsCoroutineImplBase() {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
-    TODO("Not yet implemented")
+    val account =
+      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
+
+    val internalCreateAccountRequest = internalAccount {
+      externalCreatorAccountId = account.externalAccountId
+      with(request.account.activationParams.ownedMeasurementConsumer) {
+        if (this.isNotBlank()) {
+          val measurementConsumerKey =
+            grpcRequireNotNull(MeasurementConsumerKey.fromName(this)) {
+              "Owned Measurement Consumer Resource name invalid"
+            }
+
+          externalOwnedMeasurementConsumerId =
+            apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+        }
+      }
+    }
+    val result = internalAccountsStub.createAccount(internalCreateAccountRequest)
+
+    return result.toAccount()
   }
 
   override suspend fun activateAccount(request: ActivateAccountRequest): Account {
@@ -74,7 +98,29 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
-    TODO("Not yet implemented")
+    val account =
+      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
+
+    grpcRequireNotNull(AccountKey.fromName(request.name)) { "Resource name unspecified or invalid" }
+
+    val newIdToken = request.openId.identityBearerToken
+    grpcRequire(newIdToken.isNotBlank()) { "New id token is missing" }
+
+    val internalReplaceAccountIdentityRequest = replaceAccountIdentityRequest {
+      externalAccountId = account.externalAccountId
+    }
+
+    val result =
+      internalAccountsStub
+        .withIdToken(newIdToken)
+        .replaceAccountIdentity(internalReplaceAccountIdentityRequest)
+
+    // method only returns the basic account view so some fields are cleared
+    return result.toAccount().copy {
+      clearActivationParams()
+      clearMeasurementConsumerCreationToken()
+    }
   }
 
   override suspend fun authenticate(request: AuthenticateRequest): AuthenticateResponse {
