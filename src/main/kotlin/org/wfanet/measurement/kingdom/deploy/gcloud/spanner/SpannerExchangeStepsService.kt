@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import java.time.Clock
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
@@ -35,7 +36,9 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debu
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyExchangeStep
@@ -92,11 +95,7 @@ class SpannerExchangeStepsService(
     val externalModelProviderId = request.provider.externalModelProviderId
     val externalDataProviderId = request.provider.externalDataProviderId
 
-    CreateExchangesAndSteps(
-        externalModelProviderId = externalModelProviderId,
-        externalDataProviderId = externalDataProviderId
-      )
-      .execute(client, idGenerator)
+    CreateExchangesAndSteps(provider = request.provider).execute(client, idGenerator)
 
     // TODO(@efoxepstein): consider whether a more structured signal for auto-fail is needed
     val debugLogEntry = debugLog {
@@ -112,8 +111,7 @@ class SpannerExchangeStepsService(
       .map { it.exchangeStepAttempt }
       .collect { attempt: ExchangeStepAttempt ->
         FinishExchangeStepAttempt(
-            externalModelProviderId = request.provider.externalModelProviderId,
-            externalDataProviderId = request.provider.externalDataProviderId,
+            provider = request.provider,
             externalRecurringExchangeId = ExternalId(attempt.externalRecurringExchangeId),
             exchangeDate = attempt.date,
             stepIndex = attempt.stepIndex,
@@ -126,11 +124,7 @@ class SpannerExchangeStepsService(
       }
 
     val result =
-      ClaimReadyExchangeStep(
-          externalModelProviderId = externalModelProviderId,
-          externalDataProviderId = externalDataProviderId,
-          clock = clock
-        )
+      ClaimReadyExchangeStep(provider = request.provider, clock = clock)
         .execute(client, idGenerator)
 
     if (result.isPresent) {
@@ -138,6 +132,12 @@ class SpannerExchangeStepsService(
     }
 
     return claimReadyExchangeStepResponse {}
+  }
+
+  override fun streamExchangeSteps(request: StreamExchangeStepsRequest): Flow<ExchangeStep> {
+    return StreamExchangeSteps(request.filter, request.limit).execute(client.singleUse()).map {
+      it.exchangeStep
+    }
   }
 
   private fun Result.toClaimReadyExchangeStepResponse(): ClaimReadyExchangeStepResponse {

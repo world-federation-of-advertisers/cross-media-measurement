@@ -204,6 +204,30 @@ abstract class ExchangeStepAttemptsServiceTest {
   }
 
   @Test
+  fun `finishExchangeStepAttempt fails for wrong provider`() = runBlocking {
+    exchangeStepsService.claimReadyExchangeStep(
+      claimReadyExchangeStepRequest { provider = PROVIDER }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        exchangeStepAttemptsService.finishExchangeStepAttempt(
+          makeRequest(
+            ExchangeStepAttempt.State.SUCCEEDED,
+            1,
+            provider {
+              externalId = EXTERNAL_DATA_PROVIDER_ID
+              type = Provider.Type.DATA_PROVIDER
+            }
+          )
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ExchangeStep not found")
+  }
+
+  @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -374,10 +398,11 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
-    attemptNo: Int = 1
+    attemptNo: Int = 1,
+    stepProvider: Provider = PROVIDER
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
-      provider = PROVIDER
+      provider = stepProvider
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = EXCHANGE_DATE
       stepIndex = STEP_INDEX
