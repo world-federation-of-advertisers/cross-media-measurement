@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -77,11 +78,6 @@ import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingH
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
 import org.wfanet.measurement.loadtest.storage.SketchStore
-
-// TODO: get these from the protocolConfig.
-private const val MAXIMUM_FREQUENCY = 15L
-private const val DECAY_RATE = 12.0
-private const val INDEX_SIZE = 100000L
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
@@ -125,13 +121,14 @@ class FrontendSimulator(
     }
     logger.info("Got computed result from Kingdom: $mpcResult")
 
-    val expectedResult = getExpectedResult(createdMeasurement.name)
+    val liquidLegionV2Protocol = createdMeasurement.protocolConfig.liquidLegionsV2
+    val expectedResult = getExpectedResult(createdMeasurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
 
     assertDpResultsEqual(
       expectedResult,
       mpcResult,
-      createdMeasurement.protocolConfig.liquidLegionsV2.maximumFrequency.toLong()
+      liquidLegionV2Protocol.maximumFrequency.toLong()
     )
     logger.info("Computed result is equal to the expected result. Correctness Test passes.")
   }
@@ -205,7 +202,10 @@ class FrontendSimulator(
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
-  suspend fun getExpectedResult(measurementName: String): Result {
+  suspend fun getExpectedResult(
+    measurementName: String,
+    protocolConfig: ProtocolConfig.LiquidLegionsV2
+  ): Result {
     val requisitions = listRequisitions(measurementName)
     require(requisitions.isNotEmpty()) { "Requisition list is empty." }
 
@@ -222,8 +222,14 @@ class FrontendSimulator(
       combinedAnySketch.apply { mergeAll(anySketches.subList(1, anySketches.size)) }
     }
 
-    val expectedReach = estimateCardinality(combinedAnySketch, DECAY_RATE, INDEX_SIZE)
-    val expectedFrequency = estimateFrequency(combinedAnySketch, MAXIMUM_FREQUENCY)
+    val expectedReach =
+      estimateCardinality(
+        combinedAnySketch,
+        protocolConfig.sketchParams.decayRate,
+        protocolConfig.sketchParams.maxSize
+      )
+    val expectedFrequency =
+      estimateFrequency(combinedAnySketch, protocolConfig.maximumFrequency.toLong())
     return result {
       reach = reach { value = expectedReach }
       frequency = frequency { relativeFrequencyDistribution.putAll(expectedFrequency) }
