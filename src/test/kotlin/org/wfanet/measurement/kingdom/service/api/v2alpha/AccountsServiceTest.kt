@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,8 +39,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequestKt
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
-import org.wfanet.measurement.api.v2alpha.authenticateRequest
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createAccountRequest
 import org.wfanet.measurement.api.v2alpha.replaceAccountIdentityRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -53,6 +52,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest as internalActivateAccountRequest
+import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest as internalReplaceAccountIdentityRequest
 
 private const val ACTIVATION_TOKEN = 12345672L
 private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = 12345673L
@@ -96,48 +96,62 @@ class AccountsServiceTest {
     client = AccountsCoroutineStub(publicGrpcTestServerRule.channel)
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `createAccount returns unactivated account`() {
-    val request = createAccountRequest { account = UNACTIVATED_ACCOUNT }
+    val request = createAccountRequest {
+      account =
+        account {
+          activationParams =
+            AccountKt.activationParams { ownedMeasurementConsumer = MEASUREMENT_CONSUMER_NAME }
+        }
+    }
 
-    val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    val result = runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
+
+    assertThat(result).isEqualTo(UNACTIVATED_ACCOUNT)
+
+    verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::createAccount)
+      .isEqualTo(
+        internalAccount {
+          externalCreatorAccountId = EXTERNAL_ACCOUNT_ID
+          externalOwnedMeasurementConsumerId =
+            UNACTIVATED_INTERNAL_ACCOUNT.externalOwnedMeasurementConsumerId
+        }
+      )
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `createAccount throws INVALID_ARGUMENT when owned measurement consumer name is invalid`() {
     val request = createAccountRequest {
       account =
-        UNACTIVATED_ACCOUNT.copy {
-          activationParams = activationParams.copy { ownedMeasurementConsumer = "aaa" }
+        account {
+          activationParams = AccountKt.activationParams { ownedMeasurementConsumer = "43254" }
         }
     }
 
     val exception =
-      assertFailsWith<StatusException> {
+      assertFailsWith<StatusRuntimeException> {
         runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Owned Measurement Consumer Resource name invalid")
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `createAccount throws UNAUTHENTICATED when credentials are missing`() {
     val request = createAccountRequest {}
 
     val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertFailsWith<StatusRuntimeException> { runBlocking { client.createAccount(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `createAccount throws UNAUTHENTICATED when credentials are invalid`() = runBlocking {
     whenever(internalAccountsMock.authenticateAccount(any()))
@@ -146,8 +160,11 @@ class AccountsServiceTest {
     val request = createAccountRequest {}
 
     val exception =
-      assertFailsWith<StatusException> { client.withIdToken(ID_TOKEN).createAccount(request) }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertFailsWith<StatusRuntimeException> {
+        client.withIdToken(ID_TOKEN).createAccount(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
 
   @Test
@@ -207,7 +224,7 @@ class AccountsServiceTest {
     assertThat(exception.status.description).isEqualTo("Id token is missing")
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `replaceAccountIdentity with openIdConnectidentity type returns account with same type`() {
     val request = replaceAccountIdentityRequest {
@@ -218,14 +235,15 @@ class AccountsServiceTest {
         }
     }
 
-    val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    val result = runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
+
+    assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
+
+    verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::replaceAccountIdentity)
+      .isEqualTo(internalReplaceAccountIdentityRequest { externalAccountId = EXTERNAL_ACCOUNT_ID })
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `replaceAccountIdentity throws INVALID_ARGUMENT when resource name is missing`() {
     val request = replaceAccountIdentityRequest {
@@ -239,22 +257,24 @@ class AccountsServiceTest {
       assertFailsWith<StatusException> {
         runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `replaceAccountIdentity throws UNAUTHENTICATED when credentials are missing`() {
     val request = replaceAccountIdentityRequest {}
 
     val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { client.replaceAccountIdentity(request) }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `replaceAccountIdentity throws UNAUTHENTICATED when credentials are invalid`() = runBlocking {
     whenever(internalAccountsMock.authenticateAccount(any()))
@@ -263,42 +283,24 @@ class AccountsServiceTest {
     val request = replaceAccountIdentityRequest {}
 
     val exception =
-      assertFailsWith<StatusException> {
+      assertFailsWith<StatusRuntimeException> {
         client.withIdToken(ID_TOKEN).replaceAccountIdentity(request)
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
 
-  // TODO("Not yet implemented")
+  @Ignore
   @Test
   fun `replaceAccountIdentity throws INVALID_ARGUMENT when new credentials are missing`() {
     val request = replaceAccountIdentityRequest { name = ACCOUNT_NAME }
 
     val exception =
-      assertFailsWith<StatusException> {
+      assertFailsWith<StatusRuntimeException> {
         runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
-  }
-
-  // TODO("Not yet implemented")
-  @Test
-  fun `authenticate returns auth request uri when issuer is the self-issued OpenId provider`() {
-    val request = authenticateRequest { issuer = "https://self-issued.me" }
-
-    val exception =
-      assertFailsWith<StatusException> { runBlocking { client.authenticate(request) } }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
-  }
-
-  // TODO("Not yet implemented")
-  @Test
-  fun `authenticate returns auth request uri when issuer is a third party OpenId provider`() {
-    val request = authenticateRequest { issuer = "third_party" }
-
-    val exception =
-      assertFailsWith<StatusException> { runBlocking { client.authenticate(request) } }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("New id token is missing")
   }
 }
 
