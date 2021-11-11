@@ -8,6 +8,13 @@ readonly USERNAME="$(id -un)"
 readonly OUTPUT_USER_ROOT="${HOME}/.cache/bazel/_bazel_${USERNAME}"
 readonly BAZELISK_HOME="${HOME}/.cache/bazelisk"
 
+check_bash_version() {
+  if [[ "${BASH_VERSINFO:-0}" -lt 5 ]]; then
+    echo "Bash version ${BASH_VERSION:-unknown} is too old" >&2
+    exit 1
+  fi
+}
+
 is_podman() {
   [[ "$($DOCKER -v)" == *podman* ]]
 }
@@ -22,23 +29,16 @@ is_rootless() {
     [[ "$($DOCKER version --format '{{.Client.Os}}')" == 'darwin' ]]
 }
 
-command_exists() {
-  hash "$1" 2>/dev/null
-}
-
 # Outputs the host's Bazel output user root.
-# See https://docs.bazel.build/versions/4.0.0/output_directories.html
+# See https://docs.bazel.build/versions/4.2.1/output_directories.html
 get_host_output_user_root() {
-  if ! command_exists bazel; then
-    echo "${OUTPUT_USER_ROOT}"
-    return
+  local output_root
+  if [[ "${OSTYPE}" == 'darwin'* ]]; then
+    output_root='/private/var/tmp'
+  else
+    output_root="${HOME}/.cache/bazel"
   fi
-
-  local install_base
-  install_base="$(bazel info install_base)"
-  readonly install_base
-
-  dirname "$(dirname "${install_base}")"
+  echo "${output_root}/_bazel_${USER}"
 }
 
 get_host_cache_dir() {
@@ -62,6 +62,8 @@ ensure_host_bazelisk_cache_dir() {
 }
 
 main() {
+  check_bash_version
+
   local host_output_user_root
   host_output_user_root="$(get_host_output_user_root)"
   readonly host_output_user_root
