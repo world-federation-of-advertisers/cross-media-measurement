@@ -28,6 +28,7 @@
 
 namespace wfa::panelmatch {
 namespace {
+using ::riegeli::BrotliDictionary;
 using ::riegeli::BrotliReader;
 using ::riegeli::BrotliReaderBase;
 using ::riegeli::BrotliWriter;
@@ -38,12 +39,12 @@ using ::riegeli::StringWriter;
 BrotliWriterBase::Options MakeWriterOptions(absl::string_view dictionary) {
   return BrotliWriterBase::Options()
       .set_compression_level(BrotliWriterBase::Options::kMaxCompressionLevel)
-      .set_dictionaries(BrotliWriterBase::Dictionaries().add_raw(dictionary));
+      .set_dictionary(BrotliDictionary().add_raw(dictionary));
 }
 
 BrotliReaderBase::Options MakeReaderOptions(absl::string_view dictionary) {
-  return BrotliReaderBase::Options().set_dictionaries(
-      BrotliReaderBase::Dictionaries().add_raw(dictionary));
+  return BrotliReaderBase::Options().set_dictionary(
+      BrotliDictionary().add_raw(dictionary));
 }
 
 class Brotli : public Compressor {
