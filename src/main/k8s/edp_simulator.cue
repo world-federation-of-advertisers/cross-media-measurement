@@ -28,6 +28,8 @@ package k8s
 	_simulator_image_pull_policy: string
 	_blob_storage_flags: [...string]
 
+	_additional_args: [...string]
+
 	edp_simulator_deployment: #Deployment & {
 		_name:            _edp_display_name + "-simulator"
 		_secretName:      _edp_secret_name
@@ -40,16 +42,15 @@ package k8s
 			"--tls-key-file=/var/run/secrets/files/\(_edp_display_name)_tls.key",
 			"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 			"--data-provider-resource-name=\(_edp_resource_name)",
+			"--data-provider-display-name=\(_edp_display_name)",
 			"--data-provider-encryption-private-key-der-file=/var/run/secrets/files/\(_edp_display_name)_enc_private.der",
 			"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_private.der",
 			"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_cert.der",
 			"--mc-resource-name=\(_mc_resource_name)",
-			"--edp-sketch-reach=1000",
-			"--edp-sketch-universe-size=10000000",
 			"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 			"--kingdom-public-api-cert-host=localhost",
 			"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
 			"--requisition-fulfillment-service-cert-host=localhost",
-		] + _blob_storage_flags
+		] + _blob_storage_flags + _additional_args
 	}
 }

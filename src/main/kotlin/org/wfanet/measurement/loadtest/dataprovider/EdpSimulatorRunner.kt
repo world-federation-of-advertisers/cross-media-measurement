@@ -34,18 +34,13 @@ import picocli.CommandLine
 const val CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY = "edp-consent-signaling-private-key"
 const val ENCRYPTION_PRIVATE_KEY_HANDLE_KEY = "edp-encryption-private-key"
 
-data class SketchGenerationParams(
-  val reach: Int,
-  val universeSize: Int,
-)
-
 /** The base class of the EdpSimulator runner. */
 abstract class EdpSimulatorRunner : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: EdpSimulatorFlags
     private set
 
-  protected fun run(storageClient: StorageClient) {
+  protected fun run(storageClient: StorageClient, eventQuery: EventQuery) {
 
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -87,6 +82,7 @@ abstract class EdpSimulatorRunner : Runnable {
       val edpData =
         EdpData(
           flags.dataProviderResourceName,
+          flags.dataProviderDisplayName,
           ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
           CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
           flags.edpCsCertificateDerFile.readBytes().toByteString()
@@ -100,10 +96,7 @@ abstract class EdpSimulatorRunner : Runnable {
           requisitionFulfillmentStub,
           SketchStore(storageClient),
           inMemoryKeyStore,
-          SketchGenerationParams(
-            reach = flags.edpSketchReach,
-            universeSize = flags.edpUniverseSize
-          ),
+          eventQuery,
           MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
         )
         .process()

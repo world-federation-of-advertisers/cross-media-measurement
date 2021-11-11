@@ -32,6 +32,7 @@ import org.wfanet.measurement.loadtest.dataprovider.CONSENT_SIGNALING_PRIVATE_KE
 import org.wfanet.measurement.loadtest.dataprovider.ENCRYPTION_PRIVATE_KEY_HANDLE_KEY
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
+import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
@@ -78,7 +79,8 @@ class InProcessEdpSimulator(
             requisitionFulfillmentStub = requisitionFulfillmentClient,
             sketchStore = SketchStore(storageClient),
             keyStore = keyStore,
-            sketchGenerationParams = SketchGenerationParams(reach = 1000, universeSize = 10_000),
+            eventQuery =
+              RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           )
           .process()
@@ -93,6 +95,7 @@ class InProcessEdpSimulator(
   private fun createEdpData(displayName: String, resourceName: String) =
     EdpData(
       name = resourceName,
+      displayName = displayName,
       encryptionPrivateKeyId = ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
       consentSignalingPrivateKeyId = CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
       consentSignalCertificateDer = loadTestCertDerFile("${displayName}_cs_cert.der")

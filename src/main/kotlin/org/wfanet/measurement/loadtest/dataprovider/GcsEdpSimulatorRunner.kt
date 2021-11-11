@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.cloud.bigquery.BigQueryOptions
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -29,9 +30,28 @@ import picocli.CommandLine
 class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
+  @CommandLine.Option(
+    names = ["--big-query-project-name"],
+    description = ["The project name of the big query to be used in this EDP simulator."],
+    required = true
+  )
+  lateinit var bigQueryProjectName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--big-query-table-name"],
+    description = ["The project name of the big query to be used in this EDP simulator."],
+    required = true
+  )
+  lateinit var bigQueryTableName: String
+    private set
+
   override fun run() {
     val gcs = GcsFromFlags(gcsFlags)
-    run(GcsStorageClient.fromFlags(gcs))
+    val bigQuery =
+      BigQueryOptions.newBuilder().apply { setProjectId(bigQueryProjectName) }.build().service
+
+    run(GcsStorageClient.fromFlags(gcs), BiqQueryEventQuery(bigQuery, bigQueryTableName))
   }
 }
 

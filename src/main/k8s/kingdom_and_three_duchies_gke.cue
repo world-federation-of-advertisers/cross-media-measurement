@@ -185,6 +185,10 @@ edp_simulators: {
 			_mc_resource_name:            #McResourcename
 			_edp_simulator_image:         "\(_container_registry_prefix)/loadtest/edp-simulator"
 			_simulator_image_pull_policy: "Always"
+			_additional_args: [
+				"--edp-sketch-reach=1000",
+				"--edp-sketch-universe-size=10000000",
+			]
 		}
 	}
 }

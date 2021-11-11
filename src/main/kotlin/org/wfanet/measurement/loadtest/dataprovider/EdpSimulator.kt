@@ -17,7 +17,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.util.logging.Logger
-import kotlin.random.Random
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -70,6 +69,8 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 data class EdpData(
   /** The EDP's public API resource name. */
   val name: String,
+  /** The EDP's display name. */
+  val displayName: String,
   /** The ID of the EDP's encryption private key in keyStore. */
   val encryptionPrivateKeyId: String,
   /** The ID of the EDP's consent signaling private key in keyStore. */
@@ -88,7 +89,7 @@ class EdpSimulator(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val keyStore: KeyStore,
-  private val sketchGenerationParams: SketchGenerationParams,
+  private val eventQuery: EventQuery,
   private val throttler: MinimumIntervalThrottler
 ) {
 
@@ -177,7 +178,7 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-    val sketch = generateSketch(sketchConfig, sketchGenerationParams)
+    val sketch = generateSketch(sketchConfig)
 
     sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
@@ -187,16 +188,23 @@ class EdpSimulator(
 
   private fun generateSketch(
     sketchConfig: SketchConfig,
-    sketchGenerationParams: SketchGenerationParams
   ): Sketch {
     logger.info("Generating Sketch...")
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    for (i in 1..sketchGenerationParams.reach) {
-      anySketch.insert(
-        Random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong(),
-        mapOf("frequency" to 1L)
+    // TODO(@wangyaopw): get the queryParameter from EventFilters when EventFilters is implemented.
+    val queryParameter =
+      QueryParameter(
+        edpDisplayName = edpData.displayName,
+        beginDate = "2021-03-01",
+        endDate = "2021-03-28",
+        sex = Sex.FEMALE,
+        ageGroup = null,
+        socialGrade = SocialGrade.ABC1,
+        complete = Complete.COMPLETE
       )
+    eventQuery.getUserVirtualIds(queryParameter).forEach {
+      anySketch.insert(it, mapOf("frequency" to 1L))
     }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
