@@ -61,10 +61,10 @@ class SpannerExchangeStepsService(
         .fillStatementBuilder {
           appendClause(
             """
-          WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
-            AND ExchangeSteps.Date = @date
-            AND ExchangeSteps.StepIndex = @step_index
-            AND ${providerFilter(request.provider)}
+            WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+              AND ExchangeSteps.Date = @date
+              AND ExchangeSteps.StepIndex = @step_index
+              AND ${providerFilter(request.provider)}
           """.trimIndent()
           )
           bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
