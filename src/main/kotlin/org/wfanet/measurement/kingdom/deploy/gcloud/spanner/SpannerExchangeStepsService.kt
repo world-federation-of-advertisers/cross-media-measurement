@@ -35,9 +35,10 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debugLog
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepRequest
-import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
@@ -60,26 +61,16 @@ class SpannerExchangeStepsService(
         .fillStatementBuilder {
           appendClause(
             """
-          WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
-            AND ExchangeSteps.Date = @date
-            AND ExchangeSteps.StepIndex = @step_index
+            WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+              AND ExchangeSteps.Date = @date
+              AND ExchangeSteps.StepIndex = @step_index
+              AND ${providerFilter(request.provider)}
           """.trimIndent()
           )
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-          when (request.provider.type) {
-            Provider.Type.DATA_PROVIDER ->
-              appendClause("  AND DataProviders.ExternalDataProviderId = @external_provider_id")
-            Provider.Type.MODEL_PROVIDER ->
-              appendClause("  AND ModelProviders.ExternalModelProviderId = @external_provider_id")
-            Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
-              failGrpc(Status.INVALID_ARGUMENT) {
-                "external_data_provider_id or external_model_provider_id must be provided."
-              }
-          }
           bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
           bind("date" to request.date.toCloudDate())
           bind("step_index" to request.stepIndex.toLong())
-          bind("external_provider_id" to request.provider.externalId)
+          bind(PROVIDER_PARAM to request.provider.externalId)
           appendClause("LIMIT 1")
         }
         .execute(client.singleUse())

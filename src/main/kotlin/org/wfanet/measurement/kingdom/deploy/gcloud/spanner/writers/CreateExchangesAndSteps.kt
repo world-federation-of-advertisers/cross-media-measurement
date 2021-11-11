@@ -16,9 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import com.google.type.Date
-import io.grpc.Status
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.gcloud.common.toCloudDate
@@ -34,6 +32,8 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWriter<Unit>() {
@@ -85,6 +85,7 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
           """
           WHERE State = @recurringExchangeState
             AND NextExchangeDate <= CURRENT_DATE("+0")
+            AND ${providerFilter(provider)}
             AND @exchangeState NOT IN (
               SELECT Exchanges.State
               FROM Exchanges
@@ -95,19 +96,8 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
           """.trimIndent()
         )
         bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
+        bind(PROVIDER_PARAM to provider.externalId)
         bind("exchangeState" to Exchange.State.FAILED)
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-        when (provider.type) {
-          Provider.Type.DATA_PROVIDER ->
-            appendClause("  AND ExternalDataProviderId = @externalProviderId")
-          Provider.Type.MODEL_PROVIDER ->
-            appendClause("  AND ExternalModelProviderId = @externalProviderId")
-          Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
-            failGrpc(Status.INVALID_ARGUMENT) {
-              "external_data_provider_id or external_model_provider_id must be provided."
-            }
-        }
-        bind("externalProviderId" to provider.externalId)
       }
       .execute(transactionContext)
       .singleOrNull()
