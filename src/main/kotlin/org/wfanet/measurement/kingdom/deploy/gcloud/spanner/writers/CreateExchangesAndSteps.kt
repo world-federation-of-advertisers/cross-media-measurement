@@ -96,7 +96,7 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
         )
         bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
         bind("exchangeState" to Exchange.State.FAILED)
-        appendClause(providerFilter(provider))
+        appendClause("  AND ${providerFilter(provider)}")
         bind(PROVIDER_PARAM to provider.externalId)
       }
       .execute(transactionContext)

@@ -66,7 +66,7 @@ class SpannerExchangeStepsService(
             AND ExchangeSteps.StepIndex = @step_index
           """.trimIndent()
           )
-          appendClause(providerFilter(request.provider))
+          appendClause("  AND ${providerFilter(request.provider)}")
           bind(PROVIDER_PARAM to request.provider.externalId)
           bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
           bind("date" to request.date.toCloudDate())
