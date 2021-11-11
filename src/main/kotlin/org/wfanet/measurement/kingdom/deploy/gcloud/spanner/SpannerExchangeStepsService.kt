@@ -64,13 +64,13 @@ class SpannerExchangeStepsService(
           WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
             AND ExchangeSteps.Date = @date
             AND ExchangeSteps.StepIndex = @step_index
+            AND ${providerFilter(request.provider)}
           """.trimIndent()
           )
-          appendClause("  AND ${providerFilter(request.provider)}")
-          bind(PROVIDER_PARAM to request.provider.externalId)
           bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
           bind("date" to request.date.toCloudDate())
           bind("step_index" to request.stepIndex.toLong())
+          bind(PROVIDER_PARAM to request.provider.externalId)
           appendClause("LIMIT 1")
         }
         .execute(client.singleUse())

@@ -43,14 +43,15 @@ class SpannerExchangesService(
     return ExchangeReader()
       .fillStatementBuilder {
         appendClause(
-          "WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id"
+          """
+          WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
+            AND Exchanges.Date = @date
+            AND ${providerFilter(request.provider)}
+          """.trimIndent()
         )
-        appendClause("AND Exchanges.Date = @date")
-
-        appendClause("  AND ${providerFilter(request.provider)}")
-        bind(PROVIDER_PARAM to request.provider.externalId)
         bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
         bind("date" to request.date.toCloudDate())
+        bind(PROVIDER_PARAM to request.provider.externalId)
         appendClause("LIMIT 1")
       }
       .execute(client.singleUse())

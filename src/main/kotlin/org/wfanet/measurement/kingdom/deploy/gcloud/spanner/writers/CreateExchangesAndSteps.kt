@@ -85,6 +85,7 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
           """
           WHERE State = @recurringExchangeState
             AND NextExchangeDate <= CURRENT_DATE("+0")
+            AND ${providerFilter(provider)}
             AND @exchangeState NOT IN (
               SELECT Exchanges.State
               FROM Exchanges
@@ -95,9 +96,8 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
           """.trimIndent()
         )
         bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
-        bind("exchangeState" to Exchange.State.FAILED)
-        appendClause("  AND ${providerFilter(provider)}")
         bind(PROVIDER_PARAM to provider.externalId)
+        bind("exchangeState" to Exchange.State.FAILED)
       }
       .execute(transactionContext)
       .singleOrNull()
