@@ -33,6 +33,15 @@ To build on MacOS you need to run the bazel build/test in a docker container usi
 
 fyi, currently using the docker build clashes with running the bazel build locally on your computer.
 
+If the above script does not work, you can try pulling and running the ([wfa/bazel image](https://hub.docker.com/r/wfameasurement/bazel)) from the Docker repository manually via the following:
+   1. docker pull wfameasurement/bazel
+   2. docker run -v /path_to_local_repo:/path_to_container_dir -it wfameasurement/bazel /bin/bash
+      - Note: path_to_container_dir is a self-defined name for where you want the repo to be located in the container, i.e. "development"
+   3. cd path_to_container_dir
+   4. bazel build ...
+
+ You may also need to expand your Docker daemon/Desktop memory usage to be greater than the default 4 GB. 8 GB should be sufficient for most things.
+
 
 ### IntelliJ Setup
 
