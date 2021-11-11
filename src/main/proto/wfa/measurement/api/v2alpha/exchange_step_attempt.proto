@@ -44,19 +44,19 @@ message ExchangeStepAttempt {
     STATE_UNSPECIFIED = 0;
 
     // The attempt is has not yet reached a terminal state.
-    ACTIVE = 2;
+    ACTIVE = 1;
 
     // The attempt has succeeded. There cannot be more attempts for the step.
     // Terminal state.
-    SUCCEEDED = 3;
+    SUCCEEDED = 2;
 
     // The attempt has failed but the `ExchangeStep` can be retried.
     // Terminal state.
-    FAILED = 4;
+    FAILED = 3;
 
     // The attempt has failed and the `ExchangeStep` should not be retried.
     // Terminal state.
-    FAILED_STEP = 5;
+    FAILED_STEP = 4;
   }
 
   // State of the ExchangeStepAttempt. Output-only.
@@ -73,8 +73,8 @@ message ExchangeStepAttempt {
   repeated DebugLog debug_log_entries = 4;
 
   // When the ExchangeStepAttempt was created. Output-only.
-  google.protobuf.Timestamp start_time = 6;
+  google.protobuf.Timestamp start_time = 5;
 
   // When the ExchangeStepAttempt was last updated. Output-only.
-  google.protobuf.Timestamp update_time = 7;
+  google.protobuf.Timestamp update_time = 6;
 }

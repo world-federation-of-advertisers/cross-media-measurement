@@ -42,18 +42,18 @@ message RecurringExchange {
   ExchangeWorkflow exchange_workflow = 2;
 
   // The DataProvider party.
-  string event_data_provider = 4
+  string event_data_provider = 3
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // The ModelProvider party.
-  string model_provider = 5
+  string model_provider = 4
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelProvider"];
 
   // Whether this exchange is still enabled.
-  State state = 6;
+  State state = 5;
 
   // The date of the next Exchange.
-  google.type.Date next_exchange_date = 7;
+  google.type.Date next_exchange_date = 6;
 
   enum State {
     STATE_UNSPECIFIED = 0;

@@ -38,8 +38,24 @@ message Exchange {
   // Must be a complete date (no field can be unset/zero).
   google.type.Date date = 2;
 
+  enum State {
+    STATE_UNSPECIFIED = 0;
+
+    // The exchange is has not yet reached a terminal state.
+    ACTIVE = 1;
+
+    // The exchange has completed successfully.
+    SUCCEEDED = 2;
+
+    // The exchange has failed.
+    FAILED = 3;
+  }
+
+  // State of the Exchange. Output-only.
+  State state = 3;
+
   // SHA256 hash of the audit trail, if uploaded.
-  bytes audit_trail_hash = 3;
+  bytes audit_trail_hash = 4;
 
   // DOT language representation of the Exchange -- this gives the status and
   // relationship between all steps.
@@ -47,5 +63,5 @@ message Exchange {
   // See https://graphviz.org/doc/info/lang.html for the language specification.
   //
   // Output only.
-  string graphviz_representation = 4;
+  string graphviz_representation = 5;
 }
