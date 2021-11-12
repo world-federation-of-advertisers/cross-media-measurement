@@ -250,6 +250,8 @@ fun Measurement.toInternal(
 fun InternalExchange.toV2Alpha(): Exchange {
   val exchangeKey =
     ExchangeKey(
+      dataProviderId = null,
+      modelProviderId = null,
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString()
     )
