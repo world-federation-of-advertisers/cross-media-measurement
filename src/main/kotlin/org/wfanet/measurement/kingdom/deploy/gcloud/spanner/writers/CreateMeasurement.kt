@@ -166,6 +166,7 @@ class CreateMeasurement(private val measurement: Measurement) :
         dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
         dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
         encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+        nonceHash = dataProviderValue.nonceHash
       }
 
     transactionContext.bufferInsertMutation("Requisitions") {

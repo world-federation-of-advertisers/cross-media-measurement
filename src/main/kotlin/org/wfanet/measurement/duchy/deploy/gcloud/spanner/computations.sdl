@@ -126,11 +126,10 @@ CREATE TABLE Requisitions (
   -- The local identifier of this requisition.
   RequisitionId INT64 NOT NULL,
 
-  -- The external data provider id.
-  ExternalDataProviderId STRING(MAX) NOT NULL,
-
   -- The external requisition id.
   ExternalRequisitionId STRING(MAX) NOT NULL,
+
+  RequisitionFingerprint BYTES(32) NOT NULL,
 
   -- A reference to the BLOB. If empty, then the requisition is unfulfilled
   PathToBlob STRING(MAX),
@@ -150,10 +149,10 @@ CREATE TABLE Requisitions (
 ) PRIMARY KEY (ComputationId, RequisitionId),
 INTERLEAVE IN PARENT Computations ON DELETE CASCADE;
 
--- Enable querying by ExternalDataProviderId and ExternalRequisitionId.
+-- Enable querying by ExternalRequisitionId and RequisitionFingerprint.
 CREATE UNIQUE INDEX RequisitionsByExternalId ON Requisitions(
-  ExternalDataProviderId,
-  ExternalRequisitionId
+  ExternalRequisitionId,
+  RequisitionFingerprint
 );
 
 -- ComputationStages
