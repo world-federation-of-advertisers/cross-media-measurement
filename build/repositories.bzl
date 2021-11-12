@@ -65,7 +65,7 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
-        version = "0.10.0",
+        version = "0.10.0-rc2",
         repo = "consent-signaling-client",
-        sha256 = "59079953c01f2f9e2f22c0c2e2e01cfbb5da0a7b9348980e18827bf1947b21f5",
+        sha256 = "c562f48e69f201951a3e7928c2d13f6d8b9513d53e2d8af1b0dedeea993f3afe",
     )
