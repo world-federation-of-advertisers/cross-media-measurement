@@ -317,6 +317,20 @@ fun ImternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   }
 }
 
+fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (this) {
+    ExchangeStep.State.BLOCKED -> InternalExchangeStep.State.BLOCKED
+    ExchangeStep.State.READY -> InternalExchangeStep.State.READY
+    ExchangeStep.State.READY_FOR_RETRY -> InternalExchangeStep.State.READY_FOR_RETRY
+    ExchangeStep.State.IN_PROGRESS -> InternalExchangeStep.State.IN_PROGRESS
+    ExchangeStep.State.SUCCEEDED -> InternalExchangeStep.State.SUCCEEDED
+    ExchangeStep.State.FAILED -> InternalExchangeStep.State.FAILED
+    ExchangeStep.State.STATE_UNSPECIFIED, ExchangeStep.State.UNRECOGNIZED ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Invalid state: $this" }
+  }
+}
+
 private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt.DebugLog {
   return ExchangeStepAttemptKt.debugLog {
     time = this@toV2Alpha.time

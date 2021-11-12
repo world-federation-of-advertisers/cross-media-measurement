@@ -14,18 +14,42 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.protobuf.Timestamp
+import java.time.LocalDate
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
+import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
+import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
+
+private const val MIN_PAGE_SIZE = 1
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 100
 
 class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeStepsCoroutineStub) :
   ExchangeStepsCoroutineImplBase() {
@@ -52,6 +76,72 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     return claimReadyExchangeStepResponse {
       exchangeStep = externalExchangeStep
       exchangeStepAttempt = externalExchangeStepAttempt
+    }
+  }
+
+  override suspend fun listExchangeSteps(
+    request: ListExchangeStepsRequest
+  ): ListExchangeStepsResponse {
+    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+
+    val provider =
+      validateRequestProvider(request.filter.modelProvider, request.filter.dataProvider)
+    val key =
+      grpcRequireNotNull(ExchangeKey.fromName(request.parent)) {
+        "Exchange resource name is either unspecified or invalid"
+      }
+
+    val pageSize =
+      when {
+        request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+        else -> request.pageSize
+      }
+
+    val dataProviders: List<Provider> =
+      request.filter.recurringExchangeDataProvidersList.map {
+        provider {
+          type = Provider.Type.DATA_PROVIDER
+          externalId =
+            apiIdToExternalId(grpcRequireNotNull(DataProviderKey.fromName(it)).dataProviderId)
+        }
+      }
+    val modelProviders =
+      request.filter.recurringExchangeModelProvidersList.map {
+        provider {
+          type = Provider.Type.MODEL_PROVIDER
+          externalId =
+            apiIdToExternalId(grpcRequireNotNull(ModelProviderKey.fromName(it)).modelProviderId)
+        }
+      }
+
+    val streamExchangeStepsRequest = streamExchangeStepsRequest {
+      limit = pageSize
+      filter =
+        filter {
+          if (request.pageToken.isNotBlank()) {
+            updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
+          }
+          stepProvider = provider
+          recurringExchangeParticipants += dataProviders
+          recurringExchangeParticipants += modelProviders
+          externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)
+          dates += LocalDate.parse(key.exchangeId).toProtoDate()
+          dates += request.filter.exchangeDatesList
+          states += request.filter.statesList.map { it.toInternal() }
+        }
+    }
+
+    val results: List<InternalExchangeStep> =
+      internalExchangeSteps.streamExchangeSteps(streamExchangeStepsRequest).toList()
+
+    if (results.isEmpty()) {
+      return listExchangeStepsResponse {}
+    }
+
+    return listExchangeStepsResponse {
+      exchangeStep += results.map(InternalExchangeStep::toV2Alpha)
+      nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
     }
   }
 
