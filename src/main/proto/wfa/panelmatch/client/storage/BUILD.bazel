@@ -8,6 +8,9 @@ proto_library(
     name = "storage_details_proto",
     srcs = ["storage_details.proto"],
     strip_import_prefix = "/src/main/proto",
+    deps = [
+        "@com_google_protobuf//:any_proto",
+    ],
 )
 
 java_proto_library(
