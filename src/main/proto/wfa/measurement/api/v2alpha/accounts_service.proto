@@ -77,17 +77,10 @@ message ReplaceAccountIdentityRequest {
     string identity_bearer_token = 1;
   }
 
-  message UsernameCredentials {
-    string username = 1;
-    string password = 2;
-  }
-
   // Replacement credentials for an identity. Required.
   oneof replacement_credentials {
     // Replacement credentials for an `OpenIdConnectIdentity`.
     OpenIdConnectCredentials open_id = 2;
-    // Replacement credentials for a `UsernameIdentity`.
-    UsernameCredentials username = 3;
   }
 }
 

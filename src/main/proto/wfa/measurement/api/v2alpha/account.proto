@@ -95,18 +95,11 @@ message Account {
     string subject = 2;
   }
 
-  // An identity where the `Account` is identified by a unique username.
-  message UsernameIdentity {
-    // Unique username. Required.
-    string username = 1;
-  }
-
   // Identity of the user for this `Account`. Output-only.
   //
   // This must be set when `activation_state` is `ACTIVATED`. The specified
   // value is unique across all `Account` resources.
   oneof identity {
     OpenIdConnectIdentity open_id = 6;
-    UsernameIdentity username = 7;
   }
 }
