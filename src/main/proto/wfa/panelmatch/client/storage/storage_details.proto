@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.panelmatch.client.storage;
 
+import "google/protobuf/any.proto";
+
 option java_package = "org.wfanet.panelmatch.client.storage";
 option java_multiple_files = true;
 option java_outer_classname = "StorageDetailsProto";
@@ -47,7 +49,7 @@ message StorageDetails {
     PRIVATE = 2;
   }
 
-  // TODO(): Stub. Implement this when S3 Storage Client is ready.
+  // TODO(@stevenwarejones): Implement this when S3 Storage Client is ready.
   message AwsStorage {
     string bucket = 1;
   }
@@ -62,11 +64,18 @@ message StorageDetails {
     string path = 1;
   }
 
+  // For those who implement custom solutions, this should be used. Arbitrary
+  // configuration data can be serialized here.
+  message CustomStorage {
+    google.protobuf.Any details = 1;
+  }
+
   oneof platform {
     AwsStorage aws = 1;
     GcsStorage gcs = 2;
     FileStorage file = 3;
+    CustomStorage custom = 4;
   }
 
-  Visibility visibility = 4;
+  Visibility visibility = 5;
 }
