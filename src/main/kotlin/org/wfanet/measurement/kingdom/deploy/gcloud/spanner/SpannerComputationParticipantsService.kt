@@ -49,6 +49,8 @@ class SpannerComputationParticipantsService(
           failGrpc(Status.FAILED_PRECONDITION) {
             "Certificate for Computation participant not found."
           }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
@@ -76,6 +78,8 @@ class SpannerComputationParticipantsService(
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Measurement State is Illegal" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
@@ -104,6 +108,8 @@ class SpannerComputationParticipantsService(
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
