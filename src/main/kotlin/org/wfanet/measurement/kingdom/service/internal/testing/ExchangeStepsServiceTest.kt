@@ -417,7 +417,7 @@ abstract class ExchangeStepsServiceTest {
                     externalId = EXTERNAL_DATA_PROVIDER_ID
                     type = Provider.Type.DATA_PROVIDER
                   }
-                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
+                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
               }
           }
         )
@@ -438,7 +438,7 @@ abstract class ExchangeStepsServiceTest {
             filter =
               filter {
                 stepProvider = PROVIDER
-                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
+                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
               }
           }
         )
@@ -468,7 +468,7 @@ abstract class ExchangeStepsServiceTest {
             filter =
               filter {
                 recurringExchangeParticipants += PROVIDER
-                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
+                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
               }
           }
         )
@@ -502,7 +502,7 @@ abstract class ExchangeStepsServiceTest {
             filter =
               filter {
                 recurringExchangeParticipants += PROVIDER
-                externalRecurringExchangeId += EXTERNAL_RECURRING_EXCHANGE_ID
+                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
               }
             limit = 1
           }
