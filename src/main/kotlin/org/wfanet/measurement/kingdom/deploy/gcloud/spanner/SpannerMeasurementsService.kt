@@ -56,6 +56,8 @@ class SpannerMeasurementsService(
           failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "Certificate not found" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
@@ -102,6 +104,8 @@ class SpannerMeasurementsService(
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
@@ -138,6 +142,8 @@ class SpannerMeasurementsService(
         when (e.code) {
           KingdomInternalException.Code.MEASUREMENT_NOT_FOUND -> Status.NOT_FOUND
           KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL -> Status.FAILED_PRECONDITION
+          KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+          KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
           KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
           KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
           KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
