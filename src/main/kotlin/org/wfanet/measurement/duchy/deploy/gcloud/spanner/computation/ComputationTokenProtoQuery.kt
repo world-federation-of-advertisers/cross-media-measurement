@@ -17,17 +17,21 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
 import org.wfanet.measurement.gcloud.common.toEpochMilli
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
+import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
-import org.wfanet.measurement.internal.duchy.RequisitionMetadata
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
 /** Query for fields needed to make a [ComputationToken] using the global computation id. */
 class ComputationTokenProtoQuery(
@@ -55,8 +59,8 @@ class ComputationTokenProtoQuery(
              ) AS Blobs,
              ARRAY(
                SELECT AS STRUCT
-                 r2.ExternalDataProviderId,
                  r2.ExternalRequisitionId,
+                 r2.RequisitionFingerprint,
                  IFNULL(r2.PathToBlob, "") AS PathToBlob,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
@@ -87,8 +91,8 @@ class ComputationTokenProtoQuery(
              ) AS Blobs,
              ARRAY(
                SELECT AS STRUCT
-                 r2.ExternalDataProviderId,
                  r2.ExternalRequisitionId,
+                 r2.RequisitionFingerprint,
                  IFNULL(r2.PathToBlob, "") AS PathToBlob,
                  r2.RequisitionDetails
                FROM Requisitions AS r2
@@ -97,8 +101,8 @@ class ComputationTokenProtoQuery(
       FROM Computations AS c
       JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
       JOIN Requisitions AS r USING (ComputationId)
-      WHERE r.ExternalDataProviderId = @external_data_provider_id
-        AND r.ExternalRequisitionId = @external_requisition_id
+      WHERE r.ExternalRequisitionId = @external_requisition_id
+        AND r.RequisitionFingerprint = @requisition_fingerprint
       GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
       """.trimIndent()
   }
@@ -113,12 +117,11 @@ class ComputationTokenProtoQuery(
       require(externalRequisitionKey != null) {
         "global computation id or external requisition key is required."
       }
-      Statement.newBuilder(parameterizedQueryUsingExternalRequisitionKeyString)
-        .bind("external_data_provider_id")
-        .to(externalRequisitionKey.externalDataProviderId)
-        .bind("external_requisition_id")
-        .to(externalRequisitionKey.externalRequisitionId)
-        .build()
+      statement(parameterizedQueryUsingExternalRequisitionKeyString) {
+        bind("external_requisition_id").to(externalRequisitionKey.externalRequisitionId)
+        bind("requisition_fingerprint")
+          .to(externalRequisitionKey.requisitionFingerprint.toGcloudByteArray())
+      }
     }
 
   override fun asResult(struct: Struct): ComputationToken {
@@ -144,17 +147,17 @@ class ComputationTokenProtoQuery(
       struct
         .getStructList("Requisitions")
         .map {
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = it.getString("ExternalDataProviderId")
-              externalRequisitionId = it.getString("ExternalRequisitionId")
-              path = it.getString("PathToBlob")
-              details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
-            }
-            .build()
+          requisitionMetadata {
+            externalKey =
+              externalRequisitionKey {
+                externalRequisitionId = it.getString("ExternalRequisitionId")
+                requisitionFingerprint = it.getBytesAsByteString("RequisitionFingerprint")
+              }
+            path = it.getString("PathToBlob")
+            details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
+          }
         }
-        .sortedBy { it.externalRequisitionId }
-        .toList()
+        .sortedBy { it.externalKey.externalRequisitionId }
 
     val computationDetailsProto =
       struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())

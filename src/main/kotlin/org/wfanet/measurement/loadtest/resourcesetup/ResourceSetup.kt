@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
+import java.security.cert.X509Certificate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -24,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
@@ -31,8 +33,9 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.consent.client.dataprovider.signEncryptionPublicKey as signEdpEncryptionPublicKey
+import org.wfanet.measurement.common.crypto.sign
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey as signMcEncryptionPublicKey
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
@@ -90,10 +93,9 @@ class ResourceSetup(
         dataProvider {
           certificateDer = dataProviderContent.consentSignalCertificateDer
           publicKey =
-            signEdpEncryptionPublicKey(
-              encryptionPublicKey,
-              privateKeyHandle,
-              readCertificate(dataProviderContent.consentSignalCertificateDer)
+            privateKeyHandle.signEncryptionPublicKey(
+              readCertificate(dataProviderContent.consentSignalCertificateDer),
+              encryptionPublicKey
             )
           displayName = dataProviderContent.displayName
         }
@@ -156,3 +158,20 @@ data class DuchyCert(
   /** The consent signaling certificate in DER format. */
   val consentSignalCertificateDer: ByteString
 )
+
+/**
+ * Signs an [EncryptionPublicKey] using this private key and the corresponding [certificate].
+ *
+ * TODO(@wangyaopw): Switch this to use SigningKeyHandle.
+ */
+private suspend fun PrivateKeyHandle.signEncryptionPublicKey(
+  certificate: X509Certificate,
+  publicKey: EncryptionPublicKey
+): SignedData {
+  val serialized = publicKey.toByteString()
+  val signature = checkNotNull(toJavaPrivateKey(certificate)).sign(certificate, serialized)
+  return signedData {
+    data = serialized
+    this.signature = signature
+  }
+}

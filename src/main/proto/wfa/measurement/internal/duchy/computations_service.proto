@@ -86,8 +86,8 @@ message CreateComputationRequest {
   // Initial computation details.
   // If set, the protocol should match computation_type.
   ComputationDetails computation_details = 4;
-  // The public API resource keys of the requisitions used in this computation.
-  repeated ExternalRequisitionKey requisitions = 5;
+  // Map of Requisitions to create for this Computation.
+  repeated RequisitionEntry requisitions = 5;
 }
 
 message CreateComputationResponse {
@@ -116,16 +116,8 @@ message UpdateComputationDetailsRequest {
   // New value of the computation_details.
   // Note that the protocol type can not be changed in the details.
   ComputationDetails details = 2;
-  // Updated requisition details.
-  message RequisitionDetailUpdate {
-    // External ID of the data provider.
-    string external_data_provider_id = 1;
-    // External ID of the requisition.
-    string external_requisition_id = 2;
-    // New value of the requisition details.
-    RequisitionDetails details = 3;
-  }
-  repeated RequisitionDetailUpdate requisition_detail_updates = 3;
+  // Map of Requisitions to update for this Computation.
+  repeated RequisitionEntry requisitions = 3;
 }
 message UpdateComputationDetailsResponse {
   // Token for the computation.
@@ -251,14 +243,6 @@ message EnqueueComputationRequest {
 // enqueued.
 message EnqueueComputationResponse {
   // Intentionally blank
-}
-
-// The resource key of a requisition from the public API.
-message ExternalRequisitionKey {
-  // External id of the data provider. Assigned by the kingdom.
-  string external_data_provider_id = 1;
-  // External id of the requisition. Assigned by the kingdom.
-  string external_requisition_id = 2;
 }
 
 // Request to record the blob path where the data of a requisition is stored.
