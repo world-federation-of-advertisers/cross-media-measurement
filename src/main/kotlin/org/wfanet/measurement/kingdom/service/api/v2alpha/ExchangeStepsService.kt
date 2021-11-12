@@ -19,7 +19,6 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
@@ -27,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCorou
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
 import org.wfanet.measurement.common.base64UrlDecode
@@ -41,6 +39,8 @@ import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.kingdom.Provider.Type.DATA_PROVIDER
+import org.wfanet.measurement.internal.kingdom.Provider.Type.MODEL_PROVIDER
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
@@ -84,8 +84,6 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
   ): ListExchangeStepsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
 
-    val provider =
-      validateRequestProvider(request.filter.modelProvider, request.filter.dataProvider)
     val key =
       grpcRequireNotNull(ExchangeKey.fromName(request.parent)) {
         "Exchange resource name is either unspecified or invalid"
@@ -98,22 +96,13 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
         else -> request.pageSize
       }
 
-    val dataProviders: List<Provider> =
-      request.filter.recurringExchangeDataProvidersList.map {
-        provider {
-          type = Provider.Type.DATA_PROVIDER
-          externalId =
-            apiIdToExternalId(grpcRequireNotNull(DataProviderKey.fromName(it)).dataProviderId)
-        }
-      }
+    val dataProviders =
+      request.filter.recurringExchangeDataProvidersList.map { it.toProvider(DATA_PROVIDER) }
     val modelProviders =
-      request.filter.recurringExchangeModelProvidersList.map {
-        provider {
-          type = Provider.Type.MODEL_PROVIDER
-          externalId =
-            apiIdToExternalId(grpcRequireNotNull(ModelProviderKey.fromName(it)).modelProviderId)
-        }
-      }
+      request.filter.recurringExchangeModelProvidersList.map { it.toProvider(MODEL_PROVIDER) }
+
+    val modelProviderId = key.modelProviderId
+    val dataProviderId = key.dataProviderId
 
     val streamExchangeStepsRequest = streamExchangeStepsRequest {
       limit = pageSize
@@ -122,11 +111,24 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           if (request.pageToken.isNotBlank()) {
             updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
           }
-          stepProvider = provider
+          if (request.filter.hasDataProvider()) {
+            stepProvider = request.filter.dataProvider.toProvider(DATA_PROVIDER)
+          }
+          if (request.filter.hasModelProvider()) {
+            stepProvider = request.filter.modelProvider.toProvider(MODEL_PROVIDER)
+          }
           recurringExchangeParticipants += dataProviders
           recurringExchangeParticipants += modelProviders
+          if (modelProviderId != null && modelProviderId != "-") {
+            recurringExchangeParticipants += modelProviderId.toProvider(MODEL_PROVIDER)
+          }
+          if (dataProviderId != null && dataProviderId != "-") {
+            recurringExchangeParticipants += dataProviderId.toProvider(DATA_PROVIDER)
+          }
           externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)
-          dates += LocalDate.parse(key.exchangeId).toProtoDate()
+          if (key.exchangeId != "-") {
+            dates += LocalDate.parse(key.exchangeId).toProtoDate()
+          }
           dates += request.filter.exchangeDatesList
           states += request.filter.statesList.map { it.toInternal() }
         }
@@ -142,6 +144,14 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     return listExchangeStepsResponse {
       exchangeStep += results.map(InternalExchangeStep::toV2Alpha)
       nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+    }
+  }
+
+  private fun String.toProvider(providerType: Provider.Type): Provider {
+    val apIid = this
+    return provider {
+      type = providerType
+      externalId = apiIdToExternalId(apIid)
     }
   }
 

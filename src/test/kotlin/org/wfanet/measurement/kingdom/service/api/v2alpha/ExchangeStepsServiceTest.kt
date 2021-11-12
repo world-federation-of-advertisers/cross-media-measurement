@@ -233,15 +233,6 @@ class ExchangeStepsServiceTest {
   }
 
   @Test
-  fun `listExchangeSteps unauthenticated`() {
-    val e =
-      assertFailsWith<StatusRuntimeException> {
-        listExchangeSteps { filter = filter { dataProvider = externalIdToApiId(123L) } }
-      }
-    assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-  }
-
-  @Test
   fun `listExchangeSteps with page token uses filter with timestamp from page token`() {
     val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
     val provider = provider {
