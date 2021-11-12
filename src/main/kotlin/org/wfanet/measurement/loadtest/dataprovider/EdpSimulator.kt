@@ -41,7 +41,8 @@ import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -52,14 +53,15 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpecAndGenerateRequisitionFingerprint
-import org.wfanet.measurement.consent.client.dataprovider.signRequisitionFingerprint
+import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
@@ -140,28 +142,29 @@ class EdpSimulator(
       )
 
     val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+    val measurementConsumerCertificateX509 = readCertificate(measurementConsumerCertificate.x509Der)
     if (!verifyMeasurementSpec(
         measurementSpecSignature = requisition.measurementSpec.signature,
         measurementSpec = measurementSpec,
-        measurementConsumerCertificate = readCertificate(measurementConsumerCertificate.x509Der),
+        measurementConsumerCertificate = measurementConsumerCertificateX509,
       )
     ) {
       logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec.")
       return
     }
 
-    val requisitionSpecAndFingerprint =
-      decryptRequisitionSpecAndGenerateRequisitionFingerprint(
-        requisition,
+    val requisitionFingerprint = computeRequisitionFingerprint(requisition)
+    val signedRequisitionSpec =
+      decryptRequisitionSpec(
+        requisition.encryptedRequisitionSpec,
         checkNotNull(keyStore.getPrivateKeyHandle(ENCRYPTION_PRIVATE_KEY_HANDLE_KEY)),
         ::ReversingHybridCryptor
       )
-
-    val signedRequisitionSpec = requisitionSpecAndFingerprint.signedRequisitionSpec
+    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
     if (!verifyRequisitionSpec(
         requisitionSpecSignature = signedRequisitionSpec.signature,
-        requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data),
-        measurementConsumerCertificate = readCertificate(measurementConsumerCertificate.x509Der),
+        requisitionSpec = requisitionSpec,
+        measurementConsumerCertificate = measurementConsumerCertificateX509,
         measurementSpec = measurementSpec,
       )
     ) {
@@ -169,12 +172,6 @@ class EdpSimulator(
       return
     }
 
-    val participationSignature =
-      signRequisitionFingerprint(
-        requisitionSpecAndFingerprint.requisitionFingerprint,
-        checkNotNull(keyStore.getPrivateKeyHandle(edpData.consentSignalingPrivateKeyId)),
-        readCertificate(edpData.consentSignalCertificateDer)
-      )
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
@@ -183,7 +180,12 @@ class EdpSimulator(
     sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
-    fulfillRequisition(requisition.name, participationSignature.signature, sketchChunks)
+    fulfillRequisition(
+      requisition.name,
+      requisitionFingerprint,
+      requisitionSpec.nonce,
+      sketchChunks
+    )
   }
 
   private fun generateSketch(
@@ -235,34 +237,26 @@ class EdpSimulator(
 
   private suspend fun fulfillRequisition(
     requisitionName: String,
-    participationSignature: ByteString,
+    requisitionFingerprint: ByteString,
+    nonce: Long,
     data: Flow<ByteString>
   ) {
     logger.info("Fulfilling requisition $requisitionName...")
     requisitionFulfillmentStub.fulfillRequisition(
       flow {
-        emit(makeFulfillRequisitionHeader(requisitionName, participationSignature))
-        emitAll(data.map { makeFulfillRequisitionBody(it) })
+        emit(
+          fulfillRequisitionRequest {
+            header =
+              header {
+                name = requisitionName
+                this.requisitionFingerprint = requisitionFingerprint
+                this.nonce = nonce
+              }
+          }
+        )
+        emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
       }
     )
-  }
-
-  private fun makeFulfillRequisitionHeader(
-    requisitionName: String,
-    participationSignature: ByteString
-  ): FulfillRequisitionRequest {
-    return FulfillRequisitionRequest.newBuilder()
-      .apply {
-        headerBuilder.apply {
-          name = requisitionName
-          dataProviderParticipationSignature = participationSignature
-        }
-      }
-      .build()
-  }
-
-  private fun makeFulfillRequisitionBody(bytes: ByteString): FulfillRequisitionRequest {
-    return FulfillRequisitionRequest.newBuilder().apply { bodyChunkBuilder.data = bytes }.build()
   }
 
   private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {

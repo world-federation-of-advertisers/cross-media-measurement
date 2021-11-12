@@ -38,8 +38,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "a9d0f0421fa6461f9c756fcfcbb8ec7a9f725806a85dde2ba2a5fdf8f1472b84",
-        version = "0.11.0",
+        sha256 = "e78eb725b27815f353bbae2810100dbab993486568ee20fb366ce9e309855b3c",
+        version = "0.13.0",
     )
 
     wfa_repo_archive(
@@ -65,7 +65,7 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
-        version = "0.9.0",
+        version = "0.10.0",
         repo = "consent-signaling-client",
-        sha256 = "ff82af7bc1c659d726e64c57f3ff6a16f09b4d0ee231a70ea744f8d213412998",
+        sha256 = "59079953c01f2f9e2f22c0c2e2e01cfbb5da0a7b9348980e18827bf1947b21f5",
     )

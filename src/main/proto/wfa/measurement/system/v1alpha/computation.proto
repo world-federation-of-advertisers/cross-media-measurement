@@ -40,12 +40,6 @@ message Computation {
   // Serialized `MeasurementSpec` from public API. Required. Immutable.
   bytes measurement_spec = 3;
 
-  // Serialized `DataProviderList` from public API. Required. Immutable.
-  bytes data_provider_list = 4;
-
-  // Salt for SHA256 hash of `data_provider_list`. Required. Immutable.
-  bytes data_provider_list_salt = 5;
-
   // State of a `Computation`.
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -85,20 +79,16 @@ message Computation {
   // Aggregator's root certificate. Must be set if `state` is `SUCCEEDED`.
   bytes aggregator_certificate = 7;
 
-  // Serialized `EncryptionPublicKey` message from the public API. Must be set
-  // if `state` is `SUCCEEDED`.
-  bytes result_public_key = 8;
-
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`. Must be set if `state` is `SUCCEEDED`.
-  bytes encrypted_result = 9;
+  bytes encrypted_result = 8;
 
   // Denormalized child `ComputationParticipant` resources. Output-only.
-  repeated ComputationParticipant computation_participants = 10;
+  repeated ComputationParticipant computation_participants = 9;
 
   // Denormalized child `Requisition` resources. Output-only.
-  repeated Requisition requisitions = 11;
+  repeated Requisition requisitions = 10;
 
   // MPC Protocol configuration that need to be known by Duchies.
   message MpcProtocolConfig {
@@ -145,5 +135,5 @@ message Computation {
       LiquidLegionsV2 liquid_legions_v2 = 1;
     }
   }
-  MpcProtocolConfig mpc_protocol_config = 13;
+  MpcProtocolConfig mpc_protocol_config = 11;
 }
