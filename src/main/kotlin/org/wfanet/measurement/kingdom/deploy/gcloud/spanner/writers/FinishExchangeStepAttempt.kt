@@ -77,7 +77,7 @@ class FinishExchangeStepAttempt(
       StreamExchangeSteps(
           filter {
             stepProvider = provider
-            externalRecurringExchangeId +=
+            externalRecurringExchangeIds +=
               this@FinishExchangeStepAttempt.externalRecurringExchangeId.value
             dates += exchangeDate
             stepIndices += this@FinishExchangeStepAttempt.stepIndex

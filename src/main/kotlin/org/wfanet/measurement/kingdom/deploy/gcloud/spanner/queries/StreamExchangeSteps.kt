@@ -55,13 +55,13 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
       bind(Params.EXTERNAL_STEP_PROVIDER_ID to filter.stepProvider.externalId)
     }
 
-    if (filter.externalRecurringExchangeIdList.isNotEmpty()) {
+    if (filter.externalRecurringExchangeIdsList.isNotEmpty()) {
       conjuncts.add(
         "RecurringExchanges.ExternalRecurringExchangeId IN " +
           "UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})"
       )
       bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID)
-        .toInt64Array(filter.externalRecurringExchangeIdList.map { it.toLong() })
+        .toInt64Array(filter.externalRecurringExchangeIdsList.map { it.toLong() })
     }
 
     if (recurringExchangeParticipants.isNotEmpty()) {
