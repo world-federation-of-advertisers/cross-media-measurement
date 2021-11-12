@@ -36,7 +36,9 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
+import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
 import org.wfanet.measurement.duchy.daemon.utils.key
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
@@ -45,7 +47,6 @@ import org.wfanet.measurement.duchy.service.internal.computations.newPassThrough
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
@@ -66,7 +67,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.Requisition
-import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
 
@@ -75,6 +75,9 @@ private const val EMPTY_TOKEN = ""
 private const val DUCHY_ONE = "BOHEMIA"
 private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
+
+private val REQUISITION_1 = TestRequisition("1") { SERIALIZED_MEASUREMENT_SPEC }
+private val REQUISITION_2 = TestRequisition("2") { SERIALIZED_MEASUREMENT_SPEC }
 
 private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
@@ -95,10 +98,11 @@ private val PUBLIC_API_MEASUREMENT_SPEC =
           delta = 2.2
         }
       }
+      addNonceHashes(REQUISITION_1.nonceHash)
+      addNonceHashes(REQUISITION_2.nonceHash)
     }
     .build()
-private val DATA_PROVIDER_LIST = ByteString.copyFromUtf8("This is a data provider list.")
-private val DATA_PROVIDER_LIST_SALT = ByteString.copyFromUtf8("This is a data provider list salt.")
+private val SERIALIZED_MEASUREMENT_SPEC: ByteString = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
 
 private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   liquidLegionsV2 =
@@ -215,19 +219,10 @@ class HeraldTest {
     val confirmingKnown =
       buildComputationAtKingdom("454647484950", Computation.State.PENDING_REQUISITION_PARAMS)
     val systemApiRequisitions1 =
-      Requisition.newBuilder()
-        .apply {
-          name = RequisitionKey("321", "1").toName()
-          dataProvider = "dataProviders/A"
-        }
-        .build()
+      REQUISITION_1.toSystemRequisition("321", Requisition.State.UNFULFILLED)
     val systemApiRequisitions2 =
-      Requisition.newBuilder()
-        .apply {
-          name = RequisitionKey("321", "2").toName()
-          dataProvider = "dataProviders/B"
-        }
-        .build()
+      REQUISITION_2.toSystemRequisition("321", Requisition.State.UNFULFILLED)
+
     val confirmingUnknown =
       buildComputationAtKingdom(
         "321",
@@ -261,18 +256,8 @@ class HeraldTest {
         fakeComputationStorage[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
       )
       .containsExactly(
-        RequisitionMetadata.newBuilder()
-          .apply {
-            externalDataProviderId = "A"
-            externalRequisitionId = "1"
-          }
-          .build(),
-        RequisitionMetadata.newBuilder()
-          .apply {
-            externalDataProviderId = "B"
-            externalRequisitionId = "2"
-          }
-          .build()
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
       )
     assertThat(
         fakeComputationStorage[confirmingUnknown.key.computationId.toLong()]?.computationDetails
@@ -283,13 +268,8 @@ class HeraldTest {
             blobsStoragePrefix = "computation-blob-storage/321"
             kingdomComputationBuilder.apply {
               publicApiVersion = PUBLIC_API_VERSION
-              measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
-              dataProviderList = DATA_PROVIDER_LIST
-              dataProviderListSalt = DATA_PROVIDER_LIST_SALT
-              measurementPublicKeyBuilder.apply {
-                type = org.wfanet.measurement.internal.duchy.EncryptionPublicKey.Type.EC_P256
-                publicKeyInfo = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.data
-              }
+              measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+              measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
             }
             liquidLegionsV2Builder.apply {
               role = RoleInComputation.AGGREGATOR
@@ -332,31 +312,9 @@ class HeraldTest {
     runBlocking<Unit> {
       val globalId = "123456"
       val systemApiRequisitions1 =
-        Requisition.newBuilder()
-          .apply {
-            name = RequisitionKey(globalId, "1").toName()
-            dataProvider = "dataProviders/A"
-            dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_1")
-            requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
-            dataProviderParticipationSignature =
-              ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
-            fulfillingComputationParticipant =
-              ComputationParticipantKey(globalId, DUCHY_ONE).toName()
-          }
-          .build()
+        REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
       val systemApiRequisitions2 =
-        Requisition.newBuilder()
-          .apply {
-            name = RequisitionKey(globalId, "2").toName()
-            dataProvider = "dataProviders/B"
-            dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_2")
-            requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
-            dataProviderParticipationSignature =
-              ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
-            fulfillingComputationParticipant =
-              ComputationParticipantKey(globalId, DUCHY_TWO).toName()
-          }
-          .build()
+        REQUISITION_2.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_TWO)
       val v2alphaApiElgamalPublicKey1 =
         ElGamalPublicKey.newBuilder()
           .apply {
@@ -440,18 +398,8 @@ class HeraldTest {
         computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
         requisitions =
           listOf(
-            RequisitionMetadata.newBuilder()
-              .apply {
-                externalDataProviderId = "A"
-                externalRequisitionId = "1"
-              }
-              .build(),
-            RequisitionMetadata.newBuilder()
-              .apply {
-                externalDataProviderId = "B"
-                externalRequisitionId = "2"
-              }
-              .build()
+            REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+            REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
           )
       )
 
@@ -504,32 +452,8 @@ class HeraldTest {
         )
       assertThat(duchyComputationToken.requisitionsList)
         .containsExactly(
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = "A"
-              externalRequisitionId = "1"
-              detailsBuilder.apply {
-                dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_1")
-                requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_1")
-                dataProviderParticipationSignature =
-                  ByteString.copyFromUtf8("dataProviderParticipationSignature_1")
-                externalFulfillingDuchyId = DUCHY_ONE
-              }
-            }
-            .build(),
-          RequisitionMetadata.newBuilder()
-            .apply {
-              externalDataProviderId = "B"
-              externalRequisitionId = "2"
-              detailsBuilder.apply {
-                dataProviderCertificateDer = ByteString.copyFromUtf8("dataProviderCertificate_2")
-                requisitionSpecHash = ByteString.copyFromUtf8("requisitionSpecHash_2")
-                dataProviderParticipationSignature =
-                  ByteString.copyFromUtf8("dataProviderParticipationSignature_2")
-                externalFulfillingDuchyId = DUCHY_TWO
-              }
-            }
-            .build()
+          REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
+          REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO)
         )
     }
 
@@ -677,9 +601,7 @@ class HeraldTest {
       .also {
         it.name = ComputationKey(globalId).toName()
         it.publicApiVersion = PUBLIC_API_VERSION
-        it.measurementSpec = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
-        it.dataProviderList = DATA_PROVIDER_LIST
-        it.dataProviderListSalt = DATA_PROVIDER_LIST_SALT
+        it.measurementSpec = SERIALIZED_MEASUREMENT_SPEC
         it.state = stateAtKingdom
         it.addAllRequisitions(systemApiRequisitions)
         it.addAllComputationParticipants(systemComputationParticipant)

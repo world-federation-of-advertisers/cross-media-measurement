@@ -48,7 +48,6 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val measurementDetails =
       measurement.details.copy {
         aggregatorCertificate = request.aggregatorCertificate
-        resultPublicKey = request.resultPublicKey
         encryptedResult = request.encryptedResult
       }
 

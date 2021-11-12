@@ -77,12 +77,10 @@ message ComputationStageBlobMetadata {
 
 // Metadata about requisition used in this computation.
 message RequisitionMetadata {
-  // External ID of the data provider.
-  string external_data_provider_id = 1;
-  // External ID of the requisition.
-  string external_requisition_id = 2;
+  // Lookup key using external IDs.
+  ExternalRequisitionKey external_key = 1;
   // The path to the blob if fulfilled locally. Otherwise empty.
-  string path = 3;
+  string path = 2;
   // Detail of the requisition.
-  RequisitionDetails details = 4;
+  RequisitionDetails details = 3;
 }

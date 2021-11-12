@@ -25,8 +25,6 @@ import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
-import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
@@ -97,9 +95,7 @@ class ComputationsService(
       computationsDatabase.getValidInitialStage(request.computationType).first(),
       request.stageDetails,
       request.computationDetails,
-      request.requisitionsList.map {
-        ExternalRequisitionKey(it.externalDataProviderId, it.externalRequisitionId)
-      }
+      request.requisitionsList
     )
 
     sendStatusUpdateToKingdom(
@@ -147,13 +143,7 @@ class ComputationsService(
       when (request.keyCase) {
         KeyCase.GLOBAL_COMPUTATION_ID ->
           computationsDatabase.readComputationToken(request.globalComputationId)
-        KeyCase.REQUISITION_KEY ->
-          computationsDatabase.readComputationToken(
-            ExternalRequisitionKey(
-              request.requisitionKey.externalDataProviderId,
-              request.requisitionKey.externalRequisitionId
-            )
-          )
+        KeyCase.REQUISITION_KEY -> computationsDatabase.readComputationToken(request.requisitionKey)
         KeyCase.KEY_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
       }
@@ -171,12 +161,7 @@ class ComputationsService(
     computationsDatabase.updateComputationDetails(
       request.token.toDatabaseEditToken(),
       request.details,
-      request.requisitionDetailUpdatesList.map {
-        RequisitionDetailUpdate(
-          ExternalRequisitionKey(it.externalDataProviderId, it.externalRequisitionId),
-          it.details
-        )
-      }
+      request.requisitionsList
     )
     return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
       .toUpdateComputationDetailsResponse()
@@ -244,14 +229,12 @@ class ComputationsService(
   override suspend fun recordRequisitionBlobPath(
     request: RecordRequisitionBlobPathRequest
   ): RecordRequisitionBlobPathResponse {
-    val requisitionKey =
-      ExternalRequisitionKey(request.key.externalDataProviderId, request.key.externalRequisitionId)
     computationsDatabase.writeRequisitionBlobPath(
       request.token.toDatabaseEditToken(),
-      requisitionKey,
+      request.key,
       request.blobPath
     )
-    return computationsDatabase.readComputationToken(requisitionKey)!!
+    return checkNotNull(computationsDatabase.readComputationToken(request.key))
       .toRecordRequisitionBlobPathResponse()
   }
 

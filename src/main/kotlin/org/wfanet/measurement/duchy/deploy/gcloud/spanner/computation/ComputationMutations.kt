@@ -17,10 +17,14 @@ package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetailsHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationTypeEnumHelper
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
+import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.gcloud.spanner.toProtoJson
@@ -407,22 +411,24 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     newBuilderFunction: MutationBuilderFunction,
     localComputationId: Long,
     requisitionId: Long,
-    externalDataProviderId: String,
     externalRequisitionId: String,
+    requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     requisitionDetails: RequisitionDetails? = null
   ): Mutation {
-    val m = newBuilderFunction("Requisitions")
-    m.set("ComputationId").to(localComputationId)
-    m.set("RequisitionId").to(requisitionId)
-    m.set("ExternalDataProviderId").to(externalDataProviderId)
-    m.set("ExternalRequisitionId").to(externalRequisitionId)
-    pathToBlob?.let { m.set("PathToBlob").to(nonNullValueString(it)) }
-    requisitionDetails?.let {
-      m.set("RequisitionDetails").toProtoBytes(requisitionDetails)
-      m.set("RequisitionDetailsJSON").toProtoJson(requisitionDetails)
-    }
-    return m.build()
+    return newBuilderFunction("Requisitions")
+      .apply {
+        set("ComputationId" to localComputationId)
+        set("RequisitionId" to requisitionId)
+        set("ExternalRequisitionId" to externalRequisitionId)
+        set("RequisitionFingerprint" to requisitionFingerprint.toGcloudByteArray())
+        pathToBlob?.let { set("PathToBlob" to nonNullValueString(it)) }
+        requisitionDetails?.let {
+          set("RequisitionDetails" to it)
+          setJson("RequisitionDetailsJSON" to it)
+        }
+      }
+      .build()
   }
 
   /**
@@ -434,8 +440,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   fun insertRequisition(
     localComputationId: Long,
     requisitionId: Long,
-    externalDataProviderId: String,
     externalRequisitionId: String,
+    requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     requisitionDetails: RequisitionDetails = RequisitionDetails.getDefaultInstance()
   ): Mutation {
@@ -443,8 +449,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       Mutation::newInsertBuilder,
       localComputationId,
       requisitionId,
-      externalDataProviderId,
       externalRequisitionId,
+      requisitionFingerprint,
       pathToBlob,
       requisitionDetails
     )
@@ -459,8 +465,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   fun updateRequisition(
     localComputationId: Long,
     requisitionId: Long,
-    externalDataProviderId: String,
     externalRequisitionId: String,
+    requisitionFingerprint: ByteString,
     pathToBlob: String? = null,
     requisitionDetails: RequisitionDetails? = null
   ): Mutation {
@@ -468,8 +474,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
       Mutation::newUpdateBuilder,
       localComputationId,
       requisitionId,
-      externalDataProviderId,
       externalRequisitionId,
+      requisitionFingerprint,
       pathToBlob,
       requisitionDetails
     )
