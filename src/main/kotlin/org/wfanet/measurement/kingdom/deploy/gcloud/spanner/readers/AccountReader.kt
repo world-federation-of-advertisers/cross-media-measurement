@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
@@ -25,7 +26,7 @@ import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.account
 
 class AccountReader : SpannerReader<AccountReader.Result>() {
-  data class Result(val account: Account, val accountId: Long)
+  data class Result(val account: Account, val accountId: InternalId)
 
   override val baseSql: String =
     """
@@ -49,7 +50,7 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
     """.trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildAccount(struct), struct.getLong("AccountId"))
+    Result(buildAccount(struct), InternalId(struct.getLong("AccountId")))
 
   private fun buildAccount(struct: Struct): Account = account {
     externalAccountId = struct.getLong("ExternalAccountId")
@@ -80,7 +81,6 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
     return fillStatementBuilder {
         appendClause("WHERE Accounts.ExternalAccountId = @externalAccountId")
         bind("externalAccountId").to(externalAccountId.value)
-        appendClause("LIMIT 1")
       }
       .execute(readContext)
       .singleOrNull()

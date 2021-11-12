@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
@@ -29,12 +28,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates an account in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.ACCOUNT_NOT_OWNER]
+ * * [KingdomInternalException.Code.PERMISSION_DENIED]
  * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
  */
 class CreateAccount(
-  private val externalCreatorAccountId: Long,
-  private val externalOwnedMeasurementConsumerId: Long
+  private val externalCreatorAccountId: ExternalId?,
+  private val externalOwnedMeasurementConsumerId: ExternalId?
 ) : SimpleSpannerWriter<Account>() {
 
   override suspend fun TransactionScope.runTransaction(): Account {
@@ -42,27 +41,28 @@ class CreateAccount(
     val externalAccountId = idGenerator.generateExternalId()
     val activationToken = idGenerator.generateExternalId()
 
-    val params = this@CreateAccount
+    val source = this@CreateAccount
     return account {
       transactionContext.bufferInsertMutation("Accounts") {
-        if (params.externalCreatorAccountId != 0L) {
-          val readCreatorAccountResult = readAccount(params.externalCreatorAccountId)
+        if (source.externalCreatorAccountId != null) {
+          val readCreatorAccountResult = readAccount(source.externalCreatorAccountId)
           set("CreatorAccountId" to readCreatorAccountResult.accountId)
 
+          externalCreatorAccountId = source.externalCreatorAccountId.value
           measurementConsumerCreationToken =
             readCreatorAccountResult.account.measurementConsumerCreationToken
 
-          if (params.externalOwnedMeasurementConsumerId != 0L) {
+          if (source.externalOwnedMeasurementConsumerId != null) {
             MeasurementConsumerOwnerReader()
               .checkOwnershipExist(
                 transactionContext,
-                InternalId(readCreatorAccountResult.accountId),
-                ExternalId(params.externalOwnedMeasurementConsumerId)
+                readCreatorAccountResult.accountId,
+                source.externalOwnedMeasurementConsumerId
               )
-              ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_OWNER)
+              ?: throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
 
-            externalOwnedMeasurementConsumerId = params.externalOwnedMeasurementConsumerId
-            set("OwnedMeasurementConsumerId" to params.externalOwnedMeasurementConsumerId)
+            externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
+            set("OwnedMeasurementConsumerId" to source.externalOwnedMeasurementConsumerId)
           }
         } else {
           measurementConsumerCreationToken = idGenerator.generateExternalId().value
@@ -77,13 +77,14 @@ class CreateAccount(
       }
 
       this.externalAccountId = externalAccountId.value
-      externalCreatorAccountId = params.externalCreatorAccountId
       activationState = Account.ActivationState.UNACTIVATED
       this.activationToken = activationToken.value
     }
   }
 
-  private suspend fun TransactionScope.readAccount(externalAccountId: Long): AccountReader.Result =
-    AccountReader().readByExternalAccountId(transactionContext, ExternalId(externalAccountId))
+  private suspend fun TransactionScope.readAccount(
+    externalAccountId: ExternalId
+  ): AccountReader.Result =
+    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
       ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
 }

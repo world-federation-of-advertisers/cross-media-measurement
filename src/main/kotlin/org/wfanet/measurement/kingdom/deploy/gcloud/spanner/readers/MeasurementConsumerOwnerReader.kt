@@ -22,7 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
 class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerReader.Result>() {
-  data class Result(val accountId: Long, val measurementConsumerId: Long)
+  data class Result(val accountId: InternalId, val measurementConsumerId: InternalId)
 
   override val baseSql: String =
     """
@@ -34,8 +34,8 @@ class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerR
 
   override suspend fun translate(struct: Struct): Result =
     Result(
-      accountId = struct.getLong("AccountId"),
-      measurementConsumerId = struct.getLong("MeasurementConsumerId")
+      accountId = InternalId(struct.getLong("AccountId")),
+      measurementConsumerId = InternalId(struct.getLong("MeasurementConsumerId"))
     )
 
   suspend fun checkOwnershipExist(

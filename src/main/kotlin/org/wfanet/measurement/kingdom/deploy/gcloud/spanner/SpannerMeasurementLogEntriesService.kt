@@ -50,7 +50,7 @@ class SpannerMeasurementLogEntriesService(
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
-        KingdomInternalException.Code.ACCOUNT_NOT_OWNER,
+        KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,

@@ -71,7 +71,7 @@ class KingdomInternalException : Exception {
     /** Account resource queried could not be found. */
     ACCOUNT_NOT_FOUND,
 
-    /** Account does not own the measurement consumer. */
-    ACCOUNT_NOT_OWNER,
+    /** Permission is not given for the operation. */
+    PERMISSION_DENIED,
   }
 }

@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Account
@@ -35,16 +36,27 @@ class SpannerAccountsService(
 
   override suspend fun createAccount(request: Account): Account {
     try {
-      return CreateAccount(
-          request.externalCreatorAccountId,
-          request.externalOwnedMeasurementConsumerId
-        )
+      val externalCreatorAccountId: ExternalId? =
+        if (request.externalCreatorAccountId != 0L) {
+          ExternalId(request.externalCreatorAccountId)
+        } else {
+          null
+        }
+
+      val externalOwnedMeasurementConsumerId: ExternalId? =
+        if (request.externalOwnedMeasurementConsumerId != 0L) {
+          ExternalId(request.externalOwnedMeasurementConsumerId)
+        } else {
+          null
+        }
+
+      return CreateAccount(externalCreatorAccountId, externalOwnedMeasurementConsumerId)
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Creator account not found" }
-        KingdomInternalException.Code.ACCOUNT_NOT_OWNER ->
+        KingdomInternalException.Code.PERMISSION_DENIED ->
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
           }
