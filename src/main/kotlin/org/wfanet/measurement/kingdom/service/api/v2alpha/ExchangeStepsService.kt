@@ -19,6 +19,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
@@ -26,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCorou
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
 import org.wfanet.measurement.common.base64UrlDecode
@@ -83,12 +85,18 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     request: ListExchangeStepsRequest
   ): ListExchangeStepsResponse {
     grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
+    grpcRequire(request.filter.recurringExchangeDataProvidersCount == 0) {
+      "filter.recurringExchangeDataProviders is not supported yet"
+    }
+    grpcRequire(request.filter.recurringExchangeModelProvidersCount == 0) {
+      "filter.recurringExchangeModelProviders is not supported yet"
+    }
 
+    val principal = getProviderFromContext()
     val key =
       grpcRequireNotNull(ExchangeKey.fromName(request.parent)) {
         "Exchange resource name is either unspecified or invalid"
       }
-
     val pageSize =
       when {
         request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
@@ -96,37 +104,25 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
         else -> request.pageSize
       }
 
-    val dataProviders =
-      request.filter.recurringExchangeDataProvidersList.map { it.toProvider(DATA_PROVIDER) }
-    val modelProviders =
-      request.filter.recurringExchangeModelProvidersList.map { it.toProvider(MODEL_PROVIDER) }
-
-    val modelProviderId = key.modelProviderId
-    val dataProviderId = key.dataProviderId
-
     val streamExchangeStepsRequest = streamExchangeStepsRequest {
       limit = pageSize
       filter =
         filter {
+          this.principal = principal
+
           if (request.pageToken.isNotBlank()) {
             updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
           }
+
           if (request.filter.hasDataProvider()) {
-            stepProvider = request.filter.dataProvider.toProvider(DATA_PROVIDER)
+            stepProvider = DataProviderKey(request.filter.dataProvider).toProvider()
           }
           if (request.filter.hasModelProvider()) {
-            stepProvider = request.filter.modelProvider.toProvider(MODEL_PROVIDER)
+            stepProvider = ModelProviderKey(request.filter.modelProvider).toProvider()
           }
-          recurringExchangeParticipants += dataProviders
-          recurringExchangeParticipants += modelProviders
-          if (modelProviderId != null && modelProviderId != "-") {
-            recurringExchangeParticipants += modelProviderId.toProvider(MODEL_PROVIDER)
-          }
-          if (dataProviderId != null && dataProviderId != "-") {
-            recurringExchangeParticipants += dataProviderId.toProvider(DATA_PROVIDER)
-          }
+
           externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)
-          if (key.exchangeId != "-") {
+          if (key.hasExchangeId()) {
             dates += LocalDate.parse(key.exchangeId).toProtoDate()
           }
           dates += request.filter.exchangeDatesList
@@ -147,15 +143,27 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     }
   }
 
-  private fun String.toProvider(providerType: Provider.Type): Provider {
-    val apIid = this
-    return provider {
-      type = providerType
-      externalId = apiIdToExternalId(apIid)
-    }
-  }
-
   override suspend fun getExchangeStep(request: GetExchangeStepRequest): ExchangeStep {
     TODO("world-federation-of-advertisers/cross-media-measurement#3: implement this")
   }
+}
+
+private fun DataProviderKey?.toProvider(): Provider {
+  val id = grpcRequireNotNull(this) { "Incorrect data_provider resource name." }.dataProviderId
+  return provider {
+    type = DATA_PROVIDER
+    externalId = apiIdToExternalId(id)
+  }
+}
+
+private fun ModelProviderKey?.toProvider(): Provider {
+  val id = grpcRequireNotNull(this) { "Incorrect model_provider resource name." }.modelProviderId
+  return provider {
+    type = MODEL_PROVIDER
+    externalId = apiIdToExternalId(id)
+  }
+}
+
+private fun ExchangeKey.hasExchangeId(): Boolean {
+  return exchangeId != "-"
 }

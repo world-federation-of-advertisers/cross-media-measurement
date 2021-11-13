@@ -202,6 +202,15 @@ class ExchangeStepsServiceTest {
   }
 
   @Test
+  fun `listExchangeSteps unauthenticated`() {
+    val e =
+      assertFailsWith<StatusRuntimeException> {
+        listExchangeSteps { filter = filter { dataProvider = externalIdToApiId(123L) } }
+      }
+    assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
     val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
     val provider = provider {
@@ -270,6 +279,7 @@ class ExchangeStepsServiceTest {
           limit = DEFAULT_LIMIT
           filter =
             StreamExchangeStepsRequestKt.filter {
+              this.principal = provider
               stepProvider = provider
               externalRecurringExchangeIds +=
                 apiIdToExternalId(ExchangeKey.fromName(EXCHANGE_NAME)!!.recurringExchangeId)

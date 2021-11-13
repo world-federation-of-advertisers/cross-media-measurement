@@ -53,6 +53,7 @@ class ClaimReadyExchangeStep(
       StreamExchangeSteps(
           requestFilter =
             filter {
+              principal = provider
               stepProvider = provider
               states += ExchangeStep.State.READY_FOR_RETRY
               states += ExchangeStep.State.READY

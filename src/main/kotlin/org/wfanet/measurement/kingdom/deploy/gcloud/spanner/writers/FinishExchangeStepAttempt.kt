@@ -76,6 +76,7 @@ class FinishExchangeStepAttempt(
     exchangeStepResult =
       StreamExchangeSteps(
           filter {
+            principal = provider
             stepProvider = provider
             externalRecurringExchangeIds +=
               this@FinishExchangeStepAttempt.externalRecurringExchangeId.value
