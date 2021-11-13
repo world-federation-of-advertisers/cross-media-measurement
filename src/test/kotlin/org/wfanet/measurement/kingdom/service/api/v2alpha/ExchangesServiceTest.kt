@@ -85,7 +85,7 @@ class ExchangesServiceTest {
 
   @Test
   fun `getExchange unauthenticated`() {
-    val exchangeKey = ExchangeKey(externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
+    val exchangeKey = ExchangeKey(null, null, externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
     val e =
       assertFailsWith<StatusRuntimeException> {
         getExchange {
@@ -104,7 +104,7 @@ class ExchangesServiceTest {
       externalId = 12345L
     }
 
-    val exchangeKey = ExchangeKey(externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
+    val exchangeKey = ExchangeKey(null, null, externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
     val response =
       withPrincipal(principal) {
         getExchange {

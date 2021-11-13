@@ -250,6 +250,8 @@ fun Measurement.toInternal(
 fun InternalExchange.toV2Alpha(): Exchange {
   val exchangeKey =
     ExchangeKey(
+      dataProviderId = null,
+      modelProviderId = null,
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
       exchangeId = date.toLocalDate().toString()
     )
@@ -314,6 +316,20 @@ fun ImternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
     debugLogEntries += details.debugLogEntriesList.map { it.toV2Alpha() }
     startTime = details.startTime
     updateTime = details.updateTime
+  }
+}
+
+fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (this) {
+    ExchangeStep.State.BLOCKED -> InternalExchangeStep.State.BLOCKED
+    ExchangeStep.State.READY -> InternalExchangeStep.State.READY
+    ExchangeStep.State.READY_FOR_RETRY -> InternalExchangeStep.State.READY_FOR_RETRY
+    ExchangeStep.State.IN_PROGRESS -> InternalExchangeStep.State.IN_PROGRESS
+    ExchangeStep.State.SUCCEEDED -> InternalExchangeStep.State.SUCCEEDED
+    ExchangeStep.State.FAILED -> InternalExchangeStep.State.FAILED
+    ExchangeStep.State.STATE_UNSPECIFIED, ExchangeStep.State.UNRECOGNIZED ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Invalid state: $this" }
   }
 }
 

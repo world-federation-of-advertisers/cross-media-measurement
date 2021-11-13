@@ -16,24 +16,53 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser =
-  ResourceNameParser("recurringExchanges/{recurring_exchange}/exchanges/{exchange}")
+private val parsers =
+  listOf(
+    ResourceNameParser("recurringExchanges/{recurring_exchange}/exchanges/{exchange}"),
+    ResourceNameParser(
+      "dataProviders/{data_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}"
+    ),
+    ResourceNameParser(
+      "modelProviders/{model_provider}/recurringExchanges/{recurring_exchange}/exchanges/{exchange}"
+    )
+  )
 
 /** [ExchangeKey] of an Exchange. */
-data class ExchangeKey(val recurringExchangeId: String, val exchangeId: String) : ResourceKey {
+data class ExchangeKey(
+  val dataProviderId: String?,
+  val modelProviderId: String?,
+  val recurringExchangeId: String,
+  val exchangeId: String
+) : ResourceKey {
+  init {
+    require((dataProviderId == null) || (modelProviderId == null))
+  }
+
   override fun toName(): String {
-    return parser.assembleName(
-      mapOf(IdVariable.RECURRING_EXCHANGE to recurringExchangeId, IdVariable.EXCHANGE to exchangeId)
-    )
+    return parsers
+      .first()
+      .assembleName(
+        mapOf(
+          IdVariable.RECURRING_EXCHANGE to recurringExchangeId,
+          IdVariable.EXCHANGE to exchangeId
+        )
+      )
   }
 
   companion object {
-    val defaultValue = ExchangeKey("", "")
+    val defaultValue = ExchangeKey(null, null, "", "")
 
     fun fromName(resourceName: String): ExchangeKey? {
-      return parser.parseIdVars(resourceName)?.let {
-        ExchangeKey(it.getValue(IdVariable.RECURRING_EXCHANGE), it.getValue(IdVariable.EXCHANGE))
+      for (parser in parsers) {
+        val idVars = parser.parseIdVars(resourceName) ?: continue
+        return ExchangeKey(
+          idVars[IdVariable.DATA_PROVIDER],
+          idVars[IdVariable.MODEL_PROVIDER],
+          idVars.getValue(IdVariable.RECURRING_EXCHANGE),
+          idVars.getValue(IdVariable.EXCHANGE)
+        )
       }
+      return null
     }
   }
 }

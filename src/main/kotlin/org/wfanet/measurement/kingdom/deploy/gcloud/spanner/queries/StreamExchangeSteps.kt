@@ -19,8 +19,8 @@ import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PROVIDER_PARAM
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.providerFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepIsOwnedByProviderTypeFilter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
@@ -46,30 +46,22 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
 
   private fun Statement.Builder.appendWhereClause(filter: StreamExchangeStepsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
-    val recurringExchangeParticipants: MutableList<Provider> =
-      filter.recurringExchangeParticipantsList.filterNotNull().toMutableList()
+
+    conjuncts.add(providerFilter(filter.principal))
+    bind(PROVIDER_PARAM to filter.principal.externalId)
 
     if (filter.hasStepProvider()) {
-      recurringExchangeParticipants.add(filter.stepProvider)
       conjuncts.add(stepIsOwnedByProviderTypeFilter(filter.stepProvider.type))
       bind(Params.EXTERNAL_STEP_PROVIDER_ID to filter.stepProvider.externalId)
     }
 
-    if (filter.externalRecurringExchangeIdList.isNotEmpty()) {
+    if (filter.externalRecurringExchangeIdsList.isNotEmpty()) {
       conjuncts.add(
         "RecurringExchanges.ExternalRecurringExchangeId IN " +
           "UNNEST(@${Params.EXTERNAL_RECURRING_EXCHANGE_ID})"
       )
       bind(Params.EXTERNAL_RECURRING_EXCHANGE_ID)
-        .toInt64Array(filter.externalRecurringExchangeIdList.map { it.toLong() })
-    }
-
-    if (recurringExchangeParticipants.isNotEmpty()) {
-      for ((index, participantProvider) in recurringExchangeParticipants.withIndex()) {
-        val param = Params.RECURRING_EXCHANGE_PARTICIPANT_ID + index
-        conjuncts.add(providerFilter(provider = participantProvider, param = param))
-        bind(param to participantProvider.externalId)
-      }
+        .toInt64Array(filter.externalRecurringExchangeIdsList.map { it.toLong() })
     }
 
     if (filter.datesList.isNotEmpty()) {
@@ -101,7 +93,6 @@ class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limi
     const val LIMIT = "limit"
     const val EXTERNAL_STEP_PROVIDER_ID = "externalStepProviderId"
     const val EXTERNAL_RECURRING_EXCHANGE_ID = "externalRecurringExchangeId"
-    const val RECURRING_EXCHANGE_PARTICIPANT_ID = "recurringExchangeParticipantId"
     const val DATES = "dates"
     const val STATES = "states"
     const val STEP_INDICES = "stepIndices"
