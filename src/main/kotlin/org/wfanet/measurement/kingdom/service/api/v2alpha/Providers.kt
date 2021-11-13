@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.apiIdToExternalId
