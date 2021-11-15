@@ -28,6 +28,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #AppName: "measurement-system"
 
+#ResourceConfig: {
+	replicas:              int
+	resourceRequestCpu:    string
+	resourceLimitCpu:      string
+	resourceRequestMemory: string
+	resourceLimitMemory:   string
+}
+
 #Target: {
 	name:   string
 	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
@@ -70,7 +78,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #Deployment: {
 	_name:       string
-	_replicas:   int | *1
+	_replicas:   int
 	_secretName: string | *""
 	_image:      string
 	_args: [...string]
@@ -80,10 +88,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_system:          string
 	_jvm_flags:       string | *""
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"200m"
-	_resourceLimitCpu:      string | *"400m"
-	_resourceRequestMemory: string | *"256Mi"
-	_resourceLimitMemory:   string | *"512Mi"
+	_resourceRequestCpu:    string
+	_resourceLimitCpu:      string
+	_resourceRequestMemory: string
+	_resourceLimitMemory:   string
 	apiVersion:             "apps/v1"
 	kind:                   "Deployment"
 	metadata: {
@@ -168,8 +176,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"200m"
-	_resourceLimitCpu:      string | *"400m"
+	_resourceRequestCpu:    string | *"100m"
+	_resourceLimitCpu:      string | *"200m"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
 

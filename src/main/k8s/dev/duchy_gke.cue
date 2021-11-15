@@ -26,6 +26,27 @@ _environment:                  string @tag("environment")
 #CloudStorageBucket:      "halo-cmm-dev-bucket"
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
+#DefaultResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+#MillResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "200m"
+	resourceLimitCpu:      "800m"
+	resourceRequestMemory: "512Mi"
+	resourceLimitMemory:   "4096Mi"
+}
+#HeraldResourceConfig: {
+	replicas:              1 // We should have 1 and only 1 herald.
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
 
 objectSets: [default_deny_ingress_and_egress] + [ for d in duchy {d}]
 
@@ -59,6 +80,14 @@ duchy: #Duchy & {
 		"requisition-fulfillment-server":   #ContainerRegistryPrefix + "/duchy/requisition-fulfillment"
 		"push-spanner-schema-container":    #ContainerRegistryPrefix + "/setup/push-spanner-schema"
 		"spanner-computations-server":      #ContainerRegistryPrefix + "/duchy/spanner-computations"
+	}
+	_resource_configs: {
+		"async-computation-control-server": #DefaultResourceConfig
+		"computation-control-server":       #DefaultResourceConfig
+		"herald-daemon":                    #HeraldResourceConfig
+		"liquid-legions-v2-mill-daemon":    #MillResourceConfig
+		"requisition-fulfillment-server":   #DefaultResourceConfig
+		"spanner-computations-server":      #DefaultResourceConfig
 	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"
