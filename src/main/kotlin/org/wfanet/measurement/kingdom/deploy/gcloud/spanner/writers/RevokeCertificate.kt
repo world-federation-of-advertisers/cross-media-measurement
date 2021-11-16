@@ -39,6 +39,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequis
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
+private val PENDING_MEASUREMENT_STATES =
+  listOf(
+    Measurement.State.PENDING_COMPUTATION,
+    Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+    Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+    Measurement.State.PENDING_REQUISITION_PARAMS
+  )
+
 /**
  * Revokes a certificate in the database.
  *
@@ -98,10 +106,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           StreamMeasurementsRequestKt.filter {
             externalMeasurementConsumerId = request.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId = request.externalCertificateId
-            states += Measurement.State.PENDING_COMPUTATION
-            states += Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-            states += Measurement.State.PENDING_REQUISITION_FULFILLMENT
-            states += Measurement.State.PENDING_REQUISITION_PARAMS
+            states += PENDING_MEASUREMENT_STATES
           }
 
         StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
@@ -122,10 +127,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           StreamRequisitionsRequestKt.filter {
             externalDataProviderId = request.externalDataProviderId
             states += Requisition.State.UNFULFILLED
-            measurementStates += Measurement.State.PENDING_COMPUTATION
-            measurementStates += Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-            measurementStates += Measurement.State.PENDING_REQUISITION_FULFILLMENT
-            measurementStates += Measurement.State.PENDING_REQUISITION_PARAMS
+            measurementStates += PENDING_MEASUREMENT_STATES
           }
 
         StreamRequisitions(filter).execute(transactionContext).collect {
