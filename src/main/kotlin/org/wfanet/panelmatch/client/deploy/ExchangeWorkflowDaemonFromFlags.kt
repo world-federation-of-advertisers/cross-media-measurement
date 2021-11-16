@@ -40,6 +40,12 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   protected lateinit var flags: ExchangeWorkflowFlags
     private set
 
+  @CommandLine.Mixin
+  lateinit var blobSizeFlags: BlobSizeFlags
+    private set
+
+  override val clock: Clock = Clock.systemUTC()
+
   override val certificateManager: V2AlphaCertificateManager by lazy {
     val clientCerts =
       SigningCerts.fromPemFiles(

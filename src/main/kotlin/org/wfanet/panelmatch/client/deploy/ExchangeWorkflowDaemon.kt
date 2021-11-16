@@ -32,6 +32,7 @@ import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
@@ -79,15 +80,15 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   protected abstract val privateStorageFactories:
     Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory>
 
-  /** Serialized [StorageDetails] protos by RecurringExchange. */
-  protected abstract val privateStorageInfo: SecretMap
+  /** Serialized [StorageDetails] per RecurringExchange. */
+  protected abstract val privateStorageInfo: StorageDetailsProvider
 
   /** How to build shared storage. */
   protected abstract val sharedStorageFactories:
     Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>
 
-  /** Serialized [StorageDetails] protos by RecurringExchange. */
-  protected abstract val sharedStorageInfo: SecretMap
+  /** Serialized [StorageDetails] per RecurringExchange. */
+  protected abstract val sharedStorageInfo: StorageDetailsProvider
 
   /** [CertificateManager] for [sharedStorageSelector]. */
   protected abstract val certificateManager: CertificateManager
@@ -99,12 +100,7 @@ abstract class ExchangeWorkflowDaemon : Runnable {
 
   /** [SharedStorageSelector] for writing to shared storage. */
   protected val sharedStorageSelector: SharedStorageSelector by lazy {
-    SharedStorageSelector(
-      certificateManager,
-      identity.toName(),
-      sharedStorageFactories,
-      sharedStorageInfo
-    )
+    SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
   override fun run() {
