@@ -26,6 +26,7 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
+import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.ExchangeDateKey
@@ -46,7 +47,7 @@ fun makeTestPrivateStorageSelector(
       StorageDetails.PlatformCase.AWS to builder,
       StorageDetails.PlatformCase.GCS to builder
     ),
-    secretMap
+    StorageDetailsProvider(secretMap)
   )
 }
 
@@ -60,13 +61,12 @@ fun makeTestSharedStorageSelector(
 
   return SharedStorageSelector(
     TestCertificateManager(),
-    "owner",
     mapOf(
       StorageDetails.PlatformCase.FILE to builder,
       StorageDetails.PlatformCase.AWS to builder,
       StorageDetails.PlatformCase.GCS to builder
     ),
-    secretMap
+    StorageDetailsProvider(secretMap)
   )
 }
 

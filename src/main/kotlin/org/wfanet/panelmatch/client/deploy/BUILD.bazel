@@ -43,6 +43,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
 

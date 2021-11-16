@@ -14,19 +14,23 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import java.time.Clock
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
 import org.wfanet.panelmatch.client.storage.GcsStorageFactory
 import org.wfanet.panelmatch.client.storage.S3StorageFactory
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
+import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
+import org.wfanet.panelmatch.common.storage.PrefixedStorageClient
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -36,42 +40,52 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 private object MainExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
-  /**
-   * This is one approach to providing [validExchangeWorkflows]. Some implementations may wish to
-   * use a different method.
-   */
-  @CommandLine.Mixin
-  lateinit var approvedWorkflowFlags: PlaintextApprovedWorkflowFileFlags
-    private set
+  @CommandLine.Option(
+    names = ["--tink-key-uri"],
+    description = ["KMS URI for Tink"],
+    required = true
+  )
+  private lateinit var tinkKeyUri: String
 
-  @CommandLine.Mixin
-  lateinit var blobSizeFlags: BlobSizeFlags
-    private set
+  /** This MUST be customized per deployment. */
+  private val rootStorageClient: StorageClient
+    get() = TODO("Customize this per deployment")
 
-  override val clock: Clock = Clock.systemUTC()
+  /** This MUST be customized per deployment. */
+  override val certificateAuthority: CertificateAuthority
+    get() = TODO("Customize this per deployment")
 
   /** This can be customized per deployment. */
   override val validExchangeWorkflows: SecretMap by lazy {
-    approvedWorkflowFlags.approvedExchangeWorkflows
+    StorageClientSecretMap(PrefixedStorageClient(rootStorageClient, "valid-exchange-workflows"))
   }
 
-  /** This should be customized per deployment. */
-  override val privateKeys: MutableSecretMap
-    get() = TODO("Customize this per deployment")
+  /** This can be customized per deployment. */
+  override val privateKeys: MutableSecretMap by lazy {
+    val tinkStorageProvider = TinkKeyStorageProvider()
+    val kmsStorageClient = tinkStorageProvider.makeKmsStorageClient(rootStorageClient, tinkKeyUri)
+    val prefixedKmsStorageClient = PrefixedStorageClient(kmsStorageClient, "private-keys")
+    StorageClientSecretMap(prefixedKmsStorageClient)
+  }
 
-  /** This should be customized per deployment. */
-  override val rootCertificates: SecretMap
-    get() = TODO("Customize this per deployment")
+  /** This can be customized per deployment. */
+  override val rootCertificates: SecretMap by lazy {
+    StorageClientSecretMap(PrefixedStorageClient(rootStorageClient, "root-x509-certificates"))
+  }
 
-  /** This should be customized per deployment. */
-  override val privateStorageInfo: SecretMap
-    get() = TODO("Customize this per deployment")
+  /** This can be customized per deployment. */
+  override val privateStorageInfo: StorageDetailsProvider by lazy {
+    val storageClient = PrefixedStorageClient(rootStorageClient, "private-storage-info")
+    StorageDetailsProvider(StorageClientSecretMap(storageClient))
+  }
 
-  /** This should be customized per deployment. */
-  override val sharedStorageInfo: SecretMap
-    get() = TODO("Not yet implemented")
+  /** This can be customized per deployment. */
+  override val sharedStorageInfo: StorageDetailsProvider by lazy {
+    val storageClient = PrefixedStorageClient(rootStorageClient, "shared-storage-info")
+    StorageDetailsProvider(StorageClientSecretMap(storageClient))
+  }
 
-  /** This should be customized per deployment. */
+  /** This can be customized per deployment. */
   override val privateStorageFactories:
     Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory> by lazy {
     mapOf(
@@ -82,7 +96,7 @@ private object MainExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
       .mapValues { (_, makeFactory) -> { storageDetails -> makeFactory(storageDetails, this) } }
   }
 
-  /** This should be customized per deployment. */
+  /** This can be customized per deployment. */
   override val sharedStorageFactories:
     Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory> by lazy {
     mapOf(
@@ -96,10 +110,6 @@ private object MainExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
         }
       }
   }
-
-  /** This should be customized per deployment. */
-  override val certificateAuthority: CertificateAuthority
-    get() = TODO("Not yet implemented")
 }
 
 /**
