@@ -80,7 +80,9 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
   private val exchangeTaskMapper =
     object : ExchangeTaskMapperForJoinKeyExchange() {
       override val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
-      override val getPrivateMembershipCryptor = ::PlaintextPrivateMembershipCryptor
+      override val getPrivateMembershipCryptor = { _: ByteString ->
+        PlaintextPrivateMembershipCryptor()
+      }
       override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
       override val privateStorageSelector = testPrivateStorageSelector.selector
       override val sharedStorageSelector = testSharedStorageSelector.selector

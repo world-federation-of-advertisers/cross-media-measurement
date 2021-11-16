@@ -40,11 +40,6 @@ fun <KeyT, ValueT> kvOf(key: KeyT, value: ValueT): KV<KeyT, ValueT> {
   return KV.of(key, value)
 }
 
-/** Kotlin convenience helper for making [KV]s. */
-fun <KeyT, ValueT> Pair<KeyT, ValueT>.toKv(): KV<KeyT, ValueT> {
-  return kvOf(first, second)
-}
-
 /** Returns the keys of a [PCollection] of [KV]s. */
 fun <KeyT, ValueT> PCollection<KV<KeyT, ValueT>>.keys(name: String = "Keys"): PCollection<KeyT> {
   return apply(name, Keys.create())
@@ -240,8 +235,4 @@ inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
 
 fun <T> PCollection<T>.toSingletonView(name: String = "ToView"): PCollectionView<T> {
   return apply(name, View.asSingleton())
-}
-
-fun <T> PCollection<T>.toListView(name: String = "ToView"): PCollectionView<List<T>> {
-  return apply(name, View.asList())
 }

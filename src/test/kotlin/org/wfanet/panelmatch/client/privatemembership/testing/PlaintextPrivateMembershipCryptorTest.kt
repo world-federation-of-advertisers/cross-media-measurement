@@ -30,8 +30,8 @@ private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteStringUtf
 
 @RunWith(JUnit4::class)
 class PlaintextPrivateMembershipCryptorTest {
-  val privateMembershipCryptor = PlaintextPrivateMembershipCryptor(SERIALIZED_PARAMETERS)
-  val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
+  private val privateMembershipCryptor = PlaintextPrivateMembershipCryptor()
+  private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 
   @Test
   fun `encryptQueries with multiple shards`() {

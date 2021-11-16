@@ -48,10 +48,10 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
   private val lookupKeys =
     FakeDeterministicCommutativeCipher.decrypt(mpSecretKey, doubleBlindedKeys)
   private val invalidKey = FakeDeterministicCommutativeCipher.INVALID_KEY
-  val hashedJoinKeysAndIds = buildJoinKeysAndIds(JOIN_KEYS)
-  val singleBlindedKeysAndIds = buildJoinKeysAndIds(singleBlindedKeys)
-  val doubleBlindedKeysAndIds = buildJoinKeysAndIds(doubleBlindedKeys)
-  val lookupKeysAndIds = buildJoinKeysAndIds(lookupKeys)
+  private val hashedJoinKeysAndIds = buildJoinKeysAndIds(JOIN_KEYS)
+  private val singleBlindedKeysAndIds = buildJoinKeysAndIds(singleBlindedKeys)
+  private val doubleBlindedKeysAndIds = buildJoinKeysAndIds(doubleBlindedKeys)
+  private val lookupKeysAndIds = buildJoinKeysAndIds(lookupKeys)
   private val blobOfMpSecretKey = runBlocking {
     mockStorage.createBlob("mp-secret-key", mpSecretKey)
   }

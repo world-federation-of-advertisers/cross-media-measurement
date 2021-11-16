@@ -39,16 +39,6 @@ data class ExchangeContext(
     }
   }
 
-  val localName: String by lazy {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (step.party) {
-      ExchangeWorkflow.Party.MODEL_PROVIDER -> workflow.exchangeIdentifiers.modelProvider
-      ExchangeWorkflow.Party.DATA_PROVIDER -> workflow.exchangeIdentifiers.dataProvider
-      ExchangeWorkflow.Party.PARTY_UNSPECIFIED, ExchangeWorkflow.Party.UNRECOGNIZED ->
-        error("Invalid step: $step")
-    }
-  }
-
   val exchangeDateKey: ExchangeDateKey by lazy {
     ExchangeDateKey(attemptKey.recurringExchangeId, date)
   }

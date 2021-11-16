@@ -39,8 +39,8 @@ class JobTestClass1 {
 }
 
 class JobTestClass2 {
-  suspend fun logWithDelay() = coroutineScope {
-    async {
+  suspend fun logWithDelay(): Unit = coroutineScope {
+    launch {
       logger.addToTaskLog("logWithDelay: Log Message C")
       delay(100)
       logger.addToTaskLog("logWithDelay: Log Message D")
@@ -52,9 +52,9 @@ class JobTestClass2 {
 }
 
 class JobTestClass3 {
-  suspend fun logWithDelay() = coroutineScope {
+  suspend fun logWithDelay(): Unit = coroutineScope {
     val attemptKey = java.util.UUID.randomUUID().toString()
-    async(CoroutineName(attemptKey) + Dispatchers.Default) {
+    launch(CoroutineName(attemptKey) + Dispatchers.Default) {
       logger.addToTaskLog("logWithDelay: Log Message C")
       delay(100)
       logger.addToTaskLog("logWithDelay: Log Message D")

@@ -22,7 +22,6 @@ import org.junit.runners.JUnit4
 class PlaintextCreateQueriesTest : AbstractCreateQueriesTest() {
   override val privateMembershipSerializedParameters =
     "some serialized parameters".toByteStringUtf8()
-  override val privateMembershipCryptor =
-    PlaintextPrivateMembershipCryptor(privateMembershipSerializedParameters)
+  override val privateMembershipCryptor = PlaintextPrivateMembershipCryptor()
   override val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 }

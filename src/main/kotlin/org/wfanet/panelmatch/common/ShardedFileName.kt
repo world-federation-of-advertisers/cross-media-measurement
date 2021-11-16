@@ -28,7 +28,7 @@ private val SPEC_REGEX = """^([\w-.]+)-(\*|\?+)-of-(\d+)$""".toRegex()
 data class ShardedFileName(val spec: String) {
   constructor(baseName: String, shardCount: Int) : this("$baseName-*-of-$shardCount")
 
-  val baseName: String
+  private val baseName: String
   val shardCount: Int
 
   val fileNames: Sequence<String>
