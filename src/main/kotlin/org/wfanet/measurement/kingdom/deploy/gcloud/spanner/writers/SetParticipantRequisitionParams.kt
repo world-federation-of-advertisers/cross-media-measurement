@@ -24,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
@@ -43,6 +44,7 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL]
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [KingdomInternalException.Code.CERTIFICATE_IS_INVALID]
  * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
@@ -114,7 +116,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
 
-    val certificate =
+    val certificateResult =
       CertificateReader(CertificateReader.ParentType.DUCHY)
         .fillStatementBuilder {
           appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
@@ -123,7 +125,15 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         }
         .execute(transactionContext)
         .single()
-        .certificate
+
+    val certificate = certificateResult.certificate
+
+    if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
+        certificateResult.isNotYetActive ||
+        certificateResult.isExpired
+    ) {
+      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    }
 
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
