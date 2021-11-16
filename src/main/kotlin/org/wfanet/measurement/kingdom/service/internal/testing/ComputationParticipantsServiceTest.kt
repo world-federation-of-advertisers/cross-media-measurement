@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.confirmComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.failComputationParticipantRequest
@@ -344,6 +345,48 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains("Certificate is invalid")
+  }
+
+  @Test
+  fun `setParticipantRequisitionParams fails for measurement in the wrong state`() = runBlocking {
+    createDuchyCertificates()
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        PROVIDED_MEASUREMENT_ID,
+        dataProvider
+      )
+
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
+
+    val request = setParticipantRequisitionParamsRequest {
+      externalComputationId = measurement.externalComputationId
+      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        computationParticipantsService.setParticipantRequisitionParams(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Measurement not in PENDING_REQUISITION_PARAMS state.")
   }
 
   @Test

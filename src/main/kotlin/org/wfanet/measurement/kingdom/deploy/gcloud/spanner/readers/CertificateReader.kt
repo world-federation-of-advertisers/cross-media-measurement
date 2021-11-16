@@ -35,7 +35,8 @@ class CertificateReader(private val parentType: ParentType) :
     val certificate: Certificate,
     val certificateId: InternalId,
     val isNotYetActive: Boolean,
-    val isExpired: Boolean
+    val isExpired: Boolean,
+    val isValid: Boolean,
   )
 
   enum class ParentType(private val prefix: String) {
@@ -106,15 +107,23 @@ class CertificateReader(private val parentType: ParentType) :
     val certificateId = struct.getInternalId("CertificateId")
     val isNotYetActive = struct.getBoolean("IsNotYetActive")
     val isExpired = struct.getBoolean("IsExpired")
+    val isValid = struct.getBoolean("IsValid")
     return when (parentType) {
       ParentType.DATA_PROVIDER ->
-        Result(buildDataProviderCertificate(struct), certificateId, isNotYetActive, isExpired)
+        Result(
+          buildDataProviderCertificate(struct),
+          certificateId,
+          isNotYetActive,
+          isExpired,
+          isValid
+        )
       ParentType.MEASUREMENT_CONSUMER ->
         Result(
           buildMeasurementConsumerCertificate(struct),
           certificateId,
           isNotYetActive,
-          isExpired
+          isExpired,
+          isValid
         )
       ParentType.DUCHY -> {
         val duchyId = struct.getLong("DuchyId")
@@ -126,11 +135,18 @@ class CertificateReader(private val parentType: ParentType) :
           buildDuchyCertificate(externalDuchyId, struct),
           certificateId,
           isNotYetActive,
-          isExpired
+          isExpired,
+          isValid
         )
       }
       ParentType.MODEL_PROVIDER ->
-        Result(buildModelProviderCertificate(struct), certificateId, isNotYetActive, isExpired)
+        Result(
+          buildModelProviderCertificate(struct),
+          certificateId,
+          isNotYetActive,
+          isExpired,
+          isValid
+        )
     }
   }
 
@@ -157,6 +173,7 @@ class CertificateReader(private val parentType: ParentType) :
         ${parentType.externalIdColumnName!!},
         CURRENT_TIMESTAMP() < NotValidBefore AS IsNotYetActive,
         CURRENT_TIMESTAMP() > NotValidAfter AS IsExpired,
+        RevocationState = ${Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.number} AND CURRENT_TIMESTAMP() >= NotValidBefore AND CURRENT_TIMESTAMP() <= NotValidAfter AS IsValid,
       FROM
         ${parentType.certificatesTableName}
         JOIN ${parentType.tableName!!} USING (${parentType.idColumnName})
@@ -177,6 +194,7 @@ class CertificateReader(private val parentType: ParentType) :
         ${parentType.idColumnName},
         CURRENT_TIMESTAMP() < NotValidBefore AS IsNotYetActive,
         CURRENT_TIMESTAMP() > NotValidAfter AS IsExpired,
+        RevocationState = ${Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED.number} AND CURRENT_TIMESTAMP() >= NotValidBefore AND CURRENT_TIMESTAMP() <= NotValidAfter AS IsValid,
       FROM
         ${parentType.certificatesTableName}
         JOIN Certificates USING (CertificateId)

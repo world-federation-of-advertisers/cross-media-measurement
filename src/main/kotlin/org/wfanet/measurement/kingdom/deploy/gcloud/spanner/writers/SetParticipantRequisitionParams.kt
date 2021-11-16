@@ -24,7 +24,6 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
@@ -46,6 +45,7 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
  * * [KingdomInternalException.Code.CERTIFICATE_IS_INVALID]
  * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
+ * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
@@ -71,6 +71,12 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
             "and external duchy ID ${request.externalDuchyId} not found"
         }
+
+    if (computationParticipantResult.measurementState !=
+        Measurement.State.PENDING_REQUISITION_PARAMS
+    ) {
+      throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL)
+    }
 
     val computationParticipant = computationParticipantResult.computationParticipant
     val measurementId = computationParticipantResult.measurementId
@@ -126,14 +132,11 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         .execute(transactionContext)
         .single()
 
-    val certificate = certificateResult.certificate
-
-    if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED ||
-        certificateResult.isNotYetActive ||
-        certificateResult.isExpired
-    ) {
+    if (!certificateResult.isValid) {
       throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
     }
+
+    val certificate = certificateResult.certificate
 
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
