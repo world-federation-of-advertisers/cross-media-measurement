@@ -145,7 +145,8 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
         StreamMeasurementDetailsForPendingMeasurementsByDuchyCertificateId(
-            certificateResult.certificateId
+            certificateResult.certificateId,
+            PENDING_MEASUREMENT_STATES
           )
           .execute(transactionContext)
           .collect {

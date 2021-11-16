@@ -21,7 +21,8 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
 
 class StreamMeasurementDetailsForPendingMeasurementsByDuchyCertificateId(
-  duchyCertificateId: InternalId
+  duchyCertificateId: InternalId,
+  pendingMeasurementStates: List<Measurement.State>
 ) : SimpleSpannerQuery<MeasurementDetailsReader.Result>() {
   override val reader =
     MeasurementDetailsReader().fillStatementBuilder {
@@ -30,10 +31,9 @@ class StreamMeasurementDetailsForPendingMeasurementsByDuchyCertificateId(
         """
           WHERE ComputationParticipants.CertificateId = ${duchyCertificateId.value}
           AND ComputationParticipants.State = ${ComputationParticipant.State.REQUISITION_PARAMS_SET.number}
-          AND Measurements.State in (${Measurement.State.PENDING_REQUISITION_PARAMS.number},
-          ${Measurement.State.PENDING_REQUISITION_FULFILLMENT.number},
-          ${Measurement.State.PENDING_COMPUTATION.number}, ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION.number})
+          AND Measurements.State in UNNEST(@pendingStates)
           """
       )
+      bind("pendingStates").toInt64Array(pendingMeasurementStates.map { it.number.toLong() })
     }
 }
