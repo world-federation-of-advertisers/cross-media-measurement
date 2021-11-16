@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
+import java.io.Serializable
 import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
 
@@ -23,7 +24,7 @@ import org.wfanet.panelmatch.client.PreprocessEventsResponse
  * method. The encrypted identifier is also used in an HKDF to create an AES key, which is used for
  * an AES encryption/decryption of event data.
  */
-interface EventPreprocessor {
+interface EventPreprocessor : Serializable {
   /** Preprocesses each of the events in [request] as described above */
   fun preprocess(request: PreprocessEventsRequest): PreprocessEventsResponse
 }
