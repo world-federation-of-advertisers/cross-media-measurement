@@ -136,12 +136,10 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
     }
 
-    val certificate = certificateResult.certificate
-
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
       details = participantDetails
-      duchyCertificate = certificate
+      duchyCertificate = certificateResult.certificate
     }
   }
 
