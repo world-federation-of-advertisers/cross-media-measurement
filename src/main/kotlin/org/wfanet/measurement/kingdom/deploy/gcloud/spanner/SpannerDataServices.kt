@@ -27,7 +27,7 @@ class SpannerDataServices(
 ) : DataServices {
   override fun buildDataServices(): KingdomDataServices {
     return KingdomDataServices(
-      SpannerAccountsService(clock, idGenerator, client),
+      SpannerAccountsService(idGenerator, client),
       SpannerCertificatesService(idGenerator, client),
       SpannerDataProvidersService(idGenerator, client),
       SpannerModelProvidersService(idGenerator, client),

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import java.time.Clock
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -35,9 +34,8 @@ class SpannerAccountsServiceTest : AccountsServiceTest<SpannerAccountsService>()
   }
 
   override fun newService(
-    clock: Clock,
     idGenerator: IdGenerator,
   ): SpannerAccountsService {
-    return SpannerAccountsService(clock, idGenerator, spannerDatabase.databaseClient)
+    return SpannerAccountsService(idGenerator, spannerDatabase.databaseClient)
   }
 }

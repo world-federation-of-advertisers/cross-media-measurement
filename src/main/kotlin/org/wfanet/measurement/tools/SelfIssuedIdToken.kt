@@ -79,7 +79,6 @@ fun generateIdToken(uriString: String, clock: Clock): String {
     val now = clock.instant().epochSecond
     claims.addProperty("exp", now + EXP_TIME)
     claims.addProperty("iat", now)
-    queryParamMap["max_age"]?.let { claims.addProperty("auth_time", now) }
 
     claims.add("sub_jwk", jwk)
 

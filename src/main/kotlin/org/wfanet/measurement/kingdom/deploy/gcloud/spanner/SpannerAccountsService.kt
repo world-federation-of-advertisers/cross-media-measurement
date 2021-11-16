@@ -21,7 +21,6 @@ import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.Signature
 import java.security.spec.RSAPublicKeySpec
-import java.time.Clock
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
@@ -47,7 +46,6 @@ private const val REDIRECT_URI = "https://localhost:2048"
 private const val MAX_AGE = 3600L
 
 class SpannerAccountsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : AccountsCoroutineImplBase() {
@@ -178,14 +176,8 @@ class SpannerAccountsService(
           ExternalId(Longs.fromByteArray(state.asString.base64UrlDecode()))
         )
     if (result != null) {
-      if (Longs.fromByteArray(nonce.asString.base64UrlDecode()) != result.nonce.value) {
-        return null
-      }
-
-      val authTime = claims.get("auth_time")
-      if (authTime.isJsonNull ||
-          !authTime.isJsonPrimitive ||
-          authTime.asLong + result.maxAge < clock.instant().epochSecond
+      if (Longs.fromByteArray(nonce.asString.base64UrlDecode()) != result.nonce.value ||
+          result.isExpired
       ) {
         return null
       }

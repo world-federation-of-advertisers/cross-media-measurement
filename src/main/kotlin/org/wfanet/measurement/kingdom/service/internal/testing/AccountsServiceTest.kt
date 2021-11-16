@@ -85,7 +85,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   protected abstract fun newTestDataServices(idGenerator: IdGenerator): TestDataServices
 
   /** Constructs the service being tested. */
-  protected abstract fun newService(clock: Clock, idGenerator: IdGenerator): T
+  protected abstract fun newService(idGenerator: IdGenerator): T
 
   @Before
   fun initDataServices() {
@@ -94,8 +94,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Before
   fun initService() {
-    service = newService(clock, idGeneratorA)
-    serviceWithSecondFixedGenerator = newService(clock, idGeneratorB)
+    service = newService(idGeneratorA)
+    serviceWithSecondFixedGenerator = newService(idGeneratorB)
   }
 
   @Test
@@ -212,10 +212,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount throws PERMISSION_DENIED when state doesn't match`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(
-        generateRequestUri(state = params.state + 5L, nonce = params.nonce, maxAge = params.maxAge),
-        clock
-      )
+      generateIdToken(generateRequestUri(state = params.state + 5L, nonce = params.nonce), clock)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -232,10 +229,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount throws PERMISSION_DENIED when nonce doesn't match`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(
-        generateRequestUri(state = params.state, nonce = params.nonce + 5L, maxAge = params.maxAge),
-        clock
-      )
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce + 5L), clock)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -252,10 +246,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount throws PERMISSION_DENIED when signature is unverified`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(
-        generateRequestUri(state = params.state, nonce = params.nonce + 5L, maxAge = params.maxAge),
-        clock
-      ) + "5"
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce + 5L), clock) +
+        "5"
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -272,10 +264,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount throws PERMISSION_DENIED when identity doesn't exist`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(
-        generateRequestUri(state = params.state, nonce = params.nonce, maxAge = params.maxAge),
-        clock
-      )
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -293,10 +282,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount returns the account when the account has been found`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(
-        generateRequestUri(state = params.state, nonce = params.nonce, maxAge = params.maxAge),
-        clock
-      )
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
 
     val createdAccount = service.createAccount(account {})
 
@@ -324,23 +310,19 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
     assertThat(params.nonce != 0L)
     assertThat(params.state != 0L)
-    assertThat(params.maxAge > 0L)
   }
 }
 
 private fun generateRequestUri(
   state: Long,
   nonce: Long,
-  maxAge: Long,
 ): String {
   var uriString =
     "openid://?response_type=id_token&scope=openid" +
       "&state=" +
       Longs.toByteArray(state).base64UrlEncode() +
       "&nonce=" +
-      Longs.toByteArray(nonce).base64UrlEncode() +
-      "&max_age=" +
-      maxAge
+      Longs.toByteArray(nonce).base64UrlEncode()
   val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
   uriString += "&client_id=$redirectUri"
 

@@ -20,15 +20,15 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
-class OpenIdRequestParamsReader() : SpannerReader<OpenIdRequestParamsReader.Result>() {
-  data class Result(val state: ExternalId, val nonce: ExternalId, val maxAge: Long)
+class OpenIdRequestParamsReader : SpannerReader<OpenIdRequestParamsReader.Result>() {
+  data class Result(val state: ExternalId, val nonce: ExternalId, val isExpired: Boolean)
 
   override val baseSql: String =
     """
     SELECT
-      OpenIdRequestParams.ExternalOpenIdRequestParamsId,
-      OpenIdRequestParams.Nonce,
-      OpenIdRequestParams.MaxAge,
+      ExternalOpenIdRequestParamsId,
+      Nonce,
+      CURRENT_TIMESTAMP > TIMESTAMP_ADD(CreationTime, INTERVAL MaxAge SECOND) AS IsExpired,
     FROM OpenIdRequestParams
     """.trimIndent()
 
@@ -36,7 +36,7 @@ class OpenIdRequestParamsReader() : SpannerReader<OpenIdRequestParamsReader.Resu
     Result(
       state = ExternalId(struct.getLong("ExternalOpenIdRequestParamsId")),
       nonce = ExternalId(struct.getLong("Nonce")),
-      maxAge = struct.getLong("MaxAge")
+      isExpired = struct.getBoolean("IsExpired")
     )
 
   suspend fun readByState(

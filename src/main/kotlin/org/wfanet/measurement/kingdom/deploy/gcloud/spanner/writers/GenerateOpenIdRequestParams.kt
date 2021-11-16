@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
@@ -30,13 +31,13 @@ class GenerateOpenIdRequestParams(private val maxAge: Long) :
       set("OpenIdRequestParamsId" to internalOpenIdRequestParamsId)
       set("ExternalOpenIdRequestParamsId" to externalOpenIdRequestParamsId)
       set("Nonce" to nonce)
+      set("CreationTime" to Value.COMMIT_TIMESTAMP)
       set("MaxAge" to maxAge)
     }
 
     return openIdRequestParams {
       state = externalOpenIdRequestParamsId.value
       this.nonce = nonce.value
-      this.maxAge = maxAge
     }
   }
 }
