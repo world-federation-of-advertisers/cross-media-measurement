@@ -166,7 +166,7 @@ class ExchangeStepsServiceTest {
   fun `claimReadyExchangeStep unauthenticated`() {
     val e =
       assertFailsWith<StatusRuntimeException> {
-        claimReadyExchangeStep { dataProvider = externalIdToApiId(123L) }
+        claimReadyExchangeStep { dataProvider = "dataProviders/AAAAAAAAMDk" }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -180,7 +180,7 @@ class ExchangeStepsServiceTest {
     }
     val response =
       withPrincipal(principal) {
-        claimReadyExchangeStep { dataProvider = externalIdToApiId(12345L) }
+        claimReadyExchangeStep { dataProvider = "dataProviders/AAAAAAAAMDk" }
       }
 
     assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
@@ -197,7 +197,7 @@ class ExchangeStepsServiceTest {
     val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
 
     withPrincipal(principal) {
-      assertFails { claimReadyExchangeStep { modelProvider = externalIdToApiId(12345L) } }
+      assertFails { claimReadyExchangeStep { modelProvider = "modelProviders/AAAAAAAAMDk" } }
     }
   }
 
@@ -205,7 +205,7 @@ class ExchangeStepsServiceTest {
   fun `listExchangeSteps unauthenticated`() {
     val e =
       assertFailsWith<StatusRuntimeException> {
-        listExchangeSteps { filter = filter { dataProvider = externalIdToApiId(123L) } }
+        listExchangeSteps { filter = filter { dataProvider = "modelProviders/AAAAAAAAMDk" } }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -220,7 +220,7 @@ class ExchangeStepsServiceTest {
 
     val response =
       withPrincipal(principal) {
-        claimReadyExchangeStep { modelProvider = externalIdToApiId(12345L) }
+        claimReadyExchangeStep { modelProvider = "modelProviders/AAAAAAAAMDk" }
       }
 
     assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
@@ -237,7 +237,7 @@ class ExchangeStepsServiceTest {
     val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
 
     withPrincipal(principal) {
-      assertFails { claimReadyExchangeStep { dataProvider = externalIdToApiId(12345L) } }
+      assertFails { claimReadyExchangeStep { dataProvider = "dataProviders/AAAAAAAAMDk" } }
     }
   }
 
@@ -256,7 +256,7 @@ class ExchangeStepsServiceTest {
           pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
           filter =
             filter {
-              modelProvider = externalIdToApiId(12345L)
+              modelProvider = "modelProviders/AAAAAAAAMDk"
               states += listOf(ExchangeStep.State.READY, ExchangeStep.State.READY_FOR_RETRY)
             }
         }
@@ -301,7 +301,7 @@ class ExchangeStepsServiceTest {
         runBlocking {
           listExchangeSteps {
             parent = EXCHANGE_NAME
-            filter = filter { dataProvider = externalIdToApiId(12345L) }
+            filter = filter { dataProvider = "dataProviders/AAAAAAAAMDk" }
             pageSize = -1
           }
         }
