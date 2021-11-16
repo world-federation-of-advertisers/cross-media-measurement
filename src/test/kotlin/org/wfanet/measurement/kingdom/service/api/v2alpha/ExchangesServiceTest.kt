@@ -50,6 +50,8 @@ import org.wfanet.measurement.internal.kingdom.exchangeDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest as internalGetExchangeRequest
 import org.wfanet.measurement.internal.kingdom.provider
 
+private const val DATA_PROVIDER = "dataProviders/AAAAAAAAMDk"
+private const val MODEL_PROVIDER = "modelProviders/AAAAAAAAMDk"
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = date {
   year = 2021
@@ -90,7 +92,7 @@ class ExchangesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         getExchange {
           name = exchangeKey.toName()
-          dataProvider = "dataProviders/AAAAAAAAMDk"
+          dataProvider = DATA_PROVIDER
         }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -109,7 +111,7 @@ class ExchangesServiceTest {
       withPrincipal(principal) {
         getExchange {
           name = exchangeKey.toName()
-          dataProvider = "dataProviders/AAAAAAAAMDk"
+          dataProvider = DATA_PROVIDER
         }
       }
 
@@ -136,9 +138,7 @@ class ExchangesServiceTest {
   fun `getExchange for DataProvider with wrong parent in Request`() {
     val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
 
-    withPrincipal(principal) {
-      assertFails { getExchange { modelProvider = "modelProviders/AAAAAAAAMDk" } }
-    }
+    withPrincipal(principal) { assertFails { getExchange { modelProvider = MODEL_PROVIDER } } }
   }
 
   @Test
