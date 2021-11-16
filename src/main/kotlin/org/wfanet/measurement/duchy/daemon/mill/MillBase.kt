@@ -109,7 +109,10 @@ abstract class MillBase(
   suspend fun continuallyProcessComputationQueue() {
     logger.info("Starting...")
     withContext(CoroutineName("Mill $millId")) {
-      throttler.loopOnReady { pollAndProcessNextComputation() }
+      throttler.loopOnReady {
+        // All errors thrown inside the loop should be suppressed such that the mill doesn't crash.
+        logAndSuppressExceptionSuspend { pollAndProcessNextComputation() }
+      }
     }
   }
 
@@ -153,25 +156,20 @@ abstract class MillBase(
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
-    // All new errors thrown in this handler should be suppressed such that the mill doesn't crash.
-    logAndSuppressExceptionSuspend {
-      val globalId = token.globalComputationId
-      when (e) {
-        is IllegalStateException, is IllegalArgumentException, is PermanentComputationError -> {
-          logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
-          failComputationAtKingdom(token, e.localizedMessage)
-          // Mark the computation FAILED for all permanent errors
-          completeComputation(token, CompletedReason.FAILED)
-        }
-        else -> {
-          // Treat all other errors as transient.
-          logger.log(Level.SEVERE, "$globalId@$millId: TRANSIENT error", e)
-          sendStatusUpdateToKingdom(
-            newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
-          )
-          // Enqueue the computation again for future retry
-          enqueueComputation(token)
-        }
+    val globalId = token.globalComputationId
+    when (e) {
+      is IllegalStateException, is IllegalArgumentException, is PermanentComputationError -> {
+        logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
+        failComputationAtKingdom(token, e.localizedMessage)
+        // Mark the computation FAILED for all permanent errors
+        completeComputation(token, CompletedReason.FAILED)
+      }
+      else -> {
+        // Treat all other errors as transient.
+        logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
+        sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT))
+        // Enqueue the computation again for future retry
+        enqueueComputation(token)
       }
     }
   }
