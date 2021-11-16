@@ -19,7 +19,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.assertFails
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,7 +29,6 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 import org.wfanet.panelmatch.common.storage.createBlob
-import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val SOURCE_BLOB_KEY = "source-blob-key"
@@ -63,9 +61,6 @@ class CopyToSharedStorageTaskTest {
   private suspend fun addSourceBlob(blobKey: String, contents: ByteString = BLOB_CONTENTS) {
     source.createBlob(blobKey, contents)
   }
-
-  private val destinationByteStrings: List<Pair<String, ByteString>>
-    get() = runBlocking { destinationContents.mapValues { it.value.toByteString() }.toList() }
 
   @Test
   fun singleFile() = runBlockingTest {

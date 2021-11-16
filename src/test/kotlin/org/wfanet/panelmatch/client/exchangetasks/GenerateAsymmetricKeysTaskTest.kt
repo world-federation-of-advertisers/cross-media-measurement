@@ -30,8 +30,7 @@ private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
 class GenerateAsymmetricKeysTaskTest {
-  private val keyGenerator =
-    PlaintextPrivateMembershipCryptor("some-serialized-parameters".toByteStringUtf8())::generateKeys
+  private val keyGenerator = PlaintextPrivateMembershipCryptor()::generateKeys
 
   @Test
   fun `public key is not equal to private key`() = withTestContext {

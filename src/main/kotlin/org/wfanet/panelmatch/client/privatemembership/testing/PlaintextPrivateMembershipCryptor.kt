@@ -25,8 +25,7 @@ import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
  *
  * Built to be compatible with the [PlaintextQueryEvaluator].
  */
-class PlaintextPrivateMembershipCryptor(private val serializedParameters: ByteString) :
-  PrivateMembershipCryptor {
+class PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
   private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 
   override fun generateKeys(): AsymmetricKeys {

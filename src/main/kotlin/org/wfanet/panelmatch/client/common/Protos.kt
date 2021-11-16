@@ -27,7 +27,6 @@ import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
@@ -41,7 +40,6 @@ import org.wfanet.panelmatch.client.privatemembership.databaseEntry
 import org.wfanet.panelmatch.client.privatemembership.databaseKey
 import org.wfanet.panelmatch.client.privatemembership.databaseShard
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.plaintext
@@ -57,11 +55,6 @@ fun bucketIdOf(id: Int): BucketId = bucketId { this.id = id }
 
 /** Constructs a [QueryId]. */
 fun queryIdOf(id: Int): QueryId = queryId { this.id = id }
-
-/** Constructs a [EncryptedEventData]. */
-fun encryptedEventDataOf(ciphertexts: List<ByteString>): EncryptedEventData = encryptedEventData {
-  this.ciphertexts += ciphertexts
-}
 
 /** Constructs a [UnencryptedQuery]. */
 fun unencryptedQueryOf(shardId: ShardId, bucketId: BucketId, queryId: QueryId): UnencryptedQuery =

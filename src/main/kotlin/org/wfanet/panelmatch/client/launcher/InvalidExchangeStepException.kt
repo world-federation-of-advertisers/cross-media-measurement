@@ -14,7 +14,7 @@
 
 package org.wfanet.panelmatch.client.launcher
 
-/** Indicates that an [ExchangeStep] is not valid to execute. */
+/** Indicates that an ExchangeStep is not valid to execute. */
 class InvalidExchangeStepException(val type: FailureType, message: String) : Exception(message) {
   enum class FailureType {
     PERMANENT,
