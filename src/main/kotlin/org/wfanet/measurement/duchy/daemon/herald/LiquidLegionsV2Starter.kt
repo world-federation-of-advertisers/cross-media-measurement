@@ -17,13 +17,12 @@ package org.wfanet.measurement.duchy.daemon.herald
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.duchy.daemon.utils.extractDataProviderId
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.sha1Hash
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyElGamalPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toDuchyRequisitionDetails
 import org.wfanet.measurement.duchy.daemon.utils.toKingdomComputationDetails
+import org.wfanet.measurement.duchy.daemon.utils.toRequisitionEntries
 import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.toProtocolStage
@@ -31,13 +30,12 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.CreateComputationRequest
-import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
-import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
@@ -65,28 +63,15 @@ object LiquidLegionsV2Starter {
         }
         .build()
     val requisitions =
-      systemComputation.requisitionsList.map {
-        ExternalRequisitionKey.newBuilder()
-          .apply {
-            externalDataProviderId =
-              extractDataProviderId(
-                Version.fromString(systemComputation.publicApiVersion),
-                it.dataProvider
-              )
-            externalRequisitionId = it.key.requisitionId
-          }
-          .build()
-      }
+      systemComputation.requisitionsList.toRequisitionEntries(systemComputation.measurementSpec)
 
     computationStorageClient.createComputation(
-      CreateComputationRequest.newBuilder()
-        .apply {
-          computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-          globalComputationId = globalId
-          computationDetails = initialComputationDetails
-          addAllRequisitions(requisitions)
-        }
-        .build()
+      createComputationRequest {
+        computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+        globalComputationId = globalId
+        computationDetails = initialComputationDetails
+        this.requisitions += requisitions
+      }
     )
   }
 
@@ -130,28 +115,13 @@ object LiquidLegionsV2Starter {
             )
         }
         .build()
-    val requisitionDetailUpdate =
-      systemComputation.requisitionsList.map { requisition ->
-        UpdateComputationDetailsRequest.RequisitionDetailUpdate.newBuilder()
-          .also {
-            it.externalDataProviderId =
-              extractDataProviderId(
-                Version.fromString(systemComputation.publicApiVersion),
-                requisition.dataProvider
-              )
-            it.externalRequisitionId = requisition.key.requisitionId
-            it.details = requisition.toDuchyRequisitionDetails()
-          }
-          .build()
-      }
-    val updateComputationDetailsRequest =
-      UpdateComputationDetailsRequest.newBuilder()
-        .also {
-          it.token = token
-          it.details = updatedDetails
-          it.addAllRequisitionDetailUpdates(requisitionDetailUpdate)
-        }
-        .build()
+    val requisitions =
+      systemComputation.requisitionsList.toRequisitionEntries(systemComputation.measurementSpec)
+    val updateComputationDetailsRequest = updateComputationDetailsRequest {
+      this.token = token
+      details = updatedDetails
+      this.requisitions += requisitions
+    }
 
     val newToken =
       computationStorageClient.updateComputationDetails(updateComputationDetailsRequest).token

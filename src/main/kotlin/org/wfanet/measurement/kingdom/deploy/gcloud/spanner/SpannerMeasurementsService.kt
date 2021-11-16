@@ -42,6 +42,7 @@ class SpannerMeasurementsService(
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun createMeasurement(request: Measurement): Measurement {
+    validateCreateMeasurementRequest(request)
     try {
       return CreateMeasurement(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
@@ -67,6 +68,31 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+      }
+    }
+  }
+
+  private fun validateCreateMeasurementRequest(request: Measurement) {
+    grpcRequire(request.externalMeasurementConsumerCertificateId != 0L) {
+      "external_measurement_consumer_certificate_id unspecified"
+    }
+    grpcRequire(request.details.apiVersion.isNotEmpty()) { "api_version unspecified" }
+    grpcRequire(!request.details.measurementSpec.isEmpty) { "measurement_spec unspecified" }
+    grpcRequire(!request.details.measurementSpecSignature.isEmpty) {
+      "measurement_spec_signature unspecified"
+    }
+    for ((externalDataProviderId, dataProvider) in request.dataProvidersMap) {
+      grpcRequire(!dataProvider.dataProviderPublicKey.isEmpty) {
+        "data_provider_public_key unspecified for ${ExternalId(externalDataProviderId)}"
+      }
+      grpcRequire(!dataProvider.dataProviderPublicKeySignature.isEmpty) {
+        "data_provider_public_key_signature unspecified for ${ExternalId(externalDataProviderId)}"
+      }
+      grpcRequire(!dataProvider.encryptedRequisitionSpec.isEmpty) {
+        "encrypted_requisition_spec unspecified for ${ExternalId(externalDataProviderId)}"
+      }
+      grpcRequire(!dataProvider.nonceHash.isEmpty) {
+        "nonce_hash unspecified for ${ExternalId(externalDataProviderId)}"
       }
     }
   }

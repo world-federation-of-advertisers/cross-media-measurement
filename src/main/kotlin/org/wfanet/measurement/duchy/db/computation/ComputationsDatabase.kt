@@ -19,7 +19,8 @@ import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /**
  * Grouping of a read only view ([ComputationsDatabaseReader]) and a writer (
@@ -77,7 +78,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     initialStage: StageT,
     stageDetails: StageDetailsT,
     computationDetails: ComputationDetailsT,
-    requisitions: List<ExternalRequisitionKey> = listOf()
+    requisitions: List<RequisitionEntry> = listOf()
   )
 
   /**
@@ -132,7 +133,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
   suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDetailsT,
-    requisitionDetailUpdates: List<RequisitionDetailUpdate> = listOf()
+    requisitions: List<RequisitionEntry> = listOf()
   )
 
   /** Writes the reference to a blob needed for an output blob from a stage. */
@@ -174,15 +175,6 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     val editVersion: Long
   )
 }
-
-/** public API resource key of a requisition. */
-data class ExternalRequisitionKey(
-  val externalDataProviderId: String,
-  val externalRequisitionId: String
-)
-
-/** The new details of a requisition to update. */
-data class RequisitionDetailUpdate(val key: ExternalRequisitionKey, val detail: RequisitionDetails)
 
 /**
  * Reference to a blob's storage location (key).

@@ -27,6 +27,8 @@ import ("strings")
 	_kingdom_image_pull_policy: string
 	_kingdom_secret_name:       string
 
+	_resource_configs: [Name=_]: #ResourceConfig
+
 	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_rpc_config_\(_env).textproto"
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
@@ -75,11 +77,16 @@ import ("strings")
 	}
 
 	kingdom_deployment: [Name=_]: #Deployment & {
-		_name:            strings.TrimSuffix(Name, "-deployment")
-		_secretName:      _kingdom_secret_name
-		_system:          "kingdom"
-		_image:           _images[_name]
-		_imagePullPolicy: _kingdom_image_pull_policy
+		_name:                  strings.TrimSuffix(Name, "-deployment")
+		_secretName:            _kingdom_secret_name
+		_system:                "kingdom"
+		_image:                 _images[_name]
+		_imagePullPolicy:       _kingdom_image_pull_policy
+		_replicas:              _resource_configs[_name].replicas
+		_resourceRequestMemory: _resource_configs[_name].resourceRequestMemory
+		_resourceLimitMemory:   _resource_configs[_name].resourceLimitMemory
+		_resourceRequestCpu:    _resource_configs[_name].resourceRequestCpu
+		_resourceLimitCpu:      _resource_configs[_name].resourceLimitCpu
 	}
 
 	kingdom_deployment: {

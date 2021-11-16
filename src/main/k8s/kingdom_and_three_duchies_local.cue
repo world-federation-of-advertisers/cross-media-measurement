@@ -80,7 +80,11 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 		"--debug-verbose-grpc-server-logging=true",
 		"--port=8443",
 	]
-	_replicas: 1 // We should have 1 and only 1 fake storage server.
+	_replicas:              1 // We should have 1 and only 1 fake storage server.
+	_resourceRequestMemory: "100m"
+	_resourceLimitMemory:   "200m"
+	_resourceRequestCpu:    "128Mi"
+	_resourceLimitCpu:      "256Mi"
 }
 #ENV: "local"
 
@@ -129,6 +133,35 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 	},
 ]
 
+#DefaultResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "200m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+#MillResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "200m"
+	resourceLimitCpu:      "800m"
+	resourceRequestMemory: "512Mi"
+	resourceLimitMemory:   "4096Mi"
+}
+#HeraldResourceConfig: {
+	replicas:              1 // We should have 1 and only 1 herald.
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "200m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+#EdpSimulatorResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
@@ -162,6 +195,14 @@ fake_pod: "fake-storage-server-deployment": #ServerDeployment & {
 		"push-spanner-schema-container":    "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
 		"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image"
 	}
+	_resource_configs: {
+		"async-computation-control-server": #DefaultResourceConfig
+		"computation-control-server":       #DefaultResourceConfig
+		"herald-daemon":                    #HeraldResourceConfig
+		"liquid-legions-v2-mill-daemon":    #MillResourceConfig
+		"requisition-fulfillment-server":   #DefaultResourceConfig
+		"spanner-computations-server":      #DefaultResourceConfig
+	}
 	_duchy_image_pull_policy: "Never"
 	_verbose_grpc_logging:    "true"
 }
@@ -190,6 +231,11 @@ kingdom: #Kingdom & {
 		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
 		"system-api-server":             "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
 		"v2alpha-public-api-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
+	}
+	_resource_configs: {
+		"gcp-kingdom-data-server":   #DefaultResourceConfig
+		"system-api-server":         #DefaultResourceConfig
+		"v2alpha-public-api-server": #DefaultResourceConfig
 	}
 	_kingdom_image_pull_policy: "Never"
 	_verbose_grpc_logging:      "true"
@@ -223,8 +269,9 @@ edp_simulators: {
 			_blob_storage_flags: [
 				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			]
-			_image:           "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
-			_imagePullPolicy: "Never"
+			_image:            "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
+			_imagePullPolicy:  "Never"
+			_resource_configs: #EdpSimulatorResourceConfig
 		}
 	}
 }

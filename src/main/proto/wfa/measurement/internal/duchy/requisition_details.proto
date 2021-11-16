@@ -21,22 +21,25 @@ option java_multiple_files = true;
 
 // The details of requisition used in a computation.
 message RequisitionDetails {
-  // X.509 certificate in DER format which can be verified using the
-  // `DataProvider`'s root certificate. Required. Immutable.
-  bytes data_provider_certificate_der = 1;
-  // SHA256 hash of encrypted `RequisitionSpec` from public API. Required.
-  // Immutable.
-  bytes requisition_spec_hash = 2;
-  // Cryptographic digital signature of the "requisition fingerprint" which
-  // can be verified using `data_provider_certificate`. Set when `state` is
-  // `FULFILLED`.
-  //
-  // The requisition fingerprint is defined as the concatenation of:
-  // 1. `requisition_spec_hash`
-  // 2. The SHA256 hash of the concatenation of `data_provider_list` and
-  //    `data_provider_list_salt` from the parent `Computation`.
-  // 3. `measurement_spec` from the parent `Computation`.
-  bytes data_provider_participation_signature = 3;
+  // SHA-256 hash of nonce value for Requisition. Required. Immutable.
+  bytes nonce_hash = 1;
+
   // External ID of the duchy where this requisition is fulfilled.
-  string external_fulfilling_duchy_id = 4;
+  string external_fulfilling_duchy_id = 2;
+
+  // Nonce value for a fulfilled Requisition.
+  fixed64 nonce = 3;
+}
+
+// Lookup key for Requisition by external ID.
+message ExternalRequisitionKey {
+  // External id of the requisition. Assigned by the kingdom.
+  string external_requisition_id = 1;
+  // Requisition fingerprint. Computed using data from Kingdom.
+  bytes requisition_fingerprint = 2;
+}
+
+message RequisitionEntry {
+  ExternalRequisitionKey key = 1;
+  RequisitionDetails value = 2;
 }

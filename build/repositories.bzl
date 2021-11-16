@@ -24,22 +24,22 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "56c7b39598cc37b85cc65afe185d12b4f155e2e8efb70a8d5e211b5a873c2296",
-        version = "0.21.2",
+        sha256 = "15479b3928e045fe68a0adbca7884c4d4aacb4d6486c3da70b32bd083ecafd66",
+        version = "0.21.3",
     )
 
     wfa_repo_archive(
         name = "wfa_common_cpp",
         repo = "common-cpp",
-        sha256 = "2c30e218a595483a9d0f2ca7117bc40cbc522cf513b2b8ee9db4570ffd35027f",
-        version = "0.3.0",
+        sha256 = "e8efc0c9f5950aff13a59f21f40ccc31c26fe40c800743f824f92df3a05588b2",
+        version = "0.5.0",
     )
 
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "a9d0f0421fa6461f9c756fcfcbb8ec7a9f725806a85dde2ba2a5fdf8f1472b84",
-        version = "0.11.0",
+        sha256 = "611bbc8c653868c1dbc973a520a192d8ac1678375167181354fc9b1bc8e3a3ea",
+        version = "0.14.0",
     )
 
     wfa_repo_archive(
@@ -65,7 +65,7 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
-        version = "0.9.0",
+        version = "0.10.0",
         repo = "consent-signaling-client",
-        sha256 = "ff82af7bc1c659d726e64c57f3ff6a16f09b4d0ee231a70ea744f8d213412998",
+        sha256 = "59079953c01f2f9e2f22c0c2e2e01cfbb5da0a7b9348980e18827bf1947b21f5",
     )

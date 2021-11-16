@@ -62,10 +62,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       }
     }
 
-    val updatedDetails =
-      requisition.details.copy {
-        dataProviderParticipationSignature = request.dataProviderParticipationSignature
-      }
+    val updatedDetails = requisition.details.copy { nonce = request.nonce }
 
     val nonFulfilledRequisitionIds =
       readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)

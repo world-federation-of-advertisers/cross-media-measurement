@@ -56,7 +56,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.dataProviderList
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -64,11 +63,10 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.client.measurementconsumer.createDataProviderListHash
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -151,14 +149,9 @@ class FrontendSimulator(
   /** Creates a Measurement on behave of the [MeasurementConsumer]. */
   private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
-    val serializedDataProviderList =
-      dataProviderList { dataProvider += eventGroups.map { extractDataProviderName(it.name) } }
-        .toByteString()
-    val dataProviderListSalt = Random.Default.nextBytes(32).toByteString()
-    val dataProviderListHash =
-      createDataProviderListHash(serializedDataProviderList, dataProviderListSalt)
+    val nonce = Random.Default.nextLong()
     val dataProviderEntries =
-      eventGroups.map { createDataProviderEntry(it, measurementConsumer, dataProviderListHash) }
+      eventGroups.map { createDataProviderEntry(it, measurementConsumer, nonce) }
 
     val request = createMeasurementRequest {
       measurement =
@@ -166,12 +159,10 @@ class FrontendSimulator(
           measurementConsumerCertificate = measurementConsumer.certificate
           measurementSpec =
             signMeasurementSpec(
-              newMeasurementSpec(measurementConsumer.publicKey.data),
+              newMeasurementSpec(measurementConsumer.publicKey.data, hashSha256(nonce)),
               PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
               readCertificate(measurementConsumer.certificateDer)
             )
-          this.serializedDataProviderList = serializedDataProviderList
-          this.dataProviderListSalt = dataProviderListSalt
           dataProviders += dataProviderEntries
           this.measurementReferenceId = runId
         }
@@ -260,7 +251,10 @@ class FrontendSimulator(
     return measurementConsumersClient.getMeasurementConsumer(request)
   }
 
-  private fun newMeasurementSpec(serializedMeasurementPublicKey: ByteString): MeasurementSpec {
+  private fun newMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHash: ByteString
+  ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
       reachAndFrequency =
@@ -268,6 +262,7 @@ class FrontendSimulator(
           reachPrivacyParams = outputDpParams
           frequencyPrivacyParams = outputDpParams
         }
+      nonceHashes += nonceHash
     }
   }
 
@@ -300,7 +295,7 @@ class FrontendSimulator(
   private suspend fun createDataProviderEntry(
     eventGroup: EventGroup,
     measurementConsumer: MeasurementConsumer,
-    dataProviderListHash: ByteString
+    nonce: Long
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
     val requisitionSpec = requisitionSpec {
@@ -310,7 +305,7 @@ class FrontendSimulator(
           // TODO: populate other fields when the EventGroup design is done.
         }
       measurementPublicKey = measurementConsumer.publicKey.data
-      this.dataProviderListHash = dataProviderListHash
+      this.nonce = nonce
     }
     val signedRequisitionSpec =
       signRequisitionSpec(
@@ -318,11 +313,12 @@ class FrontendSimulator(
         PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
         readCertificate(measurementConsumer.certificateDer)
       )
-    return dataProvider.toDataProviderEntry(signedRequisitionSpec)
+    return dataProvider.toDataProviderEntry(signedRequisitionSpec, hashSha256(nonce))
   }
 
   private fun DataProvider.toDataProviderEntry(
-    signedRequisitionSpec: SignedData
+    signedRequisitionSpec: SignedData,
+    nonceHash: ByteString
   ): DataProviderEntry {
     val source = this
     return dataProviderEntry {
@@ -337,6 +333,7 @@ class FrontendSimulator(
               EncryptionPublicKey.parseFrom(source.publicKey.data),
               ::ReversingHybridCryptor // TODO: use the real HybridCryptor.
             )
+          this.nonceHash = nonceHash
         }
     }
   }

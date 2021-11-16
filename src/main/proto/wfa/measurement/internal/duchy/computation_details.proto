@@ -51,20 +51,9 @@ message ComputationDetails {
     // For consent signaling verification only.
     bytes measurement_spec = 2;
 
-    // Serialized `DataProviderList` from public API.
-    // For consent signaling verification only.
-    bytes data_provider_list = 3;
-
-    // Salt for SHA256 hash of `data_provider_list`.
-    // For consent signaling verification only.
-    bytes data_provider_list_salt = 4;
-
     // Public key for asymmetric encryption. Used when encrypting the final
     // result.
-    EncryptionPublicKey measurement_public_key = 5;
-
-    // HybridCipherSuite used when encrypting the final result.
-    HybridCipherSuite cipher_suite = 6;
+    EncryptionPublicKey measurement_public_key = 4;
   }
   KingdomComputationDetails kingdom_computation = 3;
 

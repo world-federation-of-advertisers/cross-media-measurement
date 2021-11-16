@@ -94,6 +94,35 @@ objectSets: [
 	},
 ]
 
+#DefaultResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "200m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+#MillResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "200m"
+	resourceLimitCpu:      "800m"
+	resourceRequestMemory: "512Mi"
+	resourceLimitMemory:   "4096Mi"
+}
+#HeraldResourceConfig: {
+	replicas:              1 // We should have 1 and only 1 herald.
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "200m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+#EdpSimulatorResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
@@ -124,6 +153,14 @@ objectSets: [
 		"push-spanner-schema-container":    "\(_container_registry_prefix)/setup/push-spanner-schema"
 		"spanner-computations-server":      "\(_container_registry_prefix)/duchy/spanner-computations"
 	}
+	_resource_configs: {
+		"async-computation-control-server": #DefaultResourceConfig
+		"computation-control-server":       #DefaultResourceConfig
+		"herald-daemon":                    #HeraldResourceConfig
+		"liquid-legions-v2-mill-daemon":    #MillResourceConfig
+		"requisition-fulfillment-server":   #DefaultResourceConfig
+		"spanner-computations-server":      #DefaultResourceConfig
+	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"
 }
@@ -148,6 +185,11 @@ kingdom: #Kingdom & {
 		"gcp-kingdom-data-server":       "\(_container_registry_prefix)/kingdom/data-server"
 		"system-api-server":             "\(_container_registry_prefix)/kingdom/system-api"
 		"v2alpha-public-api-server":     "\(_container_registry_prefix)/kingdom/v2alpha-public-api"
+	}
+	_resource_configs: {
+		"gcp-kingdom-data-server":   #DefaultResourceConfig
+		"system-api-server":         #DefaultResourceConfig
+		"v2alpha-public-api-server": #DefaultResourceConfig
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"
@@ -185,6 +227,7 @@ edp_simulators: {
 			_mc_resource_name:            #McResourcename
 			_edp_simulator_image:         "\(_container_registry_prefix)/loadtest/edp-simulator"
 			_simulator_image_pull_policy: "Always"
+			_resource_configs:            #EdpSimulatorResourceConfig
 			_additional_args: [
 				"--edp-sketch-reach=1000",
 				"--edp-sketch-universe-size=10000000",

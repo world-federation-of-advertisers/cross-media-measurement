@@ -21,6 +21,13 @@ _environment: string @tag("environment")
 #SpannerInstance:         "dev-instance"
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
+#DefaultResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
 
 objectSets: [
 		// resource_setup_job, Only deploy if the kingdom database is reset.
@@ -45,6 +52,11 @@ kingdom: #Kingdom & {
 		"gcp-kingdom-data-server":       #ContainerRegistryPrefix + "/kingdom/data-server"
 		"system-api-server":             #ContainerRegistryPrefix + "/kingdom/system-api"
 		"v2alpha-public-api-server":     #ContainerRegistryPrefix + "/kingdom/v2alpha-public-api"
+	}
+	_resource_configs: {
+		"gcp-kingdom-data-server":   #DefaultResourceConfig
+		"system-api-server":         #DefaultResourceConfig
+		"v2alpha-public-api-server": #DefaultResourceConfig
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"

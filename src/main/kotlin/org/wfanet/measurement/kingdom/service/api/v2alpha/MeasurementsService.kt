@@ -95,14 +95,6 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       }
     parsedMeasurementSpec.validate()
 
-    grpcRequire(!measurement.serializedDataProviderList.isEmpty) {
-      "Serialized Data Provider list is unspecified"
-    }
-
-    grpcRequire(!measurement.dataProviderListSalt.isEmpty) {
-      "Data Provider list salt is unspecified"
-    }
-
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProvidersMap = mutableMapOf<Long, DataProviderValue>()
     measurement.dataProvidersList.forEach {
@@ -228,30 +220,31 @@ private fun MeasurementSpec.validate() {
 /** Validates a [DataProviderEntry] for a request and then creates a map entry from it. */
 private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValue> {
   val dataProviderKey =
-    grpcRequireNotNull(DataProviderKey.fromName(this.key)) {
+    grpcRequireNotNull(DataProviderKey.fromName(key)) {
       "Data Provider resource name is either unspecified or invalid"
     }
 
   val dataProviderCertificateKey =
-    grpcRequireNotNull(DataProviderCertificateKey.fromName(this.value.dataProviderCertificate)) {
+    grpcRequireNotNull(DataProviderCertificateKey.fromName(value.dataProviderCertificate)) {
       "Data Provider certificate resource name is either unspecified or invalid"
     }
 
-  val publicKey = this.value.dataProviderPublicKey
+  val publicKey = value.dataProviderPublicKey
   grpcRequire(!publicKey.data.isEmpty && !publicKey.signature.isEmpty) {
     "Data Provider public key is unspecified"
   }
 
-  grpcRequire(!this.value.encryptedRequisitionSpec.isEmpty) {
-    "Encrypted Requisition spec is unspecified"
+  grpcRequire(!value.encryptedRequisitionSpec.isEmpty) {
+    "Encrypted requisition spec is unspecified"
   }
+  grpcRequire(!value.nonceHash.isEmpty) { "Nonce hash is unspecified" }
 
-  val dataProviderEntry = this
   val dataProviderValue = dataProviderValue {
     externalDataProviderCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
     dataProviderPublicKey = publicKey.data
     dataProviderPublicKeySignature = publicKey.signature
-    encryptedRequisitionSpec = dataProviderEntry.value.encryptedRequisitionSpec
+    encryptedRequisitionSpec = value.encryptedRequisitionSpec
+    nonceHash = value.nonceHash
   }
 
   return AbstractMap.SimpleEntry(

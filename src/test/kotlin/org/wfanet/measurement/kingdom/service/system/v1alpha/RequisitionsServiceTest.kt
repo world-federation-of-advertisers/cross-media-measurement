@@ -53,13 +53,14 @@ private const val EXTERNAL_COMPUTATION_ID = 123L
 private const val EXTERNAL_REQUISITION_ID = 456L
 private const val EXTERNAL_DATA_PROVIDER_ID = 789L
 private const val EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID = 321L
+private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
+/** SHA-256 hash of [NONCE] */
+private val NONCE_HASH =
+  HexString("A4EA9C2984AE1D0F7D0B026B0BB41C136FC0767E29DF40951CFE019B7D9F1CE1")
 private val EXTERNAL_COMPUTATION_ID_STRING = externalIdToApiId(EXTERNAL_COMPUTATION_ID)
 private val EXTERNAL_REQUISITION_ID_STRING = externalIdToApiId(EXTERNAL_REQUISITION_ID)
-private val EXTERNAL_DATA_PROVIDER_ID_STRING = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
-private val DATA_PROVIDER_PUBLIC_API_NAME = "dataProviders/$EXTERNAL_DATA_PROVIDER_ID_STRING"
 private val SYSTEM_REQUISITION_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/requisitions/$EXTERNAL_REQUISITION_ID_STRING"
-private val DATA_PROVIDER_PARTICIPATION_SIGNATURE = ByteString.copyFromUtf8("a signature")
 private val DATA_PROVIDER_CERTIFICATE_DER = ByteString.copyFromUtf8("DataProvider certificate")
 private val REQUISITION_SPEC_HASH =
   HexString("2C26B46B68FFC68FF99B453C1D30413413422D706483BFA0F98A5E886266E7AE")
@@ -72,8 +73,9 @@ private val INTERNAL_REQUISITION = internalRequisition {
   state = InternalRequisition.State.FULFILLED
   details =
     InternalRequisitionKt.details {
-      dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
       encryptedRequisitionSpec = ByteString.copyFromUtf8("foo")
+      nonceHash = NONCE_HASH.bytes
+      nonce = NONCE
     }
   dataProviderCertificate =
     internalCertificate {
@@ -111,7 +113,7 @@ class RequisitionsServiceTest {
       FulfillRequisitionRequest.newBuilder()
         .apply {
           name = SYSTEM_REQUISITION_NAME
-          dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+          nonce = NONCE
         }
         .build()
 
@@ -122,13 +124,12 @@ class RequisitionsServiceTest {
         Requisition.newBuilder()
           .apply {
             name = SYSTEM_REQUISITION_NAME
-            dataProvider = DATA_PROVIDER_PUBLIC_API_NAME
-            dataProviderCertificateDer = DATA_PROVIDER_CERTIFICATE_DER
             state = Requisition.State.FULFILLED
-            dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
             requisitionSpecHash = REQUISITION_SPEC_HASH.bytes
+            nonceHash = NONCE_HASH.bytes
             fulfillingComputationParticipant =
               "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
+            nonce = NONCE
           }
           .build()
       )
@@ -142,7 +143,7 @@ class RequisitionsServiceTest {
             externalComputationId = EXTERNAL_COMPUTATION_ID
             externalRequisitionId = EXTERNAL_REQUISITION_ID
             externalFulfillingDuchyId = DUCHY_ID
-            dataProviderParticipationSignature = DATA_PROVIDER_PARTICIPATION_SIGNATURE
+            nonce = NONCE
           }
           .build()
       )

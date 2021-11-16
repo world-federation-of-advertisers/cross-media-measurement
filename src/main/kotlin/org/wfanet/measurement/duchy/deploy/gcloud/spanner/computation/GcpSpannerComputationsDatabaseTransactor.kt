@@ -33,9 +33,8 @@ import org.wfanet.measurement.duchy.db.computation.ComputationStatMetric
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor.ComputationEditToken
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
-import org.wfanet.measurement.duchy.db.computation.ExternalRequisitionKey
-import org.wfanet.measurement.duchy.db.computation.RequisitionDetailUpdate
 import org.wfanet.measurement.gcloud.common.gcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -46,6 +45,8 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
+import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
+import org.wfanet.measurement.internal.duchy.RequisitionEntry
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseTransactor<
@@ -65,7 +66,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     initialStage: StageT,
     stageDetails: StageDT,
     computationDetails: ComputationDT,
-    requisitions: List<ExternalRequisitionKey>
+    requisitions: List<RequisitionEntry>
   ) {
     require(computationMutations.validInitialStage(protocol, initialStage)) {
       "Invalid initial stage $initialStage"
@@ -100,8 +101,9 @@ class GcpSpannerComputationsDatabaseTransactor<
         computationMutations.insertRequisition(
           localComputationId = localId,
           requisitionId = requisitions.indexOf(it).toLong(),
-          externalDataProviderId = it.externalDataProviderId,
-          externalRequisitionId = it.externalRequisitionId
+          externalRequisitionId = it.key.externalRequisitionId,
+          requisitionFingerprint = it.key.requisitionFingerprint,
+          requisitionDetails = it.value
         )
       }
 
@@ -368,15 +370,15 @@ class GcpSpannerComputationsDatabaseTransactor<
   override suspend fun updateComputationDetails(
     token: ComputationEditToken<ProtocolT, StageT>,
     computationDetails: ComputationDT,
-    requisitionDetailUpdates: List<RequisitionDetailUpdate>
+    requisitions: List<RequisitionEntry>
   ) {
     runIfTokenFromLastUpdate(token) { ctx ->
-      requisitionDetailUpdates.forEach {
+      requisitions.forEach {
         val row =
           ctx.readRowUsingIndex(
             "Requisitions",
             "RequisitionsByExternalId",
-            Key.of(it.key.externalDataProviderId, it.key.externalRequisitionId),
+            Key.of(it.key.externalRequisitionId, it.key.requisitionFingerprint.toGcloudByteArray()),
             listOf("ComputationId", "RequisitionId")
           )
             ?: error("No Computation found row for this requisition: ${it.key}")
@@ -384,9 +386,9 @@ class GcpSpannerComputationsDatabaseTransactor<
           computationMutations.updateRequisition(
             localComputationId = row.getLong("ComputationId"),
             requisitionId = row.getLong("RequisitionId"),
-            externalDataProviderId = it.key.externalDataProviderId,
             externalRequisitionId = it.key.externalRequisitionId,
-            requisitionDetails = it.detail
+            requisitionFingerprint = it.key.requisitionFingerprint,
+            requisitionDetails = it.value
           )
         )
       }
@@ -617,8 +619,8 @@ class GcpSpannerComputationsDatabaseTransactor<
           "Requisitions",
           "RequisitionsByExternalId",
           Key.of(
-            externalRequisitionKey.externalDataProviderId,
-            externalRequisitionKey.externalRequisitionId
+            externalRequisitionKey.externalRequisitionId,
+            externalRequisitionKey.requisitionFingerprint.toGcloudByteArray()
           ),
           listOf("ComputationId", "RequisitionId")
         )
@@ -637,8 +639,8 @@ class GcpSpannerComputationsDatabaseTransactor<
           computationMutations.updateRequisition(
             localComputationId = localComputationId,
             requisitionId = requisitionId,
-            externalDataProviderId = externalRequisitionKey.externalDataProviderId,
             externalRequisitionId = externalRequisitionKey.externalRequisitionId,
+            requisitionFingerprint = externalRequisitionKey.requisitionFingerprint,
             pathToBlob = pathToBlob
           )
         )

@@ -209,7 +209,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
         data = details.dataProviderPublicKey
         signature = details.dataProviderPublicKeySignature
       }
-    dataProviderParticipationSignature = details.dataProviderParticipationSignature
+    nonce = details.nonce
 
     duchies += duchiesMap.entries.map(Map.Entry<String, DuchyValue>::toDuchyEntry)
 

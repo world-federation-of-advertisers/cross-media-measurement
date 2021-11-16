@@ -64,9 +64,9 @@ message StreamExchangeStepsRequest {
   // Restricts results to those matching all of the given criteria. Repeated
   // fields are treated as disjunctions.
   message Filter {
-    Provider step_provider = 1;
-    repeated Provider recurring_exchange_participants = 2;
-    repeated fixed64 external_recurring_exchange_id = 3;
+    Provider principal = 1;
+    Provider step_provider = 2;
+    repeated fixed64 external_recurring_exchange_ids = 3;
     repeated google.type.Date dates = 4;
     repeated ExchangeStep.State states = 5;
     repeated int32 step_indices = 6;
