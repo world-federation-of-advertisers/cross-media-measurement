@@ -36,6 +36,8 @@ import ("strings")
 	_images: [Name=_]: string
 	_duchy_image_pull_policy: string
 
+	_resource_configs: [Name=_]: #ResourceConfig
+
 	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
 	_async_computations_control_service_cert_host_flag: "--async-computation-control-service-cert-host=localhost"
 	_computations_service_target_flag:                  "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
@@ -66,17 +68,21 @@ import ("strings")
 	}
 
 	duchy_deployment: [Name=_]: #Deployment & {
-		_unprefixed_name: strings.TrimSuffix(Name, "-deployment")
-		_name:            _object_prefix + _unprefixed_name
-		_secretName:      _duchy_secret_name
-		_system:          "duchy"
-		_image:           _images[_unprefixed_name]
-		_imagePullPolicy: _duchy_image_pull_policy
+		_unprefixed_name:       strings.TrimSuffix(Name, "-deployment")
+		_name:                  _object_prefix + _unprefixed_name
+		_secretName:            _duchy_secret_name
+		_system:                "duchy"
+		_image:                 _images[_unprefixed_name]
+		_imagePullPolicy:       _duchy_image_pull_policy
+		_replicas:              _resource_configs[_unprefixed_name].replicas
+		_resourceRequestMemory: _resource_configs[_unprefixed_name].resourceRequestMemory
+		_resourceLimitMemory:   _resource_configs[_unprefixed_name].resourceLimitMemory
+		_resourceRequestCpu:    _resource_configs[_unprefixed_name].resourceRequestCpu
+		_resourceLimitCpu:      _resource_configs[_unprefixed_name].resourceLimitCpu
 	}
 
 	duchy_deployment: {
 		"herald-daemon-deployment": #Deployment & {
-			_replicas: 1 // We should have 1 and only 1 herald.
 			_args: [
 				_computations_service_target_flag,
 				_computations_service_cert_host_flag,
@@ -92,28 +98,23 @@ import ("strings")
 			]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": #Deployment & {
-			_replicas: 2
-			_args:     [
-					_computations_service_target_flag,
-					_computations_service_cert_host_flag,
-					_duchy_name_flag,
-					_duchy_info_config_flag,
-					_duchy_tls_cert_file_flag,
-					_duchy_tls_key_file_flag,
-					_duchy_cert_collection_file_flag,
-					_duchy_cs_cert_file_flag,
-					_duchy_cs_key_file_flag,
-					_duchy_cs_cert_rename_name_flag,
-					_kingdom_system_api_target_flag,
-					_kingdom_system_api_cert_host_flag,
-					"--channel-shutdown-timeout=3s",
-					"--polling-interval=1s",
+			_args: [
+				_computations_service_target_flag,
+				_computations_service_cert_host_flag,
+				_duchy_name_flag,
+				_duchy_info_config_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
+				_duchy_cs_cert_file_flag,
+				_duchy_cs_key_file_flag,
+				_duchy_cs_cert_rename_name_flag,
+				_kingdom_system_api_target_flag,
+				_kingdom_system_api_cert_host_flag,
+				"--channel-shutdown-timeout=3s",
+				"--polling-interval=1s",
 			] + _blob_storage_flags
-			_jvm_flags:             "-Xmx4g -Xms256m"
-			_resourceRequestMemory: "2Gi"
-			_resourceLimitMemory:   "4Gi"
-			_resourceRequestCpu:    "500m"
-			_resourceLimitCpu:      "1000m"
+			_jvm_flags: "-Xmx4g -Xms256m"
 			_dependencies: ["\(_name)-spanner-computations-server", "\(_name)-computation-control-server"]
 		}
 		"async-computation-control-server-deployment": #ServerDeployment & {

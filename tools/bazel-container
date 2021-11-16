@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
 
+# Copyright 2021 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 set -eEu -o pipefail
 
-readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:6073b7e9fbc655c5ffd950b1959eccbbd80f368dc5fc73ae63913749ac2b2cf9}"
+readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:a1fee281b05fdaa769ff4e1d85cba831c046fbd7f177f31c06f3bf3840f4dec0}"
 readonly DOCKER="${DOCKER:-docker}"
-readonly USERNAME="$(id -un)"
-readonly OUTPUT_USER_ROOT="${HOME}/.cache/bazel/_bazel_${USERNAME}"
-readonly BAZELISK_HOME="${HOME}/.cache/bazelisk"
+readonly CONTAINER_HOME="/tmp/home/${USER}"
+readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${USER}"
+readonly REPO_CACHE="${CONTAINER_HOME}/repo-cache"
+readonly WORKING_DIR="${CONTAINER_HOME}/workspace"
+readonly BAZELISK_HOME="${CONTAINER_HOME}/.cache/bazelisk"
+readonly OUTPUT_VOLUME='bazel-output'
 
 check_bash_version() {
   if [[ "${BASH_VERSINFO:-0}" -lt 5 ]]; then
@@ -66,8 +83,8 @@ main() {
 
   local host_output_user_root
   host_output_user_root="$(get_host_output_user_root)"
-  readonly host_output_user_root
-  mkdir -p "${host_output_user_root}"
+  local host_repo_cache="${host_output_user_root}/cache/repos/v1"
+  mkdir -p "${host_repo_cache}"
 
   local host_bazelisk_cache_dir
   host_bazelisk_cache_dir="$(ensure_host_bazelisk_cache_dir)"
@@ -79,20 +96,24 @@ main() {
     '--network=host'
     '--entrypoint=/usr/bin/bazel'
     '--env'
+      "HOME=${CONTAINER_HOME}"
+    '--env'
       "BAZELISK_HOME=${BAZELISK_HOME}"
     '--mount'
-      "type=bind,source=${PWD},target=${PWD}"
+      "type=bind,source=${PWD},target=${WORKING_DIR},readonly"
     '--mount'
-      "type=bind,source=${host_output_user_root},target=${OUTPUT_USER_ROOT}"
+      "type=bind,source=${host_repo_cache},target=${REPO_CACHE}"
     '--mount'
       "type=bind,source=${host_bazelisk_cache_dir},target=${BAZELISK_HOME}"
-    "--workdir=${PWD}"
+    '--mount'
+      "type=volume,source=${OUTPUT_VOLUME},target=${OUTPUT_USER_ROOT}"
+    "--workdir=${WORKING_DIR}"
   )
 
   if ! is_rootless; then
     docker_options+=(
       "--user=${EUID}:$(id -g)"
-      "--env=USER=${USERNAME}"
+      "--env=USER=${USER}"
     )
   fi
 
@@ -107,11 +128,16 @@ main() {
   local command="$1"
   shift 1
 
+  echo "Running in Bazel container with output volume ${OUTPUT_VOLUME}:" \
+    "${command} $*" >&2
+
   exec "${DOCKER}" run "${docker_options[@]}" \
     "${IMAGE}" \
     "${startup_options[@]}" \
     "${command}" \
     --config=container \
+    --repository_cache="${REPO_CACHE}" \
+    --experimental_convenience_symlinks=ignore \
     "$@"
 }
 

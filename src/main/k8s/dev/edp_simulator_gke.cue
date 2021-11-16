@@ -30,6 +30,13 @@ _secret_name: string @tag("secret_name")
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 #BigQueryTableName:       "demo.labelled_events"
+#ResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
 
 objectSets: [ for edp in edp_simulators {edp}]
 
@@ -73,6 +80,7 @@ edp_simulators: {
 			]
 			_mc_resource_name:            _mc_name
 			_edp_simulator_image:         #ContainerRegistryPrefix + "/loadtest/edp-simulator"
+			_resource_configs:            #ResourceConfig
 			_simulator_image_pull_policy: "Always"
 			_additional_args: [
 				"--big-query-project-name=" + #GloudProject,
