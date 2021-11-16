@@ -117,10 +117,10 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           }
 
           if (request.filter.hasDataProvider()) {
-            stepProvider = DataProviderKey(request.filter.dataProvider).toProvider()
+            stepProvider = DataProviderKey.fromName(request.filter.dataProvider).toProvider()
           }
           if (request.filter.hasModelProvider()) {
-            stepProvider = ModelProviderKey(request.filter.modelProvider).toProvider()
+            stepProvider = ModelProviderKey.fromName(request.filter.modelProvider).toProvider()
           }
 
           externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)

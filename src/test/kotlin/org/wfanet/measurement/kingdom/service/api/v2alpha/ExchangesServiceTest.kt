@@ -92,7 +92,7 @@ class ExchangesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         getExchange {
           name = exchangeKey.toName()
-          dataProvider = externalIdToApiId(12345L)
+          dataProvider = "dataProviders/AAAAAAAAMDk"
         }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -111,7 +111,7 @@ class ExchangesServiceTest {
       withPrincipal(principal) {
         getExchange {
           name = exchangeKey.toName()
-          dataProvider = externalIdToApiId(12345L)
+          dataProvider = "dataProviders/AAAAAAAAMDk"
         }
       }
 
@@ -140,7 +140,7 @@ class ExchangesServiceTest {
     val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
 
     withPrincipal(principal) {
-      assertFails { getExchange { modelProvider = externalIdToApiId(12345L) } }
+      assertFails { getExchange { modelProvider = "modelProviders/AAAAAAAAMDk" } }
     }
   }
 
