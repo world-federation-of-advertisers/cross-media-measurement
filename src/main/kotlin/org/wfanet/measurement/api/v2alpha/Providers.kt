@@ -45,13 +45,19 @@ fun getProviderFromContext(): Provider {
 fun validateRequestProvider(requestModelProvider: String, requestDataProvider: String): Provider {
   val provider = getProviderFromContext()
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enums are not null.
-  val parentFromRequest: String =
+  val parentFromRequest =
     when (provider.type) {
-      Provider.Type.MODEL_PROVIDER -> requestModelProvider
-      Provider.Type.DATA_PROVIDER -> requestDataProvider
+      Provider.Type.MODEL_PROVIDER -> ModelProviderKey.fromName(requestModelProvider)
+      Provider.Type.DATA_PROVIDER -> DataProviderKey.fromName(requestDataProvider)
       Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED -> error("Unsupported Principal")
     }
-  grpcRequire(externalIdToApiId(provider.externalId) == parentFromRequest) {
+  val apiId =
+    when (parentFromRequest) {
+      is DataProviderKey -> parentFromRequest.dataProviderId
+      is ModelProviderKey -> parentFromRequest.modelProviderId
+      else -> error("Unsupported Principal")
+    }
+  grpcRequire(externalIdToApiId(provider.externalId) == apiId) {
     "Principal from authentication does not match request"
   }
   return provider
