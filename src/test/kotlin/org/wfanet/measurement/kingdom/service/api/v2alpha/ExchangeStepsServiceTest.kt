@@ -72,6 +72,8 @@ import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
+private const val DATA_PROVIDER = "dataProviders/AAAAAAAAMDk"
+private const val MODEL_PROVIDER = "modelProviders/AAAAAAAAMDk"
 private const val DEFAULT_LIMIT = 50
 private const val EXCHANGE_NAME = "recurringExchanges/AAAAAAAAAHs/exchanges/2021-03-14"
 private const val RECURRING_EXCHANGE_ID = 1L
@@ -168,7 +170,7 @@ class ExchangeStepsServiceTest {
   fun `claimReadyExchangeStep unauthenticated`() {
     val e =
       assertFailsWith<StatusRuntimeException> {
-        claimReadyExchangeStep { dataProvider = "dataProviders/AAAAAAAAMDk" }
+        claimReadyExchangeStep { dataProvider = DATA_PROVIDER }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -181,9 +183,7 @@ class ExchangeStepsServiceTest {
       externalId = 12345L
     }
     val response =
-      withPrincipal(principal) {
-        claimReadyExchangeStep { dataProvider = "dataProviders/AAAAAAAAMDk" }
-      }
+      withPrincipal(principal) { claimReadyExchangeStep { dataProvider = DATA_PROVIDER } }
 
     assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
 
@@ -199,7 +199,7 @@ class ExchangeStepsServiceTest {
     val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
 
     withPrincipal(principal) {
-      assertFails { claimReadyExchangeStep { modelProvider = "modelProviders/AAAAAAAAMDk" } }
+      assertFails { claimReadyExchangeStep { modelProvider = MODEL_PROVIDER } }
     }
   }
 
@@ -207,7 +207,7 @@ class ExchangeStepsServiceTest {
   fun `listExchangeSteps unauthenticated`() {
     val e =
       assertFailsWith<StatusRuntimeException> {
-        listExchangeSteps { filter = filter { dataProvider = "modelProviders/AAAAAAAAMDk" } }
+        listExchangeSteps { filter = filter { dataProvider = MODEL_PROVIDER } }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -221,9 +221,7 @@ class ExchangeStepsServiceTest {
     }
 
     val response =
-      withPrincipal(principal) {
-        claimReadyExchangeStep { modelProvider = "modelProviders/AAAAAAAAMDk" }
-      }
+      withPrincipal(principal) { claimReadyExchangeStep { modelProvider = MODEL_PROVIDER } }
 
     assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
 
@@ -239,7 +237,7 @@ class ExchangeStepsServiceTest {
     val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
 
     withPrincipal(principal) {
-      assertFails { claimReadyExchangeStep { dataProvider = "dataProviders/AAAAAAAAMDk" } }
+      assertFails { claimReadyExchangeStep { dataProvider = DATA_PROVIDER } }
     }
   }
 
@@ -258,7 +256,7 @@ class ExchangeStepsServiceTest {
           pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
           filter =
             filter {
-              modelProvider = "modelProviders/AAAAAAAAMDk"
+              modelProvider = MODEL_PROVIDER
               states += listOf(ExchangeStep.State.READY, ExchangeStep.State.READY_FOR_RETRY)
             }
         }
@@ -303,7 +301,7 @@ class ExchangeStepsServiceTest {
         runBlocking {
           listExchangeSteps {
             parent = EXCHANGE_NAME
-            filter = filter { dataProvider = "dataProviders/AAAAAAAAMDk" }
+            filter = filter { dataProvider = DATA_PROVIDER }
             pageSize = -1
           }
         }
