@@ -26,16 +26,14 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
-import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementDetailsForPendingMeasurementsByDuchyCertificateId
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertificateId
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementDetailsForPendingMeasurementsByInternalDuchyCertificateId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
@@ -123,28 +121,26 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
-        val filter =
-          StreamRequisitionsRequestKt.filter {
-            externalDataProviderId = request.externalDataProviderId
-            states += Requisition.State.UNFULFILLED
-            measurementStates += PENDING_MEASUREMENT_STATES
+        StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertificateId(
+            certificateResult.certificateId,
+            PENDING_MEASUREMENT_STATES
+          )
+          .execute(transactionContext)
+          .collect {
+            val details =
+              it.measurementDetails.copy {
+                failure =
+                  MeasurementKt.failure {
+                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                    message = "An associated Data Provider certificate has been revoked."
+                  }
+              }
+
+            failMeasurement(it.measurementConsumerId, it.measurementId, details)
           }
-
-        StreamRequisitions(filter).execute(transactionContext).collect {
-          val details =
-            it.measurementDetails.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "An associated Data Provider certificate has been revoked."
-                }
-            }
-
-          failMeasurement(it.measurementConsumerId, it.measurementId, details)
-        }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
-        StreamMeasurementDetailsForPendingMeasurementsByDuchyCertificateId(
+        StreamMeasurementDetailsForPendingMeasurementsByInternalDuchyCertificateId(
             certificateResult.certificateId,
             PENDING_MEASUREMENT_STATES
           )

@@ -16,21 +16,21 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
 
-class StreamMeasurementDetailsForPendingMeasurementsByDuchyCertificateId(
-  duchyCertificateId: InternalId,
+class StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertificateId(
+  dataProviderCertificateId: InternalId,
   pendingMeasurementStates: List<Measurement.State>
 ) : SimpleSpannerQuery<MeasurementDetailsReader.Result>() {
   override val reader =
     MeasurementDetailsReader().fillStatementBuilder {
-      appendClause("JOIN ComputationParticipants USING (MeasurementConsumerId, MeasurementId)")
+      appendClause("JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)")
       appendClause(
         """
-          WHERE ComputationParticipants.CertificateId = ${duchyCertificateId.value}
-          AND ComputationParticipants.State = ${ComputationParticipant.State.REQUISITION_PARAMS_SET.number}
+          WHERE Requisitions.DataProviderCertificateId = ${dataProviderCertificateId.value}
+          AND Requisitions.State = ${Requisition.State.UNFULFILLED.number}
           AND Measurements.State in UNNEST(@pendingStates)
           """
       )
