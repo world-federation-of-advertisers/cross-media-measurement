@@ -51,12 +51,25 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
-
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
     val duchyCertificateId =
       readDuchyCertificateId(InternalId(duchyId), ExternalId(request.externalDuchyCertificateId))
+
+    val certificateResult =
+      CertificateReader(CertificateReader.ParentType.DUCHY)
+        .fillStatementBuilder {
+          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
+          bind("duchyId" to duchyId)
+          bind("certificateId" to duchyCertificateId)
+        }
+        .execute(transactionContext)
+        .single()
+
+    if (!certificateResult.isValid) {
+      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    }
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
@@ -120,20 +133,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         InternalId(measurementId),
         Measurement.State.PENDING_REQUISITION_FULFILLMENT
       )
-    }
-
-    val certificateResult =
-      CertificateReader(CertificateReader.ParentType.DUCHY)
-        .fillStatementBuilder {
-          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
-          bind("duchyId" to duchyId)
-          bind("certificateId" to duchyCertificateId)
-        }
-        .execute(transactionContext)
-        .single()
-
-    if (!certificateResult.isValid) {
-      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
     }
 
     return computationParticipant.copy {
