@@ -14,17 +14,21 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.common.primitives.Longs
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.net.URLEncoder
 import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -33,12 +37,19 @@ import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.activateAccountRequest
+import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
+import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
+import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
+import org.wfanet.measurement.tools.generateIdToken
 
 private const val FIXED_GENERATED_INTERNAL_ID_A = 1234L
 private const val FIXED_GENERATED_EXTERNAL_ID_A = 5678L
 
 private const val FIXED_GENERATED_INTERNAL_ID_B = 4321L
 private const val FIXED_GENERATED_EXTERNAL_ID_B = 8765L
+
+private const val REDIRECT_URI = "https://localhost:2048"
 
 @RunWith(JUnit4::class)
 abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
@@ -74,7 +85,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   protected abstract fun newTestDataServices(idGenerator: IdGenerator): TestDataServices
 
   /** Constructs the service being tested. */
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  protected abstract fun newService(clock: Clock, idGenerator: IdGenerator): T
 
   @Before
   fun initDataServices() {
@@ -83,8 +94,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Before
   fun initService() {
-    service = newService(idGeneratorA)
-    serviceWithSecondFixedGenerator = newService(idGeneratorB)
+    service = newService(clock, idGeneratorA)
+    serviceWithSecondFixedGenerator = newService(clock, idGeneratorB)
   }
 
   @Test
@@ -170,4 +181,168 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         }
       )
   }
+
+  @Test
+  fun `authenticateAccount throws PERMISSION_DENIED when id token is missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.authenticateAccount(authenticateAccountRequest {})
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Id token is missing")
+  }
+
+  @Test
+  fun `authenticateAccount throws PERMISSION_DENIED when id token is in the wrong format`() {
+    val idToken = ""
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Id token is invalid")
+  }
+
+  @Test
+  fun `authenticateAccount throws PERMISSION_DENIED when state doesn't match`() = runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        generateRequestUri(state = params.state + 5L, nonce = params.nonce, maxAge = params.maxAge),
+        clock
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Id token is invalid")
+  }
+
+  @Test
+  fun `authenticateAccount throws PERMISSION_DENIED when nonce doesn't match`() = runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        generateRequestUri(state = params.state, nonce = params.nonce + 5L, maxAge = params.maxAge),
+        clock
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Id token is invalid")
+  }
+
+  @Test
+  fun `authenticateAccount throws PERMISSION_DENIED when signature is unverified`() = runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        generateRequestUri(state = params.state, nonce = params.nonce + 5L, maxAge = params.maxAge),
+        clock
+      ) + "5"
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Id token is invalid")
+  }
+
+  @Test
+  fun `authenticateAccount throws PERMISSION_DENIED when identity doesn't exist`() = runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        generateRequestUri(state = params.state, nonce = params.nonce, maxAge = params.maxAge),
+        clock
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Account not found")
+  }
+
+  @Ignore
+  @Test
+  fun `authenticateAccount returns the account when the account has been found`() = runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        generateRequestUri(state = params.state, nonce = params.nonce, maxAge = params.maxAge),
+        clock
+      )
+
+    val createdAccount = service.createAccount(account {})
+
+    withIdToken(idToken) {
+      runBlocking {
+        service.activateAccount(
+          activateAccountRequest { activationToken = createdAccount.activationToken }
+        )
+      }
+    }
+
+    val authenticatedAccount =
+      withIdToken(idToken) {
+        runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
+      }
+
+    assertThat(authenticatedAccount).isEqualTo(createdAccount)
+  }
+
+  @Test
+  fun `generateOpenIdRequestParams returns state, nonce, and max age`() {
+    val params = runBlocking {
+      service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    }
+
+    assertThat(params.nonce != 0L)
+    assertThat(params.state != 0L)
+    assertThat(params.maxAge > 0L)
+  }
+}
+
+private fun generateRequestUri(
+  state: Long,
+  nonce: Long,
+  maxAge: Long,
+): String {
+  var uriString =
+    "openid://?response_type=id_token&scope=openid" +
+      "&state=" +
+      Longs.toByteArray(state).base64UrlEncode() +
+      "&nonce=" +
+      Longs.toByteArray(nonce).base64UrlEncode() +
+      "&max_age=" +
+      maxAge
+  val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
+  uriString += "&client_id=$redirectUri"
+
+  return uriString
 }

@@ -14,7 +14,15 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.common.primitives.Longs
+import com.google.gson.JsonParser
 import io.grpc.Status
+import java.math.BigInteger
+import java.security.KeyFactory
+import java.security.Signature
+import java.security.spec.RSAPublicKeySpec
+import java.time.Clock
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -26,13 +34,25 @@ import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.common.service.getIdToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdRequestParamsReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
+import org.wfanet.measurement.tools.calculateRSAThumbprint
+
+const val REDIRECT_URI = "https://localhost:2048"
+private const val MAX_AGE = 3600L
 
 class SpannerAccountsService(
+  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : AccountsCoroutineImplBase() {
+  data class IdToken(val issuer: String, val subject: String)
 
   override suspend fun createAccount(request: Account): Account {
     try {
@@ -87,12 +107,115 @@ class SpannerAccountsService(
   }
 
   override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {
-    TODO("Not yet implemented")
+    val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is missing" }
+
+    val parsedValidatedIdToken =
+      try {
+        validateIdToken(idToken)
+      } catch (e: Exception) {
+        failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
+      }
+
+    if (parsedValidatedIdToken != null) {
+      val identityResult =
+        OpenIdConnectIdentityReader()
+          .readByIssuerAndSubject(
+            client.singleUse(),
+            parsedValidatedIdToken.issuer,
+            parsedValidatedIdToken.subject
+          )
+          ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
+
+      return AccountReader()
+        .readByInternalAccountId(client.singleUse(), identityResult.accountId)
+        ?.account
+        ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
+    } else {
+      failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+    }
   }
 
   override suspend fun generateOpenIdRequestParams(
     request: GenerateOpenIdRequestParamsRequest
   ): OpenIdRequestParams {
-    TODO("Not yet implemented")
+    return GenerateOpenIdRequestParams().execute(client, idGenerator).copy { maxAge = MAX_AGE }
+  }
+
+  // TODO: Replace with Tink when new Tink release containing JWT support is released
+  /**
+   * Returns the issuer and subject if the idToken is valid and null otherwise. Throws
+   * NullPointerException when required claims are missing.
+   */
+  private suspend fun validateIdToken(idToken: String): IdToken? {
+    val tokenParts = idToken.split(".")
+
+    if (tokenParts.size != 3) {
+      return null
+    }
+
+    val header =
+      JsonParser.parseString(tokenParts[0].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
+
+    val alg = header.get("alg").asString
+    if (alg != "RS256") {
+      return null
+    }
+
+    val claims =
+      JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
+
+    val iss = claims.get("iss").asString
+    if (iss != "https://self-issued.me") {
+      return null
+    }
+
+    val aud = claims.get("aud").asString
+    if (aud != REDIRECT_URI) {
+      return null
+    }
+
+    val authTime = claims.get("auth_time").asLong
+    if (authTime + MAX_AGE < clock.instant().epochSecond) {
+      return null
+    }
+
+    val state = claims.get("state").asString
+    val nonce = claims.get("nonce").asString
+
+    val result =
+      OpenIdRequestParamsReader()
+        .readByState(client.singleUse(), ExternalId(Longs.fromByteArray(state.base64UrlDecode())))
+    if (result != null) {
+      if (Longs.fromByteArray(nonce.base64UrlDecode()) != result.nonce.value) {
+        return null
+      }
+    } else {
+      return null
+    }
+
+    val subJwk = claims.getAsJsonObject("sub_jwk")
+    val modulus = subJwk.get("n").asString
+    val exponent = subJwk.get("e").asString
+
+    val sub = claims.get("sub").asString
+    if (!sub.equals(calculateRSAThumbprint(modulus, exponent))) {
+      return null
+    }
+
+    val publicKeySpec =
+      RSAPublicKeySpec(
+        BigInteger(modulus.base64UrlDecode()),
+        BigInteger(exponent.base64UrlDecode())
+      )
+    val keyFactory = KeyFactory.getInstance("RSA")
+    val publicKey = keyFactory.generatePublic(publicKeySpec)
+    val verifier = Signature.getInstance("SHA256withRSA")
+    verifier.initVerify(publicKey)
+    verifier.update((tokenParts[0] + "." + tokenParts[1]).toByteArray(Charsets.US_ASCII))
+    if (!verifier.verify(tokenParts[2].base64UrlDecode())) {
+      return null
+    }
+
+    return IdToken(issuer = iss, subject = sub)
   }
 }

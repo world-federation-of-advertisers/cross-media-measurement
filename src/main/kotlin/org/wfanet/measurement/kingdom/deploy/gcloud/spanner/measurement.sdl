@@ -398,18 +398,17 @@ INTERLEAVE IN PARENT Accounts ON DELETE CASCADE;
 CREATE UNIQUE INDEX OpenIdConnectIdentitiesByIssuerAndSubject
   ON OpenIdConnectIdentities(Issuer, Subject);
 
-CREATE TABLE OpenIdConnectClaims (
-  OpenIdConnectClaimsId INT64 NOT NULL,
+CREATE TABLE OpenIdRequestParams (
+  OpenIdRequestParamsId INT64 NOT NULL,
 
   -- Used as the state
-  ExternalOpenIdConnectClaimsId INT64 NOT NULL,
+  ExternalOpenIdRequestParamsId INT64 NOT NULL,
 
   Nonce INT64 NOT NULL,
-  AuthTime INT64,
-) PRIMARY KEY (OpenIdConnectClaimsId);
+) PRIMARY KEY (OpenIdRequestParamsId);
 
-CREATE UNIQUE INDEX OpenIdConnectClaimsByExternalId
-  ON OpenIdConnectClaims(ExternalOpenIdConnectClaimsId);
+CREATE UNIQUE INDEX OpenIdRequestParamsByExternalId
+  ON OpenIdRequestParams(ExternalOpenIdRequestParamsId);
 
 CREATE TABLE MeasurementConsumerOwners (
   MeasurementConsumerId INT64 NOT NULL,
