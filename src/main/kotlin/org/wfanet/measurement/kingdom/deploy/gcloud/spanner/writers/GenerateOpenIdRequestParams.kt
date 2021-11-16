@@ -19,7 +19,8 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.openIdRequestParams
 
-class GenerateOpenIdRequestParams() : SimpleSpannerWriter<OpenIdRequestParams>() {
+class GenerateOpenIdRequestParams(private val maxAge: Long) :
+  SimpleSpannerWriter<OpenIdRequestParams>() {
   override suspend fun TransactionScope.runTransaction(): OpenIdRequestParams {
     val internalOpenIdRequestParamsId = idGenerator.generateInternalId()
     val externalOpenIdRequestParamsId = idGenerator.generateExternalId()
@@ -29,11 +30,13 @@ class GenerateOpenIdRequestParams() : SimpleSpannerWriter<OpenIdRequestParams>()
       set("OpenIdRequestParamsId" to internalOpenIdRequestParamsId)
       set("ExternalOpenIdRequestParamsId" to externalOpenIdRequestParamsId)
       set("Nonce" to nonce)
+      set("MaxAge" to maxAge)
     }
 
     return openIdRequestParams {
       state = externalOpenIdRequestParamsId.value
       this.nonce = nonce.value
+      this.maxAge = maxAge
     }
   }
 }

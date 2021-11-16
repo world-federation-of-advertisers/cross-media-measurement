@@ -21,20 +21,22 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
 class OpenIdRequestParamsReader() : SpannerReader<OpenIdRequestParamsReader.Result>() {
-  data class Result(val state: ExternalId, val nonce: ExternalId)
+  data class Result(val state: ExternalId, val nonce: ExternalId, val maxAge: Long)
 
   override val baseSql: String =
     """
     SELECT
       OpenIdRequestParams.ExternalOpenIdRequestParamsId,
       OpenIdRequestParams.Nonce,
+      OpenIdRequestParams.MaxAge,
     FROM OpenIdRequestParams
     """.trimIndent()
 
   override suspend fun translate(struct: Struct) =
     Result(
       state = ExternalId(struct.getLong("ExternalOpenIdRequestParamsId")),
-      nonce = ExternalId(struct.getLong("Nonce"))
+      nonce = ExternalId(struct.getLong("Nonce")),
+      maxAge = struct.getLong("MaxAge")
     )
 
   suspend fun readByState(

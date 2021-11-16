@@ -34,7 +34,6 @@ import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.service.getIdToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -44,7 +43,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccoun
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
 import org.wfanet.measurement.tools.calculateRSAThumbprint
 
-const val REDIRECT_URI = "https://localhost:2048"
+private const val REDIRECT_URI = "https://localhost:2048"
 private const val MAX_AGE = 3600L
 
 class SpannerAccountsService(
@@ -110,41 +109,32 @@ class SpannerAccountsService(
     val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is missing" }
 
     val parsedValidatedIdToken =
-      try {
-        validateIdToken(idToken)
-      } catch (e: Exception) {
-        failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
-      }
+      validateIdToken(idToken) ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
 
-    if (parsedValidatedIdToken != null) {
-      val identityResult =
-        OpenIdConnectIdentityReader()
-          .readByIssuerAndSubject(
-            client.singleUse(),
-            parsedValidatedIdToken.issuer,
-            parsedValidatedIdToken.subject
-          )
-          ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
-
-      return AccountReader()
-        .readByInternalAccountId(client.singleUse(), identityResult.accountId)
-        ?.account
+    val identityResult =
+      OpenIdConnectIdentityReader()
+        .readByIssuerAndSubject(
+          client.singleUse(),
+          parsedValidatedIdToken.issuer,
+          parsedValidatedIdToken.subject
+        )
         ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
-    } else {
-      failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
-    }
+
+    return AccountReader()
+      .readByInternalAccountId(client.singleUse(), identityResult.accountId)
+      ?.account
+      ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
   }
 
   override suspend fun generateOpenIdRequestParams(
     request: GenerateOpenIdRequestParamsRequest
   ): OpenIdRequestParams {
-    return GenerateOpenIdRequestParams().execute(client, idGenerator).copy { maxAge = MAX_AGE }
+    return GenerateOpenIdRequestParams(MAX_AGE).execute(client, idGenerator)
   }
 
-  // TODO: Replace with Tink when new Tink release containing JWT support is released
   /**
-   * Returns the issuer and subject if the idToken is valid and null otherwise. Throws
-   * NullPointerException when required claims are missing.
+   * Returns the issuer and subject if the idToken is valid and null otherwise.
+   * TODO(https://github.com/google/tink/issues/541): Replace with Tink Java JWT
    */
   private suspend fun validateIdToken(idToken: String): IdToken? {
     val tokenParts = idToken.split(".")
@@ -156,56 +146,81 @@ class SpannerAccountsService(
     val header =
       JsonParser.parseString(tokenParts[0].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
 
-    val alg = header.get("alg").asString
-    if (alg != "RS256") {
+    val alg = header.get("alg")
+    if (alg.isJsonNull || !alg.isJsonPrimitive || alg.asString != "RS256") {
       return null
     }
 
     val claims =
       JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
 
-    val iss = claims.get("iss").asString
-    if (iss != "https://self-issued.me") {
+    val iss = claims.get("iss")
+    if (iss.isJsonNull || !iss.isJsonPrimitive || iss.asString != "https://self-issued.me") {
       return null
     }
 
-    val aud = claims.get("aud").asString
-    if (aud != REDIRECT_URI) {
+    val aud = claims.get("aud")
+    if (aud.isJsonNull || !aud.isJsonPrimitive || aud.asString != REDIRECT_URI) {
       return null
     }
 
-    val authTime = claims.get("auth_time").asLong
-    if (authTime + MAX_AGE < clock.instant().epochSecond) {
+    val state = claims.get("state")
+    val nonce = claims.get("nonce")
+
+    if (state.isJsonNull || !state.isJsonPrimitive || nonce.isJsonNull || !nonce.isJsonPrimitive) {
       return null
     }
-
-    val state = claims.get("state").asString
-    val nonce = claims.get("nonce").asString
 
     val result =
       OpenIdRequestParamsReader()
-        .readByState(client.singleUse(), ExternalId(Longs.fromByteArray(state.base64UrlDecode())))
+        .readByState(
+          client.singleUse(),
+          ExternalId(Longs.fromByteArray(state.asString.base64UrlDecode()))
+        )
     if (result != null) {
-      if (Longs.fromByteArray(nonce.base64UrlDecode()) != result.nonce.value) {
+      if (Longs.fromByteArray(nonce.asString.base64UrlDecode()) != result.nonce.value) {
+        return null
+      }
+
+      val authTime = claims.get("auth_time")
+      if (authTime.isJsonNull ||
+          !authTime.isJsonPrimitive ||
+          authTime.asLong + result.maxAge < clock.instant().epochSecond
+      ) {
         return null
       }
     } else {
       return null
     }
 
-    val subJwk = claims.getAsJsonObject("sub_jwk")
-    val modulus = subJwk.get("n").asString
-    val exponent = subJwk.get("e").asString
+    val subJwk = claims.get("sub_jwk")
+    if (subJwk.isJsonNull || !subJwk.isJsonObject) {
+      return null
+    }
 
-    val sub = claims.get("sub").asString
-    if (!sub.equals(calculateRSAThumbprint(modulus, exponent))) {
+    val modulus = subJwk.asJsonObject.get("n")
+    val exponent = subJwk.asJsonObject.get("e")
+
+    if (modulus.isJsonNull ||
+        !modulus.isJsonPrimitive ||
+        exponent.isJsonNull ||
+        !modulus.isJsonPrimitive
+    ) {
+      return null
+    }
+
+    val sub = claims.get("sub")
+    if (sub.isJsonNull ||
+        !sub.isJsonPrimitive ||
+        !sub.asString.equals(calculateRSAThumbprint(modulus.asString, exponent.asString))
+    ) {
       return null
     }
 
     val publicKeySpec =
       RSAPublicKeySpec(
-        BigInteger(modulus.base64UrlDecode()),
-        BigInteger(exponent.base64UrlDecode())
+        BigInteger(modulus.asString.base64UrlDecode()),
+        BigInteger(exponent.asString.base64UrlDecode())
       )
     val keyFactory = KeyFactory.getInstance("RSA")
     val publicKey = keyFactory.generatePublic(publicKeySpec)
@@ -216,6 +231,6 @@ class SpannerAccountsService(
       return null
     }
 
-    return IdToken(issuer = iss, subject = sub)
+    return IdToken(issuer = iss.asString, subject = sub.asString)
   }
 }

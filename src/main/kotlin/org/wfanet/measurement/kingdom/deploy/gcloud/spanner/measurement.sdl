@@ -405,6 +405,7 @@ CREATE TABLE OpenIdRequestParams (
   ExternalOpenIdRequestParamsId INT64 NOT NULL,
 
   Nonce INT64 NOT NULL,
+  MaxAge INT64 NOT NULL,
 ) PRIMARY KEY (OpenIdRequestParamsId);
 
 CREATE UNIQUE INDEX OpenIdRequestParamsByExternalId

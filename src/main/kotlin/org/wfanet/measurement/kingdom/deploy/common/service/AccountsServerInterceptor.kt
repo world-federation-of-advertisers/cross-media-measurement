@@ -26,7 +26,7 @@ import io.grpc.ServerServiceDefinition
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.internal.kingdom.Account
 
-/** gRPC [ServerInterceptor] to get [Account] credentials coming in from a request. */
+/** gRPC [ServerInterceptor] to get ID token credentials for an [Account] principal. */
 class AccountsServerInterceptor() : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
