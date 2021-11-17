@@ -28,6 +28,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
@@ -545,7 +546,8 @@ class LiquidLegionsV2MillTest {
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
-        requestChunkSizeBytes = 20
+        requestChunkSizeBytes = 20,
+        maximumAttempts = 2
       )
     nonAggregatorMill =
       LiquidLegionsV2Mill(
@@ -561,7 +563,119 @@ class LiquidLegionsV2MillTest {
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
-        requestChunkSizeBytes = 20
+        requestChunkSizeBytes = 20,
+        maximumAttempts = 2
+      )
+  }
+
+  @Test
+  fun `exceeding max attempt should fail the computation`() = runBlocking {
+    // Stage 0. preparing the database and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = INITIALIZATION_PHASE.toProtocolStage()
+        )
+        .build()
+
+    val initialComputationDetails =
+      NON_AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
+        .apply {
+          liquidLegionsV2Builder.apply {
+            parametersBuilder.ellipticCurveId = CURVE_ID.toInt()
+            clearPartiallyCombinedPublicKey()
+            clearCombinedPublicKey()
+            clearLocalElgamalKey()
+          }
+        }
+        .build()
+
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = initialComputationDetails,
+      requisitions = REQUISITIONS
+    )
+
+    whenever(mockCryptoWorker.completeInitializationPhase(any())).thenAnswer {
+      CompleteInitializationPhaseResponse.newBuilder()
+        .apply {
+          elGamalKeyPairBuilder.apply {
+            publicKeyBuilder.apply {
+              generator = ByteString.copyFromUtf8("generator-foo")
+              element = ByteString.copyFromUtf8("element-foo")
+            }
+            secretKey = ByteString.copyFromUtf8("secretKey-foo")
+          }
+        }
+        .build()
+    }
+
+    // This will result in TRANSIENT gRPC failure.
+    whenever(mockComputationParticipants.setParticipantRequisitionParams(any()))
+      .thenThrow(Status.UNKNOWN.asRuntimeException())
+
+    // First attempt fails, which doesn't change the computation stage.
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = INITIALIZATION_PHASE.toProtocolStage()
+            version = 3 // claimTask + updateComputationDetails + enqueueComputation
+            computationDetails =
+              initialComputationDetails
+                .toBuilder()
+                .apply {
+                  liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
+                    publicKeyBuilder.apply {
+                      generator = ByteString.copyFromUtf8("generator-foo")
+                      element = ByteString.copyFromUtf8("element-foo")
+                    }
+                    secretKey = ByteString.copyFromUtf8("secretKey-foo")
+                  }
+                }
+                .build()
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
+      )
+
+    // Second attempt fails, which will fail the computation.
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 2
+            computationStage = COMPLETE.toProtocolStage()
+            version = 5 // claimTask + updateComputationDetails + enqueueComputation + claimTask +
+            // EndComputation
+            computationDetails =
+              initialComputationDetails
+                .toBuilder()
+                .apply {
+                  endingState = CompletedReason.FAILED
+                  liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
+                    publicKeyBuilder.apply {
+                      generator = ByteString.copyFromUtf8("generator-foo")
+                      element = ByteString.copyFromUtf8("element-foo")
+                    }
+                    secretKey = ByteString.copyFromUtf8("secretKey-foo")
+                  }
+                }
+                .build()
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
       )
   }
 
@@ -623,7 +737,7 @@ class LiquidLegionsV2MillTest {
             localComputationId = LOCAL_ID
             attempt = 1
             computationStage = WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
-            version = 3 // CreateComputation + updateComputationDetails + transitionStage
+            version = 3 // claimTask + updateComputationDetails + transitionStage
             computationDetails =
               initialComputationDetails
                 .toBuilder()
@@ -701,7 +815,7 @@ class LiquidLegionsV2MillTest {
             localComputationId = LOCAL_ID
             attempt = 1
             computationStage = COMPLETE.toProtocolStage()
-            version = 2 // CreateComputation + transitionStage
+            version = 2 // claimTask + transitionStage
             computationDetails =
               computationDetailsWithoutPublicKey
                 .toBuilder()
@@ -771,7 +885,7 @@ class LiquidLegionsV2MillTest {
               localComputationId = LOCAL_ID
               attempt = 1
               computationStage = WAIT_TO_START.toProtocolStage()
-              version = 3 // CreateComputation + updateComputationDetail + transitionStage
+              version = 3 // claimTask + updateComputationDetail + transitionStage
               computationDetails =
                 NON_AGGREGATOR_COMPUTATION_DETAILS
                   .toBuilder()
@@ -831,7 +945,7 @@ class LiquidLegionsV2MillTest {
               localComputationId = LOCAL_ID
               attempt = 1
               computationStage = WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-              version = 3 // CreateComputation + updateComputationDetails + transitionStage
+              version = 3 // claimTask + updateComputationDetails + transitionStage
               addAllBlobs(listOf(newEmptyOutputBlobMetadata(0), newEmptyOutputBlobMetadata(1)))
               stageSpecificDetailsBuilder.apply {
                 liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
@@ -904,7 +1018,7 @@ class LiquidLegionsV2MillTest {
               localComputationId = LOCAL_ID
               attempt = 1
               computationStage = COMPLETE.toProtocolStage()
-              version = 2 // CreateComputation + transitionStage
+              version = 2 // claimTask + transitionStage
               computationDetails =
                 computationDetailsWithoutInvalidDuchySignature
                   .toBuilder()
@@ -995,7 +1109,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
             addAllRequisitions(requisitionListWithCorrectPath)
           }
@@ -1105,7 +1219,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = AGGREGATOR_COMPUTATION_DETAILS
             addAllRequisitions(requisitionListWithCorrectPath)
           }
@@ -1200,7 +1314,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version = 2 // CreateComputation + transitionStage
+            version = 2 // claimTask + transitionStage
             computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
             addAllRequisitions(REQUISITIONS)
           }
@@ -1267,7 +1381,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
             addAllRequisitions(REQUISITIONS)
           }
@@ -1353,7 +1467,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = AGGREGATOR_COMPUTATION_DETAILS
             addAllRequisitions(REQUISITIONS)
           }
@@ -1446,7 +1560,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
             addAllRequisitions(REQUISITIONS)
           }
@@ -1542,8 +1656,7 @@ class LiquidLegionsV2MillTest {
               dependencyType = ComputationBlobDependency.OUTPUT
               blobId = 1
             }
-            version =
-              4 // CreateComputation + writeOutputBlob + ComputationDetails + transitionStage
+            version = 4 // claimTask + writeOutputBlob + ComputationDetails + transitionStage
             computationDetails =
               AGGREGATOR_COMPUTATION_DETAILS
                 .toBuilder()
@@ -1639,7 +1752,7 @@ class LiquidLegionsV2MillTest {
             localComputationId = LOCAL_ID
             attempt = 1
             computationStage = COMPLETE.toProtocolStage()
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails =
               NON_AGGREGATOR_COMPUTATION_DETAILS
                 .toBuilder()
@@ -1729,7 +1842,7 @@ class LiquidLegionsV2MillTest {
             localComputationId = LOCAL_ID
             attempt = 1
             computationStage = COMPLETE.toProtocolStage()
-            version = 3 // CreateComputation + writeOutputBlob + transitionStage
+            version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails =
               computationDetailsWithReach
                 .toBuilder()
