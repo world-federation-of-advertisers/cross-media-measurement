@@ -42,8 +42,8 @@ fun generateIdToken(uriString: String, clock: Clock): String {
       queryParamMap[keyValue[0]] = keyValue[1]
     }
 
-    queryParamMap["scope"]?.contains("openid") ?: return ""
-    queryParamMap["response_type"]?.equals("id_token") ?: return ""
+    queryParamMap["scope"]?.contains("openid") ?: throw IllegalArgumentException()
+    queryParamMap["response_type"]?.equals("id_token") ?: throw IllegalArgumentException()
 
     val header = JsonObject()
     header.addProperty("typ", "JWT")
@@ -75,7 +75,8 @@ fun generateIdToken(uriString: String, clock: Clock): String {
 
     queryParamMap["state"]?.let { claims.addProperty("state", it) }
 
-    queryParamMap["nonce"]?.let { claims.addProperty("nonce", it) } ?: return ""
+    queryParamMap["nonce"]?.let { claims.addProperty("nonce", it) }
+      ?: throw IllegalArgumentException()
 
     val now = clock.instant().epochSecond
     claims.addProperty("exp", now + EXP_TIME)
@@ -94,9 +95,9 @@ fun generateIdToken(uriString: String, clock: Clock): String {
     val signedData = signature.sign().base64UrlEncode()
 
     return "$encodedHeader.$encodedClaims.$signedData"
+  } else {
+    throw IllegalArgumentException()
   }
-
-  return ""
 }
 
 fun calculateRSAThumbprint(modulus: String, exponent: String): String {
