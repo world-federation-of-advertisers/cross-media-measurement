@@ -25,7 +25,6 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -262,14 +261,9 @@ private suspend fun TransactionScope.readDataProviderId(
 private fun validateCertificate(
   certificateResult: CertificateReader.Result,
 ): InternalId {
-  val certificate = certificateResult.certificate
-
-  if (!certificate.isAvailable || certificateResult.isNotYetActive || certificateResult.isExpired) {
+  if (!certificateResult.isValid) {
     throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
   }
 
   return certificateResult.certificateId
 }
-
-private val Certificate.isAvailable: Boolean
-  get() = revocationState == Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
