@@ -22,6 +22,7 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.pow
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -403,7 +404,7 @@ abstract class MillBase(
     dataClients.computationsClient.enqueueComputation(
       EnqueueComputationRequest.newBuilder()
         .setToken(token)
-        .setDelaySecond(minOf(60, token.attempt * 5))
+        .setDelaySecond(minOf(600, (2.0.pow(token.attempt)).toInt()))
         .build()
     )
   }
