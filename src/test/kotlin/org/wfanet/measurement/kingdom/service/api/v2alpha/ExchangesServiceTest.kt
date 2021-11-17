@@ -49,9 +49,11 @@ import org.wfanet.measurement.internal.kingdom.exchange as internalExchange
 import org.wfanet.measurement.internal.kingdom.exchangeDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest as internalGetExchangeRequest
 import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
 
-private const val DATA_PROVIDER = "dataProviders/AAAAAAAAMDk"
-private const val MODEL_PROVIDER = "modelProviders/AAAAAAAAMDk"
+private val DATA_PROVIDER = makeDataProvider(12345L)
+private val MODEL_PROVIDER = makeModelProvider(23456L)
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = date {
   year = 2021
