@@ -43,18 +43,33 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL]
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [KingdomInternalException.Code.CERTIFICATE_IS_INVALID]
  * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
+ * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
-
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
     val duchyCertificateId =
       readDuchyCertificateId(InternalId(duchyId), ExternalId(request.externalDuchyCertificateId))
+
+    val certificateResult =
+      CertificateReader(CertificateReader.ParentType.DUCHY)
+        .fillStatementBuilder {
+          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
+          bind("duchyId" to duchyId)
+          bind("certificateId" to duchyCertificateId)
+        }
+        .execute(transactionContext)
+        .single()
+
+    if (!certificateResult.isValid) {
+      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    }
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
@@ -69,6 +84,12 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
             "and external duchy ID ${request.externalDuchyId} not found"
         }
+
+    if (computationParticipantResult.measurementState !=
+        Measurement.State.PENDING_REQUISITION_PARAMS
+    ) {
+      throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL)
+    }
 
     val computationParticipant = computationParticipantResult.computationParticipant
     val measurementId = computationParticipantResult.measurementId
@@ -114,21 +135,10 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     }
 
-    val certificate =
-      CertificateReader(CertificateReader.ParentType.DUCHY)
-        .fillStatementBuilder {
-          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
-          bind("duchyId" to duchyId)
-          bind("certificateId" to duchyCertificateId)
-        }
-        .execute(transactionContext)
-        .single()
-        .certificate
-
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
       details = participantDetails
-      duchyCertificate = certificate
+      duchyCertificate = certificateResult.certificate
     }
   }
 
