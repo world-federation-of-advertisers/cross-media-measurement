@@ -110,6 +110,7 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * computation table.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
+ * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param workerStubs A map from other duchies' Ids to their corresponding
  * computationControlClients, used for passing computation to other duchies.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
@@ -126,6 +127,7 @@ class LiquidLegionsV2Mill(
   computationStatsClient: ComputationStatsCoroutineStub,
   throttler: MinimumIntervalThrottler,
   requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
+  maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
   private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: LiquidLegionsV2Encryption
@@ -143,6 +145,7 @@ class LiquidLegionsV2Mill(
     throttler,
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
     requestChunkSizeBytes,
+    maximumAttempts,
     clock
   ) {
   override val endingStage: ComputationStage =
