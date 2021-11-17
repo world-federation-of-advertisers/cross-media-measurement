@@ -43,7 +43,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpen
 import org.wfanet.measurement.tools.calculateRSAThumbprint
 
 private const val REDIRECT_URI = "https://localhost:2048"
-private const val MAX_AGE = 3600L
+private const val VALID_SECONDS = 3600L
 
 class SpannerAccountsService(
   private val idGenerator: IdGenerator,
@@ -127,7 +127,7 @@ class SpannerAccountsService(
   override suspend fun generateOpenIdRequestParams(
     request: GenerateOpenIdRequestParamsRequest
   ): OpenIdRequestParams {
-    return GenerateOpenIdRequestParams(MAX_AGE).execute(client, idGenerator)
+    return GenerateOpenIdRequestParams(VALID_SECONDS).execute(client, idGenerator)
   }
 
   /**

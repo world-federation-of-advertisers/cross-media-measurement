@@ -24,12 +24,12 @@ import java.time.Clock
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.hashSha256
 
+private const val EXP_TIME = 1000L
+
 /**
  * Contains methods for working with self-issued Id tokens.
  * TODO(https://github.com/google/tink/issues/541): Replace with Tink Java JWT
  */
-private const val EXP_TIME = 1000L
-
 fun generateIdToken(uriString: String, clock: Clock): String {
   val uri = URI.create(uriString)
 

@@ -28,7 +28,7 @@ class OpenIdRequestParamsReader : SpannerReader<OpenIdRequestParamsReader.Result
     SELECT
       ExternalOpenIdRequestParamsId,
       Nonce,
-      CURRENT_TIMESTAMP > TIMESTAMP_ADD(CreationTime, INTERVAL MaxAge SECOND) AS IsExpired,
+      CURRENT_TIMESTAMP > TIMESTAMP_ADD(CreateTime, INTERVAL ValidSeconds SECOND) AS IsExpired,
     FROM OpenIdRequestParams
     """.trimIndent()
 

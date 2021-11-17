@@ -406,8 +406,8 @@ CREATE TABLE OpenIdRequestParams (
 
   Nonce INT64 NOT NULL,
 
-  CreationTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-  MaxAge INT64 NOT NULL,
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+  ValidSeconds INT64 NOT NULL,
 ) PRIMARY KEY (OpenIdRequestParamsId);
 
 CREATE UNIQUE INDEX OpenIdRequestParamsByExternalId
