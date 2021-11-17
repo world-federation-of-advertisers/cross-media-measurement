@@ -60,7 +60,10 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val provider = validateRequestProvider(request.modelProvider, request.dataProvider)
+    val provider =
+      validateRequestProvider(
+        if (request.hasDataProvider()) request.dataProvider else request.modelProvider
+      )
 
     val internalRequest = claimReadyExchangeStepRequest { this.provider = provider }
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)

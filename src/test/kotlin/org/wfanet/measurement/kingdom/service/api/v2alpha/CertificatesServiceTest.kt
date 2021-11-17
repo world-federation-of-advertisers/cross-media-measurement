@@ -62,16 +62,19 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
 
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
+private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
+private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg"
-private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
-private const val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+
 
 @RunWith(JUnit4::class)
 class CertificatesServiceTest {

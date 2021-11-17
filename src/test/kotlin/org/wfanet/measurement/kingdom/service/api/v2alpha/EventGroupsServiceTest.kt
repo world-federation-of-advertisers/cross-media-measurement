@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -69,13 +70,14 @@ private const val WILDCARD_NAME = "dataProviders/-"
 
 private const val EVENT_GROUP_NAME = "dataProviders/AAAAAAAAAHs/eventGroups/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 
+private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_EXTERNAL_ID =
   apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
+
   private val internalEventGroupsMock: EventGroupsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)

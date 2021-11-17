@@ -36,24 +36,24 @@ import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequestKt
 import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
-import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
-import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
-import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.Exchange.State
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase as InternalExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub as InternalExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.exchange as internalExchange
 import org.wfanet.measurement.internal.kingdom.exchangeDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest as internalGetExchangeRequest
+import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
 
-private const val DATA_PROVIDER = "dataProviders/AAAAAAAAMDk"
-private const val MODEL_PROVIDER = "modelProviders/AAAAAAAAMDk"
+private val DATA_PROVIDER = makeDataProvider(12345L)
+private val MODEL_PROVIDER = makeModelProvider(23456L)
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = date {
   year = 2021
@@ -122,7 +122,6 @@ class ExchangesServiceTest {
         exchange {
           name = exchangeKey.toName()
           date = DATE
-          state = Exchange.State.ACTIVE
           auditTrailHash = AUDIT_TRAIL_HASH
         }
       )

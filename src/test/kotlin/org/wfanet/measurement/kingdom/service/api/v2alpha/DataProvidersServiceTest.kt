@@ -58,6 +58,7 @@ import org.wfanet.measurement.internal.kingdom.certificate as internalCertificat
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
 
 /**
  * Path to `testdata` directory containing certs and keys.
@@ -80,8 +81,9 @@ private val TESTDATA_DIR =
   )
 private const val DATA_PROVIDER_ID = 123L
 private const val CERTIFICATE_ID = 456L
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+
+private val DATA_PROVIDER_NAME = makeDataProvider(DATA_PROVIDER_ID)
+private val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {

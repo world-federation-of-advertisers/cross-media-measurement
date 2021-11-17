@@ -83,6 +83,7 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtoco
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val UPDATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
@@ -94,7 +95,8 @@ private const val WILDCARD_NAME = "dataProviders/-"
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
 private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+
+private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
 
 private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
   setOf(
