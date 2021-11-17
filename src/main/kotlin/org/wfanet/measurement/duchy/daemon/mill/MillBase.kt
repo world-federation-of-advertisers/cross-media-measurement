@@ -83,6 +83,7 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
+ * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param clock A clock
  */
 abstract class MillBase(
@@ -97,8 +98,9 @@ abstract class MillBase(
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
-  private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
-  private val clock: Clock = Clock.systemUTC()
+  private val requestChunkSizeBytes: Int,
+  private val maximumAttempts: Int,
+  private val clock: Clock,
 ) {
   abstract val endingStage: ComputationStage
 
@@ -168,8 +170,15 @@ abstract class MillBase(
         // Treat all other errors as transient.
         logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
         sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT))
-        // Enqueue the computation again for future retry
-        enqueueComputation(token)
+        if (token.attempt >= maximumAttempts) {
+          val errorMessage = "Failing computation due to too many failed attempts."
+          logger.log(Level.SEVERE, "$globalId@$millId: $errorMessage")
+          failComputationAtKingdom(token, errorMessage)
+          completeComputation(token, CompletedReason.FAILED)
+        } else {
+          // Enqueue the computation again for future retry
+          enqueueComputation(token)
+        }
       }
     }
   }
