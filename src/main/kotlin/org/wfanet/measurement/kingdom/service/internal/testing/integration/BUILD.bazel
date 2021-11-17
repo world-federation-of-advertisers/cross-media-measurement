@@ -10,6 +10,7 @@ kt_jvm_library(
     deps = KINGDOM_INTERNAL_PROTOS + [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:proto_conversions",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_kt_jvm_proto",
