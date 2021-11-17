@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.Timestamp
+import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
@@ -34,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
 import org.wfanet.measurement.api.v2alpha.validateRequestProvider
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -60,10 +62,7 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
   override suspend fun claimReadyExchangeStep(
     request: ClaimReadyExchangeStepRequest
   ): ClaimReadyExchangeStepResponse {
-    val provider =
-      validateRequestProvider(
-        if (request.hasDataProvider()) request.dataProvider else request.modelProvider
-      )
+    val provider = validateRequestProvider(getProvider(request))
 
     val internalRequest = claimReadyExchangeStepRequest { this.provider = provider }
     val internalResponse = internalExchangeSteps.claimReadyExchangeStep(internalRequest)
@@ -171,4 +170,14 @@ private fun ModelProviderKey?.toProvider(): Provider {
 
 private fun ExchangeKey.hasExchangeId(): Boolean {
   return exchangeId != "-"
+}
+
+private fun getProvider(request: ClaimReadyExchangeStepRequest): String {
+  return if (request.hasDataProvider()) {
+    request.dataProvider
+  } else if (request.hasModelProvider()) {
+    request.modelProvider
+  } else {
+    failGrpc(Status.UNAUTHENTICATED) { "Caller identity is neither DataProvider nor ModelProvider" }
+  }
 }
