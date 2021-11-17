@@ -22,6 +22,8 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.pow
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -400,11 +402,12 @@ abstract class MillBase(
 
   /** Enqueue a computation with a delay. */
   private suspend fun enqueueComputation(token: ComputationToken) {
+    // Exponential backoff
+    val baseDelay = minOf(600.0, (2.0.pow(token.attempt))).toInt()
+    // A random delay in the range of [baseDelay, 2*baseDelay]
+    val delaySecond = baseDelay + Random.nextInt(baseDelay + 1)
     dataClients.computationsClient.enqueueComputation(
-      EnqueueComputationRequest.newBuilder()
-        .setToken(token)
-        .setDelaySecond(minOf(60, token.attempt * 5))
-        .build()
+      EnqueueComputationRequest.newBuilder().setToken(token).setDelaySecond(delaySecond).build()
     )
   }
 
