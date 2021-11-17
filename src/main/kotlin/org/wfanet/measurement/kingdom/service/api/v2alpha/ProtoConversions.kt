@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
@@ -58,11 +59,14 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeS
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as ImternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -379,3 +383,35 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
         failGrpc(Status.INTERNAL) { "Invalid state: $this" }
     }
   }
+
+fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
+  val labelsMap = mutableMapOf<String, MutableSet<Int>>()
+  for ((index, step) in stepsList.withIndex()) {
+    for (outputLabel in step.outputLabelsMap.values) {
+      labelsMap.getOrPut(outputLabel) { mutableSetOf() }.add(index)
+    }
+  }
+  val internalSteps =
+    stepsList.mapIndexed { index, step ->
+      ExchangeWorkflowKt.step {
+        stepIndex = index
+        party = step.party.toInternal()
+        prerequisiteStepIndices +=
+          step
+            .inputLabelsMap
+            .values
+            .flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }
+            .toSet()
+      }
+    }
+
+  return exchangeWorkflow { steps += internalSteps }
+}
+
+fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
+  return when (this) {
+    ExchangeWorkflow.Party.DATA_PROVIDER -> InternalExchangeWorkflow.Party.DATA_PROVIDER
+    ExchangeWorkflow.Party.MODEL_PROVIDER -> InternalExchangeWorkflow.Party.MODEL_PROVIDER
+    else -> throw IllegalArgumentException("Provider is not set for the Exchange Step.")
+  }
+}
