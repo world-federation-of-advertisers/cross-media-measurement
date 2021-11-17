@@ -632,8 +632,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       certificatesService.createCertificate(
         certificate {
           this.externalDuchyId = externalDuchyId
-          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          notValidBefore = clock.instant().minusSeconds(1000L).toProtoTime()
+          notValidAfter = clock.instant().plusSeconds(1000L).toProtoTime()
           details = details { x509Der = X509_DER }
         }
       )

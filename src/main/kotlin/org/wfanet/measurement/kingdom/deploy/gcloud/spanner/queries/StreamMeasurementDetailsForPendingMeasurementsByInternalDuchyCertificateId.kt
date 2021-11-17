@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
@@ -29,11 +31,14 @@ class StreamMeasurementDetailsForPendingMeasurementsByInternalDuchyCertificateId
       appendClause("JOIN ComputationParticipants USING (MeasurementConsumerId, MeasurementId)")
       appendClause(
         """
-          WHERE ComputationParticipants.CertificateId = ${duchyCertificateId.value}
-          AND ComputationParticipants.State = ${ComputationParticipant.State.REQUISITION_PARAMS_SET.number}
+        WHERE ComputationParticipants.CertificateId = @duchyCertificateId
+          AND ComputationParticipants.State = @computationParticipantState
           AND Measurements.State in UNNEST(@pendingStates)
-          """
+        """.trimIndent()
       )
-      bind("pendingStates").toInt64Array(pendingMeasurementStates.map { it.number.toLong() })
+      bind("duchyCertificateId").to(duchyCertificateId.value)
+      bind("computationParticipantState")
+        .toProtoEnum(ComputationParticipant.State.REQUISITION_PARAMS_SET)
+      bind("pendingStates").toProtoEnumArray(pendingMeasurementStates)
     }
 }

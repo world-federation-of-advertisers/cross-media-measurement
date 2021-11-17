@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
+import org.wfanet.measurement.gcloud.spanner.toProtoEnumArray
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
@@ -29,11 +31,13 @@ class StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertif
       appendClause("JOIN Requisitions USING (MeasurementConsumerId, MeasurementId)")
       appendClause(
         """
-          WHERE Requisitions.DataProviderCertificateId = ${dataProviderCertificateId.value}
-          AND Requisitions.State = ${Requisition.State.UNFULFILLED.number}
+        WHERE Requisitions.DataProviderCertificateId = @dataProviderCertificateId
+          AND Requisitions.State = @requisitionState
           AND Measurements.State in UNNEST(@pendingStates)
-          """
+        """.trimIndent()
       )
-      bind("pendingStates").toInt64Array(pendingMeasurementStates.map { it.number.toLong() })
+      bind("dataProviderCertificateId").to(dataProviderCertificateId.value)
+      bind("requisitionState").toProtoEnum(Requisition.State.UNFULFILLED)
+      bind("pendingStates").toProtoEnumArray(pendingMeasurementStates)
     }
 }
