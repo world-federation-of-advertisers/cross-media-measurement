@@ -71,9 +71,13 @@ import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest as 
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
 
-private const val DATA_PROVIDER = "dataProviders/AAAAAAAAMDk"
-private const val MODEL_PROVIDER = "modelProviders/AAAAAAAAMDk"
+private const val DATA_PROVIDER_ID = 12345L
+private const val MODEL_PROVIDER_ID = 23456L
+private val DATA_PROVIDER = makeDataProvider(DATA_PROVIDER_ID)
+private val MODEL_PROVIDER = makeModelProvider(MODEL_PROVIDER_ID)
 private const val DEFAULT_LIMIT = 50
 private const val EXCHANGE_NAME = "recurringExchanges/AAAAAAAAAHs/exchanges/2021-03-14"
 private const val RECURRING_EXCHANGE_ID = 1L
@@ -177,10 +181,10 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep for DataProvider`() {
-    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(DATA_PROVIDER_ID)))
     val provider = provider {
       type = Provider.Type.DATA_PROVIDER
-      externalId = 12345L
+      externalId = DATA_PROVIDER_ID
     }
     val response =
       withPrincipal(principal) { claimReadyExchangeStep { dataProvider = DATA_PROVIDER } }
@@ -196,7 +200,7 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep for DataProvider with wrong parent in Request`() {
-    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(DATA_PROVIDER_ID)))
 
     withPrincipal(principal) {
       assertFails { claimReadyExchangeStep { modelProvider = MODEL_PROVIDER } }
@@ -214,10 +218,10 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
-    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(MODEL_PROVIDER_ID)))
     val provider = provider {
       type = Provider.Type.MODEL_PROVIDER
-      externalId = 12345L
+      externalId = MODEL_PROVIDER_ID
     }
 
     val response =
@@ -234,7 +238,7 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep for ModelProvider with wrong parent in Request`() {
-    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(MODEL_PROVIDER_ID)))
 
     withPrincipal(principal) {
       assertFails { claimReadyExchangeStep { dataProvider = DATA_PROVIDER } }
@@ -243,10 +247,10 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `listExchangeSteps with page token uses filter with timestamp from page token`() {
-    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(MODEL_PROVIDER_ID)))
     val provider = provider {
       type = Provider.Type.MODEL_PROVIDER
-      externalId = 12345L
+      externalId = MODEL_PROVIDER_ID
     }
 
     val result =

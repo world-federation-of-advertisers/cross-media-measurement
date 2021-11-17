@@ -33,7 +33,10 @@ import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
   ExchangesCoroutineImplBase() {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
-    val provider = validateRequestProvider(request.modelProvider, request.dataProvider)
+    val provider =
+      validateRequestProvider(
+        if (request.hasDataProvider()) request.dataProvider else request.modelProvider
+      )
 
     val key = grpcRequireNotNull(ExchangeKey.fromName(request.name))
     val internalExchange =
