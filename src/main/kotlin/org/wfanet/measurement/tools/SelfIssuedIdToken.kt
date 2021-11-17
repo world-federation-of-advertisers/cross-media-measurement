@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+ * Contains methods for working with self-issued Id tokens.
+ * TODO(https://github.com/google/tink/issues/541): Replace with Tink Java JWT
+ */
+
 package org.wfanet.measurement.tools
 
 import com.google.gson.JsonObject
@@ -26,10 +31,6 @@ import org.wfanet.measurement.common.crypto.hashSha256
 
 private const val EXP_TIME = 1000L
 
-/**
- * Contains methods for working with self-issued Id tokens.
- * TODO(https://github.com/google/tink/issues/541): Replace with Tink Java JWT
- */
 fun generateIdToken(uriString: String, clock: Clock): String {
   val uri = URI.create(uriString)
 
