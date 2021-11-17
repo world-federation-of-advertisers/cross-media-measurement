@@ -75,7 +75,6 @@ private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg"
 
-
 @RunWith(JUnit4::class)
 class CertificatesServiceTest {
   private val internalCertificatesMock: CertificatesCoroutineImplBase =
