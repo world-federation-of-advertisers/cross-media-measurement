@@ -98,6 +98,7 @@ class ExchangeStepAttemptsService(
     }
 
     val internalRequest = finishExchangeStepAttemptRequest {
+      this.provider = provider
       this.externalRecurringExchangeId = externalRecurringExchangeId
       this.date = date
       this.stepIndex = stepIndex

@@ -244,6 +244,11 @@ class ExchangeStepAttemptsServiceTest {
       .ignoringFieldAbsence()
       .isEqualTo(
         internalFinishExchangeStepAttemptRequest {
+          provider =
+            provider {
+              type = Provider.Type.DATA_PROVIDER
+              externalId = 12345L
+            }
           externalRecurringExchangeId = RECURRING_EXCHANGE_ID
           date = INTERNAL_EXCHANGE_STEP_ATTEMPT.date
           stepIndex = STEP_INDEX
