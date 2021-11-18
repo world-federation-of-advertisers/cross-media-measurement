@@ -91,7 +91,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     val measurementConsumerId: InternalId,
     val measurementId: InternalId,
     val requisitionId: InternalId,
-    val requisition: Requisition
+    val requisition: Requisition,
+    val measurementDetails: Measurement.Details
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -101,7 +102,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       InternalId(struct.getLong("MeasurementConsumerId")),
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("RequisitionId")),
-      buildRequisition(struct)
+      buildRequisition(struct),
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
     )
   }
 

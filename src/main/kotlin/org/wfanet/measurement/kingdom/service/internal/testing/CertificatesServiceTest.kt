@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -46,12 +47,14 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
+import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -79,7 +82,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
-    val modelProvidersService: ModelProvidersCoroutineImplBase
+    val modelProvidersService: ModelProvidersCoroutineImplBase,
+    val computationParticipantsService: ComputationParticipantsCoroutineImplBase
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -101,6 +105,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   protected lateinit var modelProvidersService: ModelProvidersCoroutineImplBase
     private set
 
+  protected lateinit var computationParticipantsService: ComputationParticipantsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -111,6 +118,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     measurementsService = services.measurementsService
     dataProvidersService = services.dataProvidersService
     modelProvidersService = services.modelProvidersService
+    computationParticipantsService = services.computationParticipantsService
   }
 
   @Test
@@ -361,6 +369,71 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
+  fun `revokeCertificate for DataProvider fails pending Measurements`(): Unit = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurementOne =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement one",
+        dataProvider
+      )
+    val measurementTwo =
+      population.createMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement two",
+        dataProvider
+      )
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
+        externalMeasurementId = measurementTwo.externalMeasurementId
+      }
+    )
+
+    val request = revokeCertificateRequest {
+      externalDataProviderId = dataProvider.externalDataProviderId
+      externalCertificateId = dataProvider.certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    certificatesService.revokeCertificate(request)
+
+    val measurements =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              StreamMeasurementsRequestKt.filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                states += Measurement.State.FAILED
+              }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        measurement {
+          state = Measurement.State.FAILED
+          externalMeasurementId = measurementOne.externalMeasurementId
+          details =
+            measurementOne.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "An associated Data Provider certificate has been revoked."
+                }
+            }
+        }
+      )
+  }
+
+  @Test
   fun `revokeCertificate fails due to wrong MeasurementConsumerId`() = runBlocking {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer(measurementConsumersService)
@@ -432,6 +505,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurement(measurementsService, measurementConsumer, "measurement one")
     val measurementTwo =
       population.createMeasurement(measurementsService, measurementConsumer, "measurement two")
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
+        externalMeasurementId = measurementTwo.externalMeasurementId
+      }
+    )
 
     val request = revokeCertificateRequest {
       externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -448,6 +527,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
             filter =
               StreamMeasurementsRequestKt.filter {
                 externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                states += Measurement.State.FAILED
               }
           }
         )
@@ -461,18 +541,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalMeasurementId = measurementOne.externalMeasurementId
           details =
             measurementOne.details.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "The associated Measurement Consumer certificate has been revoked."
-                }
-            }
-        },
-        measurement {
-          state = Measurement.State.FAILED
-          externalMeasurementId = measurementTwo.externalMeasurementId
-          details =
-            measurementTwo.details.copy {
               failure =
                 MeasurementKt.failure {
                   reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
@@ -541,6 +609,80 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       )
 
     assertThat(revokedCertificate.revocationState).isEqualTo(Certificate.RevocationState.REVOKED)
+  }
+
+  @Test
+  fun `revokeCertificate for Duchy fails pending Measurements`(): Unit = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+
+    val measurementOne =
+      population.createMeasurement(measurementsService, measurementConsumer, "measurement one")
+    val measurementTwo =
+      population.createMeasurement(measurementsService, measurementConsumer, "measurement two")
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
+        externalMeasurementId = measurementTwo.externalMeasurementId
+      }
+    )
+
+    val externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
+          this.externalDuchyId = externalDuchyId
+          notValidBefore = clock.instant().minusSeconds(1000L).toProtoTime()
+          notValidAfter = clock.instant().plusSeconds(1000L).toProtoTime()
+          details = details { x509Der = X509_DER }
+        }
+      )
+
+    computationParticipantsService.setParticipantRequisitionParams(
+      setParticipantRequisitionParamsRequest {
+        this.externalDuchyId = externalDuchyId
+        externalDuchyCertificateId = certificate.externalCertificateId
+        externalComputationId = measurementOne.externalComputationId
+      }
+    )
+
+    val request = revokeCertificateRequest {
+      this.externalDuchyId = externalDuchyId
+      externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    certificatesService.revokeCertificate(request)
+
+    val measurements =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              StreamMeasurementsRequestKt.filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                states += Measurement.State.FAILED
+              }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        measurement {
+          state = Measurement.State.FAILED
+          externalMeasurementId = measurementOne.externalMeasurementId
+          details =
+            measurementOne.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "An associated Duchy certificate has been revoked."
+                }
+            }
+        }
+      )
   }
 
   @Test
