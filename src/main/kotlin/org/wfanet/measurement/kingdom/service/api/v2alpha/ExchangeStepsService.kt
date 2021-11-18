@@ -29,7 +29,9 @@ import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
+import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.validateRequestProvider
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -38,15 +40,15 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.common.Provider.Type.DATA_PROVIDER
+import org.wfanet.measurement.internal.common.Provider.Type.MODEL_PROVIDER
+import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.Provider
-import org.wfanet.measurement.internal.kingdom.Provider.Type.DATA_PROVIDER
-import org.wfanet.measurement.internal.kingdom.Provider.Type.MODEL_PROVIDER
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
-import org.wfanet.measurement.internal.kingdom.provider
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
 private const val MIN_PAGE_SIZE = 1

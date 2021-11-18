@@ -32,17 +32,24 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+
+private val PENDING_MEASUREMENT_STATES =
+  listOf(
+    Measurement.State.PENDING_COMPUTATION,
+    Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+    Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+    Measurement.State.PENDING_REQUISITION_PARAMS
+  )
 
 /**
  * Revokes a certificate in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
- *
- * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider failing all
- * associated active measurements if a DataProvider certificate or a Duchy certificate is revoked
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
@@ -91,36 +98,67 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       set("RevocationState" to request.revocationState)
     }
 
-    if (request.parentCase == RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID
-    ) {
-      val filter =
-        StreamMeasurementsRequestKt.filter {
-          externalMeasurementConsumerId = request.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId = request.externalCertificateId
-          states += Measurement.State.PENDING_COMPUTATION
-          states += Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-          states += Measurement.State.PENDING_REQUISITION_FULFILLMENT
-          states += Measurement.State.PENDING_REQUISITION_PARAMS
-        }
-
-      StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
-        val details =
-          it.measurement.details.copy {
-            failure =
-              MeasurementKt.failure {
-                reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                message = "The associated Measurement Consumer certificate has been revoked."
-              }
+    when (request.parentCase) {
+      RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+        val filter =
+          StreamMeasurementsRequestKt.filter {
+            externalMeasurementConsumerId = request.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId = request.externalCertificateId
+            states += PENDING_MEASUREMENT_STATES
           }
-        transactionContext.bufferUpdateMutation("Measurements") {
-          set("MeasurementConsumerId" to it.measurementConsumerId)
-          set("MeasurementId" to it.measurementId)
-          set("State" to Measurement.State.FAILED)
-          set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-          set("MeasurementDetails" to details)
-          setJson("MeasurementDetailsJson" to details)
+
+        StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
+          val details =
+            it.measurement.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "The associated Measurement Consumer certificate has been revoked."
+                }
+            }
+
+          failMeasurement(it.measurementConsumerId, it.measurementId, details)
         }
       }
+      RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+        StreamMeasurementsByDataProviderCertificate(
+            certificateResult.certificateId,
+            PENDING_MEASUREMENT_STATES
+          )
+          .execute(transactionContext)
+          .collect {
+            val details =
+              it.measurementDetails.copy {
+                failure =
+                  MeasurementKt.failure {
+                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                    message = "An associated Data Provider certificate has been revoked."
+                  }
+              }
+
+            failMeasurement(it.measurementConsumerId, it.measurementId, details)
+          }
+      }
+      RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
+        StreamMeasurementsByDuchyCertificate(
+            certificateResult.certificateId,
+            PENDING_MEASUREMENT_STATES
+          )
+          .execute(transactionContext)
+          .collect {
+            val details =
+              it.measurementDetails.copy {
+                failure =
+                  MeasurementKt.failure {
+                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                    message = "An associated Duchy certificate has been revoked."
+                  }
+              }
+
+            failMeasurement(it.measurementConsumerId, it.measurementId, details)
+          }
+      }
+      else -> {}
     }
 
     return certificateResult.certificate.copy { revocationState = request.revocationState }
@@ -128,5 +166,20 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
   override fun ResultScope<Certificate>.buildResult(): Certificate {
     return checkNotNull(transactionResult)
+  }
+
+  private fun TransactionScope.failMeasurement(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    details: Measurement.Details
+  ) {
+    transactionContext.bufferUpdateMutation("Measurements") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("State" to Measurement.State.FAILED)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      set("MeasurementDetails" to details)
+      setJson("MeasurementDetailsJson" to details)
+    }
   }
 }
