@@ -24,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.GetExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepAttemptsResponse
+import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.grpc.grpcStatusCode

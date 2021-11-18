@@ -19,6 +19,7 @@ import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
@@ -45,7 +46,6 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetup
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService

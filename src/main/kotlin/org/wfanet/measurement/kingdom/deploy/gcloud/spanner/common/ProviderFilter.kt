@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
 import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.common.Provider
 
 const val PROVIDER_PARAM = "external_provider_id"
 
