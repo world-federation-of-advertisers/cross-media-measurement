@@ -16,9 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/type/date.proto";
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/kingdom/provider.proto";
+import "google/type/date.proto";
+import "wfa/measurement/internal/common/provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -68,7 +68,7 @@ message ExchangeStep {
   State state = 4;
 
   // Denormalized party that executes this ExchangeStep.
-  Provider provider = 5;
+  wfa.measurement.internal.common.Provider provider = 5;
 
   google.protobuf.Timestamp update_time = 6;
 

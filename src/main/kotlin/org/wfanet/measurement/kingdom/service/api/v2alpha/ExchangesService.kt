@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.GetExchangeRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangesResponse
 import org.wfanet.measurement.api.v2alpha.UploadAuditTrailRequest
+import org.wfanet.measurement.api.v2alpha.validateRequestProvider
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.toProtoDate
