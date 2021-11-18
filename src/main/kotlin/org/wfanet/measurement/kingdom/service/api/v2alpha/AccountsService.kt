@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.common.primitives.Longs
 import io.grpc.Status
+import java.net.URLEncoder
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
@@ -30,7 +32,9 @@ import org.wfanet.measurement.api.v2alpha.CreateAccountRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.api.v2alpha.account
+import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -42,7 +46,10 @@ import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as 
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
+import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
+
+private const val REDIRECT_URI = "https://localhost:2048"
 
 class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
   AccountsCoroutineImplBase() {
@@ -127,7 +134,27 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
   }
 
   override suspend fun authenticate(request: AuthenticateRequest): AuthenticateResponse {
-    TODO("Not yet implemented")
+    grpcRequire(request.issuer.isNotBlank()) { "Issuer unspecified" }
+
+    val openIdRequestParams =
+      internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+
+    var uriString =
+      "openid://?response_type=id_token&scope=openid" +
+        "&state=" +
+        Longs.toByteArray(openIdRequestParams.state).base64UrlEncode() +
+        "&nonce=" +
+        Longs.toByteArray(openIdRequestParams.nonce).base64UrlEncode()
+    val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
+    uriString +=
+      if (request.issuer.equals("https://self-issued.me")) {
+        "&client_id=$redirectUri"
+        // TODO: validate issuer to make sure it is a third party provider
+      } else {
+        "&redirect_uri$redirectUri"
+      }
+
+    return authenticateResponse { authenticationRequestUri = uriString }
   }
 
   /** Converts an internal [InternalAccount] to a public [Account]. */
