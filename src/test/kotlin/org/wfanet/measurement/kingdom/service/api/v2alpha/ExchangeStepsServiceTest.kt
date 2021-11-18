@@ -46,11 +46,13 @@ import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.ListExchangeStepsResponse
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
+import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -58,16 +60,16 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequest
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest as internalClaimReadyExchangeStepRequest
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
-import org.wfanet.measurement.internal.kingdom.provider
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
 private const val DEFAULT_LIMIT = 50

@@ -16,10 +16,10 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/type/date.proto";
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "wfa/measurement/internal/common/provider.proto";
 import "wfa/measurement/internal/kingdom/exchange_step.proto";
-import "wfa/measurement/internal/kingdom/provider.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -42,7 +42,7 @@ service ExchangeSteps {
 
 // Request message for "/ExchangeSteps.ClaimReadyExchangeStep".
 message ClaimReadyExchangeStepRequest {
-  Provider provider = 1;
+  wfa.measurement.internal.common.Provider provider = 1;
 }
 
 // Response message for "/ExchangeSteps.ClaimReadyExchangeStep".
@@ -56,7 +56,7 @@ message GetExchangeStepRequest {
   fixed64 external_recurring_exchange_id = 1;
   google.type.Date date = 2;
   int32 step_index = 3;
-  Provider provider = 4;
+  wfa.measurement.internal.common.Provider provider = 4;
 }
 
 // Request message for "/ExchangeSteps.StreamExchangeSteps".
@@ -64,8 +64,8 @@ message StreamExchangeStepsRequest {
   // Restricts results to those matching all of the given criteria. Repeated
   // fields are treated as disjunctions.
   message Filter {
-    Provider principal = 1;
-    Provider step_provider = 2;
+    wfa.measurement.internal.common.Provider principal = 1;
+    wfa.measurement.internal.common.Provider step_provider = 2;
     repeated fixed64 external_recurring_exchange_ids = 3;
     repeated google.type.Date dates = 4;
     repeated ExchangeStep.State states = 5;

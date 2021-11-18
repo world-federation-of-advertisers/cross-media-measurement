@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal
 
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.common.Provider
 
 /**
  * If [Provider] is for a DataProvider, returns the DataProvider's [ExternalId].
