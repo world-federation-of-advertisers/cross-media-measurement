@@ -118,6 +118,7 @@ class ExchangesServiceTest {
         exchange {
           name = exchangeKey.toName()
           date = DATE
+          state = Exchange.State.ACTIVE
           auditTrailHash = AUDIT_TRAIL_HASH
         }
       )
