@@ -22,6 +22,8 @@ import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.pow
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -83,6 +85,7 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
+ * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param clock A clock
  */
 abstract class MillBase(
@@ -97,8 +100,9 @@ abstract class MillBase(
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
-  private val requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
-  private val clock: Clock = Clock.systemUTC()
+  private val requestChunkSizeBytes: Int,
+  private val maximumAttempts: Int,
+  private val clock: Clock,
 ) {
   abstract val endingStage: ComputationStage
 
@@ -168,8 +172,15 @@ abstract class MillBase(
         // Treat all other errors as transient.
         logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
         sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT))
-        // Enqueue the computation again for future retry
-        enqueueComputation(token)
+        if (token.attempt >= maximumAttempts) {
+          val errorMessage = "Failing computation due to too many failed attempts."
+          logger.log(Level.SEVERE, "$globalId@$millId: $errorMessage")
+          failComputationAtKingdom(token, errorMessage)
+          completeComputation(token, CompletedReason.FAILED)
+        } else {
+          // Enqueue the computation again for future retry
+          enqueueComputation(token)
+        }
       }
     }
   }
@@ -391,11 +402,12 @@ abstract class MillBase(
 
   /** Enqueue a computation with a delay. */
   private suspend fun enqueueComputation(token: ComputationToken) {
+    // Exponential backoff
+    val baseDelay = minOf(600.0, (2.0.pow(token.attempt))).toInt()
+    // A random delay in the range of [baseDelay, 2*baseDelay]
+    val delaySecond = baseDelay + Random.nextInt(baseDelay + 1)
     dataClients.computationsClient.enqueueComputation(
-      EnqueueComputationRequest.newBuilder()
-        .setToken(token)
-        .setDelaySecond(minOf(60, token.attempt * 5))
-        .build()
+      EnqueueComputationRequest.newBuilder().setToken(token).setDelaySecond(delaySecond).build()
     )
   }
 
