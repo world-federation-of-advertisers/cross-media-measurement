@@ -31,9 +31,9 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertificateId
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementDetailsForPendingMeasurementsByInternalDuchyCertificateId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
@@ -121,7 +121,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
-        StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertificateId(
+        StreamMeasurementsByDataProviderCertificate(
             certificateResult.certificateId,
             PENDING_MEASUREMENT_STATES
           )
@@ -140,7 +140,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
-        StreamMeasurementDetailsForPendingMeasurementsByInternalDuchyCertificateId(
+        StreamMeasurementsByDuchyCertificate(
             certificateResult.certificateId,
             PENDING_MEASUREMENT_STATES
           )

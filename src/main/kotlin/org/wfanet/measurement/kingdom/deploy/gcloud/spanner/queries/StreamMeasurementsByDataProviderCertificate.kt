@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
 
-class StreamMeasurementDetailsForPendingMeasurementsByInternalDataProviderCertificateId(
+class StreamMeasurementsByDataProviderCertificate(
   dataProviderCertificateId: InternalId,
   pendingMeasurementStates: List<Measurement.State>
 ) : SimpleSpannerQuery<MeasurementDetailsReader.Result>() {

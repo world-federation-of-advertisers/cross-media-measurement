@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementDetailsReader
 
-class StreamMeasurementDetailsForPendingMeasurementsByInternalDuchyCertificateId(
+class StreamMeasurementsByDuchyCertificate(
   duchyCertificateId: InternalId,
   pendingMeasurementStates: List<Measurement.State>
 ) : SimpleSpannerQuery<MeasurementDetailsReader.Result>() {
