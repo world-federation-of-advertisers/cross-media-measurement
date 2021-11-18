@@ -77,28 +77,31 @@ class ExchangeStepAttemptsService(
     val stepIndex = exchangeStepAttempt.exchangeStepId.toInt()
     val provider = getProviderFromContext()
 
-    // Authorization: ensure that the current gRPC context is authorized to read the ExchangeStep.
-    try {
-      internalExchangeSteps.getExchangeStep(
-        getExchangeStepRequest {
-          this.externalRecurringExchangeId = externalRecurringExchangeId
-          this.date = date
-          this.stepIndex = stepIndex
-          this.provider = provider
-        }
-      )
-    } catch (e: Exception) {
-      when (e.grpcStatusCode()) {
-        Status.Code.NOT_FOUND, Status.Code.UNAUTHENTICATED, Status.Code.PERMISSION_DENIED ->
-          failGrpc(Status.PERMISSION_DENIED) {
-            "FinishExchangeStepAttempt failed: access to ExchangeStep denied or ExchangeStep " +
-              "does not exist"
+    // Ensure that `provider` is authorized to read the ExchangeStep.
+    val exchangeStep =
+      try {
+        internalExchangeSteps.getExchangeStep(
+          getExchangeStepRequest {
+            this.externalRecurringExchangeId = externalRecurringExchangeId
+            this.date = date
+            this.stepIndex = stepIndex
+            this.provider = provider
           }
-        else -> throw Status.INTERNAL.withCause(e).asRuntimeException()
+        )
+      } catch (e: Exception) {
+        if (e.grpcStatusCode() == Status.Code.NOT_FOUND) {
+          failGrpc(Status.PERMISSION_DENIED) { "ExchangeStep access denied or does not exist" }
+        }
+        throw Status.INTERNAL.withCause(e).asRuntimeException()
       }
+
+    // Ensure that `provider` is authorized to modify the ExchangeStep.
+    if (exchangeStep.provider != provider) {
+      failGrpc(Status.PERMISSION_DENIED) { "ExchangeStep write access denied" }
     }
 
     val internalRequest = finishExchangeStepAttemptRequest {
+      this.provider = provider
       this.externalRecurringExchangeId = externalRecurringExchangeId
       this.date = date
       this.stepIndex = stepIndex
