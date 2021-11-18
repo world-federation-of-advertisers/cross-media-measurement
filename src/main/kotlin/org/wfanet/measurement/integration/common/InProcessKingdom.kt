@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub as InternalExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
@@ -43,6 +44,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
@@ -90,6 +92,7 @@ class InProcessKingdom(
   private val internalExchangeStepsClient by lazy {
     InternalExchangeStepsCoroutineStub(internalApiChannel)
   }
+  private val internalExchangesClient by lazy { InternalExchangesCoroutineStub(internalApiChannel) }
 
   private val internalDataServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -135,7 +138,8 @@ class InProcessKingdom(
           internalExchangeStepAttemptsClient,
           internalExchangeStepsClient
         ),
-        ExchangeStepsService(internalExchangeStepsClient)
+        ExchangeStepsService(internalExchangeStepsClient),
+        ExchangesService(internalExchangesClient)
       )
         .forEach {
           addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
