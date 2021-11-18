@@ -58,7 +58,7 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
   }
 }
 
-private fun getProvider(request: ClaimReadyExchangeStepRequest): String {
+private fun getProvider(request: GetExchangeRequest): String {
   return when (true) {
     request.hasDataProvider() -> request.dataProvider
     request.hasModelProvider() -> request.modelProvider
