@@ -19,11 +19,11 @@ import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.getNullableLong
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.ExchangeStep
-import org.wfanet.measurement.internal.kingdom.Provider
 import org.wfanet.measurement.internal.kingdom.RecurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.exchangeStep
-import org.wfanet.measurement.internal.kingdom.provider
 
 /** Reads [ExchangeStep] protos from Spanner. */
 class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
