@@ -17,11 +17,11 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequest
+import org.wfanet.measurement.api.v2alpha.GetExchangeRequest.PartyCase
 import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
 import org.wfanet.measurement.api.v2alpha.ListExchangesResponse
 import org.wfanet.measurement.api.v2alpha.UploadAuditTrailRequest
@@ -59,9 +59,9 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
 }
 
 private fun getProvider(request: GetExchangeRequest): String {
-  return when (true) {
-    request.hasDataProvider() -> request.dataProvider
-    request.hasModelProvider() -> request.modelProvider
+  return when (request.partyCase) {
+    PartyCase.DATA_PROVIDER -> request.dataProvider
+    PartyCase.MODEL_PROVIDER -> request.modelProvider
     else ->
       failGrpc(Status.UNAUTHENTICATED) {
         "Caller identity is neither DataProvider nor ModelProvider"

@@ -19,6 +19,7 @@ import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
+import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest.PartyCase
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
@@ -173,9 +174,9 @@ private fun ExchangeKey.hasExchangeId(): Boolean {
 }
 
 private fun getProvider(request: ClaimReadyExchangeStepRequest): String {
-  return when (true) {
-    request.hasDataProvider() -> request.dataProvider
-    request.hasModelProvider() -> request.modelProvider
+  return when (request.partyCase) {
+    PartyCase.DATA_PROVIDER -> request.dataProvider
+    PartyCase.MODEL_PROVIDER -> request.modelProvider
     else ->
       failGrpc(Status.UNAUTHENTICATED) {
         "Caller identity is neither DataProvider nor ModelProvider"
