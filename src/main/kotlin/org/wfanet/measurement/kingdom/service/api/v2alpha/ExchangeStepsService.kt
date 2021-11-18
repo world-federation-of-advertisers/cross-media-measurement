@@ -173,11 +173,12 @@ private fun ExchangeKey.hasExchangeId(): Boolean {
 }
 
 private fun getProvider(request: ClaimReadyExchangeStepRequest): String {
-  return if (request.hasDataProvider()) {
-    request.dataProvider
-  } else if (request.hasModelProvider()) {
-    request.modelProvider
-  } else {
-    failGrpc(Status.UNAUTHENTICATED) { "Caller identity is neither DataProvider nor ModelProvider" }
+  return when (true) {
+    request.hasDataProvider() -> request.dataProvider
+    request.hasModelProvider() -> request.modelProvider
+    else ->
+      failGrpc(Status.UNAUTHENTICATED) {
+        "Caller identity is neither DataProvider nor ModelProvider"
+      }
   }
 }

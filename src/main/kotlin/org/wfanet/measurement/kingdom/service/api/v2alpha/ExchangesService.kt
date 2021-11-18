@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequest
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt.ExchangesCoroutineImplBase
@@ -57,12 +58,13 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
   }
 }
 
-private fun getProvider(request: GetExchangeRequest): String {
-  return if (request.hasDataProvider()) {
-    request.dataProvider
-  } else if (request.hasModelProvider()) {
-    request.modelProvider
-  } else {
-    failGrpc(Status.UNAUTHENTICATED) { "Caller identity is neither DataProvider nor ModelProvider" }
+private fun getProvider(request: ClaimReadyExchangeStepRequest): String {
+  return when (true) {
+    request.hasDataProvider() -> request.dataProvider
+    request.hasModelProvider() -> request.modelProvider
+    else ->
+      failGrpc(Status.UNAUTHENTICATED) {
+        "Caller identity is neither DataProvider nor ModelProvider"
+      }
   }
 }
