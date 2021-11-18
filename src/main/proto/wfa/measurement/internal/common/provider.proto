@@ -12,18 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.deploy.common.server
+syntax = "proto3";
 
-import java.io.File
-import picocli.CommandLine
+package wfa.measurement.internal.common;
 
-/** Flags specific to the V2alpha API version. */
-class V2alphaFlags {
-  @CommandLine.Option(
-    names = ["--authority-key-identifier-to-principal-map-file"],
-    description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
-    required = true,
-  )
-  lateinit var authorityKeyIdentifierToPrincipalMapFile: File
-    private set
+option java_package = "org.wfanet.measurement.internal.common";
+option java_multiple_files = true;
+
+message Provider {
+  // External identifier of the Provider.
+  fixed64 external_id = 1;
+
+  // Type of the Provider.
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    MODEL_PROVIDER = 1;
+    DATA_PROVIDER = 2;
+  }
+  Type type = 2;
 }

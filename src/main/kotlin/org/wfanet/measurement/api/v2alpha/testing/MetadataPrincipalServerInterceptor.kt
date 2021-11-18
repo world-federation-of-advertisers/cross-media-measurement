@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha.testing
+package org.wfanet.measurement.api.v2alpha.testing
 
 import io.grpc.BindableService
 import io.grpc.Context
@@ -24,8 +24,8 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
-import org.wfanet.measurement.kingdom.service.api.v2alpha.Principal
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipal
+import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 
 private const val KEY_NAME = "principal"
 private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
