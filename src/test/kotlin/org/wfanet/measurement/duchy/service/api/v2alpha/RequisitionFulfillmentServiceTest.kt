@@ -39,56 +39,59 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.fulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
-import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.recordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
-import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest as SystemFulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.system.v1alpha.fulfillRequisitionRequest as systemFulfillRequisitionRequest
 
 private const val COMPUTATION_ID = "xyz"
-private const val DATA_PROVIDER_ID = "1234"
-private const val REQUISITION_ID = "abcd"
+private const val EXTERNAL_DATA_PROVIDER_ID = 123L
+private val DATA_PROVIDER_API_ID = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
+private const val REQUISITION_API_ID = "abcd"
 private const val NEXT_BLOB_PATH = "just a path"
 private const val NONCE = -3060866405677570814L // Hex: D5859E38A0A96502
 private val NONCE_HASH =
   HexString("45FEAA185D434E0EB4747F547F0918AA5B8403DBBD7F90D6F0D8C536E2D620D7")
 private val REQUISITION_FINGERPRINT = "A fingerprint".toByteStringUtf8()
 private val TEST_REQUISITION_DATA = ByteString.copyFromUtf8("some data")
-private val HEADER =
-  FulfillRequisitionRequest.Header.newBuilder()
-    .apply {
-      name = RequisitionKey(DATA_PROVIDER_ID, REQUISITION_ID).toName()
-      requisitionFingerprint = REQUISITION_FINGERPRINT
-      nonce = NONCE
-    }
-    .build()
-private val FULFILLED_RESPONSE =
-  FulfillRequisitionResponse.newBuilder().apply { state = Requisition.State.FULFILLED }.build()
-private val SYSTEM_REQUISITION_KEY = SystemRequisitionKey(COMPUTATION_ID, REQUISITION_ID)
+private val HEADER = header {
+  name = RequisitionKey(DATA_PROVIDER_API_ID, REQUISITION_API_ID).toName()
+  requisitionFingerprint = REQUISITION_FINGERPRINT
+  nonce = NONCE
+}
+private val FULFILLED_RESPONSE = fulfillRequisitionResponse { state = Requisition.State.FULFILLED }
+private val SYSTEM_REQUISITION_KEY = SystemRequisitionKey(COMPUTATION_ID, REQUISITION_API_ID)
 private val REQUISITION_KEY = externalRequisitionKey {
-  externalRequisitionId = REQUISITION_ID
+  externalRequisitionId = REQUISITION_API_ID
   requisitionFingerprint = REQUISITION_FINGERPRINT
 }
 private val MEASUREMENT_SPEC = measurementSpec { nonceHashes += NONCE_HASH.bytes }
@@ -115,6 +118,13 @@ class RequisitionFulfillmentServiceTest {
   private val tempDirectory = TemporaryFolder()
   private lateinit var requisitionStore: RequisitionStore
 
+  private val callerIdentityProvider = {
+    provider {
+      type = Provider.Type.DATA_PROVIDER
+      externalId = EXTERNAL_DATA_PROVIDER_ID
+    }
+  }
+
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
     requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
@@ -132,7 +142,8 @@ class RequisitionFulfillmentServiceTest {
       RequisitionFulfillmentService(
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
         ComputationsCoroutineStub(grpcTestServerRule.channel),
-        requisitionStore
+        requisitionStore,
+        callerIdentityProvider
       )
   }
 
@@ -145,7 +156,7 @@ class RequisitionFulfillmentServiceTest {
     }
     computationsServiceMock.stub {
       onBlocking { getComputationToken(any()) }
-        .thenReturn(GetComputationTokenResponse.newBuilder().apply { token = fakeToken }.build())
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
     }
 
     assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
@@ -158,23 +169,19 @@ class RequisitionFulfillmentServiceTest {
         ComputationsCoroutineImplBase::recordRequisitionBlobPath
       )
       .isEqualTo(
-        RecordRequisitionBlobPathRequest.newBuilder()
-          .apply {
-            token = fakeToken
-            key = REQUISITION_KEY
-            blobPath = NEXT_BLOB_PATH
-          }
-          .build()
+        recordRequisitionBlobPathRequest {
+          token = fakeToken
+          key = REQUISITION_KEY
+          blobPath = NEXT_BLOB_PATH
+        }
       )
 
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(
-        SystemFulfillRequisitionRequest.newBuilder()
-          .apply {
-            name = SYSTEM_REQUISITION_KEY.toName()
-            nonce = NONCE
-          }
-          .build()
+        systemFulfillRequisitionRequest {
+          name = SYSTEM_REQUISITION_KEY.toName()
+          nonce = NONCE
+        }
       )
   }
 
@@ -187,7 +194,7 @@ class RequisitionFulfillmentServiceTest {
     }
     computationsServiceMock.stub {
       onBlocking { getComputationToken(any()) }
-        .thenReturn(GetComputationTokenResponse.newBuilder().apply { token = fakeToken }.build())
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
     }
 
     assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
@@ -197,12 +204,10 @@ class RequisitionFulfillmentServiceTest {
 
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(
-        SystemFulfillRequisitionRequest.newBuilder()
-          .apply {
-            name = SYSTEM_REQUISITION_KEY.toName()
-            nonce = NONCE
-          }
-          .build()
+        systemFulfillRequisitionRequest {
+          name = SYSTEM_REQUISITION_KEY.toName()
+          nonce = NONCE
+        }
       )
   }
 
@@ -240,7 +245,7 @@ class RequisitionFulfillmentServiceTest {
     }
     computationsServiceMock.stub {
       onBlocking { getComputationToken(any()) }
-        .thenReturn(GetComputationTokenResponse.newBuilder().apply { token = fakeToken }.build())
+        .thenReturn(getComputationTokenResponse { token = fakeToken })
     }
 
     val e =
@@ -258,17 +263,28 @@ class RequisitionFulfillmentServiceTest {
     assertThat(e).hasMessageThat().contains("verif")
   }
 
+  @Test
+  fun `request from unauthorized user should fail`() = runBlocking {
+    val headerFromNonOwner = header {
+      name = RequisitionKey("Another EDP", REQUISITION_API_ID).toName()
+      requisitionFingerprint = REQUISITION_FINGERPRINT
+      nonce = NONCE
+    }
+    val e =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(headerFromNonOwner.withContent(TEST_REQUISITION_DATA))
+      }
+    assertThat(e.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(e).hasMessageThat().contains("identity")
+  }
+
   private fun FulfillRequisitionRequest.Header.withContent(
     vararg bodyContent: ByteString
   ): Flow<FulfillRequisitionRequest> {
     return bodyContent
       .asSequence()
-      .map {
-        FulfillRequisitionRequest.newBuilder()
-          .apply { bodyChunkBuilder.apply { data = it } }
-          .build()
-      }
+      .map { fulfillRequisitionRequest { bodyChunk = bodyChunk { data = it } } }
       .asFlow()
-      .onStart { emit(FulfillRequisitionRequest.newBuilder().setHeader(this@withContent).build()) }
+      .onStart { emit(fulfillRequisitionRequest { header = this@withContent }) }
   }
 }
