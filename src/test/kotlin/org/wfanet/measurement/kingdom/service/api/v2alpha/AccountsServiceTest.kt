@@ -22,7 +22,6 @@ import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,7 +95,6 @@ class AccountsServiceTest {
     client = AccountsCoroutineStub(publicGrpcTestServerRule.channel)
   }
 
-  @Ignore
   @Test
   fun `createAccount returns unactivated account`() {
     val request = createAccountRequest {
@@ -121,7 +119,6 @@ class AccountsServiceTest {
       )
   }
 
-  @Ignore
   @Test
   fun `createAccount throws INVALID_ARGUMENT when owned measurement consumer name is invalid`() {
     val request = createAccountRequest {
@@ -132,7 +129,7 @@ class AccountsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<StatusException> {
         runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -140,18 +137,16 @@ class AccountsServiceTest {
       .isEqualTo("Owned Measurement Consumer Resource name invalid")
   }
 
-  @Ignore
   @Test
   fun `createAccount throws UNAUTHENTICATED when credentials are missing`() {
     val request = createAccountRequest {}
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { client.createAccount(request) } }
+      assertFailsWith<StatusException> { runBlocking { client.createAccount(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
     assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
 
-  @Ignore
   @Test
   fun `createAccount throws UNAUTHENTICATED when credentials are invalid`() = runBlocking {
     whenever(internalAccountsMock.authenticateAccount(any()))
@@ -160,9 +155,7 @@ class AccountsServiceTest {
     val request = createAccountRequest {}
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        client.withIdToken(ID_TOKEN).createAccount(request)
-      }
+      assertFailsWith<StatusException> { client.withIdToken(ID_TOKEN).createAccount(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
     assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
@@ -224,7 +217,6 @@ class AccountsServiceTest {
     assertThat(exception.status.description).isEqualTo("Id token is missing")
   }
 
-  @Ignore
   @Test
   fun `replaceAccountIdentity with openIdConnectidentity type returns account with same type`() {
     val request = replaceAccountIdentityRequest {
@@ -243,7 +235,6 @@ class AccountsServiceTest {
       .isEqualTo(internalReplaceAccountIdentityRequest { externalAccountId = EXTERNAL_ACCOUNT_ID })
   }
 
-  @Ignore
   @Test
   fun `replaceAccountIdentity throws INVALID_ARGUMENT when resource name is missing`() {
     val request = replaceAccountIdentityRequest {
@@ -261,20 +252,16 @@ class AccountsServiceTest {
     assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
-  @Ignore
   @Test
   fun `replaceAccountIdentity throws UNAUTHENTICATED when credentials are missing`() {
     val request = replaceAccountIdentityRequest {}
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { client.replaceAccountIdentity(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
+      assertFailsWith<StatusException> { runBlocking { client.replaceAccountIdentity(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
 
-  @Ignore
   @Test
   fun `replaceAccountIdentity throws UNAUTHENTICATED when credentials are invalid`() = runBlocking {
     whenever(internalAccountsMock.authenticateAccount(any()))
@@ -283,20 +270,19 @@ class AccountsServiceTest {
     val request = replaceAccountIdentityRequest {}
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<StatusException> {
         client.withIdToken(ID_TOKEN).replaceAccountIdentity(request)
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
     assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
   }
 
-  @Ignore
   @Test
   fun `replaceAccountIdentity throws INVALID_ARGUMENT when new credentials are missing`() {
     val request = replaceAccountIdentityRequest { name = ACCOUNT_NAME }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<StatusException> {
         runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
