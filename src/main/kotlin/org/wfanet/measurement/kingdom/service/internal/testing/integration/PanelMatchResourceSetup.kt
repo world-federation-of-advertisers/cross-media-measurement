@@ -29,18 +29,16 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step as internalStep
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange as InternalRecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
-import org.wfanet.measurement.internal.kingdom.exchangeWorkflow as internalExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange as internalRecurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
 
 /** Prepares resources for Panel Match integration tests using internal APIs. */
 class PanelMatchResourceSetup(
@@ -153,38 +151,6 @@ class PanelMatchResourceSetup(
         }
       )
       .externalRecurringExchangeId
-  }
-
-  private fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
-    val labelsMap = mutableMapOf<String, MutableSet<Int>>()
-    for ((index, step) in stepsList.withIndex()) {
-      for (outputLabel in step.outputLabelsMap.values) {
-        labelsMap.getOrPut(outputLabel) { mutableSetOf() }.add(index)
-      }
-    }
-    val internalSteps =
-      stepsList.mapIndexed { index, step ->
-        internalStep {
-          stepIndex = index
-          party = step.party.toInternal()
-          prerequisiteStepIndices +=
-            step
-              .inputLabelsMap
-              .values
-              .flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }
-              .toSet()
-        }
-      }
-
-    return internalExchangeWorkflow { steps += internalSteps }
-  }
-
-  private fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
-    return when (this) {
-      ExchangeWorkflow.Party.DATA_PROVIDER -> InternalExchangeWorkflow.Party.DATA_PROVIDER
-      ExchangeWorkflow.Party.MODEL_PROVIDER -> InternalExchangeWorkflow.Party.MODEL_PROVIDER
-      else -> throw IllegalArgumentException("Provider is not set for the Exchange Step.")
-    }
   }
 
   companion object {
