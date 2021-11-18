@@ -126,15 +126,15 @@ kt_jvm_library(
     srcs = ["ExchangesService.kt"],
     deps = [
         ":proto_conversions",
-        ":providers",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:providers",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchanges_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchanges_service_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:provider_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -146,15 +146,16 @@ kt_jvm_library(
     name = "exchange_step_attempts_service",
     srcs = ["ExchangeStepAttemptsService.kt"],
     deps = [
-        ":principal_server_interceptor",
         ":proto_conversions",
-        ":providers",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:providers",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempts_service_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempts_service_kt_jvm_grpc",
@@ -162,7 +163,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:provider_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -174,9 +174,9 @@ kt_jvm_library(
     name = "exchange_steps_service",
     srcs = ["ExchangeStepsService.kt"],
     deps = [
-        ":principal_server_interceptor",
         ":proto_conversions",
-        ":providers",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:providers",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
@@ -185,10 +185,10 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_steps_service_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/kingdom:provider_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -307,37 +307,5 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
-    name = "principal",
-    srcs = ["Principal.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-    ],
-)
-
-kt_jvm_library(
-    name = "principal_server_interceptor",
-    srcs = ["PrincipalServerInterceptor.kt"],
-    deps = [
-        ":principal",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc:context",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
-    name = "providers",
-    srcs = ["Providers.kt"],
-    visibility = ["//visibility:private"],
-    deps = [
-        ":principal_server_interceptor",
-        "//src/main/proto/wfa/measurement/internal/kingdom:provider_kt_jvm_proto",
     ],
 )

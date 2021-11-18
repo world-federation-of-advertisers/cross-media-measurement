@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.deploy.common.server
+package org.wfanet.measurement.common.identity
 
 import com.google.protobuf.ByteString
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.AuthorityKeyToPrincipalMap
-import org.wfanet.measurement.api.v2alpha.authorityKeyToPrincipalMap
+import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.PrincipalServerInterceptor.PrincipalLookup
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.kingdom.service.api.v2alpha.Principal
-import org.wfanet.measurement.kingdom.service.api.v2alpha.PrincipalServerInterceptor.PrincipalLookup
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
+import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 
 /**
  * [PrincipalLookup] that reads a mapping from a file.

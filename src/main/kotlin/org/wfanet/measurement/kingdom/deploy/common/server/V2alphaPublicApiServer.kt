@@ -15,11 +15,14 @@
 package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
+import java.io.File
+import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.identity.TextprotoFilePrincipalLookup
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -41,7 +44,6 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V2alphaPublicApiServer"
@@ -103,3 +105,14 @@ private fun run(
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
+
+/** Flags specific to the V2alpha API version. */
+private class V2alphaFlags {
+  @CommandLine.Option(
+    names = ["--authority-key-identifier-to-principal-map-file"],
+    description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
+    required = true,
+  )
+  lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+    private set
+}

@@ -31,29 +31,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "v2alpha_utils",
-    srcs = [
-        "TextprotoFilePrincipalLookup.kt",
-        "V2alphaFlags.kt",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:principal",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:principal_server_interceptor",
-        "//src/main/proto/wfa/measurement/api/v2alpha:authority_key_to_principal_map_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
     name = "v2alpha_public_api_server",
     srcs = ["V2alphaPublicApiServer.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":utils",
-        ":v2alpha_utils",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity:textproto_file_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
