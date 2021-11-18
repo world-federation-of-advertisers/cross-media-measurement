@@ -25,13 +25,17 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionKey
+import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.common.consumeFirst
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
 import org.wfanet.measurement.consent.client.duchy.verifyRequisitionFulfillment
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
@@ -52,7 +56,8 @@ private val FULFILLED_RESPONSE =
 class RequisitionFulfillmentService(
   private val systemRequisitionsClient: RequisitionsCoroutineStub,
   private val computationsClient: ComputationsCoroutineStub,
-  private val requisitionStore: RequisitionStore
+  private val requisitionStore: RequisitionStore,
+  private val callIdentityProvider: () -> Provider = ::getProviderFromContext
 ) : RequisitionFulfillmentCoroutineImplBase() {
 
   override suspend fun fulfillRequisition(
@@ -65,6 +70,16 @@ class RequisitionFulfillmentService(
           "Resource name unspecified or invalid."
         }
       grpcRequire(header.nonce != 0L) { "nonce unspecified" }
+
+      // Ensure that the caller is the data_provider who owns this requisition.
+      val caller = callIdentityProvider()
+      if (caller.type != Provider.Type.DATA_PROVIDER ||
+          externalIdToApiId(caller.externalId) != key.dataProviderId
+      ) {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "The data_provider id doesn't match the caller's identity."
+        }
+      }
 
       val externalRequisitionKey = externalRequisitionKey {
         externalRequisitionId = key.requisitionId

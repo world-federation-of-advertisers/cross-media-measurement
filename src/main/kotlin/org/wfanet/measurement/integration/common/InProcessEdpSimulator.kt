@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.dataprovider.CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY
@@ -53,11 +54,14 @@ class InProcessEdpSimulator(
   private val requisitionsClient by lazy { RequisitionsCoroutineStub(kingdomPublicApiChannel) }
   private val requisitionFulfillmentClient by lazy {
     RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel)
+      .withPrincipalName(dataProviderResourceName)
   }
 
   private lateinit var edpJob: Job
+  private lateinit var dataProviderResourceName: String
 
   fun start(edpName: String, mcName: String) {
+    dataProviderResourceName = edpName
     edpJob =
       backgroundScope.launch {
         val edpData = createEdpData(displayName, edpName)

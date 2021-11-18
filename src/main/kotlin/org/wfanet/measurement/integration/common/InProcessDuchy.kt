@@ -26,6 +26,7 @@ import kotlinx.coroutines.launch
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -118,10 +119,11 @@ class InProcessDuchy(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
         RequisitionFulfillmentService(
-          systemRequisitionsClient,
-          computationsClient,
-          RequisitionStore(duchyDependencies.storageClient)
-        )
+            systemRequisitionsClient,
+            computationsClient,
+            RequisitionStore(duchyDependencies.storageClient)
+          )
+          .withMetadataPrincipalIdentities()
       )
     }
   private val asyncComputationControlServer =
