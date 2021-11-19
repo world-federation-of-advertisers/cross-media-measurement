@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -69,13 +70,14 @@ private const val WILDCARD_NAME = "dataProviders/-"
 
 private const val EVENT_GROUP_NAME = "dataProviders/AAAAAAAAAHs/eventGroups/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
 
+private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_EXTERNAL_ID =
   apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
+
   private val internalEventGroupsMock: EventGroupsCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
