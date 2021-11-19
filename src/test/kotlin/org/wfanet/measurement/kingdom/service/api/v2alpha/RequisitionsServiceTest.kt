@@ -56,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -94,7 +95,8 @@ private const val WILDCARD_NAME = "dataProviders/-"
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
 private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
+
+private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
 
 private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
   setOf(

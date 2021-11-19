@@ -64,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -92,7 +93,6 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 private const val DEFAULT_LIMIT = 50
-private const val DATA_PROVIDERS_NAME = "dataProviders/AAAAAAAAAHs"
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
@@ -100,6 +100,7 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private const val DATA_PROVIDER_NONCE = 2330346028711713085L
+private val DATA_PROVIDERS_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()

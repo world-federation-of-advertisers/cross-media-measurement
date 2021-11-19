@@ -18,41 +18,36 @@ import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.common.provider
 
-/** Returns a [Provider] as implied by the current gRPC context. */
-fun getProviderFromContext(): Provider {
-  return provider {
-    when (val key = principalFromCurrentContext.resourceKey) {
-      is DataProviderKey -> {
+fun ResourceKey.toProvider(): Provider? {
+  return when (this) {
+    is DataProviderKey ->
+      provider {
         type = Provider.Type.DATA_PROVIDER
-        externalId = apiIdToExternalId(key.dataProviderId)
+        externalId = apiIdToExternalId(dataProviderId)
       }
-      is ModelProviderKey -> {
+    is ModelProviderKey ->
+      provider {
         type = Provider.Type.MODEL_PROVIDER
-        externalId = apiIdToExternalId(key.modelProviderId)
+        externalId = apiIdToExternalId(modelProviderId)
       }
-      else ->
-        failGrpc(Status.UNAUTHENTICATED) {
-          "Caller identity is neither DataProvider nor ModelProvider"
-        }
-    }
+    else ->
+      failGrpc(Status.UNAUTHENTICATED) {
+        "Caller identity is neither DataProvider nor ModelProvider"
+      }
   }
 }
 
-fun validateRequestProvider(requestModelProvider: String, requestDataProvider: String): Provider {
-  val provider = getProviderFromContext()
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enums are not null.
-  val parentFromRequest: String =
-    when (provider.type) {
-      Provider.Type.MODEL_PROVIDER -> requestModelProvider
-      Provider.Type.DATA_PROVIDER -> requestDataProvider
-      Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED -> error("Unsupported Principal")
-    }
-  grpcRequire(externalIdToApiId(provider.externalId) == parentFromRequest) {
+fun getProviderFromContext(): Provider {
+  return requireNotNull(principalFromCurrentContext.resourceKey.toProvider())
+}
+
+fun validateRequestProvider(requestParent: String): Provider {
+  val contextProvider = getProviderFromContext()
+  grpcRequire(contextProvider == Principal.fromName(requestParent)?.resourceKey?.toProvider()) {
     "Principal from authentication does not match request"
   }
-  return provider
+  return contextProvider
 }
