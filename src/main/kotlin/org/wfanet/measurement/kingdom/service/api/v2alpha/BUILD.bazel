@@ -6,6 +6,7 @@ package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/testing:__pkg__",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing/integration:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
 
@@ -43,7 +44,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "certificates",
     srcs = ["Certificates.kt"],
-    visibility = [test_target("__pkg__")],
     deps = [
         "//src/main/proto/wfa/measurement/internal/kingdom:certificate_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
@@ -284,7 +284,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "proto_conversions",
     srcs = ["ProtoConversions.kt"],
-    visibility = ["//visibility:private"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -294,6 +293,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc",
@@ -304,6 +304,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
