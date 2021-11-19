@@ -23,6 +23,7 @@ readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${USER}"
 readonly REPO_CACHE="${CONTAINER_HOME}/repo-cache"
 readonly WORKING_DIR="${CONTAINER_HOME}/workspace"
 readonly BAZELISK_HOME="${CONTAINER_HOME}/.cache/bazelisk"
+readonly GCLOUD_SDK_CONFIG="${CONTAINER_HOME}/.config/gcloud"
 readonly OUTPUT_VOLUME='bazel-output'
 
 check_bash_version() {
@@ -109,6 +110,17 @@ main() {
       "type=volume,source=${OUTPUT_VOLUME},target=${OUTPUT_USER_ROOT}"
     "--workdir=${WORKING_DIR}"
   )
+
+  if hash gcloud; then
+    local gcloud_config
+    gcloud_config="$(gcloud info --format='value(config.paths.global_config_dir)')"
+    docker_options+=(
+      '--mount'
+        "type=bind,source=${gcloud_config},target=${GCLOUD_SDK_CONFIG}"
+      '--env'
+        "CLOUDSDK_CONFIG=${GCLOUD_SDK_CONFIG}"
+    )
+  fi
 
   if ! is_rootless; then
     docker_options+=(
