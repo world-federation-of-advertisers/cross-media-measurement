@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha.testing
+package org.wfanet.measurement.api.v2alpha.testing
 
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey

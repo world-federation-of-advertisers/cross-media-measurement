@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha
+package org.wfanet.measurement.api.v2alpha
 
 import io.grpc.Status
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.internal.kingdom.Provider
-import org.wfanet.measurement.internal.kingdom.provider
+import org.wfanet.measurement.internal.commmon.Provider
+import org.wfanet.measurement.internal.commmon.provider
 
 fun ResourceKey.toProvider(): Provider? {
   return when (this) {
