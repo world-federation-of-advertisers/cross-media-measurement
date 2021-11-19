@@ -53,7 +53,7 @@ kt_jvm_library(
     srcs = ["Providers.kt"],
     deps = [
         ":principal_server_interceptor",
-        "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/common:provider_java_proto",
+        "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
     ],
 )
