@@ -158,6 +158,7 @@ private val MEASUREMENT_SPEC = measurementSpec {
           delta = 1.0
         }
     }
+  nonceHashes += ByteString.copyFromUtf8("foo")
 }
 private val MEASUREMENT = measurement {
   name = MEASUREMENT_NAME

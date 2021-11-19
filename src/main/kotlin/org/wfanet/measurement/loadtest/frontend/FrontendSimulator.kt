@@ -149,9 +149,13 @@ class FrontendSimulator(
   /** Creates a Measurement on behave of the [MeasurementConsumer]. */
   private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
-    val nonce = Random.Default.nextLong()
+    val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
-      eventGroups.map { createDataProviderEntry(it, measurementConsumer, nonce) }
+      eventGroups.map {
+        val nonce = Random.Default.nextLong()
+        nonceHashes.add(hashSha256(nonce))
+        createDataProviderEntry(it, measurementConsumer, nonce)
+      }
 
     val request = createMeasurementRequest {
       measurement =
@@ -159,7 +163,7 @@ class FrontendSimulator(
           measurementConsumerCertificate = measurementConsumer.certificate
           measurementSpec =
             signMeasurementSpec(
-              newMeasurementSpec(measurementConsumer.publicKey.data, hashSha256(nonce)),
+              newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
               PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
               readCertificate(measurementConsumer.certificateDer)
             )
@@ -253,7 +257,7 @@ class FrontendSimulator(
 
   private fun newMeasurementSpec(
     serializedMeasurementPublicKey: ByteString,
-    nonceHash: ByteString
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -262,7 +266,7 @@ class FrontendSimulator(
           reachPrivacyParams = outputDpParams
           frequencyPrivacyParams = outputDpParams
         }
-      nonceHashes += nonceHash
+      this.nonceHashes += nonceHashes
     }
   }
 

@@ -106,6 +106,10 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       }
     }
 
+    grpcRequire(parsedMeasurementSpec.nonceHashesCount == measurement.dataProvidersCount) {
+      "nonce_hash list size is not equal to the data_providers list size."
+    }
+
     val internalMeasurement =
       internalMeasurementsStub.createMeasurement(
         request.measurement.toInternal(
@@ -197,17 +201,21 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
 /** Validates a [MeasurementSpec] for a request. */
 private fun MeasurementSpec.validate() {
-  grpcRequire(!this.measurementPublicKey.isEmpty) { "Measurement public key is unspecified" }
+  grpcRequire(!measurementPublicKey.isEmpty) { "Measurement public key is unspecified" }
+
+  grpcRequire(nonceHashesCount == nonceHashesList.toSet().size) {
+    "Duplicated values found in nonce_hashes"
+  }
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-  when (this.measurementTypeCase) {
+  when (measurementTypeCase) {
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-      val reachPrivacyParams = this.reachAndFrequency.reachPrivacyParams
+      val reachPrivacyParams = reachAndFrequency.reachPrivacyParams
       grpcRequire(reachPrivacyParams.epsilon > 0 && reachPrivacyParams.delta > 0) {
         "Reach privacy params are unspecified"
       }
 
-      val frequencyPrivacyParams = this.reachAndFrequency.frequencyPrivacyParams
+      val frequencyPrivacyParams = reachAndFrequency.frequencyPrivacyParams
       grpcRequire(frequencyPrivacyParams.epsilon > 0 && frequencyPrivacyParams.delta > 0) {
         "Frequency privacy params are unspecified"
       }
