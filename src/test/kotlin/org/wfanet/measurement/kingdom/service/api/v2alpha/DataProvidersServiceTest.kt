@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -80,8 +81,9 @@ private val TESTDATA_DIR =
   )
 private const val DATA_PROVIDER_ID = 123L
 private const val CERTIFICATE_ID = 456L
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+
+private val DATA_PROVIDER_NAME = makeDataProvider(DATA_PROVIDER_ID)
+private val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {

@@ -39,6 +39,8 @@ import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
 import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -52,6 +54,8 @@ import org.wfanet.measurement.internal.kingdom.exchange as internalExchange
 import org.wfanet.measurement.internal.kingdom.exchangeDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest as internalGetExchangeRequest
 
+private val DATA_PROVIDER = makeDataProvider(12345L)
+private val MODEL_PROVIDER = makeModelProvider(23456L)
 private const val RECURRING_EXCHANGE_ID = 1L
 private val DATE = date {
   year = 2021
@@ -92,7 +96,7 @@ class ExchangesServiceTest {
       assertFailsWith<StatusRuntimeException> {
         getExchange {
           name = exchangeKey.toName()
-          dataProvider = externalIdToApiId(12345L)
+          dataProvider = DATA_PROVIDER
         }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -111,7 +115,7 @@ class ExchangesServiceTest {
       withPrincipal(principal) {
         getExchange {
           name = exchangeKey.toName()
-          dataProvider = externalIdToApiId(12345L)
+          dataProvider = DATA_PROVIDER
         }
       }
 
@@ -139,9 +143,7 @@ class ExchangesServiceTest {
   fun `getExchange for DataProvider with wrong parent in Request`() {
     val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
 
-    withPrincipal(principal) {
-      assertFails { getExchange { modelProvider = externalIdToApiId(12345L) } }
-    }
+    withPrincipal(principal) { assertFails { getExchange { modelProvider = MODEL_PROVIDER } } }
   }
 
   @Test

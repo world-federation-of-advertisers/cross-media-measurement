@@ -45,6 +45,8 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.releaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
@@ -63,15 +65,15 @@ import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internal
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
 
-private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
-private const val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
+private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
+private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg"
-private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
-private const val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 
 @RunWith(JUnit4::class)
 class CertificatesServiceTest {

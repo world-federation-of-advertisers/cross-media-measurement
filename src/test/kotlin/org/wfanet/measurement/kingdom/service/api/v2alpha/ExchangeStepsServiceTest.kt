@@ -52,6 +52,8 @@ import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -72,6 +74,10 @@ import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
+private const val DATA_PROVIDER_ID = 12345L
+private const val MODEL_PROVIDER_ID = 23456L
+private val DATA_PROVIDER = makeDataProvider(DATA_PROVIDER_ID)
+private val MODEL_PROVIDER = makeModelProvider(MODEL_PROVIDER_ID)
 private const val DEFAULT_LIMIT = 50
 private const val EXCHANGE_NAME = "recurringExchanges/AAAAAAAAAHs/exchanges/2021-03-14"
 private const val RECURRING_EXCHANGE_ID = 1L
@@ -168,22 +174,20 @@ class ExchangeStepsServiceTest {
   fun `claimReadyExchangeStep unauthenticated`() {
     val e =
       assertFailsWith<StatusRuntimeException> {
-        claimReadyExchangeStep { dataProvider = externalIdToApiId(123L) }
+        claimReadyExchangeStep { dataProvider = DATA_PROVIDER }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
   fun `claimReadyExchangeStep for DataProvider`() {
-    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(DATA_PROVIDER_ID)))
     val provider = provider {
       type = Provider.Type.DATA_PROVIDER
-      externalId = 12345L
+      externalId = DATA_PROVIDER_ID
     }
     val response =
-      withPrincipal(principal) {
-        claimReadyExchangeStep { dataProvider = externalIdToApiId(12345L) }
-      }
+      withPrincipal(principal) { claimReadyExchangeStep { dataProvider = DATA_PROVIDER } }
 
     assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
 
@@ -196,10 +200,10 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep for DataProvider with wrong parent in Request`() {
-    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(DATA_PROVIDER_ID)))
 
     withPrincipal(principal) {
-      assertFails { claimReadyExchangeStep { modelProvider = externalIdToApiId(12345L) } }
+      assertFails { claimReadyExchangeStep { modelProvider = MODEL_PROVIDER } }
     }
   }
 
@@ -207,23 +211,21 @@ class ExchangeStepsServiceTest {
   fun `listExchangeSteps unauthenticated`() {
     val e =
       assertFailsWith<StatusRuntimeException> {
-        listExchangeSteps { filter = filter { dataProvider = externalIdToApiId(123L) } }
+        listExchangeSteps { filter = filter { dataProvider = MODEL_PROVIDER } }
       }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
   fun `claimReadyExchangeStep for ModelProvider`() {
-    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(MODEL_PROVIDER_ID)))
     val provider = provider {
       type = Provider.Type.MODEL_PROVIDER
-      externalId = 12345L
+      externalId = MODEL_PROVIDER_ID
     }
 
     val response =
-      withPrincipal(principal) {
-        claimReadyExchangeStep { modelProvider = externalIdToApiId(12345L) }
-      }
+      withPrincipal(principal) { claimReadyExchangeStep { modelProvider = MODEL_PROVIDER } }
 
     assertThat(response).isEqualTo(CLAIM_READY_EXCHANGE_STEP_RESPONSE)
 
@@ -236,19 +238,19 @@ class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStep for ModelProvider with wrong parent in Request`() {
-    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(MODEL_PROVIDER_ID)))
 
     withPrincipal(principal) {
-      assertFails { claimReadyExchangeStep { dataProvider = externalIdToApiId(12345L) } }
+      assertFails { claimReadyExchangeStep { dataProvider = DATA_PROVIDER } }
     }
   }
 
   @Test
   fun `listExchangeSteps with page token uses filter with timestamp from page token`() {
-    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(12345L)))
+    val principal = Principal.ModelProvider(ModelProviderKey(externalIdToApiId(MODEL_PROVIDER_ID)))
     val provider = provider {
       type = Provider.Type.MODEL_PROVIDER
-      externalId = 12345L
+      externalId = MODEL_PROVIDER_ID
     }
 
     val result =
@@ -258,7 +260,7 @@ class ExchangeStepsServiceTest {
           pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
           filter =
             filter {
-              modelProvider = externalIdToApiId(12345L)
+              modelProvider = MODEL_PROVIDER
               states += listOf(ExchangeStep.State.READY, ExchangeStep.State.READY_FOR_RETRY)
             }
         }
@@ -303,7 +305,7 @@ class ExchangeStepsServiceTest {
         runBlocking {
           listExchangeSteps {
             parent = EXCHANGE_NAME
-            filter = filter { dataProvider = externalIdToApiId(12345L) }
+            filter = filter { dataProvider = DATA_PROVIDER }
             pageSize = -1
           }
         }
