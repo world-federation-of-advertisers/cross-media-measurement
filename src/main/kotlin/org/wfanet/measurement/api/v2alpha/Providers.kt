@@ -18,8 +18,8 @@ import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.internal.commmon.Provider
-import org.wfanet.measurement.internal.commmon.provider
+import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.common.provider
 
 fun ResourceKey.toProvider(): Provider? {
   return when (this) {
