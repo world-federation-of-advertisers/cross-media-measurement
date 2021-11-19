@@ -52,6 +52,8 @@ import org.wfanet.measurement.api.v2alpha.claimReadyExchangeStepResponse
 import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsRequest
 import org.wfanet.measurement.api.v2alpha.listExchangeStepsResponse
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -71,8 +73,6 @@ import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest as 
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
-import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
-import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 
 private const val DATA_PROVIDER_ID = 12345L
 private const val MODEL_PROVIDER_ID = 23456L
