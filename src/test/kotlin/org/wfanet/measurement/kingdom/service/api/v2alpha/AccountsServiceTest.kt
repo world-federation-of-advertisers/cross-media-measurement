@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.common.primitives.Longs
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
@@ -43,7 +42,6 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.createAccountRequest
 import org.wfanet.measurement.api.v2alpha.replaceAccountIdentityRequest
-import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -314,10 +312,8 @@ class AccountsServiceTest {
     assertThat(resultUri.scheme).isEqualTo("openid")
     assertThat(queryParamMap["scope"]).isEqualTo("openid")
     assertThat(queryParamMap["response_type"]).isEqualTo("id_token")
-    assertThat(queryParamMap["state"])
-      .isEqualTo(Longs.toByteArray(OPEN_ID_REQUEST_PARAMS.state).base64UrlEncode())
-    assertThat(queryParamMap["nonce"])
-      .isEqualTo(Longs.toByteArray(OPEN_ID_REQUEST_PARAMS.nonce).base64UrlEncode())
+    assertThat(queryParamMap["state"]).isEqualTo(externalIdToApiId(OPEN_ID_REQUEST_PARAMS.state))
+    assertThat(queryParamMap["nonce"]).isEqualTo(externalIdToApiId(OPEN_ID_REQUEST_PARAMS.nonce))
     assertThat(queryParamMap["client_id"]).isEqualTo(REDIRECT_URI)
   }
 

@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.common.primitives.Longs
 import io.grpc.Status
 import java.net.URLEncoder
 import org.wfanet.measurement.api.AccountConstants
@@ -34,7 +33,6 @@ import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -139,20 +137,22 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
     val openIdRequestParams =
       internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
 
-    var uriString =
-      "openid://?response_type=id_token&scope=openid" +
-        "&state=" +
-        Longs.toByteArray(openIdRequestParams.state).base64UrlEncode() +
-        "&nonce=" +
-        Longs.toByteArray(openIdRequestParams.nonce).base64UrlEncode()
+    val uriParts = mutableListOf<String>()
+    uriParts.add("openid://?response_type=id_token")
+    uriParts.add("scope=openid")
+    uriParts.add("state=" + externalIdToApiId(openIdRequestParams.state))
+    uriParts.add("nonce=" + externalIdToApiId(openIdRequestParams.nonce))
     val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
-    uriString +=
+    uriParts.add(
       if (request.issuer.equals("https://self-issued.me")) {
-        "&client_id=$redirectUri"
+        "client_id=$redirectUri"
         // TODO: validate issuer to make sure it is a third party provider
       } else {
-        "&redirect_uri$redirectUri"
+        "redirect_uri$redirectUri"
       }
+    )
+
+    val uriString = uriParts.joinToString("&")
 
     return authenticateResponse { authenticationRequestUri = uriString }
   }
