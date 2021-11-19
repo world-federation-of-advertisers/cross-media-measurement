@@ -44,13 +44,15 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.Exchange.State
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase as InternalExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub as InternalExchangesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.Provider
+import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.exchange as internalExchange
 import org.wfanet.measurement.internal.kingdom.exchangeDetails
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest as internalGetExchangeRequest
-import org.wfanet.measurement.internal.kingdom.provider
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
+import org.wfanet.measurement.internal.common.provider
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
+import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 
 private val DATA_PROVIDER = makeDataProvider(12345L)
 private val MODEL_PROVIDER = makeModelProvider(23456L)
@@ -122,6 +124,7 @@ class ExchangesServiceTest {
         exchange {
           name = exchangeKey.toName()
           date = DATE
+          state = Exchange.State.ACTIVE
           auditTrailHash = AUDIT_TRAIL_HASH
         }
       )

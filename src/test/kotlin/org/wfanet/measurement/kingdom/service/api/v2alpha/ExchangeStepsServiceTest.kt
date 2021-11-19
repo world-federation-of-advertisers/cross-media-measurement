@@ -71,8 +71,8 @@ import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest as 
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse as internalClaimReadyExchangeStepResponse
 import org.wfanet.measurement.internal.kingdom.exchangeStep as internalExchangeStep
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 
 private const val DATA_PROVIDER_ID = 12345L
 private const val MODEL_PROVIDER_ID = 23456L

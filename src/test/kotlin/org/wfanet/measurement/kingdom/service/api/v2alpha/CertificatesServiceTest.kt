@@ -62,8 +62,8 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeModelProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 
 private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
 private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"

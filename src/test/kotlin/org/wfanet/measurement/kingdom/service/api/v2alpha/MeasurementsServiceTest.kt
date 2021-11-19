@@ -90,7 +90,7 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =

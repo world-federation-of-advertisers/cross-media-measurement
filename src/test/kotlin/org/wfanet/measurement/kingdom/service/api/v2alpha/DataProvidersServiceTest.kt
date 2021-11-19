@@ -58,7 +58,7 @@ import org.wfanet.measurement.internal.kingdom.certificate as internalCertificat
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 
 /**
  * Path to `testdata` directory containing certs and keys.

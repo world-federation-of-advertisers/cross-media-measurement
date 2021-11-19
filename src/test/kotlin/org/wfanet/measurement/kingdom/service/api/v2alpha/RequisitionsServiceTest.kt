@@ -83,7 +83,7 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtoco
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
-import org.wfanet.measurement.kingdom.service.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 private val UPDATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
