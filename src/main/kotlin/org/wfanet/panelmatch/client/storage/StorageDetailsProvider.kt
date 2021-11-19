@@ -16,6 +16,11 @@ package org.wfanet.panelmatch.client.storage
 
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
+/**
+ * Wraps a [SecretMap] to provide [StorageDetails].
+ *
+ * @param secretMap map from recurring exchange ids to serialized [StorageDetails] protos.
+ */
 class StorageDetailsProvider(private val secretMap: SecretMap) {
   suspend fun get(recurringExchangeId: String): StorageDetails {
     val serializedStorageDetails =

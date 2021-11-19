@@ -38,7 +38,6 @@ import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.CertificateManager
-import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** Runs ExchangeWorkflows. */
@@ -49,11 +48,10 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Kingdom [ApiClient]. */
   abstract val apiClient: ApiClient
 
-  /** Holds partners' root certificates. */
+  /**
+   * Maps partner resource names to serialized root certificates (from `X509Certificate::encoded').
+   */
   abstract val rootCertificates: SecretMap
-
-  /** Stores private keys associated with exchange certificates. */
-  abstract val privateKeys: MutableSecretMap
 
   /** [SecretMap] from RecurringExchange ID to serialized ExchangeWorkflow. */
   abstract val validExchangeWorkflows: SecretMap

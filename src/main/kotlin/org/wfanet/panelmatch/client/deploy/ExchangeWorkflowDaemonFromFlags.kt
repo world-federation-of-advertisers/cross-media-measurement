@@ -32,6 +32,7 @@ import org.wfanet.panelmatch.client.launcher.GrpcApiClient
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.certificates.V2AlphaCertificateManager
+import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import picocli.CommandLine
 
 /** Executes ExchangeWorkflows. */
@@ -45,6 +46,12 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     private set
 
   override val clock: Clock = Clock.systemUTC()
+
+  /**
+   * Maps Exchange paths (i.e. recurring_exchanges/{recurring_exchange_id}/exchanges/{date}) to
+   * serialized SigningKeys protos.
+   */
+  abstract val privateKeys: MutableSecretMap
 
   override val certificateManager: V2AlphaCertificateManager by lazy {
     val clientCerts =
