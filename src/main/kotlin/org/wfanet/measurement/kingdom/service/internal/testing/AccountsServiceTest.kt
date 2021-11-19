@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.common.primitives.Longs
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
@@ -28,7 +27,6 @@ import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -36,6 +34,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
@@ -317,14 +316,13 @@ private fun generateRequestUri(
   state: Long,
   nonce: Long,
 ): String {
-  var uriString =
-    "openid://?response_type=id_token&scope=openid" +
-      "&state=" +
-      Longs.toByteArray(state).base64UrlEncode() +
-      "&nonce=" +
-      Longs.toByteArray(nonce).base64UrlEncode()
+  val uriParts = mutableListOf<String>()
+  uriParts.add("openid://?response_type=id_token")
+  uriParts.add("scope=openid")
+  uriParts.add("state=" + externalIdToApiId(state))
+  uriParts.add("nonce=" + externalIdToApiId(nonce))
   val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
-  uriString += "&client_id=$redirectUri"
+  uriParts.add("client_id=$redirectUri")
 
-  return uriString
+  return uriParts.joinToString("&")
 }
