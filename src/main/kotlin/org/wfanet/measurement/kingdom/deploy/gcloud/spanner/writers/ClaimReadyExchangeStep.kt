@@ -20,7 +20,6 @@ import com.google.common.base.Optional
 import com.google.type.Date
 import java.time.Clock
 import java.time.Duration
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.toProtoTime
