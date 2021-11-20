@@ -54,8 +54,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     return Result(
       exchangeStep = buildExchangeStep(struct),
       recurringExchangeId = struct.getLong("RecurringExchangeId"),
-      modelProviderId = struct.getNullableLong("ModelProviderId"),
-      dataProviderId = struct.getNullableLong("DataProviderId"),
+      modelProviderId = struct.getNullableLong("StepModelProviderId"),
+      dataProviderId = struct.getNullableLong("StepDataProviderId"),
     )
   }
 
@@ -65,20 +65,27 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
       date = struct.getDate("Date").toProtoDate()
       stepIndex = struct.getLong("StepIndex").toInt()
       state = struct.getProtoEnum("State", ExchangeStep.State::forNumber)
-      provider =
-        provider {
-          if (struct.getNullableLong("ExternalModelProviderId") != null) {
-            externalId = struct.getLong("ExternalModelProviderId")
-            type = Provider.Type.MODEL_PROVIDER
-          } else {
-            externalId = struct.getLong("ExternalDataProviderId")
-            type = Provider.Type.DATA_PROVIDER
-          }
-        }
+      provider = buildProvider(struct)
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       serializedExchangeWorkflow =
         struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
           .externalExchangeWorkflow
+    }
+  }
+
+  private fun buildProvider(struct: Struct): Provider {
+    return when {
+      !struct.isNull("StepModelProviderId") ->
+        provider {
+          externalId = struct.getLong("ExternalModelProviderId")
+          type = Provider.Type.MODEL_PROVIDER
+        }
+      !struct.isNull("StepDataProviderId") ->
+        provider {
+          externalId = struct.getLong("ExternalDataProviderId")
+          type = Provider.Type.DATA_PROVIDER
+        }
+      else -> error("No Provider found")
     }
   }
 
@@ -90,8 +97,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
         "ExchangeSteps.StepIndex",
         "ExchangeSteps.State",
         "ExchangeSteps.UpdateTime",
-        "ExchangeSteps.ModelProviderId",
-        "ExchangeSteps.DataProviderId",
+        "ExchangeSteps.ModelProviderId AS StepModelProviderId",
+        "ExchangeSteps.DataProviderId AS StepDataProviderId",
         "ModelProviders.ExternalModelProviderId",
         "DataProviders.ExternalDataProviderId",
         "RecurringExchanges.ExternalRecurringExchangeId",

@@ -213,6 +213,8 @@ abstract class ExchangeStepsServiceTest {
 
   @Test
   fun `claimReadyExchangeStepRequest returns empty for wrong Provider`() = runBlocking {
+    createRecurringExchange()
+
     val response =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest {
@@ -482,6 +484,11 @@ abstract class ExchangeStepsServiceTest {
         EXCHANGE_STEP.copy {
           state = ExchangeStep.State.BLOCKED
           stepIndex = 2
+          provider =
+            provider {
+              type = Provider.Type.DATA_PROVIDER
+              externalId = EXTERNAL_DATA_PROVIDER_ID
+            }
         },
         EXCHANGE_STEP.copy {
           state = ExchangeStep.State.BLOCKED
@@ -511,14 +518,7 @@ abstract class ExchangeStepsServiceTest {
         )
         .toList()
 
-    assertThat(response)
-      .ignoringFieldScope(EXCHANGE_STEP_RESPONSE_IGNORED_FIELDS)
-      .containsExactly(
-        EXCHANGE_STEP.copy {
-          stepIndex = 2
-          state = ExchangeStep.State.BLOCKED
-        }
-      )
+    assertThat(response).hasSize(1)
   }
 
   private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
