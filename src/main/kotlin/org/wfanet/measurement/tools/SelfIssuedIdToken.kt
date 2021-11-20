@@ -31,6 +31,10 @@ import org.wfanet.measurement.common.crypto.hashSha256
 
 private const val EXP_TIME = 1000L
 
+/**
+ * Returns a self-issued Id token. Throws [IllegalArgumentException] if the uriString doesn't match
+ * the open id connect requirements for self-issued, or doesn't include state and nonce.
+ */
 fun generateIdToken(uriString: String, clock: Clock): String {
   val uri = URI.create(uriString)
 
