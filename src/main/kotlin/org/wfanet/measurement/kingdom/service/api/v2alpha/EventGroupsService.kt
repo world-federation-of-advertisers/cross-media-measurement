@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -34,9 +33,12 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupPageToken
+import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
@@ -103,10 +105,6 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       limit = pageSize
       filter =
         filter {
-          if (request.pageToken.isNotBlank()) {
-            createdAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
-          }
-
           if (parentKey.dataProviderId != WILDCARD) {
             externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
           }
@@ -118,6 +116,30 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
               }
                 .let { key -> apiIdToExternalId(key.measurementConsumerId) }
             }
+
+          if (request.pageToken.isNotBlank()) {
+            val nextPageToken = EventGroupPageToken.parseFrom(request.pageToken.base64UrlDecode())
+
+            if (this@streamEventGroupsRequest.limit != request.pageSize) {
+              this@streamEventGroupsRequest.limit = nextPageToken.pageSize
+            }
+
+            externalDataProviderIdAfter = nextPageToken.lastEventGroup.externalDataProviderId
+            externalEventGroupIdAfter = nextPageToken.lastEventGroup.externalEventGroupId
+
+            grpcRequire(externalDataProviderId == nextPageToken.externalDataProviderId) {
+              "Arguments must be kept the same when using a page token"
+            }
+
+            grpcRequire(
+              externalMeasurementConsumerIds.containsAll(
+                nextPageToken.externalMeasurementConsumerIdsList
+              ) &&
+                nextPageToken.externalMeasurementConsumerIdsList.containsAll(
+                  externalMeasurementConsumerIds
+                )
+            ) { "Arguments must be kept the same when using a page token" }
+          }
         }
     }
 
@@ -130,7 +152,20 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
 
     return listEventGroupsResponse {
       eventGroups += results.map(InternalEventGroup::toEventGroup)
-      nextPageToken = results.last().createTime.toByteArray().base64UrlEncode()
+      val eventGroupPageToken = eventGroupPageToken {
+        this.pageSize = streamRequest.limit
+        externalDataProviderId = streamRequest.filter.externalDataProviderId
+        for (externalMeasurementConsumerId in
+          streamRequest.filter.externalMeasurementConsumerIdsList.sortedDescending()) {
+          externalMeasurementConsumerIds += externalMeasurementConsumerId
+        }
+        lastEventGroup =
+          previousPageEnd {
+            externalDataProviderId = results.last().externalDataProviderId
+            externalEventGroupId = results.last().externalEventGroupId
+          }
+      }
+      nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
     }
   }
 }
