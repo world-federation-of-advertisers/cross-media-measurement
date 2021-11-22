@@ -182,10 +182,12 @@ class FinishExchangeStepAttempt(
     workflow: ExchangeWorkflow
   ): List<ExchangeWorkflow.Step> {
     val completedStepIndexes = getSucceededExchangeSteps()
-    return workflow.stepsList.filter { step ->
-      step.prerequisiteStepIndicesCount > 0 &&
-        step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
-    }
+    return workflow.stepsList
+      .filter { step -> !completedStepIndexes.contains(step.stepIndex) }
+      .filter { step ->
+        step.prerequisiteStepIndicesCount > 0 &&
+          step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
+      }
   }
 
   private suspend fun TransactionScope.getExchangeStepAttempt(): ExchangeStepAttemptReader.Result {
