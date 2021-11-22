@@ -15,9 +15,13 @@
 package org.wfanet.panelmatch.integration
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.type.Date
+import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -26,53 +30,56 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.integration.deploy.gcloud.buildKingdomSpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.deploy.gcloud.buildSpannerInProcessKingdom
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.storage.testing.makeTestPrivateStorageSelector
-import org.wfanet.panelmatch.client.storage.testing.makeTestSharedStorageSelector
-import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
-import org.wfanet.panelmatch.common.storage.createBlob
-import org.wfanet.panelmatch.common.toByteString
+import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val SCHEDULE = "@daily"
 private const val API_VERSION = "v2alpha"
-private val CLOCK: Clock = Clock.systemUTC()
 private val TODAY: Date = LocalDate.now().toProtoDate()
-private val HKDF_PEPPER = "hkdf-pepper".toByteStringUtf8()
-private val TASK_TIMEOUT_DURATION = Duration.ofSeconds(3)
-private val POLLING_INTERVAL = Duration.ofSeconds(3)
-private val DAEMONS_DELAY_DURATION = Duration.ofSeconds(1).toMillis()
+private val TEST_TIMEOUT = Duration.ofSeconds(10)
+
+private val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
 
 /** E2E Test for Panel Match that everything is wired up and working properly. */
 @RunWith(JUnit4::class)
 class InProcessPanelMatchIntegrationTest {
   private val databaseRule = buildKingdomSpannerEmulatorDatabaseRule()
-  private val inProcessKingdom = buildSpannerInProcessKingdom(databaseRule, CLOCK)
-  private val resourceSetup = inProcessKingdom.panelMatchResourceSetup
+  private val inProcessKingdom by lazy {
+    buildSpannerInProcessKingdom(databaseRule, Clock.systemUTC(), verboseGrpcLogging = true)
+  }
+  private val resourceSetup by lazy { inProcessKingdom.panelMatchResourceSetup }
 
-  @get:Rule val temporaryFolder = TemporaryFolder()
   @get:Rule
   val ruleChain: TestRule by lazy { chainRulesSequentially(databaseRule, inProcessKingdom) }
 
-  private lateinit var dataProviderKey: DataProviderKey
-  private lateinit var modelProviderKey: ModelProviderKey
-  private lateinit var recurringExchangeKey: RecurringExchangeKey
+  @get:Rule val dataProviderFolder = TemporaryFolder()
+  @get:Rule val modelProviderFolder = TemporaryFolder()
+  @get:Rule val sharedFolder = TemporaryFolder()
+
+  private data class ProviderContext(
+    val key: ResourceKey,
+    val privateStoragePath: Path,
+    val scope: CoroutineScope
+  )
+
+  private lateinit var dataProviderContext: ProviderContext
+  private lateinit var modelProviderContext: ProviderContext
+  private lateinit var exchangeDateKey: ExchangeDateKey
 
   private fun createScope(name: String): CoroutineScope {
     return CoroutineScope(CoroutineName(name + Dispatchers.Default))
@@ -87,69 +94,61 @@ class InProcessPanelMatchIntegrationTest {
         exchangeWorkflow = exchangeWorkflow,
         exchangeDate = TODAY
       )
-    dataProviderKey = providers.dataProviderKey
-    modelProviderKey = providers.modelProviderKey
-    recurringExchangeKey = providers.recurringExchangeKey
+    exchangeDateKey =
+      ExchangeDateKey(providers.recurringExchangeKey.recurringExchangeId, TODAY.toLocalDate())
+
+    dataProviderContext =
+      ProviderContext(
+        providers.dataProviderKey,
+        dataProviderFolder.root.toPath(),
+        createScope("EDP_SCOPE")
+      )
+
+    modelProviderContext =
+      ProviderContext(
+        providers.modelProviderKey,
+        modelProviderFolder.root.toPath(),
+        createScope("MP_SCOPE")
+      )
   }
 
-  @Ignore // TODO: this test is still a work-in-progress.
+  private fun makeDaemon(
+    owner: ProviderContext,
+    partner: ProviderContext
+  ): ExchangeWorkflowDaemonForTest {
+    return ExchangeWorkflowDaemonForTest(
+      v2alphaChannel = inProcessKingdom.publicApiChannel,
+      provider = owner.key,
+      partnerProvider = partner.key,
+      exchangeDateKey = exchangeDateKey,
+      serializedExchangeWorkflow = exchangeWorkflow.toByteString(),
+      privateDirectory = owner.privateStoragePath,
+      sharedDirectory = sharedFolder.root.toPath(),
+      scope = owner.scope
+    )
+  }
+
   @Test
-  fun `entire process`() = runBlocking {
-    val recurringExchangeId = recurringExchangeKey.recurringExchangeId
-    val edpSecretMap = TestSecretMap(mapOf(recurringExchangeId to exchangeWorkflow.toByteString()))
-    val mpSecretMap = TestSecretMap(mapOf(recurringExchangeId to exchangeWorkflow.toByteString()))
+  fun miniWorkflow() = runBlockingTest {
+    val dataProviderDaemon = makeDaemon(dataProviderContext, modelProviderContext)
+    val modelProviderDaemon = makeDaemon(modelProviderContext, dataProviderContext)
 
-    // TODO(@yunyeng): Build storage from InputBlobs map.
-    val edpStorageClient = InMemoryStorageClient()
-    val mpStorageClient = InMemoryStorageClient()
-    edpStorageClient.createBlob("edp-hkdf-pepper", HKDF_PEPPER)
+    dataProviderDaemon.writePrivateBlob("edp-hkdf-pepper", HKDF_PEPPER)
 
-    val edpScope = createScope("EDP SCOPE")
-    val edpDaemon =
-      ExchangeWorkflowDaemonForTest(
-        privateStorageSelector = makeTestPrivateStorageSelector(edpSecretMap, edpStorageClient),
-        sharedStorageSelector = makeTestSharedStorageSelector(edpSecretMap, edpStorageClient),
-        clock = CLOCK,
-        scope = edpScope,
-        validExchangeWorkflows = edpSecretMap,
-        channel = inProcessKingdom.publicApiChannel,
-        providerKey = dataProviderKey,
-        taskTimeoutDuration = TASK_TIMEOUT_DURATION,
-        pollingInterval = POLLING_INTERVAL,
-        rootCertificates = secretMap,
-        privateKeys = secretMap,
-        privateStorageFactories = emptyMap(),
-        privateStorageInformation = secretMap,
-        sharedStorageFactories = emptyMap(),
-        sharedStorageInformation = secretMap,
-      )
+    dataProviderDaemon.run()
+    modelProviderDaemon.run()
 
-    val mpScope = createScope("MP SCOPE")
-    val mpDaemon =
-      ExchangeWorkflowDaemonForTest(
-        privateStorageSelector = makeTestPrivateStorageSelector(mpSecretMap, mpStorageClient),
-        sharedStorageSelector = makeTestSharedStorageSelector(mpSecretMap, mpStorageClient),
-        clock = CLOCK,
-        scope = mpScope,
-        validExchangeWorkflows = mpSecretMap,
-        channel = inProcessKingdom.publicApiChannel,
-        providerKey = modelProviderKey,
-        taskTimeoutDuration = TASK_TIMEOUT_DURATION,
-        pollingInterval = POLLING_INTERVAL,
-        rootCertificates = secretMap,
-        privateKeys = secretMap,
-        privateStorageFactories = emptyMap(),
-        privateStorageInformation = secretMap,
-        sharedStorageFactories = emptyMap(),
-        sharedStorageInformation = secretMap,
-      )
-    edpDaemon.run()
-    mpDaemon.run()
-    delay(DAEMONS_DELAY_DURATION)
-    edpScope.cancel()
-    mpScope.cancel()
+    var blob: ByteString? = null
+    val start = Instant.now()
+    while (Duration.between(start, Instant.now()) < TEST_TIMEOUT && blob == null) {
+      blob = modelProviderDaemon.readPrivateBlob("mp-hkdf-pepper")
+      delay(250)
+    }
 
-    assertThat(edpDaemon.apiClient.claimExchangeStep()).isNull()
+    dataProviderContext.scope.cancel()
+    modelProviderContext.scope.cancel()
+
+    assertThat(blob).isEqualTo(HKDF_PEPPER)
   }
 
   companion object {
@@ -157,7 +156,7 @@ class InProcessPanelMatchIntegrationTest {
 
     init {
       val configPath = "config/mini_exchange_workflow.textproto"
-      val resource = this::class.java.getResource(configPath)
+      val resource = requireNotNull(this::class.java.getResource(configPath))
 
       exchangeWorkflow =
         resource
@@ -166,7 +165,7 @@ class InProcessPanelMatchIntegrationTest {
             parseTextProto(input.bufferedReader(), ExchangeWorkflow.getDefaultInstance())
           }
           // TODO(@yunyeng): Think about the tests that start running around midnight.
-          .copy { this.firstExchangeDate = TODAY }
+          .copy { firstExchangeDate = TODAY }
     }
   }
 }

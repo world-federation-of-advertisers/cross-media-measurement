@@ -18,6 +18,7 @@ import java.nio.file.Paths
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.loggerFor
 
 class FileSystemStorageFactory(
   private val storageDetails: StorageDetails,
@@ -26,9 +27,17 @@ class FileSystemStorageFactory(
 
   override fun build(): StorageClient {
     val directory = Paths.get(storageDetails.file.path, exchangeDateKey.path).toFile()
-    check(directory.exists() || directory.mkdirs()) {
-      "Unable to create recursively directory: ${directory.absolutePath}"
+    val absolutePath = directory.absolutePath
+    if (directory.exists()) {
+      logger.info("Directory already exists: $absolutePath")
+    } else {
+      check(directory.mkdirs()) { "Unable to create recursively directory: $absolutePath" }
+      logger.info("Created directory: $absolutePath")
     }
     return FileSystemStorageClient(directory)
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }

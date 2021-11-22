@@ -12,20 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.common.certificates.testing
 
-import com.google.protobuf.ByteString
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.storage.StorageClient
+import java.security.PrivateKey
+import java.security.PublicKey
+import java.security.cert.X509Certificate
+import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 
-/** [ExchangeTask] that reads its own inputs and writes its own outputs. */
-abstract class CustomIOExchangeTask : ExchangeTask {
-  final override suspend fun execute(
-    input: Map<String, StorageClient.Blob>
-  ): Map<String, Flow<ByteString>> {
-    execute()
-    return emptyMap()
+object TestCertificateAuthority : CertificateAuthority {
+  override suspend fun generateX509CertificateAndPrivateKey(
+    rootPublicKey: PublicKey
+  ): Pair<X509Certificate, PrivateKey> {
+    return TestCertificateManager.CERTIFICATE to TestCertificateManager.PRIVATE_KEY
   }
-
-  abstract suspend fun execute()
 }

@@ -86,7 +86,7 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
       override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
       override val privateStorageSelector = testPrivateStorageSelector.selector
       override val sharedStorageSelector = testSharedStorageSelector.selector
-      override val certificateManager = TestCertificateManager()
+      override val certificateManager = TestCertificateManager
       override val inputTaskThrottler = AlwaysReadyThrottler
       override val getQueryResultsEvaluator = { _: ByteString -> PlaintextQueryEvaluator }
     }

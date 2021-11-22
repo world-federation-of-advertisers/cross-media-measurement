@@ -12,20 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.exchangetasks
+package org.wfanet.panelmatch.common
 
-import com.google.protobuf.ByteString
-import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.storage.StorageClient
+import java.util.logging.Logger
 
-/** [ExchangeTask] that reads its own inputs and writes its own outputs. */
-abstract class CustomIOExchangeTask : ExchangeTask {
-  final override suspend fun execute(
-    input: Map<String, StorageClient.Blob>
-  ): Map<String, Flow<ByteString>> {
-    execute()
-    return emptyMap()
-  }
-
-  abstract suspend fun execute()
+fun <R : Any> R.loggerFor(): Lazy<Logger> {
+  return lazy { Logger.getLogger(this.javaClass.name) }
 }

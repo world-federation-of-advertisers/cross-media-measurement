@@ -170,7 +170,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     return CopyFromSharedStorageTask(
       source,
       destination,
-      step.copyToSharedStorageStep.copyOptions,
+      step.copyFromSharedStorageStep.copyOptions,
       step.inputLabelsMap.values.single(),
       step.outputLabelsMap.values.single()
     )
