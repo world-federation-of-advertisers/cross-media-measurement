@@ -53,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
@@ -158,29 +159,116 @@ abstract class ExchangeStepAttemptsServiceTest {
     idGenerator: IdGenerator
   ): ExchangeStepAttemptsCoroutineImplBase
 
+  private lateinit var recurringExchangesService: RecurringExchangesCoroutineImplBase
   private lateinit var exchangesService: ExchangesCoroutineImplBase
   private lateinit var exchangeStepsService: ExchangeStepsCoroutineImplBase
   private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
 
+  private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
+    recurringExchangesService.createRecurringExchange(
+      createRecurringExchangeRequest { recurringExchange = recExchange }
+    )
+  }
+
   @Before
   fun initServices() {
+    recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
     exchangesService = newExchangesService(idGenerator)
     exchangeStepsService = newExchangeStepsService(idGenerator)
     exchangeStepAttemptsService = newExchangeStepAttemptsService(idGenerator)
-    val recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
     val dataProvidersService = newDataProvidersService(DATA_PROVIDER_ID_GENERATOR)
     val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
     runBlocking {
       dataProvidersService.createDataProvider(DATA_PROVIDER)
       modelProvidersService.createModelProvider(MODEL_PROVIDER)
-      recurringExchangesService.createRecurringExchange(
-        createRecurringExchangeRequest { recurringExchange = RECURRING_EXCHANGE }
-      )
     }
   }
 
   @Test
+  fun `finishExchangeStepAttempt with multiple steps succeeds`() = runBlocking {
+    createRecurringExchange(
+      RECURRING_EXCHANGE.copy {
+        details = RECURRING_EXCHANGE.details.copy {
+          exchangeWorkflow = exchangeWorkflow {
+            steps +=
+              step {
+                party = ExchangeWorkflow.Party.MODEL_PROVIDER
+                stepIndex = 1
+              }
+            steps +=
+              step {
+                party = ExchangeWorkflow.Party.MODEL_PROVIDER
+                stepIndex = 2
+                prerequisiteStepIndices += 1
+              }
+            steps +=
+              step {
+                party = ExchangeWorkflow.Party.MODEL_PROVIDER
+                stepIndex = 3
+                prerequisiteStepIndices += 2
+              }
+          }
+        }
+      }
+    )
+
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
+      )
+    assertThat(response.attemptNumber).isEqualTo(1L)
+
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
+
+    val claimReadyExchangeStepResponse2 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse2.exchangeStep.stepIndex).isEqualTo(2L)
+    val response2 =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(
+          attemptState = ExchangeStepAttempt.State.SUCCEEDED,
+          attemptNo = 1,
+          stepProvider = PROVIDER,
+          stepInd = 2
+        )
+      )
+    assertThat(response2.attemptNumber).isEqualTo(1L)
+
+    val claimReadyExchangeStepResponse3 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse3.exchangeStep.stepIndex).isEqualTo(3L)
+    val response3 =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(
+          attemptState = ExchangeStepAttempt.State.SUCCEEDED,
+          attemptNo = 1,
+          stepProvider = PROVIDER,
+          stepInd = 3
+        )
+      )
+    assertThat(response3.attemptNumber).isEqualTo(1L)
+
+    exchangesService.assertTestExchangeHasState(Exchange.State.SUCCEEDED)
+    exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.SUCCEEDED)
+  }
+
+  @Test
   fun `finishExchangeStepAttempt fails for missing date`() = runBlocking {
+    createRecurringExchange()
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(finishExchangeStepAttemptRequest {})
@@ -192,6 +280,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails without exchange step attempt`() = runBlocking {
+    createRecurringExchange()
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(
@@ -205,6 +295,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails for wrong provider`() = runBlocking {
+    createRecurringExchange()
+
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
@@ -229,6 +321,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
+    createRecurringExchange()
+
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
@@ -260,6 +354,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `getExchangeStepAttempt fails with wrong provider`() = runBlocking {
+    createRecurringExchange()
+
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
@@ -287,6 +383,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -310,6 +408,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -333,6 +433,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -356,6 +458,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds on second try`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -399,13 +503,14 @@ abstract class ExchangeStepAttemptsServiceTest {
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
     attemptNo: Int = 1,
-    stepProvider: Provider = PROVIDER
+    stepProvider: Provider = PROVIDER,
+    stepInd: Int = STEP_INDEX
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
       provider = stepProvider
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = EXCHANGE_DATE
-      stepIndex = STEP_INDEX
+      stepIndex = stepInd
       attemptNumber = attemptNo
       state = attemptState
     }
