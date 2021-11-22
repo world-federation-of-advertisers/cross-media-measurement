@@ -18,6 +18,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.common.loggerFor
 
 /**
  * Input task waits for output labels to be present. Clients should not pass in the actual required
@@ -31,6 +32,7 @@ class InputTask(
 ) : CustomIOExchangeTask() {
 
   private fun isReady(): Boolean {
+    logger.info("Checking for blobKey '$blobKey'")
     return storage.getBlob(blobKey) != null
   }
 
@@ -38,8 +40,14 @@ class InputTask(
     while (currentCoroutineContext().isActive) {
       if (throttler.onReady { isReady() }) {
         // This function only returns that input is ready. It does not return actual values.
+        logger.info("Found blobKey '$blobKey'")
         return
       }
+      logger.info("Did not find '$blobKey'")
     }
+  }
+
+  companion object {
+    private val logger by loggerFor()
   }
 }

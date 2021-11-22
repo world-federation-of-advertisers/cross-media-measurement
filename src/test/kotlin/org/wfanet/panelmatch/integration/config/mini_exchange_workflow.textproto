@@ -13,7 +13,7 @@ steps {
   step_id: "input-hkdf-pepper"
   party: DATA_PROVIDER
 
-  input_step { }
+  input_step {}
 
   output_labels { key: "input" value: "edp-hkdf-pepper" }
 }
@@ -23,7 +23,11 @@ steps {
   step_id: "export-hkdf-pepper"
   party: DATA_PROVIDER
 
-  copy_to_shared_storage_step { }
+  copy_to_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
 
   input_labels { key: "hkdf-pepper" value: "edp-hkdf-pepper" }
   output_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
@@ -34,7 +38,11 @@ steps {
   step_id: "import-hkdf-pepper"
   party: MODEL_PROVIDER
 
-  copy_from_shared_storage_step { }
+  copy_from_shared_storage_step {
+    copy_options {
+      label_type: BLOB
+    }
+  }
 
   input_labels { key: "hkdf-pepper" value: "hkdf-pepper" }
   output_labels { key: "hkdf-pepper" value: "mp-hkdf-pepper" }

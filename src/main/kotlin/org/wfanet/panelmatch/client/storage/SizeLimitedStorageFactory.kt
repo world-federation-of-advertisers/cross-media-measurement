@@ -18,11 +18,16 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.common.storage.SizeLimitedStorageClient
 
 /** [StorageFactory] for [SizeLimitedStorageClient]. */
-class SizeLimitedStorageFactory(
+private class SizeLimitedStorageFactory(
   private val sizeLimitBytes: Long,
   private val delegate: StorageFactory
 ) : StorageFactory {
   override fun build(): StorageClient {
     return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())
   }
+}
+
+/** Wraps a [StorageFactory] to limit blob sizes. */
+fun StorageFactory.withBlobSizeLimit(sizeLimitBytes: Long): StorageFactory {
+  return SizeLimitedStorageFactory(sizeLimitBytes, this)
 }

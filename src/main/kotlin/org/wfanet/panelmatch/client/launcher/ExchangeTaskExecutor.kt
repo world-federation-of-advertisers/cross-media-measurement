@@ -28,9 +28,9 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
-import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.storage.createBlob
 
 private const val DONE_TASKS_PATH: String = "done-tasks"
@@ -47,7 +47,7 @@ class ExchangeTaskExecutor(
 ) : ExchangeStepExecutor {
 
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    withContext(CoroutineName(attemptKey.exchangeStepAttemptId)) {
+    withContext(CoroutineName(attemptKey.toName())) {
       val context = ExchangeContext(attemptKey, step.date, step.workflow, step.step)
       try {
         context.tryExecute()

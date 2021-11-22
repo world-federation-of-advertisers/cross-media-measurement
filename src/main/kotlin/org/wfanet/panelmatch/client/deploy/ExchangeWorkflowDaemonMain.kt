@@ -30,7 +30,7 @@ import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
-import org.wfanet.panelmatch.common.storage.PrefixedStorageClient
+import org.wfanet.panelmatch.common.storage.withPrefix
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -57,31 +57,30 @@ private object MainExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
 
   /** This can be customized per deployment. */
   override val validExchangeWorkflows: SecretMap by lazy {
-    StorageClientSecretMap(PrefixedStorageClient(rootStorageClient, "valid-exchange-workflows"))
+    StorageClientSecretMap(rootStorageClient.withPrefix("valid-exchange-workflows"))
   }
 
   /** This can be customized per deployment. */
   override val privateKeys: MutableSecretMap by lazy {
     val tinkStorageProvider = TinkKeyStorageProvider()
     val kmsStorageClient = tinkStorageProvider.makeKmsStorageClient(rootStorageClient, tinkKeyUri)
-    val prefixedKmsStorageClient = PrefixedStorageClient(kmsStorageClient, "private-keys")
-    StorageClientSecretMap(prefixedKmsStorageClient)
+    StorageClientSecretMap(kmsStorageClient.withPrefix("private-keys"))
   }
 
   /** This can be customized per deployment. */
   override val rootCertificates: SecretMap by lazy {
-    StorageClientSecretMap(PrefixedStorageClient(rootStorageClient, "root-x509-certificates"))
+    StorageClientSecretMap(rootStorageClient.withPrefix("root-x509-certificates"))
   }
 
   /** This can be customized per deployment. */
   override val privateStorageInfo: StorageDetailsProvider by lazy {
-    val storageClient = PrefixedStorageClient(rootStorageClient, "private-storage-info")
+    val storageClient = rootStorageClient.withPrefix("private-storage-info")
     StorageDetailsProvider(StorageClientSecretMap(storageClient))
   }
 
   /** This can be customized per deployment. */
   override val sharedStorageInfo: StorageDetailsProvider by lazy {
-    val storageClient = PrefixedStorageClient(rootStorageClient, "shared-storage-info")
+    val storageClient = rootStorageClient.withPrefix("shared-storage-info")
     StorageDetailsProvider(StorageClientSecretMap(storageClient))
   }
 

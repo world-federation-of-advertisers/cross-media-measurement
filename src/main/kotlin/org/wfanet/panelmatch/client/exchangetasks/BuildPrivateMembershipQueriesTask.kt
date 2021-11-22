@@ -23,7 +23,6 @@ import org.apache.beam.sdk.values.PCollection
 import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.logger.addToTaskLog
-import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
@@ -34,6 +33,7 @@ import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 class BuildPrivateMembershipQueriesTask(

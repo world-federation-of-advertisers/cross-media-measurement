@@ -60,7 +60,7 @@ fun makeTestSharedStorageSelector(
   val builder: ExchangeContext.(StorageDetails) -> StorageFactory = { rootInMemoryStorageFactory }
 
   return SharedStorageSelector(
-    TestCertificateManager(),
+    TestCertificateManager,
     mapOf(
       StorageDetails.PlatformCase.FILE to builder,
       StorageDetails.PlatformCase.AWS to builder,
@@ -95,5 +95,5 @@ private val TEST_CONTEXT =
 fun makeTestVerifiedStorageClient(
   underlyingClient: StorageClient = InMemoryStorageClient()
 ): VerifiedStorageClient {
-  return VerifiedStorageClient(underlyingClient, TEST_CONTEXT, TestCertificateManager())
+  return VerifiedStorageClient(underlyingClient, TEST_CONTEXT, TestCertificateManager)
 }

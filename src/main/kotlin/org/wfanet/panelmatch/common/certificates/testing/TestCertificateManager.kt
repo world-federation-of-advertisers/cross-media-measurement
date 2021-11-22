@@ -25,10 +25,7 @@ import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
 
-private val CERTIFICATE: X509Certificate by lazy { readCertificate(FIXED_SERVER_CERT_PEM_FILE) }
-private val PRIVATE_KEY: PrivateKey by lazy { readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM) }
-
-class TestCertificateManager : CertificateManager {
+object TestCertificateManager : CertificateManager {
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
     certOwnerName: String,
@@ -53,7 +50,7 @@ class TestCertificateManager : CertificateManager {
     return RESOURCE_NAME
   }
 
-  companion object {
-    const val RESOURCE_NAME = "some-resource-name"
-  }
+  const val RESOURCE_NAME = "some-resource-name"
+  val CERTIFICATE: X509Certificate by lazy { readCertificate(FIXED_SERVER_CERT_PEM_FILE) }
+  val PRIVATE_KEY: PrivateKey by lazy { readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM) }
 }

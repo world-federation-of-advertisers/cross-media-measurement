@@ -38,3 +38,8 @@ class PrefixedStorageClient(private val delegate: StorageClient, private val pre
 
   private fun applyPrefix(blobKey: String): String = "$prefix/$blobKey"
 }
+
+/** Convenient function for wrapping a [StorageClient] with a [PrefixedStorageClient]. */
+fun StorageClient.withPrefix(prefix: String): StorageClient {
+  return PrefixedStorageClient(this, prefix)
+}

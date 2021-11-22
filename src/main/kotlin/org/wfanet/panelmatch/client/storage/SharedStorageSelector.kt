@@ -21,6 +21,8 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 
+private val EXPLICITLY_SUPPORTED_STORAGE_TYPES = setOf(PlatformCase.AWS, PlatformCase.GCS)
+
 /**
  * Builds [VerifiedStorageClient]s for shared blobs within a particular Exchange.
  *
@@ -64,7 +66,10 @@ class SharedStorageSelector(
       GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
       AMAZON_S3 -> require(platform == PlatformCase.AWS)
       StorageType.UNKNOWN_STORAGE_CLIENT, StorageType.UNRECOGNIZED ->
-        throw IllegalArgumentException("$storageType unsupported")
+        require(platform !in EXPLICITLY_SUPPORTED_STORAGE_TYPES)
+    // TODO(world-federation-of-advertisers/cross-media-measurement-api#73): throw
+    //   IllegalArgumentException("$storageType unsupported")
+    //   once StorageType.FILE and StorageType.CUSTOM are added.
     }
   }
 }

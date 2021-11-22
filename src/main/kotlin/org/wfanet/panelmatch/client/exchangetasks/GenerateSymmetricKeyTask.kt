@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.logger.addToTaskLog
-import org.wfanet.panelmatch.client.logger.loggerFor
+import org.wfanet.panelmatch.common.loggerFor
 
 private const val OUTPUT_DATA_LABEL = "symmetric-key"
 

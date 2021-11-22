@@ -19,8 +19,8 @@ import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.logger.addToTaskLog
-import org.wfanet.panelmatch.client.logger.loggerFor
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.storage.toByteString
 
 private const val INPUT_CRYPTO_KEY_LABEL = "encryption-key"

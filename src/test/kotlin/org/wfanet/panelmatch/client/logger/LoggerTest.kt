@@ -26,8 +26,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.common.loggerFor
 
-class JobTestClass1 {
+private class JobTestClass1 {
   suspend fun logWithDelay() {
     logger.addToTaskLog("logWithDelay: Log Message A")
     delay(100)
@@ -38,7 +41,7 @@ class JobTestClass1 {
   }
 }
 
-class JobTestClass2 {
+private class JobTestClass2 {
   suspend fun logWithDelay(): Unit = coroutineScope {
     launch {
       logger.addToTaskLog("logWithDelay: Log Message C")
@@ -51,7 +54,7 @@ class JobTestClass2 {
   }
 }
 
-class JobTestClass3 {
+private class JobTestClass3 {
   suspend fun logWithDelay(): Unit = coroutineScope {
     val attemptKey = java.util.UUID.randomUUID().toString()
     launch(CoroutineName(attemptKey) + Dispatchers.Default) {
@@ -65,6 +68,7 @@ class JobTestClass3 {
   }
 }
 
+@RunWith(JUnit4::class)
 class LoggerTest {
   @Before
   fun clearLogsForTesting() {

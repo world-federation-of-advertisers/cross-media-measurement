@@ -15,8 +15,8 @@
 package org.wfanet.panelmatch.client.deploy
 
 import kotlin.properties.Delegates
-import org.wfanet.panelmatch.client.storage.SizeLimitedStorageFactory
 import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.client.storage.withBlobSizeLimit
 import picocli.CommandLine
 
 class BlobSizeFlags {
@@ -28,6 +28,6 @@ class BlobSizeFlags {
   private var blobSizeLimitBytes by Delegates.notNull<Long>()
 
   fun wrapStorageFactory(storageFactory: StorageFactory): StorageFactory {
-    return SizeLimitedStorageFactory(blobSizeLimitBytes, storageFactory)
+    return storageFactory.withBlobSizeLimit(blobSizeLimitBytes)
   }
 }
