@@ -82,7 +82,7 @@ abstract class SpannerWriter<T, R> {
    * @return the output of [buildResult]
    */
   suspend fun execute(databaseClient: AsyncDatabaseClient, idGenerator: IdGenerator): R {
-    logger.info("Running ${this::class.simpleName} transaction")
+    logger.fine("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute SpannerWriter multiple times" }
     val runner = databaseClient.readWriteTransaction()
     val transactionResult: T? = runTransaction(runner, idGenerator)
