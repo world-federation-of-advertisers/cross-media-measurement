@@ -79,14 +79,15 @@ internal suspend fun ExchangesCoroutineImplBase.assertTestExchangeHasState(
 }
 
 internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasState(
-  exchangeStepState: ExchangeStep.State
+  exchangeStepState: ExchangeStep.State,
+  exchangeStepIndex: Int = STEP_INDEX
 ) {
   assertThat(
       getExchangeStep(
         getExchangeStepRequest {
           externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
           date = EXCHANGE_DATE
-          stepIndex = STEP_INDEX
+          stepIndex = exchangeStepIndex
           provider = PROVIDER
         }
       )
@@ -96,7 +97,7 @@ internal suspend fun ExchangeStepsCoroutineImplBase.assertTestExchangeStepHasSta
       exchangeStep {
         externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
         date = EXCHANGE_DATE
-        stepIndex = STEP_INDEX
+        stepIndex = exchangeStepIndex
         state = exchangeStepState
         provider = PROVIDER
       }

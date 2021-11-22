@@ -38,6 +38,7 @@ import ("strings")
 
 	_resource_configs: [Name=_]: #ResourceConfig
 
+	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/var/run/secrets/files/authority_key_identifier_to_principal_map.textproto"
 	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
 	_async_computations_control_service_cert_host_flag: "--async-computation-control-service-cert-host=localhost"
 	_computations_service_target_flag:                  "--computations-service-target=" + (#Target & {name: "\(_name)-spanner-computations-server"}).target
@@ -161,6 +162,7 @@ import ("strings")
 		"requisition-fulfillment-server-deployment": #ServerDeployment & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
+				_akid_to_principal_map_file_flag,
 				_duchy_name_flag,
 				_duchy_tls_cert_file_flag,
 				_duchy_tls_key_file_flag,
