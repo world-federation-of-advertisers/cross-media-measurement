@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debu
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
@@ -164,12 +165,6 @@ abstract class ExchangeStepAttemptsServiceTest {
   private lateinit var exchangeStepsService: ExchangeStepsCoroutineImplBase
   private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
 
-  private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
-    recurringExchangesService.createRecurringExchange(
-      createRecurringExchangeRequest { recurringExchange = recExchange }
-    )
-  }
-
   @Before
   fun initServices() {
     recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
@@ -192,23 +187,9 @@ abstract class ExchangeStepAttemptsServiceTest {
           RECURRING_EXCHANGE.details.copy {
             exchangeWorkflow =
               exchangeWorkflow {
-                steps +=
-                  step {
-                    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-                    stepIndex = 1
-                  }
-                steps +=
-                  step {
-                    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-                    stepIndex = 2
-                    prerequisiteStepIndices += 1
-                  }
-                steps +=
-                  step {
-                    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-                    stepIndex = 3
-                    prerequisiteStepIndices += 2
-                  }
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(1))
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
               }
           }
       }
@@ -285,23 +266,9 @@ abstract class ExchangeStepAttemptsServiceTest {
           RECURRING_EXCHANGE.details.copy {
             exchangeWorkflow =
               exchangeWorkflow {
-                steps +=
-                  step {
-                    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-                    stepIndex = 1
-                  }
-                steps +=
-                  step {
-                    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-                    stepIndex = 2
-                    prerequisiteStepIndices += 3
-                  }
-                steps +=
-                  step {
-                    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-                    stepIndex = 3
-                    prerequisiteStepIndices += 2
-                  }
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(3))
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
               }
           }
       }
@@ -580,6 +547,12 @@ abstract class ExchangeStepAttemptsServiceTest {
     exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.SUCCEEDED)
   }
 
+  private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
+    recurringExchangesService.createRecurringExchange(
+      createRecurringExchangeRequest { recurringExchange = recExchange }
+    )
+  }
+
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
     attemptNumber: Int = 1,
@@ -614,5 +587,17 @@ abstract class ExchangeStepAttemptsServiceTest {
       details =
         exchangeStepAttemptDetails { debugLogEntries += debugLog { message = debugLogMessage } }
     }
+  }
+
+  private fun ExchangeWorkflowKt.Dsl.addNextStep(
+    party: ExchangeWorkflow.Party,
+    prerequisites: Iterable<Int>
+  ) {
+    steps +=
+      step {
+        stepIndex = this@addNextStep.steps.size + 1
+        this.party = party
+        prerequisiteStepIndices += prerequisites
+      }
   }
 }
