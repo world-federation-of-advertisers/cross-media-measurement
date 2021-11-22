@@ -29,10 +29,10 @@ class FileSystemStorageFactory(
     val directory = Paths.get(storageDetails.file.path, exchangeDateKey.path).toFile()
     val absolutePath = directory.absolutePath
     if (directory.exists()) {
-      logger.info("Directory already exists: $absolutePath")
+      logger.fine("Directory already exists: $absolutePath")
     } else {
       check(directory.mkdirs()) { "Unable to create recursively directory: $absolutePath" }
-      logger.info("Created directory: $absolutePath")
+      logger.fine("Created directory: $absolutePath")
     }
     return FileSystemStorageClient(directory)
   }

@@ -23,6 +23,7 @@ abstract class CustomIOExchangeTask : ExchangeTask {
   final override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
+    require(input.isEmpty())
     execute()
     return emptyMap()
   }
