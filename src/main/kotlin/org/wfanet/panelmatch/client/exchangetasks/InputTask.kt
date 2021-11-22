@@ -32,7 +32,7 @@ class InputTask(
 ) : CustomIOExchangeTask() {
 
   private fun isReady(): Boolean {
-    logger.info("Checking for blobKey '$blobKey'")
+    logger.fine("Checking for blobKey '$blobKey'")
     return storage.getBlob(blobKey) != null
   }
 
@@ -40,10 +40,10 @@ class InputTask(
     while (currentCoroutineContext().isActive) {
       if (throttler.onReady { isReady() }) {
         // This function only returns that input is ready. It does not return actual values.
-        logger.info("Found blobKey '$blobKey'")
+        logger.fine("Found blobKey '$blobKey'")
         return
       }
-      logger.info("Did not find '$blobKey'")
+      logger.fine("Did not find '$blobKey'")
     }
   }
 

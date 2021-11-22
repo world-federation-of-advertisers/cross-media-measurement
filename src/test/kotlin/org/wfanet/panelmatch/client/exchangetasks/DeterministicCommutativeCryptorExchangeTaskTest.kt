@@ -93,7 +93,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
   @Test
   fun `decrypt with crypto error`() = withTestContext {
     val exception =
-      assertFailsWith(IllegalArgumentException::class) {
+      assertFailsWith<IllegalArgumentException> {
         CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
           .execute(
             mapOf("encryption-key" to blobOfInvalidKey, "encrypted-data" to blobOfSingleBlindedKeys)
@@ -104,11 +104,11 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 
   @Test
   fun `decrypt with missing inputs`() = withTestContext {
-    assertFailsWith(NoSuchElementException::class) {
+    assertFailsWith<NoSuchElementException> {
       CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
         .execute(mapOf("encrypted-data" to blobOfDoubleBlindedKeys))
     }
-    assertFailsWith(NoSuchElementException::class) {
+    assertFailsWith<NoSuchElementException> {
       CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
         .execute(mapOf("encryption-key" to blobOfMpSecretKey))
     }
@@ -126,7 +126,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
   @Test
   fun `encrypt with crypto error`() = withTestContext {
     val exception =
-      assertFailsWith(IllegalArgumentException::class) {
+      assertFailsWith<IllegalArgumentException> {
         CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
           .execute(
             mapOf("encryption-key" to blobOfInvalidKey, "unencrypted-data" to blobOfJoinKeys)
@@ -137,11 +137,11 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 
   @Test
   fun `encrypt with missing inputs`() = withTestContext {
-    assertFailsWith(NoSuchElementException::class) {
+    assertFailsWith<NoSuchElementException> {
       CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
         .execute(mapOf("unencrypted-data" to blobOfJoinKeys))
     }
-    assertFailsWith(NoSuchElementException::class) {
+    assertFailsWith<NoSuchElementException> {
       CryptorExchangeTask.forEncryption(deterministicCommutativeCryptor)
         .execute(mapOf("encryption-key" to blobOfMpSecretKey))
     }
@@ -161,7 +161,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
   @Test
   fun `reEncryptTask with crypto error`() = withTestContext {
     val exception =
-      assertFailsWith(IllegalArgumentException::class) {
+      assertFailsWith<IllegalArgumentException> {
         CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
           .execute(
             mapOf("encryption-key" to blobOfInvalidKey, "encrypted-data" to blobOfSingleBlindedKeys)
@@ -172,11 +172,11 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 
   @Test
   fun `reEncryptTask with missing inputs`() = withTestContext {
-    assertFailsWith(NoSuchElementException::class) {
+    assertFailsWith<NoSuchElementException> {
       CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
         .execute(mapOf("encrypted-data" to blobOfSingleBlindedKeys))
     }
-    assertFailsWith(NoSuchElementException::class) {
+    assertFailsWith<NoSuchElementException> {
       CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
         .execute(mapOf("encryption-key" to blobOfMpSecretKey))
     }

@@ -2,12 +2,27 @@ load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tes
 
 spanner_emulator_test(
     name = "MiniWorkflowTest",
-    size = "large",
+    size = "small",
     srcs = glob(["*.kt"]),
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     test_class = "org.wfanet.panelmatch.integration.MiniWorkflowTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/integration",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+spanner_emulator_test(
+    name = "DoubleBlindWorkflowTest",
+    size = "small",
+    srcs = glob(["*.kt"]),
+    resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    test_class = "org.wfanet.panelmatch.integration.DoubleBlindWorkflowTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/integration",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/org/junit",
