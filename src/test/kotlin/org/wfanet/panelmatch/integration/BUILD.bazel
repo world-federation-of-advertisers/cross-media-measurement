@@ -1,37 +1,15 @@
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 spanner_emulator_test(
-    name = "InProcessPanelMatchIntegrationTest",
+    name = "MiniWorkflowTest",
     size = "large",
     srcs = glob(["*.kt"]),
-    resources = [
-        "//src/test/kotlin/org/wfanet/panelmatch/integration/config",
-    ],
-    tags = [
-        "manual",
-    ],
-    test_class = "org.wfanet.panelmatch.integration.InProcessPanelMatchIntegrationTest",
+    resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    test_class = "org.wfanet.panelmatch.integration.MiniWorkflowTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/secrets/testing",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_java_proto",
-        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
-        "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
