@@ -14,53 +14,60 @@
 
 package org.wfanet.panelmatch.integration
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteStringUtf8
-import com.google.type.Date
 import java.nio.file.Path
 import java.time.Clock
-import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.integration.deploy.gcloud.buildKingdomSpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.deploy.gcloud.buildSpannerInProcessKingdom
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
-private const val SCHEDULE = "@daily"
 private const val API_VERSION = "v2alpha"
-private val TODAY: Date = LocalDate.now().toProtoDate()
-private val TEST_TIMEOUT = Duration.ofSeconds(10)
+private const val SCHEDULE = "@daily"
 
-private val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
+// TODO(@yunyeng): Think about the tests that start running around midnight.
+private val EXCHANGE_DATE = LocalDate.now()
 
-/** E2E Test for Panel Match that everything is wired up and working properly. */
-@RunWith(JUnit4::class)
-class InProcessPanelMatchIntegrationTest {
+/** Base class to run a full, in-process end-to-end test of an ExchangeWorkflow. */
+abstract class AbstractInProcessPanelMatchIntegrationTest {
+  protected abstract val exchangeWorkflowResourcePath: String
+  protected abstract val initialDataProviderInputs: Map<String, ByteString>
+  protected abstract val initialModelProviderInputs: Map<String, ByteString>
+
+  /** This is responsible for making an assertions about the final state of the workflow. */
+  protected abstract fun validateFinalState(
+    dataProviderDaemon: ExchangeWorkflowDaemonForTest,
+    modelProviderDaemon: ExchangeWorkflowDaemonForTest
+  )
+
+  private val exchangeWorkflow: ExchangeWorkflow by lazy {
+    checkNotNull(this::class.java.getResource(exchangeWorkflowResourcePath))
+      .openStream()
+      .use { input -> parseTextProto(input.bufferedReader(), exchangeWorkflow {}) }
+      .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
+  }
+  private val serializedExchangeWorkflow: ByteString by lazy { exchangeWorkflow.toByteString() }
+
   private val databaseRule = buildKingdomSpannerEmulatorDatabaseRule()
   private val inProcessKingdom by lazy {
-    buildSpannerInProcessKingdom(databaseRule, Clock.systemUTC(), verboseGrpcLogging = true)
+    buildSpannerInProcessKingdom(databaseRule, Clock.systemUTC(), verboseGrpcLogging = false)
   }
   private val resourceSetup by lazy { inProcessKingdom.panelMatchResourceSetup }
 
@@ -77,51 +84,27 @@ class InProcessPanelMatchIntegrationTest {
     val scope: CoroutineScope
   )
 
-  private lateinit var dataProviderContext: ProviderContext
-  private lateinit var modelProviderContext: ProviderContext
-  private lateinit var exchangeDateKey: ExchangeDateKey
+  private suspend fun isDone(): Boolean {
+    // TODO(@yunyeng): call /Exchanges.GetExchange to get Exchange status.
+    delay(5000)
+    return true
+  }
 
   private fun createScope(name: String): CoroutineScope {
     return CoroutineScope(CoroutineName(name + Dispatchers.Default))
   }
 
-  @Before
-  fun setup() = runBlocking {
-    val providers =
-      resourceSetup.createResourcesForWorkflow(
-        exchangeSchedule = SCHEDULE,
-        apiVersion = API_VERSION,
-        exchangeWorkflow = exchangeWorkflow,
-        exchangeDate = TODAY
-      )
-    exchangeDateKey =
-      ExchangeDateKey(providers.recurringExchangeKey.recurringExchangeId, TODAY.toLocalDate())
-
-    dataProviderContext =
-      ProviderContext(
-        providers.dataProviderKey,
-        dataProviderFolder.root.toPath(),
-        createScope("EDP_SCOPE")
-      )
-
-    modelProviderContext =
-      ProviderContext(
-        providers.modelProviderKey,
-        modelProviderFolder.root.toPath(),
-        createScope("MP_SCOPE")
-      )
-  }
-
   private fun makeDaemon(
     owner: ProviderContext,
-    partner: ProviderContext
+    partner: ProviderContext,
+    exchangeDateKey: ExchangeDateKey
   ): ExchangeWorkflowDaemonForTest {
     return ExchangeWorkflowDaemonForTest(
       v2alphaChannel = inProcessKingdom.publicApiChannel,
       provider = owner.key,
       partnerProvider = partner.key,
       exchangeDateKey = exchangeDateKey,
-      serializedExchangeWorkflow = exchangeWorkflow.toByteString(),
+      serializedExchangeWorkflow = serializedExchangeWorkflow,
       privateDirectory = owner.privateStoragePath,
       sharedDirectory = sharedFolder.root.toPath(),
       scope = owner.scope
@@ -129,43 +112,51 @@ class InProcessPanelMatchIntegrationTest {
   }
 
   @Test
-  fun miniWorkflow() = runBlockingTest {
-    val dataProviderDaemon = makeDaemon(dataProviderContext, modelProviderContext)
-    val modelProviderDaemon = makeDaemon(modelProviderContext, dataProviderContext)
+  fun runTest() = runBlockingTest {
+    val keys =
+      resourceSetup.createResourcesForWorkflow(
+        SCHEDULE,
+        API_VERSION,
+        exchangeWorkflow,
+        EXCHANGE_DATE.toProtoDate(),
+      )
 
-    dataProviderDaemon.writePrivateBlob("edp-hkdf-pepper", HKDF_PEPPER)
+    val recurringExchangeId = keys.recurringExchangeKey.recurringExchangeId
+    val exchangeDateKey = ExchangeDateKey(recurringExchangeId, EXCHANGE_DATE)
+    val dataProviderContext =
+      ProviderContext(
+        keys.dataProviderKey,
+        dataProviderFolder.root.toPath(),
+        createScope("EDP_SCOPE")
+      )
+    val modelProviderContext =
+      ProviderContext(
+        keys.modelProviderKey,
+        modelProviderFolder.root.toPath(),
+        createScope("MP_SCOPE")
+      )
+
+    val dataProviderDaemon = makeDaemon(dataProviderContext, modelProviderContext, exchangeDateKey)
+    val modelProviderDaemon = makeDaemon(modelProviderContext, dataProviderContext, exchangeDateKey)
+
+    for ((blobKey, value) in initialDataProviderInputs) {
+      dataProviderDaemon.writePrivateBlob(blobKey, value)
+    }
+
+    for ((blobKey, value) in initialModelProviderInputs) {
+      modelProviderDaemon.writePrivateBlob(blobKey, value)
+    }
 
     dataProviderDaemon.run()
     modelProviderDaemon.run()
 
-    var blob: ByteString? = null
-    val start = Instant.now()
-    while (Duration.between(start, Instant.now()) < TEST_TIMEOUT && blob == null) {
-      blob = modelProviderDaemon.readPrivateBlob("mp-hkdf-pepper")
-      delay(250)
+    while (!isDone()) {
+      delay(500)
     }
 
     dataProviderContext.scope.cancel()
     modelProviderContext.scope.cancel()
 
-    assertThat(blob).isEqualTo(HKDF_PEPPER)
-  }
-
-  companion object {
-    private val exchangeWorkflow: ExchangeWorkflow
-
-    init {
-      val configPath = "config/mini_exchange_workflow.textproto"
-      val resource = requireNotNull(this::class.java.getResource(configPath))
-
-      exchangeWorkflow =
-        resource
-          .openStream()
-          .use { input ->
-            parseTextProto(input.bufferedReader(), ExchangeWorkflow.getDefaultInstance())
-          }
-          // TODO(@yunyeng): Think about the tests that start running around midnight.
-          .copy { firstExchangeDate = TODAY }
-    }
+    validateFinalState(dataProviderDaemon, modelProviderDaemon)
   }
 }
