@@ -183,7 +183,8 @@ class FinishExchangeStepAttempt(
   ): List<ExchangeWorkflow.Step> {
     val completedStepIndexes = getSucceededExchangeSteps()
     return workflow.stepsList.filter { step ->
-      step.prerequisiteStepIndicesCount > 0 &&
+      step.stepIndex !in completedStepIndexes &&
+        step.prerequisiteStepIndicesCount > 0 &&
         step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
     }
   }
