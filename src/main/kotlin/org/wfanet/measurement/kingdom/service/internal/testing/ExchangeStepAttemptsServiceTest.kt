@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt.debu
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt.step
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
@@ -53,6 +54,7 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepRequest
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.exchangeStepAttempt
@@ -158,29 +160,162 @@ abstract class ExchangeStepAttemptsServiceTest {
     idGenerator: IdGenerator
   ): ExchangeStepAttemptsCoroutineImplBase
 
+  private lateinit var recurringExchangesService: RecurringExchangesCoroutineImplBase
   private lateinit var exchangesService: ExchangesCoroutineImplBase
   private lateinit var exchangeStepsService: ExchangeStepsCoroutineImplBase
   private lateinit var exchangeStepAttemptsService: ExchangeStepAttemptsCoroutineImplBase
 
   @Before
   fun initServices() {
+    recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
     exchangesService = newExchangesService(idGenerator)
     exchangeStepsService = newExchangeStepsService(idGenerator)
     exchangeStepAttemptsService = newExchangeStepAttemptsService(idGenerator)
-    val recurringExchangesService = newRecurringExchangesService(RECURRING_EXCHANGE_ID_GENERATOR)
     val dataProvidersService = newDataProvidersService(DATA_PROVIDER_ID_GENERATOR)
     val modelProvidersService = newModelProvidersService(MODEL_ID_GENERATOR)
     runBlocking {
       dataProvidersService.createDataProvider(DATA_PROVIDER)
       modelProvidersService.createModelProvider(MODEL_PROVIDER)
-      recurringExchangesService.createRecurringExchange(
-        createRecurringExchangeRequest { recurringExchange = RECURRING_EXCHANGE }
-      )
     }
   }
 
   @Test
+  fun `finishExchangeStepAttempt with multiple steps succeeds`() = runBlocking {
+    createRecurringExchange(
+      RECURRING_EXCHANGE.copy {
+        details =
+          RECURRING_EXCHANGE.details.copy {
+            exchangeWorkflow =
+              exchangeWorkflow {
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(1))
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
+              }
+          }
+      }
+    )
+
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
+      )
+    assertThat(response.attemptNumber).isEqualTo(1L)
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
+
+    val claimReadyExchangeStepResponse2 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse2.exchangeStep.stepIndex).isEqualTo(2L)
+    val response2 =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(
+          attemptState = ExchangeStepAttempt.State.SUCCEEDED,
+          attemptNumber = 1,
+          stepProvider = PROVIDER,
+          stepIndex = 2
+        )
+      )
+    assertThat(response2.attemptNumber).isEqualTo(1L)
+
+    val claimReadyExchangeStepResponse3 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse3.exchangeStep.stepIndex).isEqualTo(3L)
+    val response3 =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(
+          attemptState = ExchangeStepAttempt.State.SUCCEEDED,
+          attemptNumber = 1,
+          stepProvider = PROVIDER,
+          stepIndex = 3
+        )
+      )
+    assertThat(response3.attemptNumber).isEqualTo(1L)
+
+    exchangesService.assertTestExchangeHasState(Exchange.State.SUCCEEDED)
+    exchangeStepsService.assertTestExchangeStepHasState(
+      exchangeStepState = ExchangeStep.State.SUCCEEDED,
+      exchangeStepIndex = 1
+    )
+    exchangeStepsService.assertTestExchangeStepHasState(
+      exchangeStepState = ExchangeStep.State.SUCCEEDED,
+      exchangeStepIndex = 2
+    )
+    exchangeStepsService.assertTestExchangeStepHasState(
+      exchangeStepState = ExchangeStep.State.SUCCEEDED,
+      exchangeStepIndex = 3
+    )
+  }
+
+  @Test
+  fun `finishExchangeStepAttempt with deadlock multiple steps fails`() = runBlocking {
+    createRecurringExchange(
+      RECURRING_EXCHANGE.copy {
+        details =
+          RECURRING_EXCHANGE.details.copy {
+            exchangeWorkflow =
+              exchangeWorkflow {
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(3))
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
+              }
+          }
+      }
+    )
+
+    val claimReadyExchangeStepResponse =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse.exchangeStep.stepIndex).isEqualTo(1L)
+    val response =
+      exchangeStepAttemptsService.finishExchangeStepAttempt(
+        makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
+      )
+    assertThat(response.attemptNumber).isEqualTo(1L)
+    val expected = makeExchangeStepAttempt(ExchangeStepAttempt.State.SUCCEEDED)
+    assertThat(response)
+      .ignoringFieldScope(EXCHANGE_STEP_ATTEMPT_RESPONSE_IGNORED_FIELDS)
+      .isEqualTo(expected)
+    assertThat(claimReadyExchangeStepResponse.attemptNumber).isEqualTo(1L)
+
+    val claimReadyExchangeStepResponse2 =
+      exchangeStepsService.claimReadyExchangeStep(
+        claimReadyExchangeStepRequest { provider = PROVIDER }
+      )
+    assertThat(claimReadyExchangeStepResponse2)
+      .isEqualTo(org.wfanet.measurement.internal.kingdom.claimReadyExchangeStepResponse {})
+
+    exchangesService.assertTestExchangeHasState(Exchange.State.ACTIVE)
+    exchangeStepsService.assertTestExchangeStepHasState(
+      exchangeStepState = ExchangeStep.State.SUCCEEDED,
+      exchangeStepIndex = 1
+    )
+    exchangeStepsService.assertTestExchangeStepHasState(
+      exchangeStepState = ExchangeStep.State.BLOCKED,
+      exchangeStepIndex = 2
+    )
+    exchangeStepsService.assertTestExchangeStepHasState(
+      exchangeStepState = ExchangeStep.State.BLOCKED,
+      exchangeStepIndex = 3
+    )
+  }
+
+  @Test
   fun `finishExchangeStepAttempt fails for missing date`() = runBlocking {
+    createRecurringExchange()
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(finishExchangeStepAttemptRequest {})
@@ -192,6 +327,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails without exchange step attempt`() = runBlocking {
+    createRecurringExchange()
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
         exchangeStepAttemptsService.finishExchangeStepAttempt(
@@ -205,6 +342,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails for wrong provider`() = runBlocking {
+    createRecurringExchange()
+
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
@@ -229,6 +368,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `getExchangeStepAttempt succeeds`() = runBlocking {
+    createRecurringExchange()
+
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
@@ -260,6 +401,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `getExchangeStepAttempt fails with wrong provider`() = runBlocking {
+    createRecurringExchange()
+
     exchangeStepsService.claimReadyExchangeStep(
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
@@ -287,6 +430,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -310,6 +455,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails temporarily`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -333,6 +480,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt fails permanently`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -356,6 +505,8 @@ abstract class ExchangeStepAttemptsServiceTest {
 
   @Test
   fun `finishExchangeStepAttempt succeeds on second try`() = runBlocking {
+    createRecurringExchange()
+
     val claimReadyExchangeStepResponse =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest { provider = PROVIDER }
@@ -396,17 +547,24 @@ abstract class ExchangeStepAttemptsServiceTest {
     exchangeStepsService.assertTestExchangeStepHasState(ExchangeStep.State.SUCCEEDED)
   }
 
+  private suspend fun createRecurringExchange(recExchange: RecurringExchange = RECURRING_EXCHANGE) {
+    recurringExchangesService.createRecurringExchange(
+      createRecurringExchangeRequest { recurringExchange = recExchange }
+    )
+  }
+
   private fun makeRequest(
     attemptState: ExchangeStepAttempt.State,
-    attemptNo: Int = 1,
-    stepProvider: Provider = PROVIDER
+    attemptNumber: Int = 1,
+    stepProvider: Provider = PROVIDER,
+    stepIndex: Int = STEP_INDEX
   ): FinishExchangeStepAttemptRequest {
     return finishExchangeStepAttemptRequest {
       provider = stepProvider
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = EXCHANGE_DATE
-      stepIndex = STEP_INDEX
-      attemptNumber = attemptNo
+      this.stepIndex = stepIndex
+      this.attemptNumber = attemptNumber
       state = attemptState
     }
   }
@@ -429,5 +587,17 @@ abstract class ExchangeStepAttemptsServiceTest {
       details =
         exchangeStepAttemptDetails { debugLogEntries += debugLog { message = debugLogMessage } }
     }
+  }
+
+  private fun ExchangeWorkflowKt.Dsl.addNextStep(
+    party: ExchangeWorkflow.Party,
+    prerequisites: Iterable<Int>
+  ) {
+    steps +=
+      step {
+        stepIndex = this@addNextStep.steps.size + 1
+        this.party = party
+        prerequisiteStepIndices += prerequisites
+      }
   }
 }

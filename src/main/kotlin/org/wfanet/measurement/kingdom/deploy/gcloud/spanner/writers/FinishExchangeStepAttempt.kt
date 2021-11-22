@@ -173,10 +173,9 @@ class FinishExchangeStepAttempt(
         bind("date" to exchangeDate.toCloudDate())
         bind("state" to ExchangeStep.State.SUCCEEDED)
       }
-    return transactionContext
-      .executeQuery(statement)
-      .map { it.getLong("StepIndex").toInt() }
-      .toSet()
+    val alreadySucceededSteps =
+      transactionContext.executeQuery(statement).map { it.getLong("StepIndex").toInt() }.toSet()
+    return alreadySucceededSteps + exchangeStep.stepIndex
   }
 
   private suspend fun TransactionScope.findReadyExchangeSteps(
@@ -184,7 +183,8 @@ class FinishExchangeStepAttempt(
   ): List<ExchangeWorkflow.Step> {
     val completedStepIndexes = getSucceededExchangeSteps()
     return workflow.stepsList.filter { step ->
-      step.prerequisiteStepIndicesCount > 0 &&
+      step.stepIndex !in completedStepIndexes &&
+        step.prerequisiteStepIndicesCount > 0 &&
         step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
     }
   }
