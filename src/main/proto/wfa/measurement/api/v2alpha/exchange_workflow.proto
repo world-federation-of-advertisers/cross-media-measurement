@@ -176,7 +176,7 @@ message ExchangeWorkflow {
     message CopyFromPreviousExchangeStep {}
 
     // Hashes a set of decrypted join keys
-    message GenerateLookupKeys {}
+    message GenerateLookupKeysStep {}
 
     oneof step {
       CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
@@ -199,7 +199,7 @@ message ExchangeWorkflow {
       GenerateEncryptionKeysStep generate_encryption_keys_step = 18;
       PreprocessEventsStep preprocess_events_step = 19;
       CopyFromPreviousExchangeStep copy_from_previous_exchange_step = 20;
-      GenerateLookupKeys generate_lookup_keys = 21;
+      GenerateLookupKeysStep generate_lookup_keys_step = 21;
     }
   }
 
