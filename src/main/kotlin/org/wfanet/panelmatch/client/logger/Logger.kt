@@ -15,32 +15,32 @@
 package org.wfanet.panelmatch.client.logger
 
 import java.util.Collections.synchronizedList
-import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.CoroutineName
 
-@PublishedApi internal val taskLogs = ConcurrentHashMap<String, MutableList<String>>()
+class TaskLog(val name: String) : CoroutineContext.Element {
+  override val key = Key
+  val logs: MutableList<String> = synchronizedList(mutableListOf())
+
+  object Key : CoroutineContext.Key<TaskLog>
+}
+
+suspend fun currentTaskLog(): TaskLog? = coroutineContext[TaskLog.Key]
 
 suspend inline fun Logger.addToTaskLog(logMessage: String, level: Level = Level.INFO) {
-  val coroutineContextName: String = requireNotNull(coroutineContext[CoroutineName.Key]).name
-  val message = "[$coroutineContextName] $logMessage"
-  val logs = taskLogs.getOrPut(coroutineContextName) { synchronizedList(mutableListOf()) }
-  logs.add(message)
+  val taskLog = requireNotNull(currentTaskLog())
+  val message = "[${taskLog.name}] $logMessage"
+  taskLog.logs.add(message)
   log(level, message)
 }
 
 suspend fun getAndClearTaskLog(): List<String> {
-  val taskKey = requireNotNull(coroutineContext[CoroutineName.Key]).name
-  val listCopy: MutableList<String>? = taskLogs.remove(taskKey)
-  return listCopy ?: emptyList()
-}
-
-/**
- * Clears *all* the test logs. Should only be used if you really want to clear all the logs. In
- * general, used only during testing.
- */
-internal fun clearLogs() {
-  taskLogs.clear()
+  val logs = requireNotNull(currentTaskLog()).logs
+  return synchronized(logs) {
+    val copy = logs.toMutableList() // Force a copy (toList() is not guaranteed to)
+    logs.clear()
+    copy
+  }
 }

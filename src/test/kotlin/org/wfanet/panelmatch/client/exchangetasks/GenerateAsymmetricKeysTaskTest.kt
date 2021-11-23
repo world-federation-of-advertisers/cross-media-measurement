@@ -16,14 +16,13 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
+import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
@@ -45,5 +44,5 @@ class GenerateAsymmetricKeysTaskTest {
 }
 
 private fun withTestContext(block: suspend () -> Unit) {
-  runBlocking { withContext(CoroutineName(ATTEMPT_KEY) + Dispatchers.Default) { block() } }
+  runBlocking(TaskLog(ATTEMPT_KEY) + Dispatchers.Default) { block() }
 }

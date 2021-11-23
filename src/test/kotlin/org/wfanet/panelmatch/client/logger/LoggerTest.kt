@@ -15,9 +15,7 @@
 package org.wfanet.panelmatch.client.logger
 
 import com.google.common.truth.Truth.assertThat
-import java.util.UUID.randomUUID
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -25,15 +23,14 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
-private const val NAME1 = "some-coroutine-name"
-private const val NAME2 = "another-coroutine-name"
+private const val NAME = "some-name"
+private const val ANOTHER_NAME = "another-name"
 
 private class JobTestClass1 {
   suspend fun logWithDelay() {
@@ -61,8 +58,7 @@ private class JobTestClass2 {
 
 private class JobTestClass3 {
   suspend fun logWithDelay(): Unit = coroutineScope {
-    val attemptKey = randomUUID().toString()
-    launch(CoroutineName(attemptKey) + Dispatchers.Default) {
+    launch(TaskLog(NAME) + Dispatchers.Default) {
       logger.addToTaskLog("logWithDelay: Log Message C")
       delay(100)
       logger.addToTaskLog("logWithDelay: Log Message D")
@@ -75,20 +71,15 @@ private class JobTestClass3 {
 
 @RunWith(JUnit4::class)
 class LoggerTest {
-  @Before
-  fun clearLogsForTesting() {
-    clearLogs()
-  }
-
   @Test
   fun `write single task log from coroutine and suspend function`() = runBlocking {
     val job =
-      async(CoroutineName(NAME1) + Dispatchers.Default) {
+      async(TaskLog(NAME) + Dispatchers.Default) {
         logger.addToTaskLog("Log Message 0")
         JobTestClass1().logWithDelay()
         val log = getAndClearTaskLog()
         assertThat(log).hasSize(3)
-        log.forEach { assertThat(it).contains(NAME1) }
+        log.forEach { assertThat(it).contains(NAME) }
       }
     job.join()
   }
@@ -96,18 +87,18 @@ class LoggerTest {
   @Test
   fun `multiple jobs have separate task logs`() = runBlockingTest {
     awaitAll(
-      async(CoroutineName(NAME1) + Dispatchers.Default) {
+      async(TaskLog(NAME) + Dispatchers.Default) {
         logger.addToTaskLog("Log Message 0")
         JobTestClass1().logWithDelay()
         val log = getAndClearTaskLog()
         assertThat(log).hasSize(3)
-        log.forEach { assertThat(it).contains(NAME1) }
+        log.forEach { assertThat(it).contains(NAME) }
       },
-      async(CoroutineName(NAME2) + Dispatchers.Default) {
+      async(TaskLog(ANOTHER_NAME) + Dispatchers.Default) {
         JobTestClass1().logWithDelay()
         val log = getAndClearTaskLog()
         assertThat(log).hasSize(2)
-        log.forEach { assertThat(it).contains(NAME2) }
+        log.forEach { assertThat(it).contains(ANOTHER_NAME) }
       }
     )
   }
@@ -120,14 +111,14 @@ class LoggerTest {
   @Test
   fun `jobs inside of jobs use the same log`() = runBlockingTest {
     val job =
-      async(CoroutineName(NAME1) + Dispatchers.Default) {
+      async(TaskLog(NAME) + Dispatchers.Default) {
         logger.addToTaskLog("Log Message 0")
         val subJob = launch { JobTestClass2().logWithDelay() }
         JobTestClass1().logWithDelay()
         subJob.join()
         val log = getAndClearTaskLog()
         assertThat(log).hasSize(5)
-        log.forEach { assertThat(it).contains(NAME1) }
+        log.forEach { assertThat(it).contains(NAME) }
       }
     job.join()
   }
@@ -135,14 +126,14 @@ class LoggerTest {
   @Test
   fun `jobs inside of jobs with different coroutine names use the different logs`() = runBlocking {
     val job =
-      async(CoroutineName(NAME1) + Dispatchers.Default) {
+      async(TaskLog(NAME) + Dispatchers.Default) {
         logger.addToTaskLog("Log Message 0")
         val subJob = launch { JobTestClass3().logWithDelay() }
         JobTestClass1().logWithDelay()
         subJob.join()
         val log = getAndClearTaskLog()
         assertThat(log).hasSize(3)
-        log.forEach { assertThat(it).contains(NAME1) }
+        log.forEach { assertThat(it).contains(NAME) }
       }
     job.join()
   }
