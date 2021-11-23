@@ -20,8 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
-import org.apache.beam.sdk.values.PCollectionView
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
@@ -30,45 +29,42 @@ import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKeys
 import org.wfanet.panelmatch.client.privatemembership.createQueries
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
+import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.loggerFor
-import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 class BuildPrivateMembershipQueriesTask(
   override val storageFactory: StorageFactory,
   private val parameters: CreateQueriesParameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
-  private val outputs: Outputs
-) : ApacheBeamTask() {
-
+  inputLabelsMap: Map<String, String>,
+  private val outputs: Outputs,
+) : ApacheBeamTask(inputLabelsMap) {
   data class Outputs(
-    val encryptedQueryBundlesFileName: String,
-    val encryptedQueryBundlesFileCount: Int,
-    val queryIdAndJoinKeysFileName: String,
-    val queryIdAndJoinKeysFileCount: Int
+    val encryptedQueryBundles: ShardedFileName,
+    val queryIdAndJoinKeys: ShardedFileName,
   )
 
-  override suspend fun execute(
-    input: Map<String, StorageClient.Blob>
-  ): Map<String, Flow<ByteString>> {
+  override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
     logger.addToTaskLog("Executing build private membership queries")
     val pipeline = Pipeline.create()
 
-    val lookupKeyAndIdsManifest = input.getValue("lookup-keys")
-    val lookupKeyAndIds = readFromManifest(lookupKeyAndIdsManifest, joinKeyAndId {})
+    val lookupKeyAndIds: PCollection<JoinKeyAndId> =
+      readSingleBlobAsPCollection("lookup-keys").flatMap {
+        JoinKeyAndIdCollection.parseFrom(it).joinKeysAndIdsList
+      }
 
-    val hashedJoinKeyAndIdsManifest = input.getValue("hashed-join-keys")
-    val hashedJoinKeyAndIds = readFromManifest(hashedJoinKeyAndIdsManifest, joinKeyAndId {})
+    val hashedJoinKeyAndIds: PCollection<JoinKeyAndId> =
+      readSingleBlobAsPCollection("hashed-join-keys").flatMap {
+        JoinKeyAndIdCollection.parseFrom(it).joinKeysAndIdsList
+      }
 
-    val privateKeys =
-      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-private-key").toStringUtf8())
-    val publicKeyView =
-      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-public-key").toStringUtf8())
-        .toSingletonView()
-    val privateMembershipKeys: PCollectionView<AsymmetricKeys> =
-      privateKeys
+    val publicKeyView = readSingleBlobAsPCollection("rlwe-serialized-public-key").toSingletonView()
+
+    val privateKeysView =
+      readSingleBlobAsPCollection("rlwe-serialized-private-key")
         .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
           AsymmetricKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
         }
@@ -80,24 +76,19 @@ class BuildPrivateMembershipQueriesTask(
       createQueries(
         lookupKeyAndIds,
         hashedJoinKeyAndIds,
-        privateMembershipKeys,
+        privateKeysView,
         parameters,
         privateMembershipCryptor
       )
 
-    val queryIdAndJoinKeysFileSpec =
-      ShardedFileName(outputs.queryIdAndJoinKeysFileName, outputs.queryIdAndJoinKeysFileCount)
-    queryIdAndJoinKeys.write(queryIdAndJoinKeysFileSpec)
-
-    val encryptedQueryBundlesFileSpec =
-      ShardedFileName(outputs.encryptedQueryBundlesFileName, outputs.encryptedQueryBundlesFileCount)
-    encryptedQueryBundles.write(encryptedQueryBundlesFileSpec)
+    queryIdAndJoinKeys.write(outputs.queryIdAndJoinKeys)
+    encryptedQueryBundles.write(outputs.encryptedQueryBundles)
 
     pipeline.run()
 
     return mapOf(
-      "query-to-join-keys-map" to flowOf(queryIdAndJoinKeysFileSpec.spec.toByteStringUtf8()),
-      "encrypted-queries" to flowOf(encryptedQueryBundlesFileSpec.spec.toByteStringUtf8())
+      "query-to-join-keys-map" to flowOf(outputs.queryIdAndJoinKeys.spec.toByteStringUtf8()),
+      "encrypted-queries" to flowOf(outputs.encryptedQueryBundles.spec.toByteStringUtf8())
     )
   }
 

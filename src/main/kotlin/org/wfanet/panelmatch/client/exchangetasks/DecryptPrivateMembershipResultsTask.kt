@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.values.PCollection
-import org.apache.beam.sdk.values.PCollectionView
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
@@ -36,18 +35,17 @@ import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.compression.CompressionParameters
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.storage.toByteString
-import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 class DecryptPrivateMembershipResultsTask(
   override val storageFactory: StorageFactory,
   private val serializedParameters: ByteString,
   private val queryResultsDecryptor: QueryResultsDecryptor,
+  inputLabelsMap: Map<String, String>,
   private val outputs: Outputs
-) : ApacheBeamTask() {
+) : ApacheBeamTask(inputLabelsMap) {
 
   data class Outputs(
-    val keyedDecryptedEventDataSetFileName: String,
-    val keyedDecryptedEventDataSetFileCount: Int
+    val keyedDecryptedEventDataSet: ShardedFileName,
   )
 
   override suspend fun execute(
@@ -63,20 +61,17 @@ class DecryptPrivateMembershipResultsTask(
     val queryAndJoinKeys = readFromManifest(queryAndJoinKeysFileSpec, queryIdAndJoinKeys {})
 
     val compressionParameters =
-      readSingleBlobAsPCollection(input.getValue("compression-parameters").toStringUtf8())
+      readSingleBlobAsPCollection("compression-parameters")
         .map("Parse as CompressionParameters") { CompressionParameters.parseFrom(it) }
         .toSingletonView()
 
     val hkdfPepper = input.getValue("hkdf-pepper").toByteString()
 
-    val privateKeys =
-      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-private-key").toStringUtf8())
-    val publicKeyView =
-      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-public-key").toStringUtf8())
-        .toSingletonView()
-    val privateMembershipKeys: PCollectionView<AsymmetricKeys> =
-      privateKeys
-        .mapWithSideInput(publicKeyView, "Make AsymmetricKeys") { privateKey, publicKey ->
+    val publicKeyView = readSingleBlobAsPCollection("rlwe-serialized-public-key").toSingletonView()
+
+    val privateKeysView =
+      readSingleBlobAsPCollection("rlwe-serialized-private-key")
+        .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
           AsymmetricKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
         }
         .toSingletonView()
@@ -86,23 +81,18 @@ class DecryptPrivateMembershipResultsTask(
         encryptedQueryResults,
         queryAndJoinKeys,
         compressionParameters,
-        privateMembershipKeys,
+        privateKeysView,
         serializedParameters,
         queryResultsDecryptor,
         hkdfPepper,
       )
 
-    val keyedDecryptedEventDataSetFileSpec =
-      ShardedFileName(
-        outputs.keyedDecryptedEventDataSetFileName,
-        outputs.keyedDecryptedEventDataSetFileCount
-      )
-    keyedDecryptedEventDataSet.write(keyedDecryptedEventDataSetFileSpec)
+    keyedDecryptedEventDataSet.write(outputs.keyedDecryptedEventDataSet)
 
     pipeline.run()
 
     return mapOf(
-      "decrypted-event-data" to flowOf(keyedDecryptedEventDataSetFileSpec.spec.toByteStringUtf8())
+      "decrypted-event-data" to flowOf(outputs.keyedDecryptedEventDataSet.spec.toByteStringUtf8())
     )
   }
 }

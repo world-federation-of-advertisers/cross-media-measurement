@@ -27,7 +27,7 @@ import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 /** Base class for Apache Beam-running ExchangeTasks. */
-abstract class ApacheBeamTask : ExchangeTask {
+abstract class ApacheBeamTask(private val inputLabelsMap: Map<String, String>) : ExchangeTask {
   protected abstract val storageFactory: StorageFactory
 
   protected val pipeline: Pipeline = Pipeline.create()
@@ -43,7 +43,8 @@ abstract class ApacheBeamTask : ExchangeTask {
     )
   }
 
-  protected fun readSingleBlobAsPCollection(blobKey: String): PCollection<ByteString> {
+  protected fun readSingleBlobAsPCollection(label: String): PCollection<ByteString> {
+    val blobKey = inputLabelsMap.getValue(label)
     return pipeline.apply("Read $blobKey", ReadAsSingletonPCollection(blobKey, storageFactory))
   }
 
