@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.JOIN_KEYS
 import org.wfanet.panelmatch.client.logger.TaskLog
@@ -37,7 +38,7 @@ private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
 class DeterministicCommutativeCryptorExchangeTaskTest {
-  private val mockStorage = InMemoryStorageClient()
+  private val storage = InMemoryStorageClient()
   private val deterministicCommutativeCryptor = FakeDeterministicCommutativeCipher
   private val mpSecretKey = FakeDeterministicCommutativeCipher.generateKey()
   private val dpSecretKey = FakeDeterministicCommutativeCipher.generateKey()
@@ -51,33 +52,27 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
   private val singleBlindedKeysAndIds = buildJoinKeysAndIds(singleBlindedKeys)
   private val doubleBlindedKeysAndIds = buildJoinKeysAndIds(doubleBlindedKeys)
   private val lookupKeysAndIds = buildJoinKeysAndIds(lookupKeys)
-  private val blobOfMpSecretKey = runBlocking {
-    mockStorage.createBlob("mp-secret-key", mpSecretKey)
-  }
-  private val blobOfDpSecretKey = runBlocking {
-    mockStorage.createBlob("dp-secret-key", dpSecretKey)
-  }
-  private val blobOfInvalidKey = runBlocking {
-    mockStorage.createBlob("mp-invalid-key", invalidKey)
-  }
-  private val blobOfJoinKeys = runBlocking {
-    mockStorage.createBlob(
-      "hashed-join-keys",
-      joinKeyAndIdCollection { joinKeysAndIds += hashedJoinKeysAndIds }.toByteString()
-    )
-  }
-  private val blobOfSingleBlindedKeys = runBlocking {
-    mockStorage.createBlob(
+
+  private val blobOfMpSecretKey = createBlob("mp-secret-key", mpSecretKey)
+  private val blobOfDpSecretKey = createBlob("dp-secret-key", dpSecretKey)
+  private val blobOfInvalidKey = createBlob("mp-invalid-key", invalidKey)
+  private val blobOfJoinKeys =
+    createBlob("hashed-join-keys", joinKeyAndIdCollectionOf(hashedJoinKeysAndIds).toByteString())
+  private val blobOfSingleBlindedKeys =
+    createBlob(
       "single-blinded-keys",
-      joinKeyAndIdCollection { joinKeysAndIds += singleBlindedKeysAndIds }.toByteString()
+      joinKeyAndIdCollectionOf(singleBlindedKeysAndIds).toByteString()
     )
-  }
-  private val blobOfDoubleBlindedKeys = runBlocking {
-    mockStorage.createBlob(
+  private val blobOfDoubleBlindedKeys =
+    createBlob(
       "double-blinded-keys",
-      joinKeyAndIdCollection { joinKeysAndIds += doubleBlindedKeysAndIds }.toByteString()
+      joinKeyAndIdCollectionOf(doubleBlindedKeysAndIds).toByteString()
     )
+
+  private fun createBlob(blobKey: String, contents: ByteString): StorageClient.Blob = runBlocking {
+    storage.createBlob(blobKey, contents)
   }
+
   @Test
   fun `decrypt with valid inputs`() = withTestContext {
     val result =
@@ -197,4 +192,8 @@ private fun buildJoinKeysAndIds(joinKeys: List<ByteString>): List<JoinKeyAndId> 
 
 private fun parseResults(cryptoResult: ByteString): List<JoinKeyAndId> {
   return JoinKeyAndIdCollection.parseFrom(cryptoResult).joinKeysAndIdsList
+}
+
+private fun joinKeyAndIdCollectionOf(items: List<JoinKeyAndId>): JoinKeyAndIdCollection {
+  return joinKeyAndIdCollection { joinKeysAndIds += items }
 }

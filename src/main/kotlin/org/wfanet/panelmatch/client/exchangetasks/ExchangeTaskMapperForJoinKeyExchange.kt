@@ -26,6 +26,7 @@ import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
+import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
@@ -64,6 +65,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       StepCase.COPY_FROM_SHARED_STORAGE_STEP -> getCopyFromSharedStorageTask()
       StepCase.COPY_TO_SHARED_STORAGE_STEP -> getCopyToSharedStorageTask()
       StepCase.COPY_FROM_PREVIOUS_EXCHANGE_STEP -> getCopyFromPreviousExchangeTask()
+      StepCase.GENERATE_LOOKUP_KEYS -> GenerateLookupKeysTask()
       else -> throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
     }
   }
@@ -105,10 +107,16 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     val privateMembershipCryptor = getPrivateMembershipCryptor(stepDetails.serializedParameters)
     val outputs =
       BuildPrivateMembershipQueriesTask.Outputs(
-        encryptedQueryBundlesFileCount = stepDetails.encryptedQueryBundleFileCount,
-        encryptedQueryBundlesFileName = step.outputLabelsMap.getValue("encrypted-queries"),
-        queryIdAndJoinKeysFileCount = stepDetails.queryIdAndPanelistKeyFileCount,
-        queryIdAndJoinKeysFileName = step.outputLabelsMap.getValue("query-decryption-keys"),
+        encryptedQueryBundles =
+          ShardedFileName(
+            step.outputLabelsMap.getValue("encrypted-queries"),
+            stepDetails.encryptedQueryBundleFileCount
+          ),
+        queryIdAndJoinKeys =
+          ShardedFileName(
+            step.outputLabelsMap.getValue("query-decryption-keys"),
+            stepDetails.queryIdAndPanelistKeyFileCount
+          ),
       )
     return BuildPrivateMembershipQueriesTask(
       storageFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
@@ -120,6 +128,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
           padQueries = stepDetails.addPaddingQueries,
         ),
       privateMembershipCryptor = privateMembershipCryptor,
+      inputLabelsMap = step.inputLabelsMap,
       outputs = outputs,
     )
   }
@@ -129,13 +138,17 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     val stepDetails = step.decryptPrivateMembershipQueryResultsStep
     val outputs =
       DecryptPrivateMembershipResultsTask.Outputs(
-        keyedDecryptedEventDataSetFileCount = stepDetails.decryptEventDataSetFileCount,
-        keyedDecryptedEventDataSetFileName = step.outputLabelsMap.getValue("decrypted-event-data"),
+        keyedDecryptedEventDataSet =
+          ShardedFileName(
+            step.outputLabelsMap.getValue("decrypted-event-data"),
+            stepDetails.decryptEventDataSetFileCount
+          )
       )
     return DecryptPrivateMembershipResultsTask(
       storageFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
       serializedParameters = stepDetails.serializedParameters,
       queryResultsDecryptor = queryResultsDecryptor,
+      inputLabelsMap = step.inputLabelsMap,
       outputs = outputs,
     )
   }
@@ -145,8 +158,11 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     val stepDetails = step.executePrivateMembershipQueriesStep
     val outputs =
       ExecutePrivateMembershipQueriesTask.Outputs(
-        encryptedQueryResultFileCount = stepDetails.encryptedQueryResultFileCount,
-        encryptedQueryResultFileName = step.outputLabelsMap.getValue("encrypted-results")
+        encryptedQueryResults =
+          ShardedFileName(
+            step.outputLabelsMap.getValue("encrypted-results"),
+            stepDetails.encryptedQueryResultFileCount
+          )
       )
     val parameters =
       EvaluateQueriesParameters(
@@ -159,6 +175,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       storageFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
       evaluateQueriesParameters = parameters,
       queryEvaluator = queryResultsEvaluator,
+      inputLabelsMap = step.inputLabelsMap,
       outputs = outputs
     )
   }

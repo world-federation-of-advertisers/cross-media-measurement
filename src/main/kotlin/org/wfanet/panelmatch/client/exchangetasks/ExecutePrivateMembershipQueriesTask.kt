@@ -30,20 +30,17 @@ import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.toSingletonView
-import org.wfanet.panelmatch.common.storage.toStringUtf8
 
 /** Evaluates Private Membership queries. */
 class ExecutePrivateMembershipQueriesTask(
   override val storageFactory: StorageFactory,
   private val evaluateQueriesParameters: EvaluateQueriesParameters,
   private val queryEvaluator: QueryEvaluator,
+  inputLabelsMap: Map<String, String>,
   private val outputs: Outputs
-) : ApacheBeamTask() {
+) : ApacheBeamTask(inputLabelsMap) {
 
-  data class Outputs(
-    val encryptedQueryResultFileName: String,
-    val encryptedQueryResultFileCount: Int
-  )
+  data class Outputs(val encryptedQueryResults: ShardedFileName)
 
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
@@ -57,8 +54,7 @@ class ExecutePrivateMembershipQueriesTask(
     val queries = readFromManifest(queriesManifest, encryptedQueryBundle {})
 
     val privateMembershipPublicKey =
-      readSingleBlobAsPCollection(input.getValue("rlwe-serialized-public-key").toStringUtf8())
-        .toSingletonView()
+      readSingleBlobAsPCollection("rlwe-serialized-public-key").toSingletonView()
 
     val results: PCollection<EncryptedQueryResult> =
       evaluateQueries(
@@ -69,12 +65,12 @@ class ExecutePrivateMembershipQueriesTask(
         queryEvaluator
       )
 
-    val encryptedResultsFileSpec =
-      ShardedFileName(outputs.encryptedQueryResultFileName, outputs.encryptedQueryResultFileCount)
-    results.write(encryptedResultsFileSpec)
+    results.write(outputs.encryptedQueryResults)
 
     pipeline.run()
 
-    return mapOf("encrypted-results" to flowOf(encryptedResultsFileSpec.spec.toByteStringUtf8()))
+    return mapOf(
+      "encrypted-results" to flowOf(outputs.encryptedQueryResults.spec.toByteStringUtf8())
+    )
   }
 }
