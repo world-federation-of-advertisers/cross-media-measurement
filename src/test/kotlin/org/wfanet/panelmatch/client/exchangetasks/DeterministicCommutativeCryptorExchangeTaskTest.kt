@@ -18,16 +18,15 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.launcher.testing.JOIN_KEYS
+import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.storage.createBlob
 
@@ -184,7 +183,7 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
 }
 
 private fun withTestContext(block: suspend () -> Unit) {
-  runBlocking { withContext(CoroutineName(ATTEMPT_KEY) + Dispatchers.Default) { block() } }
+  runBlocking(TaskLog(ATTEMPT_KEY) + Dispatchers.Default) { block() }
 }
 
 private fun buildJoinKeysAndIds(joinKeys: List<ByteString>): List<JoinKeyAndId> {

@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.launcher
 
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -27,6 +28,6 @@ class CoroutineLauncher(
   private val stepExecutor: ExchangeStepExecutor
 ) : JobLauncher {
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    scope.launch { stepExecutor.execute(step, attemptKey) }
+    scope.launch(CoroutineName(attemptKey.toName())) { stepExecutor.execute(step, attemptKey) }
   }
 }

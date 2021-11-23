@@ -16,7 +16,6 @@ package org.wfanet.panelmatch.client.launcher
 
 import com.google.protobuf.ByteString
 import java.util.logging.Level
-import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -29,6 +28,7 @@ import org.wfanet.panelmatch.client.exchangetasks.CustomIOExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
+import org.wfanet.panelmatch.client.logger.TaskLog
 import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
@@ -50,7 +50,7 @@ class ExchangeTaskExecutor(
 ) : ExchangeStepExecutor {
 
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    withContext(CoroutineName(attemptKey.toName())) {
+    withContext(TaskLog(attemptKey.toName())) {
       val context = ExchangeContext(attemptKey, step.date, step.workflow, step.step)
       try {
         context.tryExecute()
