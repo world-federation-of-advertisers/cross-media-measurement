@@ -36,6 +36,13 @@ suspend inline fun Logger.addToTaskLog(logMessage: String, level: Level = Level.
   log(level, message)
 }
 
+suspend inline fun Logger.addToTaskLog(throwable: Throwable, level: Level = Level.INFO) {
+  val taskLog = requireNotNull(currentTaskLog())
+  val message = "[${taskLog.name}] ${throwable.message}"
+  taskLog.logs.add(message)
+  log(level, taskLog.name, throwable)
+}
+
 suspend fun getAndClearTaskLog(): List<String> {
   val logs = requireNotNull(currentTaskLog()).logs
   return synchronized(logs) {

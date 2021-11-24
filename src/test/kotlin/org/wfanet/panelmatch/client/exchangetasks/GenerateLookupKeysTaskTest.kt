@@ -58,7 +58,7 @@ class GenerateLookupKeysTaskTest {
         .execute(
           mapOf(
             "pepper" to storage.createBlob("pepper", identifierHashPepper),
-            "join-keys" to storage.createBlob("join-keys", joinKeys.toByteString())
+            "decrypted-join-keys" to storage.createBlob("join-keys", joinKeys.toByteString())
           )
         )
     assertThat(taskOutputs.keys).containsExactly("lookup-keys")

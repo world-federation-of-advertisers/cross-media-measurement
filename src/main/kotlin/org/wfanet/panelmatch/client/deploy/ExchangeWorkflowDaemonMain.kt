@@ -14,6 +14,8 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import org.apache.beam.sdk.options.PipelineOptions
+import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.storage.StorageClient
@@ -66,6 +68,9 @@ private object MainExchangeWorkflowDaemon : ExchangeWorkflowDaemonFromFlags() {
     val kmsStorageClient = tinkStorageProvider.makeKmsStorageClient(rootStorageClient, tinkKeyUri)
     StorageClientSecretMap(kmsStorageClient.withPrefix("private-keys"))
   }
+
+  /** This should be customized per deployment. */
+  override val pipelineOptions: PipelineOptions = PipelineOptionsFactory.create()
 
   /** This can be customized per deployment. */
   override val rootCertificates: SecretMap by lazy {

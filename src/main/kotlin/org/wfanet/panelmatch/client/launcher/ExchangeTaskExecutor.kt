@@ -50,12 +50,13 @@ class ExchangeTaskExecutor(
 ) : ExchangeStepExecutor {
 
   override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    withContext(TaskLog(attemptKey.toName())) {
+    val name = "${step.step.stepId}@${attemptKey.toName()}"
+    withContext(TaskLog(name)) {
       val context = ExchangeContext(attemptKey, step.date, step.workflow, step.step)
       try {
         context.tryExecute()
       } catch (e: Exception) {
-        logger.addToTaskLog(e.toString(), Level.WARNING)
+        logger.addToTaskLog(e, Level.SEVERE)
         markAsFinished(attemptKey, ExchangeStepAttempt.State.FAILED)
         throw e
       }
@@ -89,7 +90,7 @@ class ExchangeTaskExecutor(
     attemptKey: ExchangeStepAttemptKey,
     state: ExchangeStepAttempt.State
   ) {
-    logger.info("Marking ${attemptKey.toName()} as $state")
+    logger.addToTaskLog("Marking attempt state: $state")
     apiClient.finishExchangeStepAttempt(attemptKey, state, getAndClearTaskLog())
   }
 

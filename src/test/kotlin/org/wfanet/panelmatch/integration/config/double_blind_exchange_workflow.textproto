@@ -1,6 +1,3 @@
-# proto-file: src/main/proto/wfa/measurement/api/v2alpha/exchange_workflow.proto
-# proto-message: ExchangeWorkflow
-
 # MP generates private commutative deterministic key.
 steps {
   step_id: "generate-commutative-deterministic-key"
