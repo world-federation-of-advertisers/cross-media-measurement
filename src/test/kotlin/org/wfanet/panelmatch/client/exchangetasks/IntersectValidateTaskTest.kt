@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import java.lang.IllegalArgumentException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
@@ -124,12 +123,5 @@ class IntersectValidateTaskTest {
   @Test
   fun firstExchange() {
     assertIntersectAndValidateHasCorrectOutput(previousData = null, isFirstExchange = true)
-  }
-
-  @Test
-  fun firstExchangeWithPreviousDataInputFails() {
-    assertFailsWith<IllegalArgumentException> {
-      runIntersectAndValidate(previousData = JOIN_KEYS, isFirstExchange = true)
-    }
   }
 }

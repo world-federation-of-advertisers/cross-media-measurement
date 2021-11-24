@@ -32,8 +32,9 @@ class GenerateLookupKeysTask : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
-    @Suppress("BlockingMethodInNonBlockingContext")
-    val joinkeys = JoinKeyAndIdCollection.parseFrom(input.getValue("join-keys").toByteString())
+    val serializedJoinKeys = input.getValue("decrypted-join-keys").toByteString()
+    @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory
+    val joinkeys = JoinKeyAndIdCollection.parseFrom(serializedJoinKeys)
     val pepper = input.getValue("pepper").toByteString()
     val lookupKeys = joinKeyAndIdCollection {
       for (joinKeyAndId in joinkeys.joinKeysAndIdsList) {

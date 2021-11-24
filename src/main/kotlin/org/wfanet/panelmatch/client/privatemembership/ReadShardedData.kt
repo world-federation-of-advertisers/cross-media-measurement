@@ -15,9 +15,11 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
 import com.google.protobuf.MessageLite
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.apache.beam.sdk.extensions.protobuf.ProtoCoder
 import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.transforms.DoFn
@@ -34,7 +36,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.storage.toByteString
 
 /** Reads each file mentioned in [fileSpec] as a [ByteString]. */
-class ReadShardedData<T : MessageLite>(
+class ReadShardedData<T : Message>(
   private val prototype: T,
   private val fileSpec: String,
   private val storageFactory: StorageFactory
@@ -48,9 +50,10 @@ class ReadShardedData<T : MessageLite>(
     // GroupByKey prevents fusing `mapValues` since the previous ParDo has high fan-out.
     return fileNames
       .keyBy("Prevent fusion: Key") { it }
-      .groupByKey("Prevent fusion: Group")
-      .map("Prevent fusion: Unkey+Ungroup") { it.value.single() }
+      .groupByKey("Prevent Fusion/Group")
+      .map("Prevent Fusion/Unkey+Ungroup") { it.value.single() }
       .apply("Read Each Blob", ParDo.of(ReadBlobFn(prototype, storageFactory)))
+      .setCoder(ProtoCoder.of(prototype.javaClass))
   }
 }
 
@@ -65,26 +68,22 @@ private class ReadBlobFn<T : MessageLite>(
 
   @ProcessElement
   fun processElement(context: ProcessContext) {
-    val bytes =
-      runBlocking(Dispatchers.IO) {
-        storageFactory.build().getBlob(context.element())?.toByteString()
-      }
-        ?: return
+    val blob = storageFactory.build().getBlob(context.element()) ?: return
+    val bytes = runBlocking(Dispatchers.IO) { blob.toByteString() }
 
     fileSizeDistribution.update(bytes.size().toLong())
 
     val parser = prototype.parserForType
-    val codedInputStream = bytes.newCodedInput()
     var elements = 0L
 
-    while (!codedInputStream.isAtEnd) {
-      @Suppress("UNCHECKED_CAST") // MessageLite::getParseForType guarantees this cast is safe.
-      val message: T = parser.parseFrom(codedInputStream) as T
-
-      itemSizeDistribution.update(message.serializedSize.toLong())
-
-      context.output(message)
-      elements++
+    bytes.newInput().use { inputStream ->
+      while (true) {
+        @Suppress("UNCHECKED_CAST") // MessageLite::getParseForType guarantees this cast is safe.
+        val message = parser.parseDelimitedFrom(inputStream) as T? ?: break
+        itemSizeDistribution.update(message.serializedSize.toLong())
+        context.output(message)
+        elements++
+      }
     }
 
     elementCountDistribution.update(elements)

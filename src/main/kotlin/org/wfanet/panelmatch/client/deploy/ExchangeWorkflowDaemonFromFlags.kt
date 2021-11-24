@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.deploy
 import java.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
@@ -53,6 +54,9 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
    */
   abstract val privateKeys: MutableSecretMap
 
+  /** Apache Beam options. */
+  abstract val pipelineOptions: PipelineOptions
+
   override val certificateManager: V2AlphaCertificateManager by lazy {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -86,7 +90,8 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       inputTaskThrottler = throttler,
       privateStorageSelector = privateStorageSelector,
       sharedStorageSelector = sharedStorageSelector,
-      certificateManager = certificateManager
+      certificateManager = certificateManager,
+      pipelineOptions = pipelineOptions
     )
   }
 

@@ -65,8 +65,8 @@ class ExchangeWorkflowDaemonForTest(
   sharedDirectory: Path,
   override val scope: CoroutineScope,
   override val clock: Clock = Clock.systemUTC(),
-  pollingInterval: Duration = Duration.ofMillis(250),
-  taskTimeoutDuration: Duration = Duration.ofSeconds(30),
+  pollingInterval: Duration = Duration.ofMillis(500),
+  taskTimeoutDuration: Duration = Duration.ofMinutes(2),
 ) : ExchangeWorkflowDaemon() {
   private val recurringExchangeId = exchangeDateKey.recurringExchangeId
 

@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.integration
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
@@ -53,6 +54,15 @@ import org.wfanet.measurement.integration.deploy.gcloud.buildSpannerInProcessKin
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.testing.runBlockingTest
+
+private val TERMINAL_STEP_STATES = setOf(ExchangeStep.State.SUCCEEDED, ExchangeStep.State.FAILED)
+private val READY_STEP_STATES =
+  setOf(
+    ExchangeStep.State.IN_PROGRESS,
+    ExchangeStep.State.READY,
+    ExchangeStep.State.READY_FOR_RETRY
+  )
+private val TERMINAL_EXCHANGE_STATES = setOf(Exchange.State.SUCCEEDED, Exchange.State.FAILED)
 
 private const val API_VERSION = "v2alpha"
 private const val SCHEDULE = "@daily"
@@ -127,14 +137,20 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       .sortedBy { step -> step.stepIndex }
   }
 
-  private suspend fun logStepStates() {
+  private suspend fun logStepStates(steps: Iterable<ExchangeStep>) {
     val stepsList = exchangeWorkflow.stepsList
     logger.info(
-      getSteps().joinToString("\n") {
+      steps.joinToString("\n") {
         "ExchangeStep '${stepsList[it.stepIndex].stepId}' " +
-          "with index: ${it.stepIndex} is in state: ${it.state}."
+          "with index ${it.stepIndex} is in state: ${it.state}."
       }
     )
+  }
+
+  private fun assertNotDeadlocked(steps: Iterable<ExchangeStep>) {
+    if (steps.any { it.state !in TERMINAL_STEP_STATES }) {
+      assertThat(steps.any { it.state in READY_STEP_STATES }).isTrue()
+    }
   }
 
   private suspend fun isDone(): Boolean {
@@ -143,13 +159,18 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       name = exchangeKey.toName()
       modelProvider = ModelProviderKey(modelProviderId).toName()
     }
-    try {
+
+    return try {
       val exchange = exchangesClient.getExchange(request)
-      logStepStates()
+
+      val steps = getSteps()
+      logStepStates(steps)
+      assertNotDeadlocked(steps)
+
       logger.info("Exchange is in state: ${exchange.state}.")
-      return exchange.state == Exchange.State.SUCCEEDED
+      exchange.state in TERMINAL_EXCHANGE_STATES
     } catch (e: StatusException) {
-      return false
+      false
     }
   }
 
@@ -232,7 +253,11 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     modelProviderContext.scope.cancel()
 
     validateFinalState(dataProviderDaemon, modelProviderDaemon)
-    for (step in getSteps()) {
+
+    val steps = getSteps()
+    assertThat(steps.size == exchangeWorkflow.stepsCount)
+
+    for (step in steps) {
       assertWithMessage("Step ${step.stepIndex}")
         .that(step.state)
         .isEqualTo(ExchangeStep.State.SUCCEEDED)

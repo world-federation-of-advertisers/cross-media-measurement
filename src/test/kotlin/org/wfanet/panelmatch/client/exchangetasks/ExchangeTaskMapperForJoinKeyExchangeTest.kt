@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
+import org.apache.beam.sdk.Pipeline
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -89,6 +90,7 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
       override val certificateManager = TestCertificateManager
       override val inputTaskThrottler = AlwaysReadyThrottler
       override val getQueryResultsEvaluator = { _: ByteString -> PlaintextQueryEvaluator }
+      override fun newPipeline(): Pipeline = throw NotImplementedError("Not needed for test")
     }
 
   private val testStorageDetails = storageDetails {
