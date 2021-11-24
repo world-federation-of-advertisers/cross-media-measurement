@@ -164,7 +164,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       val exchange = exchangesClient.getExchange(request)
 
       val steps = getSteps()
-      logStepStates(steps)
+      logStepStates(steps.filter { step -> step.state != ExchangeStep.State.SUCCEEDED })
       assertNotDeadlocked(steps)
 
       logger.info("Exchange is in state: ${exchange.state}.")
