@@ -51,7 +51,7 @@ private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
 
 class AccountsService(
   private val internalAccountsStub: AccountsCoroutineStub,
-  private val redirectUri: String = ""
+  private val redirectUri: String
 ) : AccountsCoroutineImplBase() {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
