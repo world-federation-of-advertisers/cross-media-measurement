@@ -290,25 +290,27 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    eventGroupsService.createEventGroup(
-      eventGroup {
-        this.externalDataProviderId = externalDataProviderId
-        this.externalMeasurementConsumerId =
-          population.createMeasurementConsumer(measurementConsumersService)
-            .externalMeasurementConsumerId
-        providedEventGroupId = "eventGroup1"
-      }
-    )
+    val eventGroup1 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup1"
+        }
+      )
 
-    eventGroupsService.createEventGroup(
-      eventGroup {
-        this.externalDataProviderId = externalDataProviderId
-        this.externalMeasurementConsumerId =
-          population.createMeasurementConsumer(measurementConsumersService)
-            .externalMeasurementConsumerId
-        providedEventGroupId = "eventGroup2"
-      }
-    )
+    val eventGroup2 =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId =
+            population.createMeasurementConsumer(measurementConsumersService)
+              .externalMeasurementConsumerId
+          providedEventGroupId = "eventGroup2"
+        }
+      )
 
     val eventGroups: List<EventGroup> =
       eventGroupsService
@@ -320,6 +322,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .toList()
 
+    assertThat(eventGroups).containsAnyOf(eventGroup1, eventGroup2)
     assertThat(eventGroups).hasSize(1)
 
     val eventGroups2: List<EventGroup> =
@@ -338,6 +341,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .toList()
 
     assertThat(eventGroups2).hasSize(1)
+    assertThat(eventGroups2).containsAnyOf(eventGroup1, eventGroup2)
     assertThat(eventGroups2[0].externalEventGroupId)
       .isGreaterThan(eventGroups[0].externalEventGroupId)
   }

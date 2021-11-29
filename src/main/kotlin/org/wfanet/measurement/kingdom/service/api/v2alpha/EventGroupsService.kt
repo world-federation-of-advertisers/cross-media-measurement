@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -102,7 +103,8 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       }
 
     val streamRequest = streamEventGroupsRequest {
-      limit = pageSize
+      // get 1 more than the actual page size for deciding whether or not to set page token
+      limit = pageSize + 1
       filter =
         filter {
           if (parentKey.dataProviderId != WILDCARD) {
@@ -120,8 +122,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
           if (request.pageToken.isNotBlank()) {
             val nextPageToken = EventGroupPageToken.parseFrom(request.pageToken.base64UrlDecode())
 
-            if (this@streamEventGroupsRequest.limit != request.pageSize) {
-              this@streamEventGroupsRequest.limit = nextPageToken.pageSize
+            if (this@streamEventGroupsRequest.limit != request.pageSize + 1) {
+              // get 1 more than the actual page size for deciding whether or not to set page token
+              this@streamEventGroupsRequest.limit = nextPageToken.pageSize + 1
             }
 
             externalDataProviderIdAfter = nextPageToken.lastEventGroup.externalDataProviderId
@@ -140,8 +143,6 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
                 )
             ) { "Arguments must be kept the same when using a page token" }
           }
-          // get 1 more than the actual page size for deciding whether or not to set page token
-          this@streamEventGroupsRequest.limit += 1
         }
     }
 
@@ -153,24 +154,22 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     }
 
     return listEventGroupsResponse {
-      // nothing for next page so page token isn't set
-      if (results.size < streamRequest.limit) {
-        eventGroups += results.map(InternalEventGroup::toEventGroup)
-        // next page has at least 1 result so page token is set
-      } else {
-        eventGroups +=
-          results.subList(0, streamRequest.limit - 1).map(InternalEventGroup::toEventGroup)
+      eventGroups +=
+        results
+          .subList(0, min(results.size, streamRequest.limit - 1))
+          .map(InternalEventGroup::toEventGroup)
+      if (results.size == streamRequest.limit) {
         val eventGroupPageToken = eventGroupPageToken {
           this.pageSize = streamRequest.limit - 1
           externalDataProviderId = streamRequest.filter.externalDataProviderId
           for (externalMeasurementConsumerId in
-            streamRequest.filter.externalMeasurementConsumerIdsList.sortedDescending()) {
+            streamRequest.filter.externalMeasurementConsumerIdsList) {
             externalMeasurementConsumerIds += externalMeasurementConsumerId
           }
           lastEventGroup =
             previousPageEnd {
-              externalDataProviderId = results.last().externalDataProviderId
-              externalEventGroupId = results.last().externalEventGroupId
+              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+              externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
             }
         }
         nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()

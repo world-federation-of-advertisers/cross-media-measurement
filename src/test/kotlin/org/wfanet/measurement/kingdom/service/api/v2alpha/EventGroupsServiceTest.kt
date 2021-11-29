@@ -75,10 +75,16 @@ private val DATA_PROVIDER_EXTERNAL_ID =
   apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
 
 private val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
+private val EVENT_GROUP_NAME_2 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
+private val EVENT_GROUP_NAME_3 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 
 private val EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME)!!.eventGroupId)
+private val EVENT_GROUP_EXTERNAL_ID_2 =
+  apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME_2)!!.eventGroupId)
+private val EVENT_GROUP_EXTERNAL_ID_3 =
+  apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME_3)!!.eventGroupId)
 private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
@@ -92,7 +98,13 @@ class EventGroupsServiceTest {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { streamEventGroups(any()) }
-        .thenReturn(flowOf(INTERNAL_EVENT_GROUP, INTERNAL_EVENT_GROUP, INTERNAL_EVENT_GROUP))
+        .thenReturn(
+          flowOf(
+            INTERNAL_EVENT_GROUP,
+            INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2 },
+            INTERNAL_EVENT_GROUP.copy { externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_3 }
+          )
+        )
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalEventGroupsMock) }
@@ -194,8 +206,8 @@ class EventGroupsServiceTest {
 
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
     }
 
     val streamEventGroupsRequest =
@@ -237,13 +249,13 @@ class EventGroupsServiceTest {
 
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
       val eventGroupPageToken = eventGroupPageToken {
         pageSize = request.pageSize
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         lastEventGroup =
           previousPageEnd {
-            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
@@ -344,8 +356,8 @@ class EventGroupsServiceTest {
 
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP
-      eventGroups += EVENT_GROUP
+      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
+      eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_3 }
     }
 
     val streamEventGroupsRequest =
