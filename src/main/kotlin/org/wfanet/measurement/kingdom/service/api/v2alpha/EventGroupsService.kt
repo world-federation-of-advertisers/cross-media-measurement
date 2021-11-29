@@ -140,6 +140,8 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
                 )
             ) { "Arguments must be kept the same when using a page token" }
           }
+          // get 1 more than the actual page size for deciding whether or not to set page token
+          this@streamEventGroupsRequest.limit += 1
         }
     }
 
@@ -151,21 +153,28 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     }
 
     return listEventGroupsResponse {
-      eventGroups += results.map(InternalEventGroup::toEventGroup)
-      val eventGroupPageToken = eventGroupPageToken {
-        this.pageSize = streamRequest.limit
-        externalDataProviderId = streamRequest.filter.externalDataProviderId
-        for (externalMeasurementConsumerId in
-          streamRequest.filter.externalMeasurementConsumerIdsList.sortedDescending()) {
-          externalMeasurementConsumerIds += externalMeasurementConsumerId
-        }
-        lastEventGroup =
-          previousPageEnd {
-            externalDataProviderId = results.last().externalDataProviderId
-            externalEventGroupId = results.last().externalEventGroupId
+      // nothing for next page so page token isn't set
+      if (results.size < streamRequest.limit) {
+        eventGroups += results.map(InternalEventGroup::toEventGroup)
+        // next page has at least 1 result so page token is set
+      } else {
+        eventGroups +=
+          results.subList(0, streamRequest.limit - 1).map(InternalEventGroup::toEventGroup)
+        val eventGroupPageToken = eventGroupPageToken {
+          this.pageSize = streamRequest.limit - 1
+          externalDataProviderId = streamRequest.filter.externalDataProviderId
+          for (externalMeasurementConsumerId in
+            streamRequest.filter.externalMeasurementConsumerIdsList.sortedDescending()) {
+            externalMeasurementConsumerIds += externalMeasurementConsumerId
           }
+          lastEventGroup =
+            previousPageEnd {
+              externalDataProviderId = results.last().externalDataProviderId
+              externalEventGroupId = results.last().externalEventGroupId
+            }
+        }
+        nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
       }
-      nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
     }
   }
 }

@@ -92,7 +92,7 @@ class EventGroupsServiceTest {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { streamEventGroups(any()) }
-        .thenReturn(flowOf(INTERNAL_EVENT_GROUP, INTERNAL_EVENT_GROUP))
+        .thenReturn(flowOf(INTERNAL_EVENT_GROUP, INTERNAL_EVENT_GROUP, INTERNAL_EVENT_GROUP))
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalEventGroupsMock) }
@@ -195,16 +195,7 @@ class EventGroupsServiceTest {
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP
-      val eventGroupPageToken = eventGroupPageToken {
-        pageSize = DEFAULT_LIMIT
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        lastEventGroup =
-          previousPageEnd {
-            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-          }
-      }
-      nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      eventGroups += EVENT_GROUP
     }
 
     val streamEventGroupsRequest =
@@ -216,7 +207,7 @@ class EventGroupsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamEventGroupsRequest {
-          limit = DEFAULT_LIMIT
+          limit = DEFAULT_LIMIT + 1
           filter =
             StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
         }
@@ -248,7 +239,7 @@ class EventGroupsServiceTest {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP
       val eventGroupPageToken = eventGroupPageToken {
-        pageSize = 2
+        pageSize = request.pageSize
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         lastEventGroup =
           previousPageEnd {
@@ -268,7 +259,7 @@ class EventGroupsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamEventGroupsRequest {
-          limit = 2
+          limit = request.pageSize + 1
           filter =
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
@@ -307,7 +298,7 @@ class EventGroupsServiceTest {
 
     assertThat(streamEventGroupsRequest)
       .comparingExpectedFieldsOnly()
-      .isEqualTo(streamEventGroupsRequest { limit = 4 })
+      .isEqualTo(streamEventGroupsRequest { limit = request.pageSize + 1 })
   }
 
   @Test
@@ -335,7 +326,7 @@ class EventGroupsServiceTest {
 
     assertThat(streamEventGroupsRequest)
       .comparingExpectedFieldsOnly()
-      .isEqualTo(streamEventGroupsRequest { limit = 2 })
+      .isEqualTo(streamEventGroupsRequest { limit = 3 })
   }
 
   @Test
@@ -354,18 +345,7 @@ class EventGroupsServiceTest {
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP
-      val eventGroupPageToken = eventGroupPageToken {
-        pageSize = DEFAULT_LIMIT
-        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-        lastEventGroup =
-          previousPageEnd {
-            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-          }
-      }
-      nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      eventGroups += EVENT_GROUP
     }
 
     val streamEventGroupsRequest =
@@ -377,7 +357,7 @@ class EventGroupsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamEventGroupsRequest {
-          limit = DEFAULT_LIMIT
+          limit = DEFAULT_LIMIT + 1
           filter =
             StreamEventGroupsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID

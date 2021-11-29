@@ -48,10 +48,9 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     if (filter.externalEventGroupIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
       conjuncts.add(
         """
-          (ExternalDataProviderId >= @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
+          ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
           OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ExternalEventGroupId > @$EXTERNAL_EVENT_GROUP_ID_AFTER)))
+          AND ExternalEventGroupId > @$EXTERNAL_EVENT_GROUP_ID_AFTER))
         """.trimIndent()
       )
       bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
