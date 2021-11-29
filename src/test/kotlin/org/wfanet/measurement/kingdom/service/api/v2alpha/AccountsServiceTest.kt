@@ -72,6 +72,7 @@ private const val ISSUER = "issuer"
 private const val SUBJECT = "subject"
 
 private const val REDIRECT_URI = "https://localhost:2048"
+private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
 
 @RunWith(JUnit4::class)
 class AccountsServiceTest {
@@ -90,7 +91,7 @@ class AccountsServiceTest {
   var publicGrpcTestServerRule = GrpcTestServerRule {
     val internalAccountsCoroutineStub =
       AccountsGrpcKt.AccountsCoroutineStub(internalGrpcTestServerRule.channel)
-    val service = AccountsService(internalAccountsCoroutineStub)
+    val service = AccountsService(internalAccountsCoroutineStub, REDIRECT_URI)
     addService(service.withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub))
   }
 
@@ -297,7 +298,7 @@ class AccountsServiceTest {
 
   @Test
   fun `authenticate returns uri when issuer is the self issued provider`() {
-    val request = authenticateRequest { issuer = "https://self-issued.me" }
+    val request = authenticateRequest { issuer = SELF_ISSUED_ISSUER }
 
     val result = runBlocking { client.authenticate(request) }
 

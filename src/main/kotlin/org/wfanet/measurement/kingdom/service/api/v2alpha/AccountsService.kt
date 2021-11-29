@@ -47,10 +47,12 @@ import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 
-private const val REDIRECT_URI = "https://localhost:2048"
+private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
 
-class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
-  AccountsCoroutineImplBase() {
+class AccountsService(
+  private val internalAccountsStub: AccountsCoroutineStub,
+  private val redirectUri: String = ""
+) : AccountsCoroutineImplBase() {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
     val account =
@@ -142,13 +144,13 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
     uriParts.add("scope=openid")
     uriParts.add("state=" + externalIdToApiId(openIdRequestParams.state))
     uriParts.add("nonce=" + externalIdToApiId(openIdRequestParams.nonce))
-    val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
+    val redirectUri = URLEncoder.encode(this.redirectUri, "UTF-8")
     uriParts.add(
-      if (request.issuer.equals("https://self-issued.me")) {
+      if (request.issuer.equals(SELF_ISSUED_ISSUER)) {
         "client_id=$redirectUri"
         // TODO: validate issuer to make sure it is a third party provider
       } else {
-        "redirect_uri$redirectUri"
+        "redirect_uri=$redirectUri"
       }
     )
 
