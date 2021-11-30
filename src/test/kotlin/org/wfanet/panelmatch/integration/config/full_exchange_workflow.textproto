@@ -3,7 +3,7 @@ steps {
   step_id: "input-hkdf-pepper"
   party: DATA_PROVIDER
 
-  input_step {}
+  input_step { }
 
   output_labels { key: "input" value: "edp-hkdf-pepper" }
 }
@@ -35,7 +35,7 @@ steps {
   step_id: "input-identifier-hash-pepper"
   party: DATA_PROVIDER
 
-  input_step {}
+  input_step { }
 
   output_labels { key: "input" value: "edp-identifier-hash-pepper" }
 }
@@ -67,7 +67,7 @@ steps {
   step_id: "generate-commutative-deterministic-key"
   party: MODEL_PROVIDER
 
-  generate_commutative_deterministic_key_step {}
+  generate_commutative_deterministic_key_step { }
 
   output_labels { key: "symmetric-key" value: "mp-commutative-deterministic-key" }
 }
@@ -77,7 +77,7 @@ steps {
   step_id: "input-plaintext-join-keys"
   party: MODEL_PROVIDER
 
-  input_step {}
+  input_step { }
 
   output_labels { key: "input" value: "mp-plaintext-join-keys" }
 }
@@ -87,7 +87,7 @@ steps {
   step_id: "input-commutative-deterministic-key"
   party: DATA_PROVIDER
 
-  input_step {}
+  input_step { }
 
   output_labels { key: "input" value: "edp-commutative-deterministic-key" }
 }
@@ -100,7 +100,7 @@ steps {
   step_id: "input-previous-single-blinded-join-keys"
   party: DATA_PROVIDER
 
-  input_step {}
+  input_step { }
 
   # TODO: fix copy_from_previous_exchange_step and then make this one of those.
   # copy_from_previous_exchange_step {}
@@ -115,7 +115,7 @@ steps {
   step_id: "single-blind"
   party: MODEL_PROVIDER
 
-  encrypt_step {}
+  encrypt_step { }
 
   input_labels { key: "unencrypted-data" value: "mp-plaintext-join-keys" }
   input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
@@ -169,7 +169,7 @@ steps {
   step_id: "double-blind"
   party: DATA_PROVIDER
 
-  reencrypt_step {}
+  reencrypt_step { }
 
   input_labels { key: "encrypted-data" value: "edp-single-blinded-join-keys-audit-trail" }
   input_labels { key: "encryption-key" value: "edp-commutative-deterministic-key" }
@@ -202,7 +202,7 @@ steps {
   step_id: "remove-blinding"
   party: MODEL_PROVIDER
 
-  decrypt_step {}
+  decrypt_step { }
 
   input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
   input_labels { key: "encrypted-data" value: "mp-double-blinded-join-keys" }
@@ -215,7 +215,7 @@ steps {
   step_id: "generate-lookup-keys-step"
   party: MODEL_PROVIDER
 
-  generate_lookup_keys {}
+  generate_lookup_keys { }
 
   input_labels { key: "decrypted-join-keys" value: "mp-decrypted-join-keys" }
   input_labels { key: "pepper" value: "mp-identifier-hash-pepper" }
@@ -229,6 +229,23 @@ steps {
   party: MODEL_PROVIDER
 
   generate_serialized_rlwe_keys_step {
+    # unserialized_parameters:
+    # shard_parameters {
+    #   number_of_shards: 1
+    #   number_of_buckets_per_shard: 10
+    #   required_queries_per_shard: 1
+    # }
+    # crypto_parameters {
+    #   request_modulus: 18446744073708380161
+    #   request_modulus: 137438953471
+    #   response_modulus: 2056193
+    #   log_degree: 12
+    #   log_t: 1
+    #   variance: 8
+    #   levels_of_recursion: 2
+    #   log_compression_factor: 4
+    #   log_decomposition_modulus: 10
+    # }
     serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
   }
 
@@ -287,7 +304,7 @@ steps {
   step_id: "export-encrypted-queries"
   party: MODEL_PROVIDER
 
-  copy_to_shared_storage_step { copy_options { label_type: BLOB } }
+  copy_to_shared_storage_step { copy_options { label_type: MANIFEST } }
 
   input_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
   output_labels { key: "encrypted-queries" value: "encrypted-queries" }
@@ -298,7 +315,7 @@ steps {
   step_id: "import-encrypted-queries"
   party: DATA_PROVIDER
 
-  copy_from_shared_storage_step { copy_options { label_type: BLOB } }
+  copy_from_shared_storage_step { copy_options { label_type: MANIFEST } }
 
   input_labels { key: "encrypted-queries" value: "encrypted-queries" }
   output_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
@@ -309,41 +326,41 @@ steps {
   step_id: "input-encrypted-event-data"
   party: DATA_PROVIDER
 
-  input_step {}
+  input_step { }
 
   output_labels { key: "input" value: "edp-encrypted-event-data" }
 }
 
 # EDP provides dictionary for compressed event data as input.
 steps {
-  step_id: "input-event-data-dictionary"
+  step_id: "input-compression-parameters"
   party: DATA_PROVIDER
 
-  input_step {}
+  input_step { }
 
-  output_labels { key: "input" value: "edp-event-data-dictionary" }
+  output_labels { key: "input" value: "edp-compression-parameters" }
 }
 
 # EDP exports its event data dictionary.
 steps {
-  step_id: "export-event-data-dictionary"
+  step_id: "export-compression-parameters"
   party: DATA_PROVIDER
 
   copy_to_shared_storage_step { copy_options { label_type: BLOB } }
 
-  input_labels { key: "event-data-dictionary" value: "edp-event-data-dictionary" }
-  output_labels { key: "event-data-dictionary" value: "event-data-dictionary" }
+  input_labels { key: "compression-parameters" value: "edp-compression-parameters" }
+  output_labels { key: "compression-parameters" value: "compression-parameters" }
 }
 
 # MP imports EDP's event data dictionary.
 steps {
-  step_id: "import-event-data-dictionary"
+  step_id: "import-compression-parameters"
   party: MODEL_PROVIDER
 
   copy_from_shared_storage_step { copy_options { label_type: BLOB } }
 
-  input_labels { key: "event-data-dictionary" value: "event-data-dictionary" }
-  output_labels { key: "event-data-dictionary" value: "mp-event-data-dictionary" }
+  input_labels { key: "compression-parameters" value: "compression-parameters" }
+  output_labels { key: "compression-parameters" value: "mp-compression-parameters" }
 }
 
 # EDP executes encrypted queries
@@ -352,7 +369,11 @@ steps {
   party: DATA_PROVIDER
 
   execute_private_membership_queries_step {
-    serialized_parameters: "..."
+    serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
+    encrypted_query_result_file_count: 1
+    num_shards: 1
+    num_buckets_per_shard: 10
+    max_queries_per_shard: 10
   }
 
   input_labels { key: "encrypted-event-data" value: "edp-encrypted-event-data" }
@@ -367,7 +388,7 @@ steps {
   step_id: "export-encrypted-query-results"
   party: DATA_PROVIDER
 
-  copy_to_shared_storage_step { copy_options { label_type: BLOB } }
+  copy_to_shared_storage_step { copy_options { label_type: MANIFEST } }
 
   input_labels { key: "encrypted-results" value: "edp-encrypted-query-results" }
   output_labels { key: "encrypted-results" value: "encrypted-query-results" }
@@ -378,7 +399,7 @@ steps {
   step_id: "import-encrypted-query-results"
   party: MODEL_PROVIDER
 
-  copy_from_shared_storage_step { copy_options { label_type: BLOB } }
+  copy_from_shared_storage_step { copy_options { label_type: MANIFEST } }
 
   input_labels { key: "encrypted-results" value: "encrypted-query-results" }
   output_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
@@ -391,14 +412,15 @@ steps {
 
   decrypt_private_membership_query_results_step {
     serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
+    decrypt_event_data_set_file_count: 1
   }
 
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
-  input_labels { key: "event-data-dictionary" value: "mp-event-data-dictionary" }
+  input_labels { key: "compression-parameters" value: "mp-compression-parameters" }
   input_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
   input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
   input_labels { key: "pepper" value: "mp-hkdf-pepper" }
 
-  output_labels { key: "results" value: "results" }
+  output_labels { key: "decrypted-event-data" value: "decrypted-event-data" }
 }

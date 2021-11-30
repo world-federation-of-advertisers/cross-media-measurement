@@ -137,14 +137,17 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       .sortedBy { step -> step.stepIndex }
   }
 
-  private suspend fun logStepStates(steps: Iterable<ExchangeStep>) {
+  private fun logStepStates(steps: Iterable<ExchangeStep>) {
     val stepsList = exchangeWorkflow.stepsList
-    logger.info(
-      steps.joinToString("\n") {
-        "ExchangeStep '${stepsList[it.stepIndex].stepId}' " +
-          "with index ${it.stepIndex} is in state: ${it.state}."
-      }
-    )
+    val message = StringBuilder("ExchangeStep states:")
+    for ((state, stepsForState) in steps.groupBy { it.state }) {
+      val stepsString =
+        stepsForState.sortedBy { it.stepIndex }.joinToString(", ") {
+          "${stepsList[it.stepIndex].stepId}#${it.stepIndex}"
+        }
+      message.appendLine("  $state: $stepsString")
+    }
+    logger.info(message.toString())
   }
 
   private fun assertNotDeadlocked(steps: Iterable<ExchangeStep>) {
@@ -164,7 +167,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       val exchange = exchangesClient.getExchange(request)
 
       val steps = getSteps()
-      logStepStates(steps.filter { step -> step.state != ExchangeStep.State.SUCCEEDED })
+      logStepStates(steps)
       assertNotDeadlocked(steps)
 
       logger.info("Exchange is in state: ${exchange.state}.")
@@ -241,6 +244,8 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     for ((blobKey, value) in initialModelProviderInputs) {
       modelProviderDaemon.writePrivateBlob(blobKey, value)
     }
+
+    logger.info("Shared Folder path: ${sharedFolder.root.absolutePath}")
 
     dataProviderDaemon.run()
     modelProviderDaemon.run()

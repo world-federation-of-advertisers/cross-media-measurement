@@ -27,7 +27,7 @@ suspend fun ApacheBeamContext.executePrivateMembershipQueries(
   evaluateQueriesParameters: EvaluateQueriesParameters,
   queryEvaluator: QueryEvaluator,
 ) {
-  val database = readShardedPCollection("event-data", databaseEntry {})
+  val database = readShardedPCollection("encrypted-event-data", databaseEntry {})
   val queries = readShardedPCollection("encrypted-queries", encryptedQueryBundle {})
   val privateMembershipPublicKey = readBlobAsView("serialized-rlwe-public-key")
 

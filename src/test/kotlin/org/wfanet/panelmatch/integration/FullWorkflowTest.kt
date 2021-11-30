@@ -95,13 +95,15 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
     )
 
   override val initialModelProviderInputs: Map<String, ByteString> =
-    mapOf("mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString())
+    mapOf(
+      "mp-plaintext-join-keys" to PLAINTEXT_JOIN_KEYS.toByteString(),
+    )
 
   override fun validateFinalState(
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
     modelProviderDaemon: ExchangeWorkflowDaemonForTest
   ) {
-    val blob = modelProviderDaemon.readPrivateBlob("results")
+    val blob = modelProviderDaemon.readPrivateBlob("decrypted-event-data")
     assertThat(blob).isNotNull()
     // TODO(@efoxepstein): add more assertions that `blob` contains the right value.
   }

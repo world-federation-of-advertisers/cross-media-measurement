@@ -33,7 +33,7 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
   queryResultsDecryptor: QueryResultsDecryptor,
 ) {
   val encryptedQueryResults: PCollection<EncryptedQueryResult> =
-    readShardedPCollection("encrypted-query-results", encryptedQueryResult {})
+    readShardedPCollection("encrypted-results", encryptedQueryResult {})
 
   val queryAndJoinKeys = readShardedPCollection("query-to-join-keys-map", queryIdAndJoinKeys {})
 
@@ -42,11 +42,11 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       .map("Parse as CompressionParameters") { CompressionParameters.parseFrom(it) }
       .toSingletonView()
 
-  val hkdfPepper = readBlob("hkdf-pepper")
-  val publicKeyView = readBlobAsView("rlwe-serialized-public-key")
+  val hkdfPepper = readBlob("pepper")
+  val publicKeyView = readBlobAsView("serialized-rlwe-public-key")
 
   val privateKeysView =
-    readBlobAsPCollection("rlwe-serialized-private-key")
+    readBlobAsPCollection("serialized-rlwe-private-key")
       .mapWithSideInput(publicKeyView, "Make Private Membership Keys") { privateKey, publicKey ->
         AsymmetricKeys(serializedPublicKey = publicKey, serializedPrivateKey = privateKey)
       }
