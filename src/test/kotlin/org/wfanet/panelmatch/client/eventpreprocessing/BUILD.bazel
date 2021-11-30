@@ -33,29 +33,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "EncryptEventsDoFnTest",
+    name = "JniEncryptEventsTest",
     timeout = "short",
-    srcs = ["EncryptEventsDoFnTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsDoFnTest",
-    deps = [
-        "//imports/java/com/google/common:guava",
-        "//imports/java/org/apache/beam:core",
-        "//imports/java/org/apache/beam/extensions:protobuf",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/beam/testing",
-        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/org/junit",
-    ],
-)
-
-kt_jvm_test(
-    name = "EncryptEventsTest",
-    timeout = "short",
-    srcs = ["EncryptEventsTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.EncryptEventsTest",
+    srcs = ["JniEncryptEventsTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.eventpreprocessing.JniEncryptEventsTest",
     deps = [
         "//imports/java/com/google/common:guava",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",

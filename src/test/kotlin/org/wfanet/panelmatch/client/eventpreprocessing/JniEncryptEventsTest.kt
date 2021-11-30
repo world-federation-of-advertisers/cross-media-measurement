@@ -24,7 +24,7 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt.noCompre
 import org.wfanet.panelmatch.common.compression.compressionParameters
 
 @RunWith(JUnit4::class)
-class EncryptEventsTest {
+class JniEncryptEventsTest {
 
   @Test
   fun test() {
@@ -39,9 +39,7 @@ class EncryptEventsTest {
           data = "event-data".toByteStringUtf8()
         }
     }
-    val encryptEvents = JniEventPreprocessorFn()
-
     // TODO(@efoxepstein): once we have a JNIed way to decrypt, this should check roundtrips.
-    encryptEvents.apply(request) // Does not throw
+    JniEventPreprocessor().preprocess(request)
   }
 }

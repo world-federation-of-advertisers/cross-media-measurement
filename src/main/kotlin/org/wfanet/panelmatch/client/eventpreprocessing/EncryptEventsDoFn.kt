@@ -19,10 +19,8 @@ import com.google.protobuf.ByteString
 import java.util.concurrent.TimeUnit
 import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
-import org.apache.beam.sdk.transforms.SerializableFunction
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollectionView
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
 import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.PreprocessEventsResponse
 import org.wfanet.panelmatch.client.preprocessEventsRequest
@@ -35,8 +33,7 @@ import org.wfanet.panelmatch.common.compression.CompressionParameters
  * The outputs are suitable for use as database entries in the Private Membership protocol.
  */
 class EncryptEventsDoFn(
-  private val encryptEvents:
-    SerializableFunction<PreprocessEventsRequest, PreprocessEventsResponse>,
+  private val eventPreprocessor: EventPreprocessor,
   private val identifierHashPepperProvider: IdentifierHashPepperProvider,
   private val hkdfPepperProvider: HkdfPepperProvider,
   private val deterministicCommutativeCipherKeyProvider: DeterministicCommutativeCipherKeyProvider,
@@ -62,7 +59,7 @@ class EncryptEventsDoFn(
       }
     }
     val stopWatch: Stopwatch = Stopwatch.createStarted()
-    val response: PreprocessEventsResponse = encryptEvents.apply(request)
+    val response: PreprocessEventsResponse = eventPreprocessor.preprocess(request)
     stopWatch.stop()
     jniCallTimeDistribution.update(stopWatch.elapsed(TimeUnit.MICROSECONDS))
 
