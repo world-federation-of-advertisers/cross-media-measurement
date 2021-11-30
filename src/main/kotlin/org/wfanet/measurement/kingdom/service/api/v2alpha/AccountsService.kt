@@ -142,8 +142,8 @@ class AccountsService(
     val uriParts = mutableListOf<String>()
     uriParts.add("openid://?response_type=id_token")
     uriParts.add("scope=openid")
-    uriParts.add("state=" + externalIdToApiId(openIdRequestParams.state))
-    uriParts.add("nonce=" + externalIdToApiId(openIdRequestParams.nonce))
+    uriParts.add("state=${externalIdToApiId(openIdRequestParams.state)}")
+    uriParts.add("nonce=${externalIdToApiId(openIdRequestParams.nonce)}")
     val redirectUri = URLEncoder.encode(this.redirectUri, "UTF-8")
     uriParts.add(
       if (request.issuer.equals(SELF_ISSUED_ISSUER)) {
