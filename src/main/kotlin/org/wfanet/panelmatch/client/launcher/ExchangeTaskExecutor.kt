@@ -35,6 +35,7 @@ import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.storage.createBlob
+import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
@@ -81,8 +82,7 @@ class ExchangeTaskExecutor(
         requireNotNull(step.outputLabelsMap[genericLabel]) {
           "Missing $genericLabel in outputLabels for step: $step"
         }
-      privateStorage.getBlob(blobKey)?.delete()
-      privateStorage.createBlob(blobKey, flow)
+      privateStorage.createOrReplaceBlob(blobKey, flow)
     }
   }
 
