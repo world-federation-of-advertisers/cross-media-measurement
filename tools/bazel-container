@@ -18,12 +18,13 @@ set -eEu -o pipefail
 
 readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:a1fee281b05fdaa769ff4e1d85cba831c046fbd7f177f31c06f3bf3840f4dec0}"
 readonly DOCKER="${DOCKER:-docker}"
-readonly CONTAINER_HOME="/tmp/home/${USER}"
-readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${USER}"
-readonly REPO_CACHE="${CONTAINER_HOME}/repo-cache"
+readonly CONTAINER_USER='builder'
+readonly CONTAINER_HOME="/${CONTAINER_USER}"
+readonly OUTPUT_BASE="${PWD}/bazel-container-output"
+readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${CONTAINER_USER}"
 readonly WORKING_DIR="${CONTAINER_HOME}/workspace"
 readonly BAZELISK_HOME="${CONTAINER_HOME}/.cache/bazelisk"
-readonly OUTPUT_VOLUME='bazel-output'
+readonly GCLOUD_SDK_CONFIG="${CONTAINER_HOME}/.config/gcloud"
 
 check_bash_version() {
   if [[ "${BASH_VERSINFO:-0}" -lt 5 ]]; then
@@ -44,6 +45,12 @@ is_rootless() {
 
   [[ "$($DOCKER info --format '{{.SecurityOptions}}')" == *rootless* ]] ||
     [[ "$($DOCKER version --format '{{.Client.Os}}')" == 'darwin' ]]
+}
+
+get_output_volume() {
+  local wdir_hash
+  wdir_hash="$(echo -n "${PWD}" | md5sum | cut -d ' ' -f 1)"
+  echo "bazel-output-${wdir_hash}"
 }
 
 # Outputs the host's Bazel output user root.
@@ -83,12 +90,16 @@ main() {
 
   local host_output_user_root
   host_output_user_root="$(get_host_output_user_root)"
-  local host_repo_cache="${host_output_user_root}/cache/repos/v1"
-  mkdir -p "${host_repo_cache}"
+  readonly host_output_user_root
+  mkdir -p "${host_output_user_root}"
 
   local host_bazelisk_cache_dir
   host_bazelisk_cache_dir="$(ensure_host_bazelisk_cache_dir)"
   readonly host_bazelisk_cache_dir
+
+  local output_volume
+  output_volume="$(get_output_volume)"
+  readonly output_volume
 
   local -a docker_options=(
     '-it'
@@ -102,23 +113,49 @@ main() {
     '--mount'
       "type=bind,source=${PWD},target=${WORKING_DIR},readonly"
     '--mount'
-      "type=bind,source=${host_repo_cache},target=${REPO_CACHE}"
+      "type=bind,source=${host_output_user_root},target=${OUTPUT_USER_ROOT}"
     '--mount'
       "type=bind,source=${host_bazelisk_cache_dir},target=${BAZELISK_HOME}"
     '--mount'
-      "type=volume,source=${OUTPUT_VOLUME},target=${OUTPUT_USER_ROOT}"
+      "type=volume,source=${output_volume},target=${OUTPUT_BASE}"
     "--workdir=${WORKING_DIR}"
   )
 
-  if ! is_rootless; then
+  if hash gcloud; then
+    local gcloud_config
+    gcloud_config="$(gcloud info --format='value(config.paths.global_config_dir)')"
     docker_options+=(
-      "--user=${EUID}:$(id -g)"
-      "--env=USER=${USER}"
+      '--mount'
+        "type=bind,source=${gcloud_config},target=${GCLOUD_SDK_CONFIG}"
+      '--env'
+        "CLOUDSDK_CONFIG=${GCLOUD_SDK_CONFIG}"
+    )
+  fi
+
+  if [[ -d "${HOME}/.docker" ]]; then
+    docker_options+=(
+      '--mount'
+        "type=bind,source=${HOME}/.docker,target=${CONTAINER_HOME}/.docker,readonly"
+    )
+  fi
+
+  if ! is_rootless; then
+    local -r owner="${EUID}:${GROUPS[0]}"
+
+    # Set volume ownership.
+    ${DOCKER} run --rm \
+      --mount type=volume,source="${output_volume}",target="${OUTPUT_BASE}" \
+      --entrypoint=/bin/chown "${IMAGE}" "${owner}" "${OUTPUT_BASE}"
+
+    docker_options+=(
+      "--user=${owner}"
+      "--env=USER=${CONTAINER_USER}"
     )
   fi
 
   local -a startup_options=(
     "--output_user_root=${OUTPUT_USER_ROOT}"
+    "--output_base=${OUTPUT_BASE}"
   )
   while [[ "$1" =~ [[:space:]]*-.* ]]; do
     startup_options+=("$1")
@@ -128,7 +165,7 @@ main() {
   local command="$1"
   shift 1
 
-  echo "Running in Bazel container with output volume ${OUTPUT_VOLUME}:" \
+  echo "Running in Bazel container with output volume ${output_volume}:" \
     "${command} $*" >&2
 
   exec "${DOCKER}" run "${docker_options[@]}" \
@@ -136,7 +173,6 @@ main() {
     "${startup_options[@]}" \
     "${command}" \
     --config=container \
-    --repository_cache="${REPO_CACHE}" \
     --experimental_convenience_symlinks=ignore \
     "$@"
 }
