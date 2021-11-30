@@ -19,10 +19,9 @@ import com.google.cloud.spanner.Struct
 import com.google.type.Date
 import io.grpc.Status
 import java.time.Clock
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
-import kotlinx.coroutines.flow.toSet
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -31,6 +30,7 @@ import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
@@ -124,7 +124,7 @@ class FinishExchangeStepAttempt(
         ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
     // TODO: use a KingdomInternalException above
 
-    val steps = findReadyExchangeSteps(workflow)
+    val steps = findNewlyUnblockedExchangeSteps(workflow)
     updateExchangeStepsToReady(
       steps,
       recurringExchangeId = recurringExchangeId.value,
@@ -157,35 +157,35 @@ class FinishExchangeStepAttempt(
     return updateExchangeStepAttempt(ExchangeStepAttempt.State.FAILED_STEP)
   }
 
-  private suspend fun TransactionScope.getSucceededExchangeSteps(): Set<Int> {
+  private suspend fun TransactionScope.getExchangeStepStates(): Map<Int, ExchangeStep.State> {
     val sql =
       """
-      SELECT ExchangeSteps.StepIndex
+      SELECT ExchangeSteps.StepIndex, ExchangeSteps.State
       FROM ExchangeSteps
       WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
         AND ExchangeSteps.Date = @date
-        AND ExchangeSteps.State = @state
       ORDER BY ExchangeSteps.StepIndex
       """.trimIndent()
     val statement: Statement =
       statement(sql) {
         bind("recurring_exchange_id" to recurringExchangeId.value)
         bind("date" to exchangeDate.toCloudDate())
-        bind("state" to ExchangeStep.State.SUCCEEDED)
       }
-    val alreadySucceededSteps =
-      transactionContext.executeQuery(statement).map { it.getLong("StepIndex").toInt() }.toSet()
-    return alreadySucceededSteps + exchangeStep.stepIndex
+    return transactionContext.executeQuery(statement).toList().associate {
+      it.getLong("StepIndex").toInt() to it.getProtoEnum("State", ExchangeStep.State::forNumber)
+    }
   }
 
-  private suspend fun TransactionScope.findReadyExchangeSteps(
+  private suspend fun TransactionScope.findNewlyUnblockedExchangeSteps(
     workflow: ExchangeWorkflow
   ): List<ExchangeWorkflow.Step> {
-    val completedStepIndexes = getSucceededExchangeSteps()
+    val stepStates = getExchangeStepStates()
     return workflow.stepsList.filter { step ->
-      step.stepIndex !in completedStepIndexes &&
+      stepStates[step.stepIndex] == ExchangeStep.State.BLOCKED &&
         step.prerequisiteStepIndicesCount > 0 &&
-        step.prerequisiteStepIndicesList.all { it in completedStepIndexes }
+        step.prerequisiteStepIndicesList.all {
+          it == stepIndex || stepStates[it] == ExchangeStep.State.SUCCEEDED
+        }
     }
   }
 
