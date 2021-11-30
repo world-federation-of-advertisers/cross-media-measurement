@@ -85,7 +85,7 @@ private fun run(
   // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
   val services: List<ServerServiceDefinition> =
     listOf(
-      AccountsService(internalAccountsCoroutineStub)
+      AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
       CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
@@ -114,5 +114,13 @@ private class V2alphaFlags {
     required = true,
   )
   lateinit var authorityKeyIdentifierToPrincipalMapFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--open-id-redirect-uri"],
+    description = ["The redirect uri for OpenID Provider responses."],
+    required = true
+  )
+  lateinit var redirectUri: String
     private set
 }
