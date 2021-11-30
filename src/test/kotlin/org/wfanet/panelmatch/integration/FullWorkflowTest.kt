@@ -16,11 +16,23 @@ package org.wfanet.panelmatch.integration
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.io.ByteArrayOutputStream
+import kotlin.random.Random
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
+import org.wfanet.panelmatch.client.common.databaseEntryOf
+import org.wfanet.panelmatch.client.common.databaseKeyOf
 import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
+import org.wfanet.panelmatch.client.common.plaintextOf
+import org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessor
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
+import org.wfanet.panelmatch.client.preprocessEventsRequest
+import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
+import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCompressionParameters
+import org.wfanet.panelmatch.common.compression.compressionParameters
 
 private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
   joinKeysAndIds +=
@@ -32,7 +44,40 @@ private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
 private val EDP_COMMUTATIVE_DETERMINISTIC_KEY = "some-key".toByteStringUtf8()
 private val EDP_IDENTIFIER_HASH_PEPPER = "edp-identifier-hash-pepper".toByteStringUtf8()
 private val EDP_HKDF_PEPPER = "edp-hkdf-pepper".toByteStringUtf8()
-private val EDP_EVENT_DATA_DICTIONARY = "some-dictionary".toByteStringUtf8()
+private val EDP_COMPRESSION_PARAMETERS = compressionParameters {
+  brotli = brotliCompressionParameters { dictionary = ByteString.EMPTY }
+}
+private val EDP_ENCRYPTED_EVENT_DATA_MANIFEST = "edp-encrypted-event-data-?-of-1".toByteStringUtf8()
+
+private fun makeDatabaseEntry(): DatabaseEntry {
+  val request = preprocessEventsRequest {
+    cryptoKey = EDP_COMMUTATIVE_DETERMINISTIC_KEY
+    hkdfPepper = EDP_HKDF_PEPPER
+    identifierHashPepper = EDP_IDENTIFIER_HASH_PEPPER
+    compressionParameters = EDP_COMPRESSION_PARAMETERS
+    unprocessedEvents +=
+      unprocessedEvent {
+        id = Random.nextBytes(16).toByteString()
+        data = Random.nextBytes(16).toByteString()
+      }
+  }
+  val response = JniEventPreprocessor().preprocess(request)
+  val processedEvent = response.processedEventsList.single()
+  return databaseEntryOf(
+    databaseKeyOf(processedEvent.encryptedId),
+    plaintextOf(processedEvent.encryptedData)
+  )
+}
+
+private val EDP_DATABASE_ENTRIES = (0 until 100).map { makeDatabaseEntry() }
+
+private val EDP_ENCRYPTED_EVENT_DATA_BLOB = run {
+  val outputStream = ByteArrayOutputStream()
+  for (entry in EDP_DATABASE_ENTRIES) {
+    entry.writeDelimitedTo(outputStream)
+  }
+  outputStream.toByteArray().toByteString()
+}
 
 @RunWith(JUnit4::class)
 class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
@@ -42,8 +87,9 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
     mapOf(
       "edp-identifier-hash-pepper" to EDP_IDENTIFIER_HASH_PEPPER,
       "edp-commutative-deterministic-key" to EDP_COMMUTATIVE_DETERMINISTIC_KEY,
-      "edp-encrypted-event-data" to ByteString.EMPTY, // TODO(@efoxepstein): populate this
-      "edp-event-data-dictionary" to EDP_EVENT_DATA_DICTIONARY,
+      "edp-encrypted-event-data" to EDP_ENCRYPTED_EVENT_DATA_MANIFEST,
+      "edp-encrypted-event-data-0-of-1" to EDP_ENCRYPTED_EVENT_DATA_BLOB,
+      "edp-compression-parameters" to EDP_COMPRESSION_PARAMETERS.toByteString(),
       "edp-hkdf-pepper" to EDP_HKDF_PEPPER,
       "edp-previous-single-blinded-join-keys" to ByteString.EMPTY,
     )
