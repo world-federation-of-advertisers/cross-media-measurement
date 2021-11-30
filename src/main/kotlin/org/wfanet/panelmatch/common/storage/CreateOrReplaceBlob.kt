@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.secrets
+package org.wfanet.panelmatch.common.storage
 
 import com.google.protobuf.ByteString
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
-import org.wfanet.panelmatch.common.storage.toByteString
+import org.wfanet.measurement.storage.StorageClient.Blob
 
-/** [MutableSecretMap] implementation that stores each item in a separate blob. */
-class StorageClientSecretMap(private val storageClient: StorageClient) : MutableSecretMap {
-  override suspend fun put(key: String, value: ByteString) {
-    storageClient.createOrReplaceBlob(key, value)
-  }
+/** Deletes the blob for [blobKey] if it exists, then writes a new blob to [blobKey]. */
+suspend fun StorageClient.createOrReplaceBlob(blobKey: String, contents: Flow<ByteString>): Blob {
+  getBlob(blobKey)?.delete()
+  return createBlob(blobKey, contents)
+}
 
-  override suspend fun get(key: String): ByteString? {
-    return storageClient.getBlob(key)?.toByteString()
-  }
+/** Deletes the blob for [blobKey] if it exists, then writes a new blob to [blobKey]. */
+suspend fun StorageClient.createOrReplaceBlob(blobKey: String, contents: ByteString): Blob {
+  return createOrReplaceBlob(blobKey, flowOf(contents))
 }

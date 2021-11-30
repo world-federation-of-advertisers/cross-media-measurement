@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.toByteString
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.keyBy
+import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 
 /** Writes input messages into blobs. */
 class WriteShardedData<T : Message>(
@@ -95,10 +96,7 @@ private class WriteFilesFn<T : Message>(
       }
     }
 
-    runBlocking(Dispatchers.IO) {
-      storageClient.getBlob(blobKey)?.delete()
-      storageClient.createBlob(blobKey, messageFlow)
-    }
+    runBlocking(Dispatchers.IO) { storageClient.createOrReplaceBlob(blobKey, messageFlow) }
 
     context.output(blobKey)
   }
