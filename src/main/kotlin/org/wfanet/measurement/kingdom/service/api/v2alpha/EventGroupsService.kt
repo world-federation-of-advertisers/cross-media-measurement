@@ -85,11 +85,11 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val eventGroupPageToken = request.toEventGroupPageToken()
-    // limit is 1 more than the desired page size to determine whether or not a next page exists
-    val streamRequest = eventGroupPageToken.toStreamEventGroupsRequest()
 
     val results: List<InternalEventGroup> =
-      internalEventGroupsStub.streamEventGroups(streamRequest).toList()
+      internalEventGroupsStub
+        .streamEventGroups(eventGroupPageToken.toStreamEventGroupsRequest())
+        .toList()
 
     if (results.isEmpty()) {
       return ListEventGroupsResponse.getDefaultInstance()
@@ -101,16 +101,14 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
           .subList(0, min(results.size, eventGroupPageToken.pageSize))
           .map(InternalEventGroup::toEventGroup)
       if (results.size > eventGroupPageToken.pageSize) {
-        val pageToken = eventGroupPageToken {
-          this.pageSize = eventGroupPageToken.pageSize
-          externalDataProviderId = streamRequest.filter.externalDataProviderId
-          externalMeasurementConsumerIds += streamRequest.filter.externalMeasurementConsumerIdsList
-          lastEventGroup =
-            previousPageEnd {
-              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-              externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
-            }
-        }
+        val pageToken =
+          eventGroupPageToken.copy {
+            lastEventGroup =
+              previousPageEnd {
+                externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+                externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
+              }
+          }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
       }
     }
