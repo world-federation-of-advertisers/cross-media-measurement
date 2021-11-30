@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import java.net.URI
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -38,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequestKt
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.createAccountRequest
 import org.wfanet.measurement.api.v2alpha.replaceAccountIdentityRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -51,6 +53,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest as internalActivateAccountRequest
+import org.wfanet.measurement.internal.kingdom.openIdRequestParams
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest as internalReplaceAccountIdentityRequest
 
 private const val ACTIVATION_TOKEN = 12345672L
@@ -68,6 +71,9 @@ private const val ID_TOKEN_2 = "id_token_2"
 private const val ISSUER = "issuer"
 private const val SUBJECT = "subject"
 
+private const val REDIRECT_URI = "https://localhost:2048"
+private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
+
 @RunWith(JUnit4::class)
 class AccountsServiceTest {
   private val internalAccountsMock: AccountsCoroutineImplBase =
@@ -76,6 +82,7 @@ class AccountsServiceTest {
       onBlocking { activateAccount(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
       onBlocking { replaceAccountIdentity(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
       onBlocking { authenticateAccount(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
+      onBlocking { generateOpenIdRequestParams(any()) }.thenReturn(OPEN_ID_REQUEST_PARAMS)
     }
 
   @get:Rule val internalGrpcTestServerRule = GrpcTestServerRule { addService(internalAccountsMock) }
@@ -84,7 +91,7 @@ class AccountsServiceTest {
   var publicGrpcTestServerRule = GrpcTestServerRule {
     val internalAccountsCoroutineStub =
       AccountsGrpcKt.AccountsCoroutineStub(internalGrpcTestServerRule.channel)
-    val service = AccountsService(internalAccountsCoroutineStub)
+    val service = AccountsService(internalAccountsCoroutineStub, REDIRECT_URI)
     addService(service.withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub))
   }
 
@@ -288,6 +295,38 @@ class AccountsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("New id token is missing")
   }
+
+  @Test
+  fun `authenticate returns uri when issuer is the self issued provider`() {
+    val request = authenticateRequest { issuer = SELF_ISSUED_ISSUER }
+
+    val result = runBlocking { client.authenticate(request) }
+
+    val resultUri = URI.create(result.authenticationRequestUri)
+
+    val queryParamMap = mutableMapOf<String, String>()
+    for (queryParam in resultUri.query.split("&")) {
+      val keyValue = queryParam.split("=")
+      queryParamMap[keyValue[0]] = keyValue[1]
+    }
+
+    assertThat(resultUri.scheme).isEqualTo("openid")
+    assertThat(queryParamMap["scope"]).isEqualTo("openid")
+    assertThat(queryParamMap["response_type"]).isEqualTo("id_token")
+    assertThat(queryParamMap["state"]).isEqualTo(externalIdToApiId(OPEN_ID_REQUEST_PARAMS.state))
+    assertThat(queryParamMap["nonce"]).isEqualTo(externalIdToApiId(OPEN_ID_REQUEST_PARAMS.nonce))
+    assertThat(queryParamMap["client_id"]).isEqualTo(REDIRECT_URI)
+  }
+
+  @Test
+  fun `authenticate throws INVALID_ARGUMENT when issuer is missing`() {
+    val request = authenticateRequest {}
+
+    val exception =
+      assertFailsWith<StatusException> { runBlocking { client.authenticate(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Issuer unspecified")
+  }
 }
 
 private val UNACTIVATED_ACCOUNT: Account = account {
@@ -340,4 +379,9 @@ private val ACTIVATED_INTERNAL_ACCOUNT: InternalAccount = internalAccount {
       issuer = ISSUER
       subject = SUBJECT
     }
+}
+
+private val OPEN_ID_REQUEST_PARAMS = openIdRequestParams {
+  state = 1234L
+  nonce = 4321L
 }

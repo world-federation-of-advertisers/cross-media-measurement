@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import java.net.URLEncoder
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
@@ -30,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.CreateAccountRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.api.v2alpha.account
+import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -42,10 +44,15 @@ import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as 
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
+import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 
-class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
-  AccountsCoroutineImplBase() {
+private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
+
+class AccountsService(
+  private val internalAccountsStub: AccountsCoroutineStub,
+  private val redirectUri: String
+) : AccountsCoroutineImplBase() {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
     val account =
@@ -127,7 +134,29 @@ class AccountsService(private val internalAccountsStub: AccountsCoroutineStub) :
   }
 
   override suspend fun authenticate(request: AuthenticateRequest): AuthenticateResponse {
-    TODO("Not yet implemented")
+    grpcRequire(request.issuer.isNotBlank()) { "Issuer unspecified" }
+
+    val openIdRequestParams =
+      internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+
+    val uriParts = mutableListOf<String>()
+    uriParts.add("openid://?response_type=id_token")
+    uriParts.add("scope=openid")
+    uriParts.add("state=${externalIdToApiId(openIdRequestParams.state)}")
+    uriParts.add("nonce=${externalIdToApiId(openIdRequestParams.nonce)}")
+    val redirectUri = URLEncoder.encode(this.redirectUri, "UTF-8")
+    uriParts.add(
+      if (request.issuer.equals(SELF_ISSUED_ISSUER)) {
+        "client_id=$redirectUri"
+        // TODO: validate issuer to make sure it is a third party provider
+      } else {
+        "redirect_uri=$redirectUri"
+      }
+    )
+
+    val uriString = uriParts.joinToString("&")
+
+    return authenticateResponse { authenticationRequestUri = uriString }
   }
 
   /** Converts an internal [InternalAccount] to a public [Account]. */
