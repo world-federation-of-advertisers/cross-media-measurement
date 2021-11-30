@@ -34,7 +34,6 @@ spanner_emulator_test(
     size = "medium",
     srcs = glob(["*.kt"]),
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
-    tags = ["manual"],  # TODO(@efoxepstein): once passing, remove this
     test_class = "org.wfanet.panelmatch.integration.FullWorkflowTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",

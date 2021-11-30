@@ -159,7 +159,10 @@ inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<
   name: String = "Strict Join",
 ): PCollection<KV<LeftT, RightT>> {
   return oneToOneJoin(right, name = "$name/Join").map("$name/RequireNotNull") {
-    kvOf(requireNotNull(it.key), requireNotNull(it.value))
+    kvOf(
+      requireNotNull(it.key) { "Key is missing" },
+      requireNotNull(it.value) { "Value is missing" }
+    )
   }
 }
 

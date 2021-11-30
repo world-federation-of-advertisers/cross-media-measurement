@@ -14,8 +14,9 @@
 
 package org.wfanet.panelmatch.common
 
+import java.io.Serializable
 import java.time.LocalDate
 
-data class ExchangeDateKey(val recurringExchangeId: String, val date: LocalDate) {
+data class ExchangeDateKey(val recurringExchangeId: String, val date: LocalDate) : Serializable {
   val path: String by lazy { "recurringExchanges/$recurringExchangeId/exchanges/$date" }
 }
