@@ -98,7 +98,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     return listEventGroupsResponse {
       eventGroups +=
         results
-          .subList(0, min(results.size, streamRequest.limit - 1))
+          .subList(0, min(results.size, eventGroupPageToken.pageSize))
           .map(InternalEventGroup::toEventGroup)
       if (results.size > eventGroupPageToken.pageSize) {
         val pageToken = eventGroupPageToken {
@@ -161,55 +161,50 @@ private fun ListEventGroupsRequest.toEventGroupPageToken(): EventGroupPageToken 
       parentKey.dataProviderId != WILDCARD
   ) { "Either parent data provider or measurement consumers filter must be provided" }
 
-  val newEventGroupPageToken = eventGroupPageToken {
-    pageSize =
-      when {
-        source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-        source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-        else -> source.pageSize
-      }
-
-    if (parentKey.dataProviderId != WILDCARD) {
-      externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-    }
-
-    externalMeasurementConsumerIds +=
-      source.filter.measurementConsumersList.map { measurementConsumerName ->
-        grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
-          "Measurement consumer name in filter invalid"
-        }
-          .let { key -> apiIdToExternalId(key.measurementConsumerId) }
-      }
-
-    lastEventGroup = EventGroupPageToken.PreviousPageEnd.getDefaultInstance()
+  var externalDataProviderId = 0L
+  if (parentKey.dataProviderId != WILDCARD) {
+    externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
   }
 
-  if (source.pageToken.isNotBlank()) {
-    val oldEventGroupPageToken = EventGroupPageToken.parseFrom(source.pageToken.base64UrlDecode())
+  val externalMeasurementConsumerIdsList =
+    source.filter.measurementConsumersList.map { measurementConsumerName ->
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
+        "Measurement consumer name in filter invalid"
+      }
+        .let { key -> apiIdToExternalId(key.measurementConsumerId) }
+    }
 
-    grpcRequire(
-      newEventGroupPageToken.externalDataProviderId == oldEventGroupPageToken.externalDataProviderId
-    ) { "Arguments must be kept the same when using a page token" }
+  return if (source.pageToken.isNotBlank()) {
+    EventGroupPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+      grpcRequire(this.externalDataProviderId == externalDataProviderId) {
+        "Arguments must be kept the same when using a page token"
+      }
 
-    grpcRequire(
-      newEventGroupPageToken.externalMeasurementConsumerIdsList.containsAll(
-        oldEventGroupPageToken.externalMeasurementConsumerIdsList
-      ) &&
-        oldEventGroupPageToken.externalMeasurementConsumerIdsList.containsAll(
-          newEventGroupPageToken.externalMeasurementConsumerIdsList
-        )
-    ) { "Arguments must be kept the same when using a page token" }
+      grpcRequire(
+        externalMeasurementConsumerIdsList.containsAll(externalMeasurementConsumerIds) &&
+          externalMeasurementConsumerIds.containsAll(externalMeasurementConsumerIdsList)
+      ) { "Arguments must be kept the same when using a page token" }
 
-    return if (source.pageSize != 0 &&
-        source.pageSize >= MIN_PAGE_SIZE &&
-        source.pageSize <= MAX_PAGE_SIZE
-    ) {
-      oldEventGroupPageToken.copy { pageSize = newEventGroupPageToken.pageSize }
-    } else {
-      oldEventGroupPageToken
+      if (source.pageSize != 0 &&
+          source.pageSize >= MIN_PAGE_SIZE &&
+          source.pageSize <= MAX_PAGE_SIZE
+      ) {
+        pageSize = source.pageSize
+      }
     }
   } else {
-    return newEventGroupPageToken
+    eventGroupPageToken {
+      pageSize =
+        when {
+          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
+        }
+
+      this.externalDataProviderId = externalDataProviderId
+      externalMeasurementConsumerIds += externalMeasurementConsumerIdsList
+      lastEventGroup = EventGroupPageToken.PreviousPageEnd.getDefaultInstance()
+    }
   }
 }
 
