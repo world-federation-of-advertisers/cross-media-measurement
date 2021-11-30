@@ -37,7 +37,9 @@ import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
@@ -82,69 +84,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
-
-    val parentKey: DataProviderKey =
-      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid"
-      }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#119): MC caller can only specify
-    // their own id, but EDP caller can list EventGroups for multiple MCs
-    grpcRequire(
-      (request.filter.measurementConsumersCount > 0 && parentKey.dataProviderId == WILDCARD) ||
-        parentKey.dataProviderId != WILDCARD
-    ) { "Either parent data provider or measurement consumers filter must be provided" }
-
-    val pageSize =
-      when {
-        request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-        else -> request.pageSize
-      }
-
-    val streamRequest = streamEventGroupsRequest {
-      // get 1 more than the actual page size for deciding whether or not to set page token
-      limit = pageSize + 1
-      filter =
-        filter {
-          if (parentKey.dataProviderId != WILDCARD) {
-            externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
-          }
-
-          externalMeasurementConsumerIds +=
-            request.filter.measurementConsumersList.map { measurementConsumerName ->
-              grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
-                "Measurement consumer name in filter invalid"
-              }
-                .let { key -> apiIdToExternalId(key.measurementConsumerId) }
-            }
-
-          if (request.pageToken.isNotBlank()) {
-            val nextPageToken = EventGroupPageToken.parseFrom(request.pageToken.base64UrlDecode())
-
-            if (this@streamEventGroupsRequest.limit != request.pageSize + 1) {
-              // get 1 more than the actual page size for deciding whether or not to set page token
-              this@streamEventGroupsRequest.limit = nextPageToken.pageSize + 1
-            }
-
-            externalDataProviderIdAfter = nextPageToken.lastEventGroup.externalDataProviderId
-            externalEventGroupIdAfter = nextPageToken.lastEventGroup.externalEventGroupId
-
-            grpcRequire(externalDataProviderId == nextPageToken.externalDataProviderId) {
-              "Arguments must be kept the same when using a page token"
-            }
-
-            grpcRequire(
-              externalMeasurementConsumerIds.containsAll(
-                nextPageToken.externalMeasurementConsumerIdsList
-              ) &&
-                nextPageToken.externalMeasurementConsumerIdsList.containsAll(
-                  externalMeasurementConsumerIds
-                )
-            ) { "Arguments must be kept the same when using a page token" }
-          }
-        }
-    }
+    val eventGroupPageToken = request.toEventGroupPageToken()
+    // limit is 1 more than the desired page size to determine whether or not a next page exists
+    val streamRequest = eventGroupPageToken.toStreamEventGroupsRequest()
 
     val results: List<InternalEventGroup> =
       internalEventGroupsStub.streamEventGroups(streamRequest).toList()
@@ -158,21 +100,18 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         results
           .subList(0, min(results.size, streamRequest.limit - 1))
           .map(InternalEventGroup::toEventGroup)
-      if (results.size == streamRequest.limit) {
-        val eventGroupPageToken = eventGroupPageToken {
-          this.pageSize = streamRequest.limit - 1
+      if (results.size > eventGroupPageToken.pageSize) {
+        val pageToken = eventGroupPageToken {
+          this.pageSize = eventGroupPageToken.pageSize
           externalDataProviderId = streamRequest.filter.externalDataProviderId
-          for (externalMeasurementConsumerId in
-            streamRequest.filter.externalMeasurementConsumerIdsList) {
-            externalMeasurementConsumerIds += externalMeasurementConsumerId
-          }
+          externalMeasurementConsumerIds += streamRequest.filter.externalMeasurementConsumerIdsList
           lastEventGroup =
             previousPageEnd {
               externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
               externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
             }
         }
-        nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+        nextPageToken = pageToken.toByteArray().base64UrlEncode()
       }
     }
   }
@@ -202,5 +141,90 @@ private fun EventGroup.toInternal(
     externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
     providedEventGroupId = eventGroupReferenceId
+  }
+}
+
+/** Converts a public [ListEventGroupsRequest] to an internal [EventGroupPageToken]. */
+private fun ListEventGroupsRequest.toEventGroupPageToken(): EventGroupPageToken {
+  val source = this
+
+  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
+
+  val parentKey: DataProviderKey =
+    grpcRequireNotNull(DataProviderKey.fromName(source.parent)) {
+      "Parent is either unspecified or invalid"
+    }
+  // TODO(world-federation-of-advertisers/cross-media-measurement#119): MC caller can only specify
+  // their own id, but EDP caller can list EventGroups for multiple MCs
+  grpcRequire(
+    (source.filter.measurementConsumersCount > 0 && parentKey.dataProviderId == WILDCARD) ||
+      parentKey.dataProviderId != WILDCARD
+  ) { "Either parent data provider or measurement consumers filter must be provided" }
+
+  val newEventGroupPageToken = eventGroupPageToken {
+    pageSize =
+      when {
+        source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+        source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+        else -> source.pageSize
+      }
+
+    if (parentKey.dataProviderId != WILDCARD) {
+      externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+    }
+
+    externalMeasurementConsumerIds +=
+      source.filter.measurementConsumersList.map { measurementConsumerName ->
+        grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
+          "Measurement consumer name in filter invalid"
+        }
+          .let { key -> apiIdToExternalId(key.measurementConsumerId) }
+      }
+
+    lastEventGroup = EventGroupPageToken.PreviousPageEnd.getDefaultInstance()
+  }
+
+  if (source.pageToken.isNotBlank()) {
+    val oldEventGroupPageToken = EventGroupPageToken.parseFrom(source.pageToken.base64UrlDecode())
+
+    grpcRequire(
+      newEventGroupPageToken.externalDataProviderId == oldEventGroupPageToken.externalDataProviderId
+    ) { "Arguments must be kept the same when using a page token" }
+
+    grpcRequire(
+      newEventGroupPageToken.externalMeasurementConsumerIdsList.containsAll(
+        oldEventGroupPageToken.externalMeasurementConsumerIdsList
+      ) &&
+        oldEventGroupPageToken.externalMeasurementConsumerIdsList.containsAll(
+          newEventGroupPageToken.externalMeasurementConsumerIdsList
+        )
+    ) { "Arguments must be kept the same when using a page token" }
+
+    return if (source.pageSize != 0 &&
+        source.pageSize >= MIN_PAGE_SIZE &&
+        source.pageSize <= MAX_PAGE_SIZE
+    ) {
+      oldEventGroupPageToken.copy { pageSize = newEventGroupPageToken.pageSize }
+    } else {
+      oldEventGroupPageToken
+    }
+  } else {
+    return newEventGroupPageToken
+  }
+}
+
+/** Converts an internal [EventGroupPageToken] to an internal [StreamEventGroupsRequest]. */
+private fun EventGroupPageToken.toStreamEventGroupsRequest(): StreamEventGroupsRequest {
+  val source = this
+  return streamEventGroupsRequest {
+    // get 1 more than the actual page size for deciding whether or not to set page token
+    limit = source.pageSize + 1
+    filter =
+      filter {
+        externalDataProviderId = source.externalDataProviderId
+        externalMeasurementConsumerIds += source.externalMeasurementConsumerIdsList
+        externalDataProviderIdAfter = source.lastEventGroup.externalDataProviderId
+        externalEventGroupIdAfter = source.lastEventGroup.externalEventGroupId
+      }
   }
 }
