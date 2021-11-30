@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -40,6 +42,7 @@ class ComputationParticipantsService(
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
   ): ComputationParticipant {
+    duchyIdentityProvider()
     return internalComputationParticipantsClient
       .setParticipantRequisitionParams(request.toInternalRequest())
       .toSystemComputationParticipant()
@@ -48,6 +51,7 @@ class ComputationParticipantsService(
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
   ): ComputationParticipant {
+    duchyIdentityProvider()
     return internalComputationParticipantsClient
       .confirmComputationParticipant(request.toInternalRequest())
       .toSystemComputationParticipant()
@@ -56,6 +60,7 @@ class ComputationParticipantsService(
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
   ): ComputationParticipant {
+    duchyIdentityProvider()
     return internalComputationParticipantsClient
       .failComputationParticipant(request.toInternalRequest())
       .toSystemComputationParticipant()
@@ -71,6 +76,12 @@ class ComputationParticipantsService(
       grpcRequireNotNull(DuchyCertificateKey.fromName(requisitionParams.duchyCertificate)) {
         "Resource name unspecified or invalid."
       }
+    grpcRequire(computationParticipantKey.duchyId == duchyCertificateKey.duchyId) {
+      "The owners of the computation_participant and certificate don't match."
+    }
+    if (computationParticipantKey.duchyId != duchyIdentityProvider().id) {
+      failGrpc(Status.PERMISSION_DENIED) { "The caller doesn't own this ComputationParticipant." }
+    }
     return InternalSetParticipantRequisitionParamsRequest.newBuilder()
       .apply {
         externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)

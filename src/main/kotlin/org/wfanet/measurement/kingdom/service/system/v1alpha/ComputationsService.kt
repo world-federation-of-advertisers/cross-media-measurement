@@ -50,6 +50,7 @@ class ComputationsService(
   private val reconnectDelay: Duration = Duration.ofSeconds(1)
 ) : ComputationsCoroutineImplBase() {
   override suspend fun getComputation(request: GetComputationRequest): Computation {
+    duchyIdentityProvider()
     val computationKey =
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
@@ -64,6 +65,7 @@ class ComputationsService(
   override fun streamActiveComputations(
     request: StreamActiveComputationsRequest
   ): Flow<StreamActiveComputationsResponse> {
+    duchyIdentityProvider()
     var lastUpdateTime = ContinuationTokenConverter.decode(request.continuationToken)
     return renewedFlow(reconnectInterval, reconnectDelay) {
       logger.info("Streaming active global computations since $lastUpdateTime")
@@ -82,6 +84,7 @@ class ComputationsService(
   }
 
   override suspend fun setComputationResult(request: SetComputationResultRequest): Computation {
+    duchyIdentityProvider()
     val computationKey =
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
         "Resource name unspecified or invalid."

@@ -32,6 +32,7 @@ class RequisitionsService(
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
+    duchyIdentityProvider()
     val requisitionKey =
       grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
