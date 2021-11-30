@@ -49,7 +49,8 @@ class PreprocessEventsTest : BeamTestBase() {
           IDENTIFIER_HASH_PEPPER_PROVIDER,
           HKDF_PEPPER_PROVIDER,
           CRYPTO_KEY_PROVIDER,
-          pcollectionViewOf("Create Compression Parameters", COMPRESSION_PARAMETERS)
+          pcollectionViewOf("Create Compression Parameters", COMPRESSION_PARAMETERS),
+          JniEventPreprocessor()
         )
       )
 

@@ -38,6 +38,7 @@ import org.wfanet.panelmatch.client.common.compression.CreateDefaultCompressionP
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
 import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessor
 import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessEvents
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
@@ -118,7 +119,8 @@ fun main(args: Array<String>) {
         HardCodedIdentifierHashPepperProvider(options.identifierHashPepper.toByteStringUtf8()),
         HardCodedHkdfPepperProvider(options.hkdfPepper.toByteStringUtf8()),
         HardCodedDeterministicCommutativeCipherKeyProvider(options.cryptokey.toByteStringUtf8()),
-        compressionParameters
+        compressionParameters,
+        JniEventPreprocessor()
       )
     )
 

@@ -41,7 +41,8 @@ class PreprocessEvents(
   private val identifierHashPepperProvider: IdentifierHashPepperProvider,
   private val hkdfPepperProvider: HkdfPepperProvider,
   private val cryptoKeyProvider: DeterministicCommutativeCipherKeyProvider,
-  private val compressionParametersView: PCollectionView<CompressionParameters>
+  private val compressionParametersView: PCollectionView<CompressionParameters>,
+  private val eventPreprocessor: EventPreprocessor
 ) : PTransform<PCollection<KV<ByteString, ByteString>>, PCollection<KV<Long, ByteString>>>() {
 
   override fun expand(
@@ -55,7 +56,7 @@ class PreprocessEvents(
         "Encrypt Batches",
         ParDo.of(
             EncryptEventsDoFn(
-              JniEventPreprocessorFn(),
+              eventPreprocessor,
               identifierHashPepperProvider,
               hkdfPepperProvider,
               cryptoKeyProvider,

@@ -24,7 +24,7 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCo
 import org.wfanet.panelmatch.common.compression.compressionParameters
 
 /** Abstract base class for testing implementations of [EventPreprocessor]. */
-abstract class EventPreprocessorTest {
+abstract class AbstractEventPreprocessorTest {
   abstract val eventPreprocessor: EventPreprocessor
 
   @Test
@@ -39,12 +39,12 @@ abstract class EventPreprocessorTest {
         }
       unprocessedEvents +=
         unprocessedEvent {
-          id = "some-id".toByteStringUtf8()
+          id = "1".toByteStringUtf8()
           data = "some-data".toByteStringUtf8()
         }
       unprocessedEvents +=
         unprocessedEvent {
-          id = "some-other-id".toByteStringUtf8()
+          id = "2".toByteStringUtf8()
           data = "some-other-data".toByteStringUtf8()
         }
     }
