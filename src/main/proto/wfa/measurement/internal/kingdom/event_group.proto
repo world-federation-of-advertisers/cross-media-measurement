@@ -26,8 +26,27 @@ message EventGroup {
   fixed64 external_event_group_id = 2;
 
   fixed64 external_measurement_consumer_id = 3;
+  fixed64 external_measurement_consumer_certificate_id = 4;
 
-  string provided_event_group_id = 4;
+  // Serialized `EncryptionPublicKey` message from the public API.
+  bytes measurement_consumer_public_key = 5;
+  bytes measurement_consumer_public_key_signature = 6;
 
-  google.protobuf.Timestamp create_time = 5;
+  // Reference ID provided by the Data Provider.
+  string provided_event_group_id = 7;
+
+  // The set of VID model lines used to label events in this Event Group.
+  repeated string vid_model_lines = 8;
+
+  message EventTemplate {
+    string fully_qualified_type = 1;
+  }
+  // The Event Templates that this Event Group conforms to.
+  repeated EventTemplate event_templates = 9;
+
+  // Data Provider-specific encrypted Event Group metadata.
+  bytes encrypted_metadata = 10;
+
+  google.protobuf.Timestamp create_time = 11;
+  google.protobuf.Timestamp update_time = 12;
 }
