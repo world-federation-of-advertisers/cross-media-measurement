@@ -28,6 +28,8 @@
 --   │       ├── MeasurementLogEntries
 --   │       └── Requisitions
 --   └── Accounts
+--       ├── ApiKeys
+--       ├── MeasurementConsumerApiKeys
 --       ├── OpenIdConnectIdentities
 --       ├── OpenIdConnectClaims
 --       └── MeasurementConsumersOwners
@@ -385,6 +387,42 @@ CREATE TABLE Accounts (
 
 CREATE UNIQUE INDEX AccountsByExternalId
   ON Accounts(ExternalAccountId);
+
+CREATE TABLE ApiKeys (
+  ApiKeyId INT64 NOT NULL,
+
+  AccountId INT64 NOT NULL,
+
+  Nickname STRING(MAX),
+  Description STRING(MAX),
+  AuthenticationKeyHash STRING(MAX),
+
+  -- org.wfanet.measurement.internal.kingdom.ApiKey.RevocationState
+  -- protobuf enum encoded as an integer.
+  RevocationState INT64 NOT NULL,
+
+  FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId),
+) PRIMARY KEY (ApiKeyId);
+
+CREATE UNIQUE INDEX ApiKeysByAuthenticationKeyHash
+  ON ApiKeys(AuthenticationKeyHash);
+
+CREATE TABLE MeasurementConsumerApiKeys (
+  MeasurementConsumerId INT64 NOT NULL,
+  ApiKeyId INT64 NOT NULL,
+
+  ExternalMeasurementConsumerApiKeyId INT64 NOT NULL,
+
+  FOREIGN KEY (ApiKeyId) REFERENCES ApiKeys(ApiKeyId),
+) PRIMARY KEY (MeasurementConsumerId, ApiKeyId),
+  INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX MeasurementConsumerApiKeysByExternalId
+  ON MeasurementConsumerApiKeys(MeasurementConsumerId, ExternalMeasurementConsumerApiKeyId);
+
+-- No ApiKey should belong to more than one MeasurementConsumer.
+CREATE UNIQUE INDEX MeasurementConsumerApiKeysByApiKeyId
+  ON MeasurementConsumerApiKeys(ApiKeyId);
 
 CREATE TABLE OpenIdConnectIdentities (
   AccountId INT64 NOT NULL,
