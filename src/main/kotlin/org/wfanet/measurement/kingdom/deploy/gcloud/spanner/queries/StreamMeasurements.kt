@@ -30,7 +30,7 @@ class StreamMeasurements(
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY Measurements.CreateTime ASC")
+      appendClause("ORDER BY ExternalMeasurementId ASC")
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT_PARAM")
         bind(LIMIT_PARAM to limit.toLong())
@@ -64,6 +64,15 @@ class StreamMeasurements(
       bind(UPDATED_AFTER_PARAM to filter.updatedAfter.toGcloudTimestamp())
     }
 
+    if (filter.externalMeasurementIdAfter != 0L) {
+      conjuncts.add(
+        """
+          ExternalMeasurementId > @$EXTERNAL_MEASUREMENT_ID_AFTER
+        """.trimIndent()
+      )
+      bind(EXTERNAL_MEASUREMENT_ID_AFTER).to(filter.externalMeasurementIdAfter)
+    }
+
     if (conjuncts.isEmpty()) {
       return
     }
@@ -79,5 +88,6 @@ class StreamMeasurements(
       "externalMeasurementConsumerCertificateId"
     const val UPDATED_AFTER_PARAM = "updatedAfter"
     const val STATES_PARAM = "states"
+    const val EXTERNAL_MEASUREMENT_ID_AFTER = "externalMeasurementIdAfter"
   }
 }

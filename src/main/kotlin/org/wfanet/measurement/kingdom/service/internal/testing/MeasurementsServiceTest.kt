@@ -715,10 +715,69 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(measurements)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(measurement1, measurement2)
-      .inOrder()
+    if (measurement1.externalMeasurementId < measurement2.externalMeasurementId) {
+      assertThat(measurements)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(measurement1, measurement2)
+        .inOrder()
+    } else {
+      assertThat(measurements)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(measurement2, measurement1)
+        .inOrder()
+    }
+  }
+
+  @Test
+  fun `streamMeasurements can get one page at a time`(): Unit = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 1
+      filter =
+        filter { externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId }
+    }
+
+    val measurements: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements).containsAnyOf(measurement1, measurement2)
+
+    val measurements2: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest.copy {
+            filter =
+              filter.copy { externalMeasurementIdAfter = measurements[0].externalMeasurementId }
+          }
+        )
+        .toList()
+
+    assertThat(measurements2).hasSize(1)
+    assertThat(measurements2).containsAnyOf(measurement1, measurement2)
+    assertThat(measurements2[0].externalMeasurementId)
+      .isGreaterThan(measurements[0].externalMeasurementId)
   }
 
   @Test

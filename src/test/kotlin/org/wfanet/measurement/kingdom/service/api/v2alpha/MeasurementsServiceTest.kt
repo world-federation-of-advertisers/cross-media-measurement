@@ -44,7 +44,6 @@ import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -76,6 +75,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
@@ -88,6 +88,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.measurementPageToken
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -95,12 +96,21 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
-private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
+private const val MEASUREMENT_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAJs"
+private const val MEASUREMENT_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
-private const val DATA_PROVIDER_NONCE = 2330346028711713085L
 private val DATA_PROVIDERS_NAME = makeDataProvider(123L)
+private val EXTERNAL_MEASUREMENT_ID =
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
+private val EXTERNAL_MEASUREMENT_ID_2 =
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+private val EXTERNAL_MEASUREMENT_ID_3 =
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
+private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -194,13 +204,8 @@ private val MEASUREMENT = measurement {
 }
 
 private val INTERNAL_MEASUREMENT = internalMeasurement {
-  externalMeasurementConsumerId =
-    apiIdToExternalId(
-      MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
-        .measurementConsumerId
-    )
-  externalMeasurementId =
-    apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT.name)!!.measurementId)
+  externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+  externalMeasurementId = EXTERNAL_MEASUREMENT_ID
   providedMeasurementId = MEASUREMENT.measurementReferenceId
   externalMeasurementConsumerCertificateId =
     apiIdToExternalId(
@@ -246,7 +251,14 @@ class MeasurementsServiceTest {
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { createMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { getMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
-      onBlocking { streamMeasurements(any()) }.thenReturn(flowOf(INTERNAL_MEASUREMENT))
+      onBlocking { streamMeasurements(any()) }
+        .thenReturn(
+          flowOf(
+            INTERNAL_MEASUREMENT,
+            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 },
+            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 }
+          )
+        )
       onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
     }
 
@@ -274,10 +286,8 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalGetMeasurementRequest {
-          externalMeasurementConsumerId =
-            apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
-          externalMeasurementId =
-            apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+          externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
       )
 
@@ -600,10 +610,59 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `listMeasurements with page token uses filter with timestamp from page token`() {
+  fun `listMeasurements with no page token returns response`() {
+    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val result = runBlocking { service.listMeasurements(request) }
+
+    val expected = listMeasurementsResponse {
+      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_3 }
+    }
+
+    val streamMeasurementsRequest =
+      captureFirst<StreamMeasurementsRequest> {
+        verify(internalMeasurementsMock).streamMeasurements(capture())
+      }
+
+    assertThat(streamMeasurementsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamMeasurementsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listMeasurements with page token with filter returns response`() {
+    val pageSize = 2
+    val internalStates =
+      listOf(
+        InternalState.FAILED,
+        InternalState.CANCELLED,
+        InternalState.PENDING_PARTICIPANT_CONFIRMATION,
+        InternalState.PENDING_COMPUTATION,
+        InternalState.SUCCEEDED,
+        InternalState.PENDING_REQUISITION_PARAMS,
+        InternalState.PENDING_REQUISITION_FULFILLMENT
+      )
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+      val measurementPageToken = measurementPageToken {
+        this.pageSize = pageSize
+        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+        states += internalStates
+        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+      }
+      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
       filter =
         filter {
           states +=
@@ -620,8 +679,15 @@ class MeasurementsServiceTest {
     val result = runBlocking { service.listMeasurements(request) }
 
     val expected = listMeasurementsResponse {
-      measurement += MEASUREMENT
-      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
+      measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
+      val measurementPageToken = measurementPageToken {
+        this.pageSize = pageSize
+        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+        states += internalStates
+        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
+      }
+      nextPageToken = measurementPageToken.toByteArray().base64UrlEncode()
     }
 
     val streamMeasurementsRequest =
@@ -633,29 +699,132 @@ class MeasurementsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamMeasurementsRequest {
-          limit = DEFAULT_LIMIT
+          limit = pageSize + 1
           filter =
             StreamMeasurementsRequestKt.filter {
-              externalMeasurementConsumerId =
-                apiIdToExternalId(
-                  MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-                )
-              updatedAfter = UPDATE_TIME
-              states +=
-                listOf(
-                  InternalState.FAILED,
-                  InternalState.CANCELLED,
-                  InternalState.PENDING_PARTICIPANT_CONFIRMATION,
-                  InternalState.PENDING_COMPUTATION,
-                  InternalState.SUCCEEDED,
-                  InternalState.PENDING_REQUISITION_PARAMS,
-                  InternalState.PENDING_REQUISITION_FULFILLMENT
-                )
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              states += internalStates
+              externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
             }
         }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listMeasurements with new page size replaces page size in page token`() {
+    val pageSize = 3
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.pageSize = pageSize
+      val measurementPageToken = measurementPageToken {
+        this.pageSize = 1
+        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+      }
+      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+    }
+
+    runBlocking { service.listMeasurements(request) }
+
+    val streamMeasurementsRequest =
+      captureFirst<StreamMeasurementsRequest> {
+        verify(internalMeasurementsMock).streamMeasurements(capture())
+      }
+
+    assertThat(streamMeasurementsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamMeasurementsRequest {
+          limit = pageSize + 1
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups with no page size uses page size in page token`() {
+    val pageSize = 1
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      val measurementPageToken = measurementPageToken {
+        this.pageSize = pageSize
+        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+      }
+      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+    }
+
+    runBlocking { service.listMeasurements(request) }
+
+    val streamMeasurementsRequest =
+      captureFirst<StreamMeasurementsRequest> {
+        verify(internalMeasurementsMock).streamMeasurements(capture())
+      }
+
+    assertThat(streamMeasurementsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamMeasurementsRequest {
+          limit = pageSize + 1
+          filter =
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `listMeasurements throws invalid argument when parent doesn't match parent in page token`() {
+    val internalStates =
+      listOf(
+        InternalState.FAILED,
+      )
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      val measurementPageToken = measurementPageToken {
+        pageSize = DEFAULT_LIMIT
+        externalMeasurementConsumerId = 654
+        states += internalStates
+        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+      }
+      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      filter = filter { states += listOf(State.FAILED) }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Arguments must be kept the same when using a page token")
+  }
+
+  @Test
+  fun `listMeasurements throws invalid argument when states don't match states in page token`() {
+    val request = listMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      val measurementPageToken = measurementPageToken {
+        pageSize = DEFAULT_LIMIT
+        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+        states += InternalState.CANCELLED
+        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
+      }
+      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      filter = filter { states += listOf(State.FAILED) }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -700,10 +869,8 @@ class MeasurementsServiceTest {
       )
       .isEqualTo(
         internalCancelMeasurementRequest {
-          externalMeasurementConsumerId =
-            apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
-          externalMeasurementId =
-            apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
+          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+          externalMeasurementId = EXTERNAL_MEASUREMENT_ID
         }
       )
 
