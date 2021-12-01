@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -63,14 +65,14 @@ class ComputationParticipantsService(
 
   private fun SetParticipantRequisitionParamsRequest.toInternalRequest():
     InternalSetParticipantRequisitionParamsRequest {
-    val computationParticipantKey =
-      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
-        "Resource name unspecified or invalid."
-      }
+    val computationParticipantKey = getAndVerifyComputationParticipantKey(name)
     val duchyCertificateKey =
       grpcRequireNotNull(DuchyCertificateKey.fromName(requisitionParams.duchyCertificate)) {
         "Resource name unspecified or invalid."
       }
+    grpcRequire(computationParticipantKey.duchyId == duchyCertificateKey.duchyId) {
+      "The owners of the computation_participant and certificate don't match."
+    }
     return InternalSetParticipantRequisitionParamsRequest.newBuilder()
       .apply {
         externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
@@ -94,10 +96,7 @@ class ComputationParticipantsService(
 
   private fun ConfirmComputationParticipantRequest.toInternalRequest():
     InternalConfirmComputationParticipantRequest {
-    val computationParticipantKey =
-      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
-        "Resource name unspecified or invalid."
-      }
+    val computationParticipantKey = getAndVerifyComputationParticipantKey(name)
     return InternalConfirmComputationParticipantRequest.newBuilder()
       .apply {
         externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
@@ -108,10 +107,7 @@ class ComputationParticipantsService(
 
   private fun FailComputationParticipantRequest.toInternalRequest():
     InternalFailComputationParticipantRequest {
-    val computationParticipantKey =
-      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
-        "Resource name unspecified or invalid."
-      }
+    val computationParticipantKey = getAndVerifyComputationParticipantKey(name)
     return InternalFailComputationParticipantRequest.newBuilder()
       .apply {
         externalComputationId = apiIdToExternalId(computationParticipantKey.computationId)
@@ -127,5 +123,16 @@ class ComputationParticipantsService(
         }
       }
       .build()
+  }
+
+  private fun getAndVerifyComputationParticipantKey(name: String): ComputationParticipantKey {
+    val computationParticipantKey =
+      grpcRequireNotNull(ComputationParticipantKey.fromName(name)) {
+        "Resource name unspecified or invalid."
+      }
+    if (computationParticipantKey.duchyId != duchyIdentityProvider().id) {
+      failGrpc(Status.PERMISSION_DENIED) { "The caller doesn't own this ComputationParticipant." }
+    }
+    return computationParticipantKey
   }
 }
