@@ -33,7 +33,7 @@ import org.wfanet.panelmatch.common.ExchangeDateKey
  */
 class PrivateStorageSelector(
   private val privateStorageFactories:
-    Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory>,
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
   private val storageDetailsProvider: StorageDetailsProvider
 ) {
   /** Builds the appropriate [StorageFactory] for the current Exchange. */
@@ -57,6 +57,6 @@ class PrivateStorageSelector(
       requireNotNull(privateStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    return key.buildStorageFactory(storageDetails)
+    return buildStorageFactory(storageDetails, key)
   }
 }

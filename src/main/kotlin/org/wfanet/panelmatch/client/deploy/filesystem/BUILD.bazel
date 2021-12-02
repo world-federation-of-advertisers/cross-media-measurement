@@ -1,0 +1,30 @@
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+kt_jvm_library(
+    name = "filesystem",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "FilesystemExampleDaemonMain",
+    main_class = "org.wfanet.panelmatch.client.deploy.filesystem.FilesystemExampleDaemonMainKt",
+    runtime_deps = [":filesystem"],
+)
+
+java_image(
+    name = "filesystem_example_daemon_image",
+    data = ["@grpc_health_probe//file"],
+    main_class = "org.wfanet.panelmatch.client.deploy.filesystem.FilesystemExampleDaemonMainKt",
+    runtime_deps = [":filesystem"],
+)
