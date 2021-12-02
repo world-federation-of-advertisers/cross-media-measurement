@@ -35,6 +35,4 @@ message DeleteApiKeyRequest {
   fixed64 external_api_key_id = 2;
 }
 
-message AuthenticateApiKeyRequest {
-  bytes authentication_key_hash = 1;
-}
+message AuthenticateApiKeyRequest {}
