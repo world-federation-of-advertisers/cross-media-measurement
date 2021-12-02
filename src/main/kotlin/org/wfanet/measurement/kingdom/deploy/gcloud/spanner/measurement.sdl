@@ -113,7 +113,7 @@ CREATE TABLE MeasurementConsumerApiKeys (
   Nickname STRING(MAX) NOT NULL,
   Description STRING(MAX),
 
-  AuthenticationKeyHash BYTES(MAX) NOT NULL,
+  AuthenticationKeyHash BYTES(32) NOT NULL,
 
   -- org.wfanet.measurement.internal.kingdom.ApiKey.RevocationState
   -- protobuf enum encoded as an integer.

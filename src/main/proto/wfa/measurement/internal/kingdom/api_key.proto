@@ -21,9 +21,7 @@ option java_multiple_files = true;
 
 // Proto representation of the internal ApiKey entity type.
 message ApiKey {
-  oneof parent {
-    fixed64 external_measurement_consumer_id = 1;
-  }
+  fixed64 external_measurement_consumer_id = 1;
   fixed64 external_api_key_id = 2;
 
   // Human-readable nickname for this `ApiKey`. Required.
@@ -34,7 +32,7 @@ message ApiKey {
   string description = 4;
 
   // The actual API key for authentication. Output-only.
-  string authentication_key = 5;
+  fixed64 authentication_key = 5;
 
   enum RevocationState {
     REVOCATION_STATE_UNSPECIFIED = 0;

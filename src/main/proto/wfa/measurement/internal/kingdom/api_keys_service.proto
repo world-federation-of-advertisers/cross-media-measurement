@@ -26,11 +26,15 @@ service ApiKeys {
   rpc CreateApiKey(ApiKey) returns (ApiKey);
 
   rpc DeleteApiKey(DeleteApiKeyRequest) returns (ApiKey);
+
+  rpc AuthenticateApiKey(AuthenticateApiKeyRequest) returns (ApiKey);
 }
 
 message DeleteApiKeyRequest {
-  oneof parent {
-    fixed64 external_measurement_consumer_id = 1;
-  }
+  fixed64 external_measurement_consumer_id = 1;
   fixed64 external_api_key_id = 2;
+}
+
+message AuthenticateApiKeyRequest {
+  bytes authentication_key_hash = 1;
 }
