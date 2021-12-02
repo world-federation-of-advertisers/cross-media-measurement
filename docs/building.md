@@ -10,8 +10,9 @@ In order to build the primary system executables and run the corresponding
 tests, your build environment must meet the following:
 
 *   Bazel
-    *   Known to work with Bazel 4.0.0
+    *   See [`.bazelversion`](../.bazelversion)
 *   GNU/Linux OS with x86-64 architecture
+    *   Some image targets require glibc <= 2.31
     *   Known to work on Debian Bullseye and Ubuntu 18.04
 *   [Clang](https://clang.llvm.org/)
 *   [SWIG](http://swig.org/)
@@ -26,27 +27,86 @@ The entire suite of tests can be run using the following command:
 bazel test //src/test/...
 ```
 
-### MacOS
+## IntelliJ Setup
 
-To build on MacOS you need to run the bazel build/test in a docker container using
-`tools/bazel-container build "//..."`
+IntelliJ IDEA is the recommended IDE for development work on this project. As of
+2021-11-29, the project is known to be compatible with IntelliJ IDEA 2021.2.3
+Community Edition.
 
-fyi, currently using the docker build clashes with running the bazel build locally on your computer.
+You will need to set up your project using the
+[Bazel plugin](https://plugins.jetbrains.com/plugin/8609-bazel) for features
+such as code completion:
 
+*   Select "Import Bazel Project", using the repository root as the workspace
+    directory.
+*   Ensure that `kotlin` is selected under the `additional_languages` section of
+    the project view (`.bazelproject`) file. See below for an example.
 
-### IntelliJ Setup
+    ```
+    directories:
+      .
 
-As of early June 2021, these steps work to get code completion working for Intellij:
-- use IntelliJ 2021.1.2 and the beta build of the Bazel Plugin
-    - Add `https://plugins.jetbrains.com/plugins/list?channel=beta` to your list of plugin repos ([source](https://github.com/bazelbuild/intellij/issues/2406))
-- Start a new project from scratch in IntelliJ by selecting "Import Bazel Project" and open the base dir of the cross-media-measurement repo
-    - Uncomment "Kotlin" when creating the .bazelproject file
-- Once the new projected is created, the Bazel plugin will kick off a sync and, after a while, IntelliJ should start detecting all dependencies and index them. Ignore the Bazel output errors, they happen because e.g. the Spanner Emulator can only be build on Linux.
+    test_sources:
+      src/test/*
 
-On MacOS not all targets are supported for building but you can run most Kotlin tests (with some exceptions, e.g. TransportSecurityTest.kt doesn't work because of openssl incompatibilities) by directly invoking a particular test: `bazel test "//src/test/kotlin/org/wfanet/measurement/common/identity/..."` or similar.
+    derive_targets_from_directories: true
 
+    additional_languages:
+      kotlin
+    ```
 
-### Local Kubernetes
+## Containerized Builds
+
+The `docker.io/wfameasurement/bazel` container image provides a build
+environment with the appropriate dependencies. This can be helpful when your
+host machine does not meet the above requirements.
+
+For convenience, the [`tools/bazel-container`](../tools/bazel-container) script
+can be used in place of the `bazel` executable for building/testing. For
+example:
+
+```shell
+tools/bazel-container test //src/test/...
+```
+
+Note that if you want to develop on the host machine rather than just building,
+it may be simpler to use the Bash shell (`/bin/bash`) as your entry point and
+run your `bazel` commands from there. This way you can install an IDE inside the
+container and use it using X11 forwarding.
+
+### Hybrid Development
+
+If your host machine has too new a glibc version but meets all other
+requirements, you can do most of your development on the host machine and just
+use the container for building/deploying image targets using the
+`tools/bazel-container` script. You can even run targets built inside the
+container on your host machine.
+
+The `tools/bazel-container` script uses a Docker volume for Bazel output. The
+script prints the volume name to `STDERR` when it's run. You can use this to
+determine the mount point of the volume and create a symlink to it within
+workspace directory.
+
+Suppose the script indicates that it's using a volume named
+`bazel-output-b471b3a2d1215b70045d7f5bfa478e3e`. We can create a
+`bazel-container-output` symlink to point to the volume's mount point:
+
+```shell
+ln -s $(docker volume inspect bazel-output-b471b3a2d1215b70045d7f5bfa478e3e --format '{{.Mountpoint}}') bazel-container-output
+```
+
+We can then use the `--script_path` option to the `run` subcommand to output a
+script that we can run from the host machine. For example, we can build and run
+the target
+`//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:ForwardedStorageLiquidLegionsV2MillDaemon`
+as follows:
+
+```shell
+tools/bazel-container run --script_path="$PWD/bazel-container-output/mill-daemon" //src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:ForwardedStorageLiquidLegionsV2MillDaemon && \
+bazel-container-output/mill-daemon
+```
+
+## Local Kubernetes
 
 You can bring up a minimal testing environment in a local Kubernetes environment
 using either [Usernetes](https://github.com/rootless-containers/usernetes) (U7s)
@@ -60,8 +120,3 @@ bazel run //src/main/k8s:kingdom_and_three_duchies_u7s
 ```shell
 bazel run //src/main/k8s:kingdom_and_three_duchies_kind
 ```
-
-### Custom Docker Images
-
-See [Docker Image Targets](../src/main/docker/README.md) for additional
-requirements to build/deploy these.

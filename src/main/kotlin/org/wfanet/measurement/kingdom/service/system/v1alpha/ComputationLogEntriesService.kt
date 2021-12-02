@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import io.grpc.Status
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
@@ -38,6 +40,11 @@ class ComputationLogEntriesService(
         "Resource name unspecified or invalid."
       }
     grpcRequire(request.hasComputationLogEntry()) { "computation_log_entry is missing." }
+    if (computationParticipantKey.duchyId != duchyIdentityProvider().id) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "The caller identity doesn't match the specified log entry parent."
+      }
+    }
     val computationLogEntry = request.computationLogEntry
     val internalRequest =
       CreateDuchyMeasurementLogEntryRequest.newBuilder()
