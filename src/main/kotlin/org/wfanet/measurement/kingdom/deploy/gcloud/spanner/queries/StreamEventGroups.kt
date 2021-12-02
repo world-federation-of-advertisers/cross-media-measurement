@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -27,7 +26,7 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
   override val reader =
     EventGroupReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY EventGroups.CreateTime ASC")
+      appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupId ASC")
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT")
         bind(LIMIT to limit.toLong())
@@ -45,12 +44,17 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
       conjuncts.add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
       bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#255) : stop using CREATED_AFTER
-    // as
-    // a filter.
-    if (filter.hasCreatedAfter()) {
-      conjuncts.add("EventGroups.CreateTime > @$CREATED_AFTER")
-      bind(CREATED_AFTER to filter.createdAfter.toGcloudTimestamp())
+
+    if (filter.externalEventGroupIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
+      conjuncts.add(
+        """
+          ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
+          OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
+          AND ExternalEventGroupId > @$EXTERNAL_EVENT_GROUP_ID_AFTER))
+        """.trimIndent()
+      )
+      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
+      bind(EXTERNAL_EVENT_GROUP_ID_AFTER).to(filter.externalEventGroupIdAfter)
     }
 
     if (conjuncts.isEmpty()) {
@@ -65,6 +69,7 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     const val LIMIT = "limit"
     const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
-    const val CREATED_AFTER = "createdAfter"
+    const val EXTERNAL_EVENT_GROUP_ID_AFTER = "externalEventGroupIdAfter"
+    const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
   }
 }

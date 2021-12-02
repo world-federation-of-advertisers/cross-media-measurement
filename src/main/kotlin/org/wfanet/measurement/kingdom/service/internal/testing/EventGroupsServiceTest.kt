@@ -16,11 +16,9 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
-import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -45,24 +43,14 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
 private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
-private val TEST_INSTANT = Instant.ofEpochMilli(123456789L)
-private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
-private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
-private val MC_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a MC certificate der.")
-private val DP_CERTIFICATE_DER = ByteString.copyFromUtf8("This is a DP certificate der.")
-private val MC_SUBJECT_KEY_IDENTIFIER =
-  ByteString.copyFromUtf8("This is a MC subject key identifier.")
-private val DP_SUBJECT_KEY_IDENTIFIER =
-  ByteString.copyFromUtf8("This is a DP subject key identifier.")
 
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
-  protected val testClock: Clock = Clock.systemUTC()
+  private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
   private val population = Population(testClock, idGenerator)
-  protected lateinit var eventGroupsService: T
-    private set
+  private lateinit var eventGroupsService: T
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
     private set
@@ -284,14 +272,21 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(eventGroups)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(eventGroup1, eventGroup2)
-      .inOrder()
+    if (eventGroup1.externalEventGroupId < eventGroup2.externalEventGroupId) {
+      assertThat(eventGroups)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(eventGroup1, eventGroup2)
+        .inOrder()
+    } else {
+      assertThat(eventGroups)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(eventGroup2, eventGroup1)
+        .inOrder()
+    }
   }
 
   @Test
-  fun `streamEventGroups respects created_after`(): Unit = runBlocking {
+  fun `streamEventGroups can get one page at a time`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
@@ -321,16 +316,34 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter =
-              filter {
-                this.externalDataProviderId = externalDataProviderId
-                createdAfter = eventGroup1.createTime
-              }
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+            limit = 1
           }
         )
         .toList()
 
-    assertThat(eventGroups).comparingExpectedFieldsOnly().containsExactly(eventGroup2)
+    assertThat(eventGroups).containsAnyOf(eventGroup1, eventGroup2)
+    assertThat(eventGroups).hasSize(1)
+
+    val eventGroups2: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter =
+              filter {
+                this.externalDataProviderId = externalDataProviderId
+                externalEventGroupIdAfter = eventGroups[0].externalEventGroupId
+                externalDataProviderIdAfter = eventGroups[0].externalDataProviderId
+              }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups2).hasSize(1)
+    assertThat(eventGroups2).containsAnyOf(eventGroup1, eventGroup2)
+    assertThat(eventGroups2[0].externalEventGroupId)
+      .isGreaterThan(eventGroups[0].externalEventGroupId)
   }
 
   @Test
@@ -338,16 +351,15 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup1 =
-      eventGroupsService.createEventGroup(
-        eventGroup {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalMeasurementConsumerId =
-            population.createMeasurementConsumer(measurementConsumersService)
-              .externalMeasurementConsumerId
-          providedEventGroupId = "eventGroup1"
-        }
-      )
+    eventGroupsService.createEventGroup(
+      eventGroup {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalMeasurementConsumerId =
+          population.createMeasurementConsumer(measurementConsumersService)
+            .externalMeasurementConsumerId
+        providedEventGroupId = "eventGroup1"
+      }
+    )
 
     eventGroupsService.createEventGroup(
       eventGroup {
@@ -369,7 +381,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(eventGroups).comparingExpectedFieldsOnly().containsExactly(eventGroup1)
+    assertThat(eventGroups).hasSize(1)
   }
 
   @Test
