@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toByteString
-import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemon
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
@@ -45,9 +44,7 @@ import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
-import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.CertificateManager
-import org.wfanet.panelmatch.common.certificates.testing.TestCertificateAuthority
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
@@ -103,11 +100,9 @@ class ExchangeWorkflowDaemonForTest(
     )
   }
 
-  override val certificateAuthority: CertificateAuthority = TestCertificateAuthority
-
   override val privateStorageFactories:
-    Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory> =
-    mapOf(PlatformCase.FILE to { storageDetails -> FileSystemStorageFactory(storageDetails, this) })
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory> =
+    mapOf(PlatformCase.FILE to ::FileSystemStorageFactory)
 
   private val privateStorageDetails = storageDetails {
     file = fileStorage { path = privateDirectory.toString() }
@@ -130,13 +125,8 @@ class ExchangeWorkflowDaemonForTest(
   }
 
   override val sharedStorageFactories:
-    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory> =
-    mapOf(
-      PlatformCase.FILE to
-        { storageDetails ->
-          FileSystemStorageFactory(storageDetails, this.exchangeDateKey)
-        }
-    )
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory> =
+    mapOf(PlatformCase.FILE to ::FileSystemStorageFactory)
 
   private val sharedStorageDetails = storageDetails {
     file = fileStorage { path = sharedDirectory.toString() }

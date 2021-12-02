@@ -15,8 +15,10 @@
 package org.wfanet.panelmatch.client.deploy
 
 import kotlin.properties.Delegates
+import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.client.storage.withBlobSizeLimit
+import org.wfanet.panelmatch.common.ExchangeDateKey
 import picocli.CommandLine
 
 class BlobSizeFlags {
@@ -27,7 +29,12 @@ class BlobSizeFlags {
   )
   private var blobSizeLimitBytes by Delegates.notNull<Long>()
 
-  fun wrapStorageFactory(storageFactory: StorageFactory): StorageFactory {
-    return storageFactory.withBlobSizeLimit(blobSizeLimitBytes)
+  fun wrapStorageFactory(
+    makeStorageFactory: (StorageDetails, ExchangeDateKey) -> StorageFactory
+  ): (StorageDetails, ExchangeDateKey) -> StorageFactory {
+    val limit = blobSizeLimitBytes
+    return { storageDetails, exchangeDateKey ->
+      makeStorageFactory(storageDetails, exchangeDateKey).withBlobSizeLimit(limit)
+    }
   }
 }

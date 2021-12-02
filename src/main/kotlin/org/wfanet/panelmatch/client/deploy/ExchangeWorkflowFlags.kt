@@ -20,14 +20,15 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.common.grpc.TlsFlags
 import picocli.CommandLine
 import picocli.CommandLine.ITypeConverter
+import picocli.CommandLine.Option
 import picocli.CommandLine.TypeConversionException
 
 class ExchangeWorkflowFlags {
-  @CommandLine.Option(names = ["--id"], description = ["Id of the provider"], required = true)
+  @Option(names = ["--id"], description = ["Id of the provider"], required = true)
   lateinit var id: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--party-type"],
     description = ["Type of the party: \${COMPLETION-CANDIDATES}"],
     required = true
@@ -39,7 +40,7 @@ class ExchangeWorkflowFlags {
   lateinit var tlsFlags: TlsFlags
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."],
@@ -48,7 +49,7 @@ class ExchangeWorkflowFlags {
   lateinit var channelShutdownTimeout: Duration
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--storage-signing-algorithm"],
     defaultValue = "EC",
     description = ["The algorithm used in signing data written to shared storage."],
@@ -57,7 +58,7 @@ class ExchangeWorkflowFlags {
   lateinit var certAlgorithm: String
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--polling-interval"],
     defaultValue = "1m",
     description = ["How long to sleep between finding and running an ExchangeStep."],
@@ -66,7 +67,7 @@ class ExchangeWorkflowFlags {
   lateinit var pollingInterval: Duration
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--task-timeout"],
     defaultValue = "24h",
     description = ["How long to sleep between finding and running an ExchangeStep."],
@@ -75,7 +76,7 @@ class ExchangeWorkflowFlags {
   lateinit var taskTimeout: Duration
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--exchange-api-target"],
     description =
       ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
@@ -85,7 +86,7 @@ class ExchangeWorkflowFlags {
   lateinit var exchangeApiTarget: InetSocketAddress
     private set
 
-  @CommandLine.Option(
+  @Option(
     names = ["--exchange-api-cert-host"],
     description = ["Expected hostname in the TLS certificate for --exchange-api-target"],
     required = true

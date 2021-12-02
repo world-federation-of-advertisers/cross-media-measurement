@@ -20,7 +20,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
@@ -36,7 +35,6 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
-import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
@@ -71,19 +69,16 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Scope in which to run the daemon loop. */
   abstract val scope: CoroutineScope
 
-  /** [CertificateAuthority] for use in [sharedStorageSelector]. */
-  protected abstract val certificateAuthority: CertificateAuthority
-
   /** How to build private storage. */
   protected abstract val privateStorageFactories:
-    Map<PlatformCase, ExchangeDateKey.(StorageDetails) -> StorageFactory>
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>
 
   /** Serialized [StorageDetails] per RecurringExchange. */
   protected abstract val privateStorageInfo: StorageDetailsProvider
 
   /** How to build shared storage. */
   protected abstract val sharedStorageFactories:
-    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>
 
   /** Serialized [StorageDetails] per RecurringExchange. */
   protected abstract val sharedStorageInfo: StorageDetailsProvider

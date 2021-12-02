@@ -19,6 +19,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.AMAZON_S3
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.StorageType.GOOGLE_CLOUD_STORAGE
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 
 private val EXPLICITLY_SUPPORTED_STORAGE_TYPES = setOf(PlatformCase.AWS, PlatformCase.GCS)
@@ -33,7 +34,7 @@ private val EXPLICITLY_SUPPORTED_STORAGE_TYPES = setOf(PlatformCase.AWS, Platfor
 class SharedStorageSelector(
   private val certificateManager: CertificateManager,
   private val sharedStorageFactories:
-    Map<PlatformCase, ExchangeContext.(StorageDetails) -> StorageFactory>,
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>,
   private val storageDetailsProvider: StorageDetailsProvider
 ) {
 
@@ -58,7 +59,7 @@ class SharedStorageSelector(
       requireNotNull(sharedStorageFactories[platform]) {
         "Missing private StorageFactory for $platform"
       }
-    return context.buildStorageFactory(storageDetails)
+    return buildStorageFactory(storageDetails, context.exchangeDateKey)
   }
 
   private fun validateStorageType(storageType: StorageType, platform: PlatformCase) {
