@@ -239,6 +239,15 @@ proto_library(
 )
 
 proto_library(
+    name = "api_keys_service_proto",
+    srcs = ["api_keys_service.proto"],
+    deps = [
+        ":api_key_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+proto_library(
     name = "requisitions_service_proto",
     srcs = ["requisitions_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,

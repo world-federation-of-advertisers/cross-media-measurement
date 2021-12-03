@@ -28,19 +28,19 @@ service ApiKeys {
   // Creates an `ApiKey`.
   //
   // Results in PERMISSION_DENIED if the authenticated caller does not own the
-  // resource the `ApiKey` is being created for.
+  // `MeasurementConsumer` the `ApiKey` is being created for.
   rpc CreateApiKey(CreateApiKeyRequest) returns (ApiKey) {}
 
-  // Delete an `ApiKey`.
+  // Deletes an `ApiKey`.
   //
   // Results in PERMISSION_DENIED if the authenticated caller does not own the
-  // resource the `ApiKey` is used for.
+  // `MeasurementConsumer` the `ApiKey` is being used for.
   rpc DeleteApiKey(DeleteApiKeyRequest) returns (ApiKey) {}
 }
 
 // Request message for `CreateApiKey` method.
 message CreateApiKeyRequest {
-  // Name of the parent resource. Required.
+  // Name of the parent `MeasurementConsumer`. Required.
   string parent = 1
       [(google.api.resource_reference).child_type = "halo.wfanet.org/ApiKey"];
 
