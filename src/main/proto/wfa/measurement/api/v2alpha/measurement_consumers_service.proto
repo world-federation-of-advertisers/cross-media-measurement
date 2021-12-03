@@ -54,6 +54,9 @@ message CreateMeasurementConsumerRequest {
   // The `MeasurementConsumer` to create. Required. The `name` field will be
   // ignored, and the system will assign an ID.
   MeasurementConsumer measurement_consumer = 1;
+
+  // Token to create a `MeasurementConsumer` resource. Required.
+  string measurement_consumer_creation_token = 2;
 }
 
 // Request message for `AddMeasurementConsumerOwner` method.
