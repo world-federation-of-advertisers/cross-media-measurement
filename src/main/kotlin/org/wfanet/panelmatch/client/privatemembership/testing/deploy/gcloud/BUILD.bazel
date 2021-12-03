@@ -3,6 +3,7 @@ load("@rules_java//java:defs.bzl", "java_binary")
 
 kt_jvm_library(
     name = "dataflow_round_trip_test_main",
+    testonly = True,
     srcs = ["DataflowRoundTripTestMain.kt"],
     runtime_deps = ["//imports/java/org/slf4j:simple"],
     deps = [
@@ -15,6 +16,7 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
@@ -23,6 +25,7 @@ kt_jvm_library(
 
 java_binary(
     name = "dataflow_round_trip_test",
+    testonly = True,
     main_class = "org.wfanet.panelmatch.client.privatemembership.testing.deploy.gcloud.DataflowRoundTripTestMainKt",
     tags = ["manual"],
     runtime_deps = [":dataflow_round_trip_test_main"],

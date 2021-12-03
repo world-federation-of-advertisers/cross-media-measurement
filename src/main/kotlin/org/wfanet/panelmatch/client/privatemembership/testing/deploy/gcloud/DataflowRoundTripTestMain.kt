@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.client.privatemembership.testing.deploy.gcloud
 import com.google.api.services.bigquery.model.TableFieldSchema
 import com.google.api.services.bigquery.model.TableRow
 import com.google.api.services.bigquery.model.TableSchema
-import com.google.privatemembership.batch.ParametersKt.cryptoParameters
 import com.google.privatemembership.batch.ParametersKt.shardParameters
 import com.google.privatemembership.batch.Shared.EncryptedQueryResult as RlweEncryptedQueryResult
 import com.google.privatemembership.batch.Shared.PublicKey
@@ -27,8 +26,6 @@ import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.parameters
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import java.lang.Long.parseUnsignedLong
-import java.util.Base64
 import kotlin.random.Random
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.sdk.Pipeline
@@ -47,6 +44,8 @@ import org.wfanet.panelmatch.client.common.databaseKeyOf
 import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.common.plaintextOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.copy
+import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
@@ -57,10 +56,11 @@ import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCrypto
 import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.createQueries
 import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
+import org.wfanet.panelmatch.client.privatemembership.testing.PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
 import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.map
-import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.parDo
+import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 
@@ -73,22 +73,9 @@ interface Options : DataflowPipelineOptions {
 private const val SHARD_COUNT = 100
 private const val BUCKETS_PER_SHARD_COUNT = 1 shl 11
 private const val QUERIES_PER_SHARD_COUNT = 16
-private const val JOINKEY_UNIVERSE_SIZE = SHARD_COUNT * BUCKETS_PER_SHARD_COUNT
 
 private val PRIVATE_MEMBERSHIP_PARAMETERS = parameters {
-  cryptoParameters =
-    cryptoParameters {
-      requestModulus += parseUnsignedLong("18446744073708380161")
-      requestModulus += parseUnsignedLong("137438953471")
-      responseModulus += parseUnsignedLong("2056193")
-      logDegree = 12
-      logT = 1
-      variance = 8
-      levelsOfRecursion = 2
-      logCompressionFactor = 4
-      logDecompositionModulus = 10
-    }
-
+  cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
   shardParameters =
     shardParameters {
       numberOfBucketsPerShard = BUCKETS_PER_SHARD_COUNT
@@ -129,27 +116,20 @@ fun main(args: Array<String>) {
     pipeline.apply("Create Queries", Create.of(0 until SHARD_COUNT)).parDo("Populate Queries") { i
       ->
       for (j in 0 until QUERIES_PER_SHARD_COUNT / 4) {
-        val joinkeyIndex = Random.nextInt(JOINKEY_UNIVERSE_SIZE)
+        val queryIndex = i + j * SHARD_COUNT
         yield(
           joinKeyAndIdOf(
-            "joinKeyId of ${i + j * SHARD_COUNT}".toByteStringUtf8(),
-            "LookupKey-$joinkeyIndex".toByteStringUtf8()
+            "LookupKey-$queryIndex".toByteStringUtf8(),
+            "JoinKeyIdentifier-$queryIndex".toByteStringUtf8()
           )
         )
       }
     }
-  // TODO think about making this a separate type
+
   val hashedJoinKeys: PCollection<JoinKeyAndId> =
-    pipeline.apply("Create Queries", Create.of(0 until SHARD_COUNT)).parDo("Populate Queries") { i
-      ->
-      for (j in 0 until QUERIES_PER_SHARD_COUNT / 4) {
-        val joinkeyIndex = Random.nextInt(JOINKEY_UNIVERSE_SIZE)
-        yield(
-          joinKeyAndIdOf(
-            "joinKeyId of ${i + j * SHARD_COUNT}".toByteStringUtf8(),
-            "HashedJoinKey-$joinkeyIndex".toByteStringUtf8()
-          )
-        )
+    rawQueries.map {
+      it.copy {
+        joinKey = joinKey.copy { key = "JoinKey-for-${key.toStringUtf8()}".toByteStringUtf8() }
       }
     }
 
@@ -200,14 +180,16 @@ fun main(args: Array<String>) {
       .setFields(
         listOf(
           TableFieldSchema().setName("QueryId").setType("INT64"),
-          TableFieldSchema().setName("Result").setType("BYTES")
+          TableFieldSchema().setName("ResultIndex").setType("INT64"),
+          TableFieldSchema().setName("Result").setType("STRING")
         )
       )
 
   results
-    .mapWithSideInput(privateMembershipKeys.toSingletonView(), name = "Decrypt to TableRows") {
-      encryptedQueryResult: EncryptedQueryResult,
-      keys: AsymmetricKeys ->
+    .parDoWithSideInput<EncryptedQueryResult, AsymmetricKeys, TableRow>(
+      privateMembershipKeys.toSingletonView(),
+      name = "Decrypt to TableRows"
+    ) { encryptedQueryResult: EncryptedQueryResult, keys: AsymmetricKeys ->
       val response =
         JniPrivateMembership.decryptQueries(
           decryptQueriesRequest {
@@ -221,9 +203,17 @@ fun main(args: Array<String>) {
           }
         )
       val result = response.resultList.single().result
-      TableRow()
-        .set("QueryId", encryptedQueryResult.queryId.id.toLong())
-        .set("Result", Base64.getEncoder().encode(result.toByteArray()))
+      if (!result.isEmpty) {
+        val bucketContents = BucketContents.parseFrom(result)
+        for ((i, item) in bucketContents.itemsList.withIndex()) {
+          yield(
+            TableRow()
+              .set("QueryId", encryptedQueryResult.queryId.id.toLong())
+              .set("ResultIndex", i.toLong())
+              .set("Result", item.toStringUtf8())
+          )
+        }
+      }
     }
     .toBigQuery(options.resultsOutputTable, outputSchema)
 
@@ -265,7 +255,8 @@ private fun makeOptions(args: Array<String>): Options {
   return PipelineOptionsFactory.fromArgs(*args).withValidation().`as`(Options::class.java)
 }
 
+private val PAYLOAD_PREFIX = (0 until 333).joinToString("") { "prefix" }
+
 private fun makeFakeUserDataPayload(suffix: String): ByteString {
-  val prefix = (0 until 2000).joinToString { " " }
-  return "$prefix-$suffix".toByteStringUtf8()
+  return "$PAYLOAD_PREFIX:$suffix".toByteStringUtf8()
 }

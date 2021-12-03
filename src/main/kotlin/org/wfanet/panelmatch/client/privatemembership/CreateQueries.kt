@@ -100,13 +100,6 @@ private class CreateQueries(
       .and(encryptedQueryBundlesTag, encryptedQueryBundles)
   }
 
-  companion object {
-    val lookupKeyAndIdsTag = TupleTag<JoinKeyAndId>()
-    val hashedJoinKeyAndIdsTag = TupleTag<JoinKeyAndId>()
-    val queryIdAndJoinKeysTag = TupleTag<QueryIdAndJoinKeys>()
-    val encryptedQueryBundlesTag = TupleTag<EncryptedQueryBundle>()
-  }
-
   /** Determines shard and bucket for a [JoinKey]. */
   private fun shardJoinKeys(
     queries: PCollection<JoinKeyAndId>
@@ -215,6 +208,13 @@ private class CreateQueries(
       "Encrypt Queries per Shard",
       ParDo.of(EncryptQueriesFn(privateMembershipCryptor, keys)).withSideInputs(keys)
     )
+  }
+
+  companion object {
+    val lookupKeyAndIdsTag = TupleTag<JoinKeyAndId>()
+    val hashedJoinKeyAndIdsTag = TupleTag<JoinKeyAndId>()
+    val queryIdAndJoinKeysTag = TupleTag<QueryIdAndJoinKeys>()
+    val encryptedQueryBundlesTag = TupleTag<EncryptedQueryBundle>()
   }
 }
 
