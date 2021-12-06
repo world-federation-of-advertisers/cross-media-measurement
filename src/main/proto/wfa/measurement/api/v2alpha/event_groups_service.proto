@@ -32,6 +32,11 @@ service EventGroups {
   // `DataProvider`'s system.
   rpc CreateEventGroup(CreateEventGroupRequest) returns (EventGroup) {}
 
+  // Updates an existing `EventGroup`. Results in a `PERMISSION_DENIED` error if
+  // the authenticated user does not have access to the `EventGroup`. Results in
+  // a `NOT_FOUND` error if the the specified `EventGroup` does not exist.
+  rpc UpdateEventGroup(UpdateEventGroupRequest) returns (EventGroup) {}
+
   // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
   // to list `EventGroup`s that the authenticated user does not have access to.
   rpc ListEventGroups(ListEventGroupsRequest)
@@ -57,6 +62,12 @@ message CreateEventGroupRequest {
   // in an `ALREADY_EXISTS` error if there is already a child `EventGroup` with
   // the same `event_group_reference_id`.
   EventGroup event_group = 2;
+}
+
+// Request message for `UpdateEventGroup` method.
+message UpdateEventGroupRequest {
+  // The `EventGroup` to update. Required.
+  EventGroup event_group = 1;
 }
 
 message ListEventGroupsRequest {

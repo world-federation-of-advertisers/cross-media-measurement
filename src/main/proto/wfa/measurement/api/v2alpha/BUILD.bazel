@@ -102,6 +102,7 @@ proto_library(
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":crypto_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )

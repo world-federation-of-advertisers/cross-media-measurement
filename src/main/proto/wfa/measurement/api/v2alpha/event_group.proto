@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha;
 
 import "google/api/resource.proto";
+import "wfa/measurement/api/v2alpha/crypto.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
@@ -34,14 +35,46 @@ message EventGroup {
   string name = 1;
 
   // Resource name of the `MeasurementConsumer` associated with this
-  // `EventGroup`.
+  // `EventGroup`. Required. Immutable.
   string measurement_consumer = 2 [(google.api.resource_reference).type =
                                        "halo.wfanet.org/MeasurementConsumer"];
+
+  // Resource name of the `Certificate` belonging to `measurement_consumer`.
+  // Must be set if `measurement_consumer_public_key` is set.
+  string measurement_consumer_certificate = 3
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
+
+  // Pre-shared serialized `EncryptionPublicKey`, which can be verified using
+  // `measurement_consumer_certificate`. Must be set if `encrypted_metadata` is
+  // set.
+  SignedData measurement_consumer_public_key = 4;
 
   // ID referencing the `EventGroup` in an external system, provided by the
   // `DataProvider`.
   //
   // If set, this value must be unique among `EventGroup`s for the parent
   // `DataProvider`.
-  string event_group_reference_id = 3;
+  string event_group_reference_id = 5;
+
+  // The set of VID model lines used to label events in this `EventGroup`.
+  // Required.
+  repeated string vid_model_lines = 6;
+
+  message EventTemplate {
+    // The type of the Event Template. A fully-qualified protobuf message type.
+    // Required.
+    string type = 1;
+  }
+
+  // The `EventTemplate`s that events associated with this `EventGroup` conform
+  // to.
+  repeated EventTemplate event_templates = 7;
+
+  // Wrapper for per-EDP Event Group metadata.
+  // TODO(robinsonsc): Complete design for metadata registration and update.
+  message Metadata {}
+
+  // Encrypted serialized `Metadata`. The encryption uses
+  // `measurement_consumer_public_key` as the recipient public key.
+  bytes encrypted_metadata = 8;
 }
