@@ -63,6 +63,7 @@ message StreamMeasurementsRequest {
     google.protobuf.Timestamp updated_after = 4;
     // for next page token
     fixed64 external_measurement_id_after = 5;
+    bool order_by_external_measurement_id = 6;
   }
   Filter filter = 1;
 

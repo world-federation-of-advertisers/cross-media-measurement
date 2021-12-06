@@ -30,7 +30,11 @@ class StreamMeasurements(
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExternalMeasurementId ASC")
+      if (requestFilter.orderByExternalMeasurementId) {
+        appendClause("ORDER BY ExternalMeasurementId ASC")
+      } else {
+        appendClause("ORDER BY UpdateTime ASC")
+      }
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT_PARAM")
         bind(LIMIT_PARAM to limit.toLong())
