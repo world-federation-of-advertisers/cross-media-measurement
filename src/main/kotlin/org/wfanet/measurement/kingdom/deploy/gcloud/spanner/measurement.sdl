@@ -22,6 +22,7 @@
 --   │   └── EventGroups
 --   ├── DuchyCertificates
 --   ├── MeasurementConsumers
+--   │   ├── MeasurementConsumerApiKeys
 --   │   ├── MeasurementConsumerCertificates
 --   │   └── Measurements
 --   │       ├── ComputationParticipants
@@ -102,6 +103,30 @@ CREATE TABLE MeasurementConsumers (
 -- For measurement consumer APIs.
 CREATE UNIQUE INDEX MeasurementConsumersByExternalId
   ON MeasurementConsumers(ExternalMeasurementConsumerId);
+
+CREATE TABLE MeasurementConsumerApiKeys (
+  MeasurementConsumerId INT64 NOT NULL,
+  ApiKeyId INT64 NOT NULL,
+
+  ExternalMeasurementConsumerApiKeyId INT64 NOT NULL,
+
+  Nickname STRING(MAX) NOT NULL,
+  Description STRING(MAX),
+
+  AuthenticationKeyHash BYTES(32) NOT NULL,
+
+  -- org.wfanet.measurement.internal.kingdom.ApiKey.RevocationState
+  -- protobuf enum encoded as an integer.
+  RevocationState INT64 NOT NULL,
+
+) PRIMARY KEY (MeasurementConsumerId, ApiKeyId),
+  INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX MeasurementConsumerApiKeysByExternalId
+  ON MeasurementConsumerApiKeys(MeasurementConsumerId, ExternalMeasurementConsumerApiKeyId);
+
+CREATE UNIQUE INDEX MeasurementConsumerApiKeysByAuthenticationKeyHash
+  ON MeasurementConsumerApiKeys(AuthenticationKeyHash);
 
 CREATE TABLE MeasurementConsumerCertificates (
   MeasurementConsumerId INT64 NOT NULL,
