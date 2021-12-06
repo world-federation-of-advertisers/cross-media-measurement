@@ -26,10 +26,16 @@ option java_multiple_files = true;
 service EventGroups {
   rpc CreateEventGroup(EventGroup) returns (EventGroup);
 
+  rpc UpdateEventGroup(UpdateEventGroupRequest) returns (EventGroup);
+
   rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
 
   // Streams EventGroups ordered by create time, ascending.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
+}
+
+message UpdateEventGroupRequest {
+  EventGroup event_group = 1;
 }
 
 message GetEventGroupRequest {
