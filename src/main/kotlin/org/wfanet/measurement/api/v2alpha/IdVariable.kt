@@ -31,6 +31,7 @@ internal enum class IdVariable {
   MEASUREMENT_CONSUMER,
   CERTIFICATE,
   ACCOUNT,
+  API_KEY,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {

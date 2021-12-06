@@ -68,4 +68,8 @@ message Account {
   oneof identity {
     OpenIdConnectIdentity open_id_identity = 7;
   }
+
+  // All External Ids of the `MeasurementConsumer` that this `Account` owns.
+  // Output-only. Immutable.
+  repeated int64 external_owned_measurement_consumer_ids = 8;
 }
