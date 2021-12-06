@@ -60,6 +60,7 @@ class SpannerAccountsService(
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
           }
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,

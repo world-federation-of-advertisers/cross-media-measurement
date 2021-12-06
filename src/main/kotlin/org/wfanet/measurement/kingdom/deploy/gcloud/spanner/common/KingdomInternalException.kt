@@ -73,5 +73,8 @@ class KingdomInternalException : Exception {
 
     /** Permission is not given for the operation. */
     PERMISSION_DENIED,
+
+    /** Api Key resource queried could not be found. */
+    API_KEY_NOT_FOUND,
   }
 }

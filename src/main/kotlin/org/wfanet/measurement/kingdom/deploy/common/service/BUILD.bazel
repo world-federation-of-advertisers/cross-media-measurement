@@ -13,3 +13,19 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
+
+kt_jvm_library(
+    name = "api_keys_server_interceptor",
+    srcs = ["ApiKeysServerInterceptor.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:__subpackages__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
