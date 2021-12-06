@@ -137,7 +137,7 @@ class ApiKeysServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.createApiKey(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -192,7 +192,7 @@ class ApiKeysServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.deleteApiKey(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test

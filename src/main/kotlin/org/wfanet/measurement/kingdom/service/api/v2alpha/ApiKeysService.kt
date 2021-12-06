@@ -40,7 +40,7 @@ class ApiKeysService(
   override suspend fun createApiKey(request: CreateApiKeyRequest): ApiKey {
     val account =
       AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
 
     val measurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -69,7 +69,7 @@ class ApiKeysService(
   override suspend fun deleteApiKey(request: DeleteApiKeyRequest): ApiKey {
     val account =
       AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
 
     val key =
       grpcRequireNotNull(ApiKeyKey.fromName(request.name)) {
