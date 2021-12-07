@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import io.grpc.Status
+import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AddMeasurementConsumerOwnerRequest
@@ -26,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -92,17 +95,27 @@ class MeasurementConsumersService(
   override suspend fun addMeasurementConsumerOwner(
     request: AddMeasurementConsumerOwnerRequest
   ): MeasurementConsumer {
+    val account =
+      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+
     val measurementConsumerKey: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
 
+    val externalMeasurementConsumerId =
+      apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+
+    if (!account.externalOwnedMeasurementConsumerIdsList.contains(externalMeasurementConsumerId)) {
+      failGrpc(Status.PERMISSION_DENIED) { "Account doesn't own MeasurementConsumer" }
+    }
+
     val accountKey: AccountKey =
       grpcRequireNotNull(AccountKey.fromName(request.account)) { "Account unspecified or invalid" }
 
     val internalAddMeasurementConsumerOwnerRequest = addMeasurementConsumerOwnerRequest {
-      externalMeasurementConsumerId =
-        apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
       externalAccountId = apiIdToExternalId(accountKey.accountId)
     }
 
@@ -114,17 +127,27 @@ class MeasurementConsumersService(
   override suspend fun removeMeasurementConsumerOwner(
     request: RemoveMeasurementConsumerOwnerRequest
   ): MeasurementConsumer {
+    val account =
+      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+
     val measurementConsumerKey: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
 
+    val externalMeasurementConsumerId =
+      apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+
+    if (!account.externalOwnedMeasurementConsumerIdsList.contains(externalMeasurementConsumerId)) {
+      failGrpc(Status.PERMISSION_DENIED) { "Account doesn't own MeasurementConsumer" }
+    }
+
     val accountKey: AccountKey =
       grpcRequireNotNull(AccountKey.fromName(request.account)) { "Account unspecified or invalid" }
 
     val internalRemoveMeasurementConsumerOwnerRequest = removeMeasurementConsumerOwnerRequest {
-      externalMeasurementConsumerId =
-        apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
       externalAccountId = apiIdToExternalId(accountKey.accountId)
     }
 
