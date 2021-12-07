@@ -15,14 +15,11 @@
 package org.wfanet.panelmatch.common.certificates.testing
 
 import java.security.PrivateKey
-import java.security.PublicKey
 import java.security.cert.X509Certificate
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 
 object TestCertificateAuthority : CertificateAuthority {
-  override suspend fun generateX509CertificateAndPrivateKey(
-    rootPublicKey: PublicKey
-  ): Pair<X509Certificate, PrivateKey> {
+  override suspend fun generateX509CertificateAndPrivateKey(): Pair<X509Certificate, PrivateKey> {
     return TestCertificateManager.CERTIFICATE to TestCertificateManager.PRIVATE_KEY
   }
 }
