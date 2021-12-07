@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.deploy.filesystem
+package org.wfanet.panelmatch.client.deploy.example.filesystem
 
 import java.io.File
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.panelmatch.client.deploy.ExampleDaemon
+import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import picocli.CommandLine.Option
 
