@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.common.certificates
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.security.PrivateKey
-import java.security.PublicKey
 import java.security.cert.X509Certificate
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
@@ -201,9 +200,7 @@ class V2AlphaCertificateManagerTest {
 }
 
 private object TestCertificateAuthority : CertificateAuthority {
-  override suspend fun generateX509CertificateAndPrivateKey(
-    rootPublicKey: PublicKey
-  ): Pair<X509Certificate, PrivateKey> {
+  override suspend fun generateX509CertificateAndPrivateKey(): Pair<X509Certificate, PrivateKey> {
     return CERTIFICATE to PRIVATE_KEY
   }
 }
