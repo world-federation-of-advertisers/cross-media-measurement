@@ -634,7 +634,6 @@ class MeasurementsServiceTest {
           filter =
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              orderByExternalMeasurementId = true
             }
         }
       )
@@ -705,7 +704,6 @@ class MeasurementsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               states += internalStates
               externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
-              orderByExternalMeasurementId = true
             }
         }
       )
@@ -743,7 +741,6 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
-              orderByExternalMeasurementId = true
             }
         }
       )
@@ -778,7 +775,6 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
-              orderByExternalMeasurementId = true
             }
         }
       )

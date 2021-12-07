@@ -60,10 +60,9 @@ message StreamMeasurementsRequest {
     int64 external_measurement_consumer_id = 1;
     int64 external_measurement_consumer_certificate_id = 2;
     repeated Measurement.State states = 3;
-    google.protobuf.Timestamp updated_after = 4;
     // for next page token
+    google.protobuf.Timestamp updated_after = 4;
     fixed64 external_measurement_id_after = 5;
-    bool order_by_external_measurement_id = 6;
   }
   Filter filter = 1;
 

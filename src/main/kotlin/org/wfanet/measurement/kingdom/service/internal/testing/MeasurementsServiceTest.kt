@@ -753,14 +753,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
 
-    val cancelledMeasurement =
-      measurementsService.cancelMeasurement(
-        cancelMeasurementRequest {
-          externalMeasurementId = measurement1.externalMeasurementId
-          externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
-        }
-      )
-
     val measurements: List<Measurement> =
       measurementsService
         .streamMeasurements(
@@ -768,7 +760,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             filter =
               filter {
                 externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-                orderByExternalMeasurementId = true
               }
           }
         )
@@ -777,12 +768,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     if (measurement1.externalMeasurementId < measurement2.externalMeasurementId) {
       assertThat(measurements)
         .comparingExpectedFieldsOnly()
-        .containsExactly(cancelledMeasurement, measurement2)
+        .containsExactly(measurement1, measurement2)
         .inOrder()
     } else {
       assertThat(measurements)
         .comparingExpectedFieldsOnly()
-        .containsExactly(measurement2, cancelledMeasurement)
+        .containsExactly(measurement2, measurement1)
         .inOrder()
     }
   }
@@ -814,10 +805,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val streamMeasurementsRequest = streamMeasurementsRequest {
       limit = 1
       filter =
-        filter {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          orderByExternalMeasurementId = true
-        }
+        filter { externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId }
     }
 
     val measurements: List<Measurement> =
@@ -831,7 +819,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .streamMeasurements(
           streamMeasurementsRequest.copy {
             filter =
-              filter.copy { externalMeasurementIdAfter = measurements[0].externalMeasurementId }
+              filter.copy {
+                updatedAfter = measurements[0].updateTime
+                externalMeasurementIdAfter = measurements[0].externalMeasurementId
+              }
           }
         )
         .toList()
@@ -840,40 +831,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(measurements2).containsAnyOf(measurement1, measurement2)
     assertThat(measurements2[0].externalMeasurementId)
       .isGreaterThan(measurements[0].externalMeasurementId)
-  }
-
-  @Test
-  fun `streamMeasurements respects updated_after`(): Unit = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
-
-    val measurement1 =
-      measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
-        }
-      )
-
-    val measurement2 =
-      measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
-        }
-      )
-
-    val measurements: List<Measurement> =
-      measurementsService
-        .streamMeasurements(
-          streamMeasurementsRequest { filter = filter { updatedAfter = measurement1.updateTime } }
-        )
-        .toList()
-
-    assertThat(measurements).comparingExpectedFieldsOnly().containsExactly(measurement2)
   }
 
   @Test

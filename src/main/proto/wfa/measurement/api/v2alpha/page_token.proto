@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 
 option java_package = "org.wfanet.measurement.api.v2.alpha";
@@ -37,7 +38,8 @@ message MeasurementPageToken {
   int64 external_measurement_consumer_id = 2;
   repeated Measurement.State states = 3;
   message PreviousPageEnd {
-    fixed64 external_measurement_id = 1;
+    google.protobuf.Timestamp update_time = 1;
+    fixed64 external_measurement_id = 2;
   }
   PreviousPageEnd last_measurement = 4;
 }

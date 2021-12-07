@@ -293,7 +293,6 @@ private fun MeasurementPageToken.toStreamMeasurementsRequest(): StreamMeasuremen
         externalMeasurementConsumerId = source.externalMeasurementConsumerId
         states += source.statesList.toInternalState()
         externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
-        orderByExternalMeasurementId = true
       }
   }
 }
