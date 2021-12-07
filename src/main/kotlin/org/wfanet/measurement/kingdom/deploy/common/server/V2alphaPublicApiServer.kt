@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.TextprotoFilePrincipalLookup
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
@@ -35,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
@@ -86,6 +88,8 @@ private fun run(
   val services: List<ServerServiceDefinition> =
     listOf(
       AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
+        .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
+      ApiKeysService(InternalApiKeysCoroutineStub(channel))
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
       CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
