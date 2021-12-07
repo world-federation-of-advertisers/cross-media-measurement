@@ -449,10 +449,10 @@ CREATE UNIQUE INDEX OpenIdConnectClaimsByExternalId
   ON OpenIdConnectClaims(ExternalOpenIdConnectClaimsId);
 
 CREATE TABLE MeasurementConsumerOwners (
-  MeasurementConsumerId INT64 NOT NULL,
   AccountId INT64 NOT NULL,
+  MeasurementConsumerId INT64 NOT NULL,
 
-  FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY (AccountId) REFERENCES Accounts(AccountId),
-) PRIMARY KEY (MeasurementConsumerId, AccountId),
-INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
+  FOREIGN KEY (MeasurementConsumerId) REFERENCES MeasurementConsumers(MeasurementConsumerId),
+) PRIMARY KEY (AccountId, MeasurementConsumerId),
+INTERLEAVE IN PARENT Accounts ON DELETE CASCADE;

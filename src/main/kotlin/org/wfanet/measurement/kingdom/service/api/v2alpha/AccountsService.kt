@@ -57,7 +57,7 @@ class AccountsService(
   override suspend fun createAccount(request: CreateAccountRequest): Account {
     val account =
       AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
 
     val ownedMeasurementConsumer = request.account.activationParams.ownedMeasurementConsumer
     val externalOwnedMeasurementConsumerId =
@@ -110,7 +110,7 @@ class AccountsService(
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
     val account =
       AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
 
     grpcRequireNotNull(AccountKey.fromName(request.name)) { "Resource name unspecified or invalid" }
 
