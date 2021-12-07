@@ -151,7 +151,7 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.createAccount(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -164,7 +164,7 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { client.withIdToken(ID_TOKEN).createAccount(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -266,7 +266,7 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.replaceAccountIdentity(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -281,7 +281,7 @@ class AccountsServiceTest {
         client.withIdToken(ID_TOKEN).replaceAccountIdentity(request)
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid")
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
