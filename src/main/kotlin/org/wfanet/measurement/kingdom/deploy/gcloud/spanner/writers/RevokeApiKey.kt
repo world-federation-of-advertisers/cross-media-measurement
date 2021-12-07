@@ -30,7 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [KingdomInternalException.Code.API_KEY_NOT_FOUND]
  * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
-class DeleteApiKey(
+class RevokeApiKey(
   private val externalMeasurementConsumerId: ExternalId,
   private val externalApiKeyId: ExternalId,
 ) : SimpleSpannerWriter<ApiKey>() {

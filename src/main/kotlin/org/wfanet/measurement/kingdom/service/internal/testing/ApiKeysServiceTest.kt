@@ -34,7 +34,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.apiKey
 import org.wfanet.measurement.internal.kingdom.authenticateApiKeyRequest
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.deleteApiKeyRequest
+import org.wfanet.measurement.internal.kingdom.revokeApiKeyRequest
 
 private const val RANDOM_SEED = 1
 
@@ -114,7 +114,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteApiKey returns the api key`() = runBlocking {
+  fun `revokeApiKey returns the api key`() = runBlocking {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer((measurementConsumersService))
         .externalMeasurementConsumerId
@@ -127,8 +127,8 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       )
 
     val result =
-      apiKeysService.deleteApiKey(
-        deleteApiKeyRequest {
+      apiKeysService.revokeApiKey(
+        revokeApiKeyRequest {
           this.externalMeasurementConsumerId = externalMeasurementConsumerId
           externalApiKeyId = apiKey.externalApiKeyId
         }
@@ -140,7 +140,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
+  fun `revokeApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer((measurementConsumersService))
         .externalMeasurementConsumerId
@@ -154,8 +154,8 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        apiKeysService.deleteApiKey(
-          deleteApiKeyRequest {
+        apiKeysService.revokeApiKey(
+          revokeApiKeyRequest {
             if (externalMeasurementConsumerId == 1L) {
               this.externalMeasurementConsumerId = 2L
             } else {
@@ -171,11 +171,11 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteApiKey throws NOT FOUND when api key doesn't exist`() = runBlocking {
+  fun `revokeApiKey throws NOT FOUND when api key doesn't exist`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        apiKeysService.deleteApiKey(
-          deleteApiKeyRequest {
+        apiKeysService.revokeApiKey(
+          revokeApiKeyRequest {
             externalMeasurementConsumerId =
               population.createMeasurementConsumer((measurementConsumersService))
                 .externalMeasurementConsumerId
@@ -244,8 +244,8 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
         }
       )
 
-    apiKeysService.deleteApiKey(
-      deleteApiKeyRequest {
+    apiKeysService.revokeApiKey(
+      revokeApiKeyRequest {
         externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         externalApiKeyId = apiKey.externalApiKeyId
       }

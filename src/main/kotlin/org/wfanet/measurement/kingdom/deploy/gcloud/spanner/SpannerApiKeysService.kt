@@ -22,13 +22,13 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.AuthenticateApiKeyRequest
-import org.wfanet.measurement.internal.kingdom.DeleteApiKeyRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.RevokeApiKeyRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerApiKeyReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateApiKey
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteApiKey
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.RevokeApiKey
 
 class SpannerApiKeysService(
   private val idGenerator: IdGenerator,
@@ -61,9 +61,9 @@ class SpannerApiKeysService(
     }
   }
 
-  override suspend fun deleteApiKey(request: DeleteApiKeyRequest): ApiKey {
+  override suspend fun revokeApiKey(request: RevokeApiKeyRequest): ApiKey {
     try {
-      return DeleteApiKey(
+      return RevokeApiKey(
           externalApiKeyId = ExternalId(request.externalApiKeyId),
           externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
         )
