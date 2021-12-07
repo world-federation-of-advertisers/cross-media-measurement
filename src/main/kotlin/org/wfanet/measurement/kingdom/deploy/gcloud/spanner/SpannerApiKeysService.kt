@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -25,7 +24,6 @@ import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.AuthenticateApiKeyRequest
 import org.wfanet.measurement.internal.kingdom.DeleteApiKeyRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.kingdom.deploy.common.service.getApiAuthenticationKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerApiKeyReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -96,13 +94,13 @@ class SpannerApiKeysService(
   }
 
   override suspend fun authenticateApiKey(request: AuthenticateApiKeyRequest): MeasurementConsumer {
-    val apiAuthenticationKey =
-      getApiAuthenticationKey()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Authentication Key is missing" }
+    if (request.authenticationKeyHash.isEmpty) {
+      failGrpc(Status.UNAUTHENTICATED) { "Authentication Key hash is missing" }
+    }
 
     val apiKey =
       MeasurementConsumerApiKeyReader()
-        .readByAuthenticationKeyHash(client.singleUse(), hashSha256(apiAuthenticationKey))
+        .readByAuthenticationKeyHash(client.singleUse(), request.authenticationKeyHash)
         ?.apiKey
         ?: failGrpc(Status.UNAUTHENTICATED) { "Authentication Key is not valid" }
 

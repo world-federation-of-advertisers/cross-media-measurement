@@ -26,6 +26,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineImplBase
@@ -34,7 +35,6 @@ import org.wfanet.measurement.internal.kingdom.apiKey
 import org.wfanet.measurement.internal.kingdom.authenticateApiKeyRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.deleteApiKeyRequest
-import org.wfanet.measurement.kingdom.deploy.common.service.withApiAuthenticationKey
 
 private const val RANDOM_SEED = 1
 
@@ -200,15 +200,15 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       )
 
     val result =
-      withApiAuthenticationKey(apiKey.authenticationKey) {
-        runBlocking { apiKeysService.authenticateApiKey(authenticateApiKeyRequest {}) }
-      }
+      apiKeysService.authenticateApiKey(
+        authenticateApiKeyRequest { authenticationKeyHash = hashSha256(apiKey.authenticationKey) }
+      )
 
     assertThat(result).comparingExpectedFieldsOnly().isEqualTo(measurementConsumer)
   }
 
   @Test
-  fun `authenticateApiKey throws UNAUTHENTICATED when authentication key is missing`() =
+  fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash is missing`() =
       runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -216,7 +216,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception).hasMessageThat().contains("Authentication Key is missing")
+    assertThat(exception).hasMessageThat().contains("Authentication Key hash is missing")
   }
 
   @Test
@@ -224,9 +224,9 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withApiAuthenticationKey(1L) {
-          runBlocking { apiKeysService.authenticateApiKey(authenticateApiKeyRequest {}) }
-        }
+        apiKeysService.authenticateApiKey(
+          authenticateApiKeyRequest { authenticationKeyHash = hashSha256(1L) }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -253,9 +253,9 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withApiAuthenticationKey(apiKey.authenticationKey) {
-          runBlocking { apiKeysService.authenticateApiKey(authenticateApiKeyRequest {}) }
-        }
+        apiKeysService.authenticateApiKey(
+          authenticateApiKeyRequest { authenticationKeyHash = hashSha256(apiKey.authenticationKey) }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
