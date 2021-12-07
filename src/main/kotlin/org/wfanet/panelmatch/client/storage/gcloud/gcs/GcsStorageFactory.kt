@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.client.storage.gcloud.gcs
 
 import com.google.cloud.storage.StorageOptions
 import java.security.MessageDigest
@@ -20,7 +20,9 @@ import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.BucketType
+import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 
 class GcsStorageFactory(

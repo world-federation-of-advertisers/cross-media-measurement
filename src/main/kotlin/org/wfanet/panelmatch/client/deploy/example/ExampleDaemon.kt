@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.deploy
+package org.wfanet.panelmatch.client.deploy.example
 
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.deploy.BlobSizeFlags
+import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
+import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemonFromFlags
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
@@ -60,9 +63,9 @@ abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
     get() = defaults.sharedStorageInfo
 
   /** This can be customized per deployment. */
-  override val privateStorageFactories = defaultStorageFactories
+  override val privateStorageFactories = exampleStorageFactories
 
   /** This can be customized per deployment. */
   override val sharedStorageFactories =
-    defaultStorageFactories.mapValues { blobSizeFlags.wrapStorageFactory(it.value) }
+    exampleStorageFactories.mapValues { blobSizeFlags.wrapStorageFactory(it.value) }
 }

@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.deploy.gcloud
+package org.wfanet.panelmatch.client.deploy.example.gcloud
 
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.deploy.ExampleDaemon
+import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin

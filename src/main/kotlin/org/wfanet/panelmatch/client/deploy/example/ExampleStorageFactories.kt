@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.deploy
+package org.wfanet.panelmatch.client.deploy.example
 
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
-import org.wfanet.panelmatch.client.storage.GcsStorageFactory
-import org.wfanet.panelmatch.client.storage.S3StorageFactory
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.aws.s3.S3StorageFactory
+import org.wfanet.panelmatch.client.storage.gcloud.gcs.GcsStorageFactory
 
-/** Default bindings between platform and StorageFactory implementation. */
-val defaultStorageFactories =
+/** Example bindings between platform and StorageFactory implementation. */
+val exampleStorageFactories =
   mapOf(
     PlatformCase.AWS to ::S3StorageFactory,
     PlatformCase.FILE to ::FileSystemStorageFactory,
