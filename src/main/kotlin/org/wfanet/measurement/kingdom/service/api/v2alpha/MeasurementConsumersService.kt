@@ -15,12 +15,15 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.AddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
+import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -30,8 +33,10 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -82,6 +87,50 @@ class MeasurementConsumersService(
         }
       )
     return internalResponse.toMeasurementConsumer()
+  }
+
+  override suspend fun addMeasurementConsumerOwner(
+    request: AddMeasurementConsumerOwnerRequest
+  ): MeasurementConsumer {
+    val measurementConsumerKey: MeasurementConsumerKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val accountKey: AccountKey =
+      grpcRequireNotNull(AccountKey.fromName(request.account)) { "Account unspecified or invalid" }
+
+    val internalAddMeasurementConsumerOwnerRequest = addMeasurementConsumerOwnerRequest {
+      externalMeasurementConsumerId =
+        apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+      externalAccountId = apiIdToExternalId(accountKey.accountId)
+    }
+
+    return internalClient
+      .addMeasurementConsumerOwner(internalAddMeasurementConsumerOwnerRequest)
+      .toMeasurementConsumer()
+  }
+
+  override suspend fun removeMeasurementConsumerOwner(
+    request: RemoveMeasurementConsumerOwnerRequest
+  ): MeasurementConsumer {
+    val measurementConsumerKey: MeasurementConsumerKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val accountKey: AccountKey =
+      grpcRequireNotNull(AccountKey.fromName(request.account)) { "Account unspecified or invalid" }
+
+    val internalRemoveMeasurementConsumerOwnerRequest = removeMeasurementConsumerOwnerRequest {
+      externalMeasurementConsumerId =
+        apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+      externalAccountId = apiIdToExternalId(accountKey.accountId)
+    }
+
+    return internalClient
+      .removeMeasurementConsumerOwner(internalRemoveMeasurementConsumerOwnerRequest)
+      .toMeasurementConsumer()
   }
 }
 
