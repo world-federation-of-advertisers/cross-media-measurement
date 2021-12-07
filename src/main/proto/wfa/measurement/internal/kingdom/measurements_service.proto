@@ -94,13 +94,3 @@ message CancelMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
 }
-
-message MeasurementPageToken {
-  int32 page_size = 1;
-  int64 external_measurement_consumer_id = 2;
-  repeated Measurement.State states = 3;
-  message PreviousPageEnd {
-    fixed64 external_measurement_id = 1;
-  }
-  PreviousPageEnd last_measurement = 4;
-}

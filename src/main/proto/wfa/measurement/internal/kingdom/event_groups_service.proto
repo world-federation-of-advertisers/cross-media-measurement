@@ -58,14 +58,3 @@ message StreamEventGroupsRequest {
   // unlimited.
   int32 limit = 2;
 }
-
-message EventGroupPageToken {
-  int32 page_size = 1;
-  int64 external_data_provider_id = 2;
-  repeated int64 external_measurement_consumer_ids = 3;
-  message PreviousPageEnd {
-    fixed64 external_event_group_id = 1;
-    fixed64 external_data_provider_id = 2;
-  }
-  PreviousPageEnd last_event_group = 4;
-}

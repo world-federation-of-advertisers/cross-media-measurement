@@ -419,6 +419,29 @@ kt_jvm_proto_library(
     deps = [":model_provider_java_proto"],
 )
 
+proto_library(
+    name = "page_token_proto",
+    srcs = ["page_token.proto"],
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+    ],
+)
+
+java_proto_library(
+    name = "page_token_java_proto",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "page_token_kt_jvm_proto",
+    srcs = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_proto",
+    ],
+    deps = [":page_token_java_proto"],
+)
+
 java_proto_library(
     name = "public_key_java_proto",
     deps = [

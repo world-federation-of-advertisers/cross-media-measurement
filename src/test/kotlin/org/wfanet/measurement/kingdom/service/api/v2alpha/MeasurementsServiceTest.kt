@@ -35,6 +35,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2.alpha.MeasurementPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.measurementPageToken
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -75,7 +77,6 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
@@ -88,7 +89,6 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
-import org.wfanet.measurement.internal.kingdom.measurementPageToken
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -655,26 +655,25 @@ class MeasurementsServiceTest {
         InternalState.PENDING_REQUISITION_PARAMS,
         InternalState.PENDING_REQUISITION_FULFILLMENT
       )
+    val publicStates =
+      listOf(
+        State.FAILED,
+        State.SUCCEEDED,
+        State.AWAITING_REQUISITION_FULFILLMENT,
+        State.COMPUTING,
+        State.CANCELLED
+      )
+
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       val measurementPageToken = measurementPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-        states += internalStates
+        states += publicStates
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
       pageToken = measurementPageToken.toByteArray().base64UrlEncode()
-      filter =
-        filter {
-          states +=
-            listOf(
-              State.FAILED,
-              State.SUCCEEDED,
-              State.AWAITING_REQUISITION_FULFILLMENT,
-              State.COMPUTING,
-              State.CANCELLED
-            )
-        }
+      filter = filter { states += publicStates }
     }
 
     val result = runBlocking { service.listMeasurements(request) }
@@ -685,7 +684,7 @@ class MeasurementsServiceTest {
       val measurementPageToken = measurementPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-        states += internalStates
+        states += publicStates
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
       }
       nextPageToken = measurementPageToken.toByteArray().base64UrlEncode()
@@ -787,16 +786,12 @@ class MeasurementsServiceTest {
 
   @Test
   fun `listMeasurements throws invalid argument when parent doesn't match parent in page token`() {
-    val internalStates =
-      listOf(
-        InternalState.FAILED,
-      )
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       val measurementPageToken = measurementPageToken {
         pageSize = DEFAULT_LIMIT
         externalMeasurementConsumerId = 654
-        states += internalStates
+        states += State.FAILED
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
       pageToken = measurementPageToken.toByteArray().base64UrlEncode()
@@ -817,7 +812,7 @@ class MeasurementsServiceTest {
       val measurementPageToken = measurementPageToken {
         pageSize = DEFAULT_LIMIT
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-        states += InternalState.CANCELLED
+        states += State.CANCELLED
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
       pageToken = measurementPageToken.toByteArray().base64UrlEncode()

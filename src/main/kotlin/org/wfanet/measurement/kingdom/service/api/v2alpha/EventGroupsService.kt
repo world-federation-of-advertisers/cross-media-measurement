@@ -16,6 +16,10 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2.alpha.EventGroupPageToken
+import org.wfanet.measurement.api.v2.alpha.EventGroupPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.eventGroupPageToken
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -34,14 +38,10 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
-import org.wfanet.measurement.internal.kingdom.EventGroupPageToken
-import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
-import org.wfanet.measurement.internal.kingdom.eventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 

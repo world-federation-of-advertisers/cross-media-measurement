@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import java.util.Collections
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -85,6 +86,32 @@ fun InternalMeasurement.State.toState(): State =
     InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
       State.STATE_UNSPECIFIED
   }
+
+/** Convert a list of public [State] to a list of internal [InternalMeasurement.State]. */
+fun List<State>.toInternalState(): List<InternalMeasurement.State> {
+  val source = this
+  val internalStatesList = mutableListOf<InternalMeasurement.State>()
+  for (state in source) {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (state) {
+      State.AWAITING_REQUISITION_FULFILLMENT -> {
+        internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_PARAMS)
+        internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT)
+      }
+      State.COMPUTING -> {
+        internalStatesList.add(InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION)
+        internalStatesList.add(InternalMeasurement.State.PENDING_COMPUTATION)
+      }
+      State.SUCCEEDED -> internalStatesList.add(InternalMeasurement.State.SUCCEEDED)
+      State.FAILED -> internalStatesList.add(InternalMeasurement.State.FAILED)
+      State.CANCELLED -> internalStatesList.add(InternalMeasurement.State.CANCELLED)
+      State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
+        failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
+    }
+  }
+
+  return Collections.unmodifiableList(internalStatesList)
+}
 
 /** Converts an internal [InternalMeasurement.Failure.Reason] to a public [Failure.Reason]. */
 fun InternalMeasurement.Failure.Reason.toReason(): Failure.Reason =

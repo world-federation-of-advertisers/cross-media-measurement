@@ -1,0 +1,43 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "wfa/measurement/api/v2alpha/measurement.proto";
+
+option java_package = "org.wfanet.measurement.api.v2.alpha";
+option java_multiple_files = true;
+
+message EventGroupPageToken {
+  int32 page_size = 1;
+  int64 external_data_provider_id = 2;
+  repeated int64 external_measurement_consumer_ids = 3;
+  message PreviousPageEnd {
+    fixed64 external_event_group_id = 1;
+    fixed64 external_data_provider_id = 2;
+  }
+  PreviousPageEnd last_event_group = 4;
+}
+
+message MeasurementPageToken {
+  int32 page_size = 1;
+  int64 external_measurement_consumer_id = 2;
+  repeated Measurement.State states = 3;
+  message PreviousPageEnd {
+    fixed64 external_measurement_id = 1;
+  }
+  PreviousPageEnd last_measurement = 4;
+}
