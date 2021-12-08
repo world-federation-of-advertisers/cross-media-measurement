@@ -140,7 +140,9 @@ TEST(EventDataPreprocessorTest, Success) {
   //                 + length added by FakeCipher       [41]
   EXPECT_EQ(processed.encrypted_identifier, 78);
   EXPECT_EQ(processed.encrypted_event_data,
-            "AesEncrypt(input='some-event', key='HKDF(ikm='some-identifier', "
+            "AesEncrypt(input='some-event', "
+            "key='HKDF(ikm='DeterministicCommutativeCipher::Encrypt(some-"
+            "identifier)', "
             "length=64, salt='hkdf-pepper')')");
 }
 
