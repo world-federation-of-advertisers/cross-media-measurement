@@ -14,14 +14,12 @@
 
 package org.wfanet.panelmatch.integration
 
-import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import java.io.ByteArrayOutputStream
-import kotlin.random.Random
+import kotlin.test.assertNotNull
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.common.databaseEntryOf
 import org.wfanet.panelmatch.client.common.databaseKeyOf
@@ -31,8 +29,11 @@ import org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessor
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
 import org.wfanet.panelmatch.client.preprocessEventsRequest
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
+import org.wfanet.panelmatch.client.privatemembership.keyedDecryptedEventDataSet
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCompressionParameters
 import org.wfanet.panelmatch.common.compression.compressionParameters
+import org.wfanet.panelmatch.common.parseDelimitedMessages
+import org.wfanet.panelmatch.common.toDelimitedByteString
 
 private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
   joinKeysAndIds +=
@@ -49,7 +50,7 @@ private val EDP_COMPRESSION_PARAMETERS = compressionParameters {
 }
 private val EDP_ENCRYPTED_EVENT_DATA_MANIFEST = "edp-encrypted-event-data-?-of-1".toByteStringUtf8()
 
-private fun makeDatabaseEntry(): DatabaseEntry {
+private fun makeDatabaseEntry(index: Int): DatabaseEntry {
   val request = preprocessEventsRequest {
     cryptoKey = EDP_COMMUTATIVE_DETERMINISTIC_KEY
     hkdfPepper = EDP_HKDF_PEPPER
@@ -57,8 +58,8 @@ private fun makeDatabaseEntry(): DatabaseEntry {
     compressionParameters = EDP_COMPRESSION_PARAMETERS
     unprocessedEvents +=
       unprocessedEvent {
-        id = Random.nextBytes(16).toByteString()
-        data = Random.nextBytes(16).toByteString()
+        id = "join-key-$index".toByteStringUtf8()
+        data = "payload-for-join-key-$index".toByteStringUtf8()
       }
   }
   val response = JniEventPreprocessor().preprocess(request)
@@ -69,15 +70,10 @@ private fun makeDatabaseEntry(): DatabaseEntry {
   )
 }
 
-private val EDP_DATABASE_ENTRIES = (0 until 100).map { makeDatabaseEntry() }
+private val EDP_DATABASE_ENTRIES = (0 until 100).map { makeDatabaseEntry(it) }
 
-private val EDP_ENCRYPTED_EVENT_DATA_BLOB = run {
-  val outputStream = ByteArrayOutputStream()
-  for (entry in EDP_DATABASE_ENTRIES) {
-    entry.writeDelimitedTo(outputStream)
-  }
-  outputStream.toByteArray().toByteString()
-}
+private val EDP_ENCRYPTED_EVENT_DATA_BLOB =
+  EDP_DATABASE_ENTRIES.map { it.toDelimitedByteString() }.flatten()
 
 @RunWith(JUnit4::class)
 class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
@@ -103,8 +99,23 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
     dataProviderDaemon: ExchangeWorkflowDaemonForTest,
     modelProviderDaemon: ExchangeWorkflowDaemonForTest
   ) {
-    val blob = modelProviderDaemon.readPrivateBlob("decrypted-event-data")
-    assertThat(blob).isNotNull()
-    // TODO(@efoxepstein): add more assertions that `blob` contains the right value.
+    val blob = modelProviderDaemon.readPrivateBlob("decrypted-event-data-0-of-1")
+    assertNotNull(blob)
+
+    val decryptedEvents =
+      blob.parseDelimitedMessages(keyedDecryptedEventDataSet {}).map {
+        val payload =
+          it.decryptedEventDataList.joinToString("") { plaintext ->
+            plaintext.payload.toStringUtf8()
+          }
+        it.hashedJoinKey.key.toStringUtf8() to payload
+      }
+
+    // TODO(@efoxepstein): assert that the decrypted events are correct:
+    //    assertThat(decryptedEvents)
+    //      .containsExactly(
+    //        "join-key-1" to "payload-for-join-key-1",
+    //        "join-key-2" to "payload-for-join-key-2",
+    //      )
   }
 }

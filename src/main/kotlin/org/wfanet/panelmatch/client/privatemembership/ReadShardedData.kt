@@ -33,6 +33,7 @@ import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.storage.toByteString
 
 /** Reads each file mentioned in [fileSpec] as a [ByteString]. */
@@ -73,17 +74,12 @@ private class ReadBlobFn<T : MessageLite>(
 
     fileSizeDistribution.update(bytes.size().toLong())
 
-    val parser = prototype.parserForType
     var elements = 0L
 
-    bytes.newInput().use { inputStream ->
-      while (true) {
-        @Suppress("UNCHECKED_CAST") // MessageLite::getParseForType guarantees this cast is safe.
-        val message = parser.parseDelimitedFrom(inputStream) as T? ?: break
-        itemSizeDistribution.update(message.serializedSize.toLong())
-        context.output(message)
-        elements++
-      }
+    for (message in bytes.parseDelimitedMessages(prototype)) {
+      itemSizeDistribution.update(message.serializedSize.toLong())
+      context.output(message)
+      elements++
     }
 
     elementCountDistribution.update(elements)

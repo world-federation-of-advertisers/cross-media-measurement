@@ -15,12 +15,11 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.stringValue
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.test.assertNotNull
@@ -37,6 +36,7 @@ import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
+import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.storage.createBlob
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.testing.runBlockingTest
@@ -106,24 +106,19 @@ class ApacheBeamContextTest : BeamTestBase() {
   @Test
   fun write() = runBlockingTest {
     val outputManifests = mapOf("some-output" to ShardedFileName("some-output-blobkey", 1))
-
     val context = ApacheBeamContext(pipeline, outputManifests, mapOf(), mapOf(), storageFactory)
+    val item = stringValue { value = "some-item" }
 
-    with(context) {
-      pcollectionOf("Test Collection", stringValue { value = "some-item" }).write("some-output")
-    }
+    with(context) { pcollectionOf("Test Collection", item).write("some-output") }
 
     pipeline.run()
 
     val blob = storageClient.getBlob("some-output-blobkey-0-of-1")
     assertNotNull(blob)
 
-    val inputStream = ByteArrayInputStream(blob.toByteString().toByteArray())
+    val stringValues = blob.toByteString().parseDelimitedMessages(stringValue {})
 
-    @Suppress("BlockingMethodInNonBlockingContext") // parseDelimitedFrom is in-memory
-    val proto = StringValue.parseDelimitedFrom(inputStream)
-
-    assertThat(proto.value).isEqualTo("some-item")
+    assertThat(stringValues).containsExactly(item)
   }
 }
 
