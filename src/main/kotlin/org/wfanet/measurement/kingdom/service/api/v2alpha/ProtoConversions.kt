@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import java.util.Collections
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -89,25 +88,26 @@ fun InternalMeasurement.State.toState(): State =
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
 fun State.toInternalState(): List<InternalMeasurement.State> {
-  val internalStatesList = mutableListOf<InternalMeasurement.State>()
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-  when (this) {
+  return when (this) {
     State.AWAITING_REQUISITION_FULFILLMENT -> {
-      internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_PARAMS)
-      internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT)
+      listOf(
+        InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+        InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+      )
     }
     State.COMPUTING -> {
-      internalStatesList.add(InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION)
-      internalStatesList.add(InternalMeasurement.State.PENDING_COMPUTATION)
+      listOf(
+        InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+        InternalMeasurement.State.PENDING_COMPUTATION
+      )
     }
-    State.SUCCEEDED -> internalStatesList.add(InternalMeasurement.State.SUCCEEDED)
-    State.FAILED -> internalStatesList.add(InternalMeasurement.State.FAILED)
-    State.CANCELLED -> internalStatesList.add(InternalMeasurement.State.CANCELLED)
+    State.SUCCEEDED -> listOf(InternalMeasurement.State.SUCCEEDED)
+    State.FAILED -> listOf(InternalMeasurement.State.FAILED)
+    State.CANCELLED -> listOf(InternalMeasurement.State.CANCELLED)
     State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-      failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
+      listOf(InternalMeasurement.State.STATE_UNSPECIFIED)
   }
-
-  return Collections.unmodifiableList(internalStatesList)
 }
 
 /** Converts an internal [InternalMeasurement.Failure.Reason] to a public [Failure.Reason]. */

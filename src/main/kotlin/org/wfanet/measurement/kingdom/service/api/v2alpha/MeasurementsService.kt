@@ -290,9 +290,7 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     filter =
       filter {
         externalMeasurementConsumerId = source.externalMeasurementConsumerId
-        for (state in source.statesList) {
-          states += state.toInternalState()
-        }
+        states += source.statesList.map { it.toInternalState() }.flatten()
         if (source.hasLastMeasurement()) {
           externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
           updatedAfter = source.lastMeasurement.updateTime

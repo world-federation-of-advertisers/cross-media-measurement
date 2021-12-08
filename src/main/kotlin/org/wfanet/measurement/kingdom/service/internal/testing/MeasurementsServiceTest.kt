@@ -770,11 +770,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .comparingExpectedFieldsOnly()
         .containsExactly(measurement1, measurement2)
         .inOrder()
-    } else {
-      assertThat(measurements)
-        .comparingExpectedFieldsOnly()
-        .containsExactly(measurement2, measurement1)
-        .inOrder()
     }
   }
 
