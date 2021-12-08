@@ -14,8 +14,6 @@
 
 #include "wfa/panelmatch/client/privatemembership/decrypt_query_results.h"
 
-#include <google/protobuf/repeated_field.h>
-
 #include <memory>
 #include <string>
 #include <utility>
@@ -24,6 +22,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "common_cpp/macros/macros.h"
+#include "google/protobuf/repeated_field.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
 #include "private_membership/rlwe/batch/proto/client.pb.h"
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
@@ -54,15 +53,10 @@ absl::StatusOr<ClientDecryptQueriesResponse> RemoveRlwe(
       request.serialized_public_key());
   for (const EncryptedQueryResult& encrypted_query_result :
        request.encrypted_query_results()) {
-    ClientEncryptedQueryResult client_encrypted_query_result;
-    client_encrypted_query_result.ParseFromString(
+    client_decrypt_queries_request.add_encrypted_queries()->ParseFromString(
         encrypted_query_result.serialized_encrypted_query_result());
-    client_decrypt_queries_request.add_encrypted_queries()->Swap(
-        &client_encrypted_query_result);
   }
-  ASSIGN_OR_RETURN(ClientDecryptQueriesResponse client_decrypt_queries_response,
-                   DecryptQueries(client_decrypt_queries_request));
-  return client_decrypt_queries_response;
+  return DecryptQueries(client_decrypt_queries_request);
 }
 
 absl::StatusOr<DecryptedEventDataSet> RemoveAesFromDecryptedQueryResult(
@@ -89,11 +83,10 @@ absl::StatusOr<DecryptQueryResultsResponse> RemoveAes(
   DecryptQueryResultsResponse result;
   for (const ClientDecryptedQueryResult& client_decrypted_query_result :
        client_decrypt_queries_response.result()) {
-    ASSIGN_OR_RETURN(DecryptedEventDataSet decrypt_event_data_response,
+    ASSIGN_OR_RETURN(*result.add_event_data_sets(),
                      RemoveAesFromDecryptedQueryResult(
                          client_decrypted_query_result,
                          request.lookup_key().key(), request.hkdf_pepper()));
-    result.add_event_data_sets()->Swap(&decrypt_event_data_response);
   }
   return result;
 }

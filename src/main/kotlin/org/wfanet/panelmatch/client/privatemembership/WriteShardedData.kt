@@ -15,9 +15,9 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.protobuf.Message
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.transforms.DoFn
@@ -30,11 +30,11 @@ import org.apache.beam.sdk.values.PInput
 import org.apache.beam.sdk.values.POutput
 import org.apache.beam.sdk.values.PValue
 import org.apache.beam.sdk.values.TupleTag
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
+import org.wfanet.panelmatch.common.toDelimitedByteString
 
 /** Writes input messages into blobs. */
 class WriteShardedData<T : Message>(
@@ -84,17 +84,7 @@ private class WriteFilesFn<T : Message>(
     val kv = context.element()
     val blobKey = ShardedFileName(fileSpec).fileNameForShard(kv.key)
     val storageClient = storageFactory.build()
-
-    val outputStream = ByteArrayOutputStream()
-    val messageFlow = flow {
-      for (message in kv.value) {
-        @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
-        message.writeDelimitedTo(outputStream)
-
-        emit(outputStream.toByteArray().toByteString())
-        outputStream.reset()
-      }
-    }
+    val messageFlow = kv.value.asFlow().map { it.toDelimitedByteString() }
 
     runBlocking(Dispatchers.IO) { storageClient.createOrReplaceBlob(blobKey, messageFlow) }
 

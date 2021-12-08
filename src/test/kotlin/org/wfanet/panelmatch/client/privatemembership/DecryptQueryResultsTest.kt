@@ -121,7 +121,7 @@ class DecryptQueryResultsTest : BeamTestBase() {
   }
 }
 
-object TestQueryResultsDecryptor : QueryResultsDecryptor {
+private object TestQueryResultsDecryptor : QueryResultsDecryptor {
   override fun decryptQueryResults(
     request: DecryptQueryResultsRequest
   ): DecryptQueryResultsResponse {
