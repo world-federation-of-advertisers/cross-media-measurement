@@ -19,10 +19,10 @@ import io.grpc.Status
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2.alpha.MeasurementPageToken
-import org.wfanet.measurement.api.v2.alpha.MeasurementPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
-import org.wfanet.measurement.api.v2.alpha.measurementPageToken
+import org.wfanet.measurement.api.v2.alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -128,11 +128,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun listMeasurements(
     request: ListMeasurementsRequest
   ): ListMeasurementsResponse {
-    val measurementPageToken = request.toMeasurementPageToken()
+    val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
     val results: List<InternalMeasurement> =
       internalMeasurementsStub
-        .streamMeasurements(measurementPageToken.toStreamMeasurementsRequest())
+        .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
         .toList()
 
     if (results.isEmpty()) {
@@ -142,11 +142,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     return listMeasurementsResponse {
       measurement +=
         results
-          .subList(0, min(results.size, measurementPageToken.pageSize))
+          .subList(0, min(results.size, listMeasurementsPageToken.pageSize))
           .map(InternalMeasurement::toMeasurement)
-      if (results.size > measurementPageToken.pageSize) {
+      if (results.size > listMeasurementsPageToken.pageSize) {
         val pageToken =
-          measurementPageToken.copy {
+          listMeasurementsPageToken.copy {
             lastMeasurement =
               previousPageEnd {
                 externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
@@ -237,8 +237,8 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
   )
 }
 
-/** Converts a public [ListMeasurementsRequest] to an internal [MeasurementPageToken]. */
-private fun ListMeasurementsRequest.toMeasurementPageToken(): MeasurementPageToken {
+/** Converts a public [ListMeasurementsRequest] to an internal [ListMeasurementsPageToken]. */
+private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasurementsPageToken {
   val source = this
 
   val key =
@@ -252,7 +252,7 @@ private fun ListMeasurementsRequest.toMeasurementPageToken(): MeasurementPageTok
   val measurementStatesList = source.filter.statesList
 
   return if (source.pageToken.isNotBlank()) {
-    MeasurementPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+    ListMeasurementsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
       grpcRequire(this.externalMeasurementConsumerId == externalMeasurementConsumerId) {
         "Arguments must be kept the same when using a page token"
       }
@@ -266,7 +266,7 @@ private fun ListMeasurementsRequest.toMeasurementPageToken(): MeasurementPageTok
       }
     }
   } else {
-    measurementPageToken {
+    listMeasurementsPageToken {
       pageSize =
         when {
           source.pageSize == 0 -> DEFAULT_PAGE_SIZE
@@ -276,13 +276,12 @@ private fun ListMeasurementsRequest.toMeasurementPageToken(): MeasurementPageTok
 
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       states += measurementStatesList
-      lastMeasurement = MeasurementPageToken.PreviousPageEnd.getDefaultInstance()
     }
   }
 }
 
-/** Converts an internal [MeasurementPageToken] to an internal [StreamMeasurementsRequest]. */
-private fun MeasurementPageToken.toStreamMeasurementsRequest(): StreamMeasurementsRequest {
+/** Converts an internal [ListMeasurementsPageToken] to an internal [StreamMeasurementsRequest]. */
+private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasurementsRequest {
   val source = this
   return streamMeasurementsRequest {
     // get 1 more than the actual page size for deciding whether or not to set page token
@@ -291,8 +290,13 @@ private fun MeasurementPageToken.toStreamMeasurementsRequest(): StreamMeasuremen
     filter =
       filter {
         externalMeasurementConsumerId = source.externalMeasurementConsumerId
-        states += source.statesList.toInternalState()
-        externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
+        for (state in source.statesList) {
+          states += state.toInternalState()
+        }
+        if (source.hasLastMeasurement()) {
+          externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
+          updatedAfter = source.lastMeasurement.updateTime
+        }
       }
   }
 }

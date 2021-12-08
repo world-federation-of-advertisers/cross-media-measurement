@@ -35,8 +35,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2.alpha.MeasurementPageTokenKt.previousPageEnd
-import org.wfanet.measurement.api.v2.alpha.measurementPageToken
+import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -665,13 +665,13 @@ class MeasurementsServiceTest {
 
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      val measurementPageToken = measurementPageToken {
+      val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
-      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
       filter = filter { states += publicStates }
     }
 
@@ -680,13 +680,13 @@ class MeasurementsServiceTest {
     val expected = listMeasurementsResponse {
       measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
       measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME_2 }
-      val measurementPageToken = measurementPageToken {
+      val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
       }
-      nextPageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      nextPageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
     val streamMeasurementsRequest =
@@ -704,6 +704,7 @@ class MeasurementsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               states += internalStates
               externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
+              updatedAfter = Timestamp.getDefaultInstance()
             }
         }
       )
@@ -717,12 +718,12 @@ class MeasurementsServiceTest {
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       this.pageSize = pageSize
-      val measurementPageToken = measurementPageToken {
+      val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = 1
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
-      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
     runBlocking { service.listMeasurements(request) }
@@ -741,6 +742,7 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
+              updatedAfter = Timestamp.getDefaultInstance()
             }
         }
       )
@@ -751,12 +753,12 @@ class MeasurementsServiceTest {
     val pageSize = 1
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      val measurementPageToken = measurementPageToken {
+      val listMeasurementsPageToken = listMeasurementsPageToken {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
-      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
     runBlocking { service.listMeasurements(request) }
@@ -775,6 +777,7 @@ class MeasurementsServiceTest {
             StreamMeasurementsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalMeasurementIdAfter = EXTERNAL_MEASUREMENT_ID
+              updatedAfter = Timestamp.getDefaultInstance()
             }
         }
       )
@@ -784,13 +787,13 @@ class MeasurementsServiceTest {
   fun `listMeasurements throws invalid argument when parent doesn't match parent in page token`() {
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      val measurementPageToken = measurementPageToken {
+      val listMeasurementsPageToken = listMeasurementsPageToken {
         pageSize = DEFAULT_LIMIT
         externalMeasurementConsumerId = 654
         states += State.FAILED
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
-      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
       filter = filter { states += listOf(State.FAILED) }
     }
 
@@ -805,13 +808,13 @@ class MeasurementsServiceTest {
   fun `listMeasurements throws invalid argument when states don't match states in page token`() {
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      val measurementPageToken = measurementPageToken {
+      val listMeasurementsPageToken = listMeasurementsPageToken {
         pageSize = DEFAULT_LIMIT
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += State.CANCELLED
         lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID }
       }
-      pageToken = measurementPageToken.toByteArray().base64UrlEncode()
+      pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
       filter = filter { states += listOf(State.FAILED) }
     }
 

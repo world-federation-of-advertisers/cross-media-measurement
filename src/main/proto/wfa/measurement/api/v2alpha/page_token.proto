@@ -22,18 +22,18 @@ import "wfa/measurement/api/v2alpha/measurement.proto";
 option java_package = "org.wfanet.measurement.api.v2.alpha";
 option java_multiple_files = true;
 
-message EventGroupPageToken {
+message ListEventGroupsPageToken {
   int32 page_size = 1;
   int64 external_data_provider_id = 2;
   repeated int64 external_measurement_consumer_ids = 3;
   message PreviousPageEnd {
-    fixed64 external_event_group_id = 1;
-    fixed64 external_data_provider_id = 2;
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_event_group_id = 2;
   }
   PreviousPageEnd last_event_group = 4;
 }
 
-message MeasurementPageToken {
+message ListMeasurementsPageToken {
   int32 page_size = 1;
   int64 external_measurement_consumer_id = 2;
   repeated Measurement.State states = 3;

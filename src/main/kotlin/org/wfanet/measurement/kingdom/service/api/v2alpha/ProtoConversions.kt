@@ -87,27 +87,24 @@ fun InternalMeasurement.State.toState(): State =
       State.STATE_UNSPECIFIED
   }
 
-/** Convert a list of public [State] to a list of internal [InternalMeasurement.State]. */
-fun List<State>.toInternalState(): List<InternalMeasurement.State> {
-  val source = this
+/** Convert a public [State] to an internal [InternalMeasurement.State]. */
+fun State.toInternalState(): List<InternalMeasurement.State> {
   val internalStatesList = mutableListOf<InternalMeasurement.State>()
-  for (state in source) {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-    when (state) {
-      State.AWAITING_REQUISITION_FULFILLMENT -> {
-        internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_PARAMS)
-        internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT)
-      }
-      State.COMPUTING -> {
-        internalStatesList.add(InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION)
-        internalStatesList.add(InternalMeasurement.State.PENDING_COMPUTATION)
-      }
-      State.SUCCEEDED -> internalStatesList.add(InternalMeasurement.State.SUCCEEDED)
-      State.FAILED -> internalStatesList.add(InternalMeasurement.State.FAILED)
-      State.CANCELLED -> internalStatesList.add(InternalMeasurement.State.CANCELLED)
-      State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-        failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  when (this) {
+    State.AWAITING_REQUISITION_FULFILLMENT -> {
+      internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_PARAMS)
+      internalStatesList.add(InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT)
     }
+    State.COMPUTING -> {
+      internalStatesList.add(InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION)
+      internalStatesList.add(InternalMeasurement.State.PENDING_COMPUTATION)
+    }
+    State.SUCCEEDED -> internalStatesList.add(InternalMeasurement.State.SUCCEEDED)
+    State.FAILED -> internalStatesList.add(InternalMeasurement.State.FAILED)
+    State.CANCELLED -> internalStatesList.add(InternalMeasurement.State.CANCELLED)
+    State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
+      failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
   }
 
   return Collections.unmodifiableList(internalStatesList)
