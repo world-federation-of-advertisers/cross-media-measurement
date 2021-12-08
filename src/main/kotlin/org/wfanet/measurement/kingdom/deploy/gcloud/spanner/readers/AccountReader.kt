@@ -96,4 +96,16 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
       .execute(readContext)
       .singleOrNull()
   }
+
+  suspend fun readByInternalAccountId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    internalAccountId: InternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE Accounts.AccountId = @internalAccountId")
+        bind("internalAccountId").to(internalAccountId.value)
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 }

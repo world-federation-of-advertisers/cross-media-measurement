@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -37,6 +38,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
+import org.wfanet.measurement.kingdom.deploy.common.service.withAccountsServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
@@ -96,7 +98,11 @@ class InProcessKingdom(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal Data services")
       kingdomDataServices.buildDataServices().toList().forEach {
-        addService(it.withVerboseLogging(verboseGrpcLogging))
+        when (it) {
+          is AccountsGrpcKt.AccountsCoroutineImplBase ->
+            addService(it.withAccountsServerInterceptor().withVerboseLogging(verboseGrpcLogging))
+          else -> addService(it.withVerboseLogging(verboseGrpcLogging))
+        }
       }
     }
   private val systemApiServer =
