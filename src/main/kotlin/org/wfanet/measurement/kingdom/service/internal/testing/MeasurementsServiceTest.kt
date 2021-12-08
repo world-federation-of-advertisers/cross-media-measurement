@@ -765,12 +765,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
         .toList()
 
-    if (measurement1.externalMeasurementId < measurement2.externalMeasurementId) {
-      assertThat(measurements)
-        .comparingExpectedFieldsOnly()
-        .containsExactly(measurement1, measurement2)
-        .inOrder()
-    }
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(measurement1, measurement2)
+      .inOrder()
   }
 
   @Test
