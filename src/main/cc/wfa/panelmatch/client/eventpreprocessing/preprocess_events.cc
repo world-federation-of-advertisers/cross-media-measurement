@@ -84,6 +84,9 @@ absl::StatusOr<PreprocessEventsResponse> PreprocessEvents(
   PreprocessEventsResponse processed;
   for (const PreprocessEventsRequest::UnprocessedEvent& u :
        request.unprocessed_events()) {
+    if (u.id().empty()) {
+      return absl::InvalidArgumentError("UnprocessedEvent.id is empty");
+    }
     ASSIGN_OR_RETURN(std::string compressed_data,
                      compressor->Compress(u.data()));
     ASSIGN_OR_RETURN(ProcessedData data,

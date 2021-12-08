@@ -60,7 +60,8 @@ absl::StatusOr<ProcessedData> EventDataPreprocessor::Process(
   ProcessedData processed_data;
   ASSIGN_OR_RETURN(
       processed_data.encrypted_event_data,
-      aes_hkdf_.Encrypt(event_data, SecretDataFromStringView(identifier),
+      aes_hkdf_.Encrypt(event_data,
+                        SecretDataFromStringView(encrypted_identifier),
                         hkdf_pepper_));
 
   processed_data.encrypted_identifier =
