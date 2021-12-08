@@ -23,7 +23,6 @@ import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -182,6 +181,175 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   }
 
   @Test
+  fun `activateAccount throws NOT_FOUND when account not found`() = runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = 1L
+      activationToken = 1L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.description).isEqualTo("Account to activate has not been found")
+  }
+
+  @Test
+  fun `activateAccount throws INVALID_ARGUMENT when id token not found in request`() = runBlocking {
+    service.createAccount(account {})
+
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.activateAccount(activateAccountRequest) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Id token is missing")
+  }
+
+  @Test
+  fun `activateAccount throws PERMISSION_DENIED when activation token doesn't match database`() =
+      runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+
+    service.createAccount(account {})
+
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      activationToken = 1L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Activation token is not valid for this account")
+  }
+
+  @Test
+  fun `activateAccount throws PERMISSION_DENIED when account has already been activated`() =
+      runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+
+    service.createAccount(account {})
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Cannot activate an account again")
+  }
+
+  @Test
+  fun `activateAccount throws INVALID_ARGUMENT when id token is invalid`() = runBlocking {
+    service.createAccount(account {})
+
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken("adfasdf") { runBlocking { service.activateAccount(activateAccountRequest) } }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Id token is invalid")
+  }
+
+  @Test
+  fun `activateAccount throws INVALID_ARGUMENT when issuer and subject pair already exists`() =
+      runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+
+    service.createAccount(account {})
+
+    withIdToken(idToken) {
+      runBlocking {
+        service.activateAccount(
+          activateAccountRequest {
+            externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+            activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+          }
+        )
+      }
+    }
+
+    serviceWithSecondFixedGenerator.createAccount(account {})
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking {
+            service.activateAccount(
+              activateAccountRequest {
+                externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
+                activationToken = FIXED_GENERATED_EXTERNAL_ID_B
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Issuer and subject pair already exists")
+  }
+
+  @Test
+  fun `activateAccount returns account when account is activated with open id connect identity`() =
+      runBlocking {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+
+    service.createAccount(account {})
+
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    val account =
+      withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+
+    assertThat(account)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        account {
+          externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+          activationState = Account.ActivationState.ACTIVATED
+          measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
+        }
+      )
+  }
+
+  @Test
   fun `authenticateAccount throws PERMISSION_DENIED when id token is missing`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -276,7 +444,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     assertThat(exception.status.description).isEqualTo("Account not found")
   }
 
-  @Ignore
   @Test
   fun `authenticateAccount returns the account when the account has been found`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
@@ -285,24 +452,28 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
     val createdAccount = service.createAccount(account {})
 
-    withIdToken(idToken) {
-      runBlocking {
-        service.activateAccount(
-          activateAccountRequest { activationToken = createdAccount.activationToken }
-        )
+    val activatedAccount =
+      withIdToken(idToken) {
+        runBlocking {
+          service.activateAccount(
+            activateAccountRequest {
+              externalAccountId = createdAccount.externalAccountId
+              activationToken = createdAccount.activationToken
+            }
+          )
+        }
       }
-    }
 
     val authenticatedAccount =
       withIdToken(idToken) {
         runBlocking { service.authenticateAccount(authenticateAccountRequest {}) }
       }
 
-    assertThat(authenticatedAccount).isEqualTo(createdAccount)
+    assertThat(authenticatedAccount.openIdIdentity).isEqualTo(activatedAccount.openIdIdentity)
   }
 
   @Test
-  fun `generateOpenIdRequestParams returns state, nonce, and max age`() {
+  fun `generateOpenIdRequestParams returns state and nonce`() {
     val params = runBlocking {
       service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     }

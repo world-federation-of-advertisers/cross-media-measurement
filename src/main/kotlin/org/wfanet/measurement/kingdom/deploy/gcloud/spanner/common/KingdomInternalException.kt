@@ -71,6 +71,15 @@ class KingdomInternalException : Exception {
     /** Account resource queried could not be found. */
     ACCOUNT_NOT_FOUND,
 
+    /** OpenIdConnectIdentity with the same issuer and subject pair already exists. */
+    ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
+
+    /** Account has already been activated. */
+    ACCOUNT_ALREADY_ACTIVATED,
+
+    /** Account has not been activated yet. */
+    ACCOUNT_NOT_ACTIVATED,
+
     /** Permission is not given for the operation. */
     PERMISSION_DENIED,
   }

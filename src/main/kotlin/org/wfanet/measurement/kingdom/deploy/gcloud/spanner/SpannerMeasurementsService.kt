@@ -57,6 +57,9 @@ class SpannerMeasurementsService(
           failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "Certificate not found" }
+        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
+        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
@@ -130,6 +133,9 @@ class SpannerMeasurementsService(
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
+        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
@@ -168,6 +174,9 @@ class SpannerMeasurementsService(
         when (e.code) {
           KingdomInternalException.Code.MEASUREMENT_NOT_FOUND -> Status.NOT_FOUND
           KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL -> Status.FAILED_PRECONDITION
+          KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
+          KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+          KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
           KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
           KingdomInternalException.Code.PERMISSION_DENIED,
           KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,

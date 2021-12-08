@@ -38,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdRequestParamsReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ActivateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
 import org.wfanet.measurement.tools.calculateRSAThumbprint
@@ -77,6 +78,9 @@ class SpannerAccountsService(
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
           }
+        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
+        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
@@ -96,7 +100,46 @@ class SpannerAccountsService(
   }
 
   override suspend fun activateAccount(request: ActivateAccountRequest): Account {
-    TODO("Not yet implemented")
+    val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is missing" }
+
+    val parsedValidatedIdToken =
+      validateIdToken(idToken) ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is invalid" }
+
+    try {
+      return ActivateAccount(
+          externalAccountId = ExternalId(request.externalAccountId),
+          activationToken = ExternalId(request.activationToken),
+          issuer = parsedValidatedIdToken.issuer,
+          subject = parsedValidatedIdToken.subject
+        )
+        .execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.PERMISSION_DENIED ->
+          failGrpc(Status.PERMISSION_DENIED) { "Activation token is not valid for this account" }
+        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS ->
+          failGrpc(Status.INVALID_ARGUMENT) { "Issuer and subject pair already exists" }
+        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED ->
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot activate an account again" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Account to activate has not been found" }
+        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+      }
+    }
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
