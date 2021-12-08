@@ -42,9 +42,8 @@ class SpannerEventGroupsService(
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
-        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
-        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,

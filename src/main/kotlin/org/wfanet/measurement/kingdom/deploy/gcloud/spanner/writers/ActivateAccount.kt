@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode
-import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -27,15 +25,16 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
 
 /**
  * Sets an account's activation state to ACTIVATED and creates an open id identity for it in the
  * database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS]
+ * * [KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY]
  * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
- * * [KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED]
+ * * [KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
  * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
 class ActivateAccount(
@@ -45,6 +44,10 @@ class ActivateAccount(
   private val subject: String,
 ) : SimpleSpannerWriter<Account>() {
   override suspend fun TransactionScope.runTransaction(): Account {
+    if (isIdentityDuplicate(issuer = issuer, subject = subject)) {
+      throw KingdomInternalException(KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY)
+    }
+
     val readAccountResult = readAccount(externalAccountId)
 
     if (readAccountResult.account.activationToken != activationToken.value) {
@@ -52,7 +55,7 @@ class ActivateAccount(
     }
 
     if (readAccountResult.account.activationState == Account.ActivationState.ACTIVATED) {
-      throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED)
+      throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
     }
 
     val internalOpenIdConnectIdentityId = idGenerator.generateInternalId()
@@ -90,15 +93,15 @@ class ActivateAccount(
     }
   }
 
-  override suspend fun handleSpannerException(e: SpannerException): Account? {
-    when (e.errorCode) {
-      ErrorCode.ALREADY_EXISTS ->
-        throw KingdomInternalException(
-          KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS
-        )
-      else -> throw e
-    }
-  }
+  private suspend fun TransactionScope.isIdentityDuplicate(
+    issuer: String,
+    subject: String,
+  ): Boolean =
+    OpenIdConnectIdentityReader()
+      .readByIssuerAndSubject(transactionContext, issuer = issuer, subject = subject)
+      .let {
+        return it != null
+      }
 
   private suspend fun TransactionScope.readAccount(
     externalAccountId: ExternalId

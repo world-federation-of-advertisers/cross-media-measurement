@@ -182,9 +182,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Test
   fun `activateAccount throws NOT_FOUND when account not found`() = runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+    val idToken = generateIdToken(service)
 
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = 1L
@@ -219,10 +217,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `activateAccount throws PERMISSION_DENIED when activation token doesn't match database`() =
       runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
-
+    val idToken = generateIdToken(service)
     service.createAccount(account {})
 
     val activateAccountRequest = activateAccountRequest {
@@ -243,10 +238,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `activateAccount throws PERMISSION_DENIED when account has already been activated`() =
       runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
-
+    val idToken = generateIdToken(service)
     service.createAccount(account {})
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
@@ -255,9 +247,10 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
     withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
 
+    val idToken2 = generateIdToken(serviceWithSecondFixedGenerator)
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+        withIdToken(idToken2) { runBlocking { service.activateAccount(activateAccountRequest) } }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
@@ -285,9 +278,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `activateAccount throws INVALID_ARGUMENT when issuer and subject pair already exists`() =
       runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+    val idToken = generateIdToken(service)
 
     service.createAccount(account {})
 
@@ -324,9 +315,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `activateAccount returns account when account is activated with open id connect identity`() =
       runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+    val idToken = generateIdToken(service)
 
     service.createAccount(account {})
 
@@ -411,10 +400,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Test
   fun `authenticateAccount throws PERMISSION_DENIED when signature is unverified`() = runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce + 5L), clock) +
-        "5"
+    val idToken = generateIdToken(service) + "5"
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -429,9 +415,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Test
   fun `authenticateAccount throws PERMISSION_DENIED when identity doesn't exist`() = runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+    val idToken = generateIdToken(service)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -446,10 +430,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Test
   fun `authenticateAccount returns the account when the account has been found`() = runBlocking {
-    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
-
+    val idToken = generateIdToken(service)
     val createdAccount = service.createAccount(account {})
 
     val activatedAccount =
@@ -481,19 +462,24 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     assertThat(params.nonce != 0L)
     assertThat(params.state != 0L)
   }
-}
 
-private fun generateRequestUri(
-  state: Long,
-  nonce: Long,
-): String {
-  val uriParts = mutableListOf<String>()
-  uriParts.add("openid://?response_type=id_token")
-  uriParts.add("scope=openid")
-  uriParts.add("state=" + externalIdToApiId(state))
-  uriParts.add("nonce=" + externalIdToApiId(nonce))
-  val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
-  uriParts.add("client_id=$redirectUri")
+  private fun generateRequestUri(
+    state: Long,
+    nonce: Long,
+  ): String {
+    val uriParts = mutableListOf<String>()
+    uriParts.add("openid://?response_type=id_token")
+    uriParts.add("scope=openid")
+    uriParts.add("state=" + externalIdToApiId(state))
+    uriParts.add("nonce=" + externalIdToApiId(nonce))
+    val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
+    uriParts.add("client_id=$redirectUri")
 
-  return uriParts.joinToString("&")
+    return uriParts.joinToString("&")
+  }
+
+  private suspend fun generateIdToken(service: T): String {
+    val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    return generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+  }
 }

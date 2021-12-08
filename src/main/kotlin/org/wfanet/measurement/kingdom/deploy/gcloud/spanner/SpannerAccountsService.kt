@@ -20,6 +20,7 @@ import io.grpc.Status
 import java.math.BigInteger
 import java.security.KeyFactory
 import java.security.Signature
+import java.security.SignatureException
 import java.security.spec.RSAPublicKeySpec
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -78,9 +79,8 @@ class SpannerAccountsService(
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
           }
-        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS,
-        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
-        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
@@ -117,13 +117,12 @@ class SpannerAccountsService(
       when (e.code) {
         KingdomInternalException.Code.PERMISSION_DENIED ->
           failGrpc(Status.PERMISSION_DENIED) { "Activation token is not valid for this account" }
-        KingdomInternalException.Code.ISSUER_AND_SUBJECT_PAIR_ALREADY_EXISTS ->
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY ->
           failGrpc(Status.INVALID_ARGUMENT) { "Issuer and subject pair already exists" }
-        KingdomInternalException.Code.ACCOUNT_ALREADY_ACTIVATED ->
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
           failGrpc(Status.PERMISSION_DENIED) { "Cannot activate an account again" }
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Account to activate has not been found" }
-        KingdomInternalException.Code.ACCOUNT_NOT_ACTIVATED,
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
@@ -262,7 +261,11 @@ class SpannerAccountsService(
     val verifier = Signature.getInstance("SHA256withRSA")
     verifier.initVerify(publicKey)
     verifier.update((tokenParts[0] + "." + tokenParts[1]).toByteArray(Charsets.US_ASCII))
-    if (!verifier.verify(tokenParts[2].base64UrlDecode())) {
+    try {
+      if (!verifier.verify(tokenParts[2].base64UrlDecode())) {
+        return null
+      }
+    } catch (e: SignatureException) {
       return null
     }
 
