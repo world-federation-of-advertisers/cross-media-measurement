@@ -15,10 +15,14 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.util.AbstractMap
+import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -28,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
-import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -43,10 +46,10 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
-import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
@@ -125,59 +128,32 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun listMeasurements(
     request: ListMeasurementsRequest
   ): ListMeasurementsResponse {
-    val key =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "Resource name is either unspecified or invalid"
-      }
-    grpcRequire(request.pageSize >= 0) { "Page size cannot be less than 0" }
-
-    val pageSize =
-      when {
-        request.pageSize == 0 -> DEFAULT_PAGE_SIZE
-        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-        else -> request.pageSize
-      }
-
-    val streamMeasurementsRequest = streamMeasurementsRequest {
-      limit = pageSize
-      measurementView = InternalMeasurementView.DEFAULT
-      filter =
-        filter {
-          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-          if (request.pageToken.isNotBlank()) {
-            updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
-          }
-          for (state in request.filter.statesList) {
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-            when (state) {
-              State.AWAITING_REQUISITION_FULFILLMENT -> {
-                states += InternalState.PENDING_REQUISITION_PARAMS
-                states += InternalState.PENDING_REQUISITION_FULFILLMENT
-              }
-              State.COMPUTING -> {
-                states += InternalState.PENDING_PARTICIPANT_CONFIRMATION
-                states += InternalState.PENDING_COMPUTATION
-              }
-              State.SUCCEEDED -> states += InternalState.SUCCEEDED
-              State.FAILED -> states += InternalState.FAILED
-              State.CANCELLED -> states += InternalState.CANCELLED
-              State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-                failGrpc(Status.INVALID_ARGUMENT) { "State must be valid" }
-            }
-          }
-        }
-    }
+    val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
     val results: List<InternalMeasurement> =
-      internalMeasurementsStub.streamMeasurements(streamMeasurementsRequest).toList()
+      internalMeasurementsStub
+        .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
+        .toList()
 
     if (results.isEmpty()) {
       return ListMeasurementsResponse.getDefaultInstance()
     }
 
     return listMeasurementsResponse {
-      measurement += results.map(InternalMeasurement::toMeasurement)
-      nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
+      measurement +=
+        results
+          .subList(0, min(results.size, listMeasurementsPageToken.pageSize))
+          .map(InternalMeasurement::toMeasurement)
+      if (results.size > listMeasurementsPageToken.pageSize) {
+        val pageToken =
+          listMeasurementsPageToken.copy {
+            lastMeasurement =
+              previousPageEnd {
+                externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
+              }
+          }
+        nextPageToken = pageToken.toByteArray().base64UrlEncode()
+      }
     }
   }
 
@@ -259,4 +235,66 @@ private fun DataProviderEntry.validateAndMap(): Map.Entry<Long, DataProviderValu
     apiIdToExternalId(dataProviderKey.dataProviderId),
     dataProviderValue
   )
+}
+
+/** Converts a public [ListMeasurementsRequest] to an internal [ListMeasurementsPageToken]. */
+private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasurementsPageToken {
+  val source = this
+
+  val key =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
+      "Resource name is either unspecified or invalid"
+    }
+  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
+
+  val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+
+  val measurementStatesList = source.filter.statesList
+
+  return if (source.pageToken.isNotBlank()) {
+    ListMeasurementsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+      grpcRequire(this.externalMeasurementConsumerId == externalMeasurementConsumerId) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      grpcRequire(
+        measurementStatesList.containsAll(states) && states.containsAll(measurementStatesList)
+      ) { "Arguments must be kept the same when using a page token" }
+
+      if (source.pageSize in 1..MAX_PAGE_SIZE) {
+        pageSize = source.pageSize
+      }
+    }
+  } else {
+    listMeasurementsPageToken {
+      pageSize =
+        when {
+          source.pageSize == 0 -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
+        }
+
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      states += measurementStatesList
+    }
+  }
+}
+
+/** Converts an internal [ListMeasurementsPageToken] to an internal [StreamMeasurementsRequest]. */
+private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasurementsRequest {
+  val source = this
+  return streamMeasurementsRequest {
+    // get 1 more than the actual page size for deciding whether or not to set page token
+    limit = source.pageSize + 1
+    measurementView = InternalMeasurementView.DEFAULT
+    filter =
+      filter {
+        externalMeasurementConsumerId = source.externalMeasurementConsumerId
+        states += source.statesList.map { it.toInternalState() }.flatten()
+        if (source.hasLastMeasurement()) {
+          externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
+          updatedAfter = source.lastMeasurement.updateTime
+        }
+      }
+  }
 }
