@@ -20,6 +20,7 @@ import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
@@ -27,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -34,6 +36,8 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.EventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -68,18 +72,8 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
-    val parentKey =
-      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid"
-      }
-
-    val measurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.eventGroup.measurementConsumer)) {
-        "Measurement consumer is either unspecified or invalid"
-      }
-
     return internalEventGroupsStub
-      .createEventGroup(request.eventGroup.toInternal(parentKey, measurementConsumerKey))
+      .createEventGroup(request.eventGroup.toInternal(request))
       .toEventGroup()
   }
 
@@ -127,18 +121,46 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
+    measurementConsumerPublicKey =
+      signedData {
+        data = details.measurementConsumerPublicKey
+        signature = details.measurementConsumerPublicKeySignature
+      }
+    vidModelLines += details.vidModelLinesList
+    eventTemplates.addAll(
+      details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
+    )
   }
 }
 
 /** Converts a public [EventGroup] to an internal [InternalEventGroup]. */
-private fun EventGroup.toInternal(
-  parentKey: DataProviderKey,
-  measurementConsumerKey: MeasurementConsumerKey
-): InternalEventGroup {
+private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEventGroup {
+  val parentKey =
+    grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid"
+    }
+
+  val eventGroup = request.eventGroup
+  val measurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)) {
+      "Measurement consumer is either unspecified or invalid"
+    }
+
   return internalEventGroup {
     externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
     providedEventGroupId = eventGroupReferenceId
+    details =
+      details {
+        measurementConsumerPublicKey = eventGroup.measurementConsumerPublicKey.data
+        measurementConsumerPublicKeySignature = eventGroup.measurementConsumerPublicKey.signature
+        vidModelLines += eventGroup.vidModelLinesList
+        eventTemplates.addAll(
+          eventGroup.eventTemplatesList.map { event ->
+            internalEventTemplate { fullyQualifiedType = event.type }
+          }
+        )
+      }
   }
 }
 

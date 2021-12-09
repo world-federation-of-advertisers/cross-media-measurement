@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -32,19 +33,11 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.*
 import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -53,6 +46,8 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKt as internalEventGroupKt
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -89,6 +84,44 @@ private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA = ByteString.copyFromUtf8("foodata")
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("foosig")
+private val VID_MODEL_LINES = listOf("model1", "model2")
+private val EVENT_TEMPLATE_TYPES = listOf("type1", "type2")
+private val EVENT_TEMPLATES =
+  EVENT_TEMPLATE_TYPES.map { type -> EventGroupKt.eventTemplate { this.type = type } }
+private val INTERNAL_EVENT_TEMPLATES =
+  EVENT_TEMPLATE_TYPES.map { type ->
+    internalEventGroupKt.eventTemplate { fullyQualifiedType = type }
+  }
+
+private val EVENT_GROUP: EventGroup = eventGroup {
+  name = EVENT_GROUP_NAME
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupReferenceId = "aaa"
+  measurementConsumerPublicKey =
+    signedData {
+      data = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
+      signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
+    }
+  vidModelLines.addAll(VID_MODEL_LINES)
+  eventTemplates.addAll(EVENT_TEMPLATES)
+}
+
+private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
+  externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+  externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+  externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+  providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
+  createTime = CREATE_TIME
+  details =
+    details {
+      measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
+      measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
+      vidModelLines.addAll(VID_MODEL_LINES)
+      eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
+    }
+}
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
@@ -486,18 +519,4 @@ class EventGroupsServiceTest {
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")
   }
-}
-
-private val EVENT_GROUP: EventGroup = eventGroup {
-  name = EVENT_GROUP_NAME
-  measurementConsumer = MEASUREMENT_CONSUMER_NAME
-  eventGroupReferenceId = "aaa"
-}
-
-private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
-  externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-  externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-  externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
-  providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
-  createTime = CREATE_TIME
 }
