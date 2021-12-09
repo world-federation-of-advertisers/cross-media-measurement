@@ -56,7 +56,8 @@ class Brotli : public Compressor {
   absl::StatusOr<std::string> Compress(
       absl::string_view uncompressed_data) const override {
     std::string result;
-    BrotliWriter brotli_writer(StringWriter(&result), writer_options_);
+    BrotliWriter brotli_writer(StringWriter<std::string *>(&result),
+                               writer_options_);
     if (!brotli_writer.Write(uncompressed_data) || !brotli_writer.Close()) {
       return brotli_writer.status();
     }
@@ -66,7 +67,8 @@ class Brotli : public Compressor {
   absl::StatusOr<std::string> Decompress(
       absl::string_view compressed_data) const override {
     std::string result;
-    BrotliReader brotli_reader(StringReader(&compressed_data), reader_options_);
+    BrotliReader brotli_reader(
+        StringReader<absl::string_view *>(&compressed_data), reader_options_);
     if (!brotli_reader.ReadAll(result) || !brotli_reader.Close()) {
       return brotli_reader.status();
     }
