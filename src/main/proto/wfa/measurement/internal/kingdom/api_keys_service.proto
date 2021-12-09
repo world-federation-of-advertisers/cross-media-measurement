@@ -16,36 +16,27 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "wfa/measurement/internal/kingdom/api_key.proto";
 import "wfa/measurement/internal/kingdom/measurement_consumer.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Internal service for persistence of MeasurementConsumer entities.
-service MeasurementConsumers {
-  rpc CreateMeasurementConsumer(MeasurementConsumer)
+// Internal service for persistence of ApiKey entities.
+service ApiKeys {
+  rpc CreateApiKey(ApiKey) returns (ApiKey);
+
+  rpc RevokeApiKey(RevokeApiKeyRequest) returns (ApiKey);
+
+  rpc AuthenticateApiKey(AuthenticateApiKeyRequest)
       returns (MeasurementConsumer);
-
-  rpc GetMeasurementConsumer(GetMeasurementConsumerRequest)
-      returns (MeasurementConsumer);
-
-  rpc AddMeasurementConsumerOwner(AddMeasurementConsumerOwnerRequest)
-      returns (MeasurementConsumer) {}
-
-  rpc RemoveMeasurementConsumerOwner(RemoveMeasurementConsumerOwnerRequest)
-      returns (MeasurementConsumer) {}
 }
 
-message GetMeasurementConsumerRequest {
+message RevokeApiKeyRequest {
   fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_api_key_id = 2;
 }
 
-message AddMeasurementConsumerOwnerRequest {
-  fixed64 external_measurement_consumer_id = 1;
-  fixed64 external_account_id = 2;
-}
-
-message RemoveMeasurementConsumerOwnerRequest {
-  fixed64 external_measurement_consumer_id = 1;
-  fixed64 external_account_id = 2;
+message AuthenticateApiKeyRequest {
+  bytes authentication_key_hash = 1;
 }

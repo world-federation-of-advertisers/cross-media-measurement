@@ -38,6 +38,7 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
+        chipingyeh-update-internal-api
         sha256 = "da217b6100423ff81ec670e60a272a96897f8f3ed26bb14fe5e54b7a4d454222",
         version = "0.15.1",
     )

@@ -158,3 +158,17 @@ java_image(
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":push_spanner_schema"],
 )
+
+kt_jvm_library(
+    name = "self_issued_id_token",
+    srcs = ["SelfIssuedIdToken.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:__subpackages__",
+    ],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/code/gson",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+    ],
+)

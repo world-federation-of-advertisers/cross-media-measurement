@@ -10,7 +10,9 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
     ],
     deps = KINGDOM_INTERNAL_PROTOS + [
+        "//src/main/kotlin/org/wfanet/measurement/tools:self_issued_id_token",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:accounts_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",

@@ -57,5 +57,4 @@ message GenerateOpenIdRequestParamsRequest {}
 message OpenIdRequestParams {
   fixed64 state = 1;
   fixed64 nonce = 2;
-  fixed64 max_age = 3;
 }

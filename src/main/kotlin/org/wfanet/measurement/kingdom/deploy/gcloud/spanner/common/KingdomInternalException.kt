@@ -71,7 +71,16 @@ class KingdomInternalException : Exception {
     /** Account resource queried could not be found. */
     ACCOUNT_NOT_FOUND,
 
+    /** Account already exists with the identity. */
+    DUPLICATE_ACCOUNT_IDENTITY,
+
+    /** Account activation state is in an illegal state for the operation. */
+    ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+
     /** Permission is not given for the operation. */
     PERMISSION_DENIED,
+
+    /** Api Key resource queried could not be found. */
+    API_KEY_NOT_FOUND,
   }
 }
