@@ -86,6 +86,30 @@ fun InternalMeasurement.State.toState(): State =
       State.STATE_UNSPECIFIED
   }
 
+/** Convert a public [State] to an internal [InternalMeasurement.State]. */
+fun State.toInternalState(): List<InternalMeasurement.State> {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+  return when (this) {
+    State.AWAITING_REQUISITION_FULFILLMENT -> {
+      listOf(
+        InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+        InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+      )
+    }
+    State.COMPUTING -> {
+      listOf(
+        InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+        InternalMeasurement.State.PENDING_COMPUTATION
+      )
+    }
+    State.SUCCEEDED -> listOf(InternalMeasurement.State.SUCCEEDED)
+    State.FAILED -> listOf(InternalMeasurement.State.FAILED)
+    State.CANCELLED -> listOf(InternalMeasurement.State.CANCELLED)
+    State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
+      listOf(InternalMeasurement.State.STATE_UNSPECIFIED)
+  }
+}
+
 /** Converts an internal [InternalMeasurement.Failure.Reason] to a public [Failure.Reason]. */
 fun InternalMeasurement.Failure.Reason.toReason(): Failure.Reason =
   when (this) {
