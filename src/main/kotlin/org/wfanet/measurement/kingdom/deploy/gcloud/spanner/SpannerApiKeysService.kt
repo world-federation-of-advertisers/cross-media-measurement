@@ -41,6 +41,8 @@ class SpannerApiKeysService(
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Measurement Consumer not found" }
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
@@ -74,6 +76,8 @@ class SpannerApiKeysService(
           failGrpc(Status.NOT_FOUND) { "Measurement Consumer not found" }
         KingdomInternalException.Code.API_KEY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Api Key not found" }
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
