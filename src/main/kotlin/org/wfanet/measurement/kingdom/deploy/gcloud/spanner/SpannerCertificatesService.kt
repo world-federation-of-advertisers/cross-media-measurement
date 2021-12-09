@@ -62,6 +62,9 @@ class SpannerCertificatesService(
           }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
@@ -129,7 +132,10 @@ class SpannerCertificatesService(
           failGrpc(Status.NOT_FOUND) { "Certificate not found" }
         KingdomInternalException.Code.DUCHY_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
@@ -163,7 +169,10 @@ class SpannerCertificatesService(
           failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,

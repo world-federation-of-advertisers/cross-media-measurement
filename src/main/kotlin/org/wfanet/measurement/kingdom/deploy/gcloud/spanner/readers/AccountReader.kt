@@ -40,6 +40,15 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
       Accounts.MeasurementConsumerCreationToken,
       OpenIdConnectIdentities.Issuer,
       OpenIdConnectIdentities.Subject,
+      ARRAY(
+        SELECT
+          ExternalMeasurementConsumerId,
+        FROM
+          MeasurementConsumers
+          JOIN MeasurementConsumerOwners USING (MeasurementConsumerId)
+        WHERE
+          Accounts.AccountId = MeasurementConsumerOwners.AccountId
+      ) AS ExternalOwnedMeasurementConsumerIds,
     FROM Accounts
     LEFT JOIN Accounts as CreatorAccounts
       ON (Accounts.CreatorAccountId = CreatorAccounts.AccountId)
@@ -72,6 +81,8 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
           this.subject = struct.getString("Subject")
         }
     }
+
+    externalOwnedMeasurementConsumerIds += struct.getLongList("ExternalOwnedMeasurementConsumerIds")
   }
 
   suspend fun readByExternalAccountId(
@@ -81,6 +92,18 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
     return fillStatementBuilder {
         appendClause("WHERE Accounts.ExternalAccountId = @externalAccountId")
         bind("externalAccountId").to(externalAccountId.value)
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
+  suspend fun readByInternalAccountId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    internalAccountId: InternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE Accounts.AccountId = @internalAccountId")
+        bind("internalAccountId").to(internalAccountId.value)
       }
       .execute(readContext)
       .singleOrNull()

@@ -16,6 +16,10 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -38,14 +42,10 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.eventTemplate as internalEventTemplate
-import org.wfanet.measurement.internal.kingdom.EventGroupPageToken
-import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
-import org.wfanet.measurement.internal.kingdom.eventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
@@ -78,11 +78,11 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val eventGroupPageToken = request.toEventGroupPageToken()
+    val listEventGroupsPageToken = request.toListEventGroupPageToken()
 
     val results: List<InternalEventGroup> =
       internalEventGroupsStub
-        .streamEventGroups(eventGroupPageToken.toStreamEventGroupsRequest())
+        .streamEventGroups(listEventGroupsPageToken.toStreamEventGroupsRequest())
         .toList()
 
     if (results.isEmpty()) {
@@ -92,11 +92,11 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     return listEventGroupsResponse {
       eventGroups +=
         results
-          .subList(0, min(results.size, eventGroupPageToken.pageSize))
+          .subList(0, min(results.size, listEventGroupsPageToken.pageSize))
           .map(InternalEventGroup::toEventGroup)
-      if (results.size > eventGroupPageToken.pageSize) {
+      if (results.size > listEventGroupsPageToken.pageSize) {
         val pageToken =
-          eventGroupPageToken.copy {
+          listEventGroupsPageToken.copy {
             lastEventGroup =
               previousPageEnd {
                 externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
@@ -164,8 +164,8 @@ private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEve
   }
 }
 
-/** Converts a public [ListEventGroupsRequest] to an internal [EventGroupPageToken]. */
-private fun ListEventGroupsRequest.toEventGroupPageToken(): EventGroupPageToken {
+/** Converts a public [ListEventGroupsRequest] to an internal [ListEventGroupsPageToken]. */
+private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsPageToken {
   val source = this
 
   grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
@@ -195,7 +195,7 @@ private fun ListEventGroupsRequest.toEventGroupPageToken(): EventGroupPageToken 
     }
 
   return if (source.pageToken.isNotBlank()) {
-    EventGroupPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+    ListEventGroupsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
       grpcRequire(this.externalDataProviderId == externalDataProviderId) {
         "Arguments must be kept the same when using a page token"
       }
@@ -213,7 +213,7 @@ private fun ListEventGroupsRequest.toEventGroupPageToken(): EventGroupPageToken 
       }
     }
   } else {
-    eventGroupPageToken {
+    listEventGroupsPageToken {
       pageSize =
         when {
           source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
@@ -223,13 +223,12 @@ private fun ListEventGroupsRequest.toEventGroupPageToken(): EventGroupPageToken 
 
       this.externalDataProviderId = externalDataProviderId
       externalMeasurementConsumerIds += externalMeasurementConsumerIdsList
-      lastEventGroup = EventGroupPageToken.PreviousPageEnd.getDefaultInstance()
     }
   }
 }
 
-/** Converts an internal [EventGroupPageToken] to an internal [StreamEventGroupsRequest]. */
-private fun EventGroupPageToken.toStreamEventGroupsRequest(): StreamEventGroupsRequest {
+/** Converts an internal [ListEventGroupsPageToken] to an internal [StreamEventGroupsRequest]. */
+private fun ListEventGroupsPageToken.toStreamEventGroupsRequest(): StreamEventGroupsRequest {
   val source = this
   return streamEventGroupsRequest {
     // get 1 more than the actual page size for deciding whether or not to set page token

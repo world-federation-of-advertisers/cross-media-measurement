@@ -50,6 +50,22 @@ kt_jvm_proto_library(
     deps = [":api_key_java_proto"],
 )
 
+alias(
+    name = "api_keys_service_proto",
+    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:api_keys_service_proto",
+)
+
+kt_jvm_grpc_and_java_proto_library(
+    name = "api_keys_service_kt_jvm_grpc",
+    srcs = [":api_keys_service_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "api_keys_service_kt_jvm_proto",
+    srcs = [":api_keys_service_proto"],
+    deps = [":api_keys_service_java_proto"],
+)
+
 java_proto_library(
     name = "certificate_java_proto",
     deps = [
@@ -401,6 +417,30 @@ kt_jvm_proto_library(
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:model_provider_proto",
     ],
     deps = [":model_provider_java_proto"],
+)
+
+proto_library(
+    name = "page_token_proto",
+    srcs = ["page_token.proto"],
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:measurement_proto",
+    ],
+)
+
+java_proto_library(
+    name = "page_token_java_proto",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "page_token_kt_jvm_proto",
+    srcs = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_proto",
+    ],
+    deps = [":page_token_java_proto"],
 )
 
 java_proto_library(

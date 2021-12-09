@@ -81,3 +81,12 @@ fun BindableService.withAccountAuthenticationServerInterceptor(
     this,
     AccountAuthenticationServerInterceptor(internalAccountsStub)
   )
+
+/** Executes [block] with [Account] installed in a new [Context]. */
+fun <T> withAccount(account: Account, block: () -> T): T {
+  return Context.current().withAccount(account).call(block)
+}
+
+fun Context.withAccount(account: Account): Context {
+  return withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
+}

@@ -680,7 +680,57 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements returns all measurements in order`(): Unit = runBlocking {
+  fun `streamMeasurements returns all measurements in update time order`(): Unit = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val cancelledMeasurement =
+      measurementsService.cancelMeasurement(
+        cancelMeasurementRequest {
+          externalMeasurementId = measurement1.externalMeasurementId
+          externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(measurements)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(measurement2, cancelledMeasurement)
+      .inOrder()
+  }
+
+  @Test
+  fun `streamMeasurements returns all measurements in id order`(): Unit = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val measurement1 =
@@ -722,7 +772,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements respects updated_after`(): Unit = runBlocking {
+  fun `streamMeasurements can get one page at a time`(): Unit = runBlocking {
     val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
 
     val measurement1 =
@@ -745,14 +795,35 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
 
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 1
+      filter =
+        filter { externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId }
+    }
+
     val measurements: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements).containsAnyOf(measurement1, measurement2)
+
+    val measurements2: List<Measurement> =
       measurementsService
         .streamMeasurements(
-          streamMeasurementsRequest { filter = filter { updatedAfter = measurement1.updateTime } }
+          streamMeasurementsRequest.copy {
+            filter =
+              filter.copy {
+                updatedAfter = measurements[0].updateTime
+                externalMeasurementIdAfter = measurements[0].externalMeasurementId
+              }
+          }
         )
         .toList()
 
-    assertThat(measurements).comparingExpectedFieldsOnly().containsExactly(measurement2)
+    assertThat(measurements2).hasSize(1)
+    assertThat(measurements2).containsAnyOf(measurement1, measurement2)
+    assertThat(measurements2[0].externalMeasurementId)
+      .isGreaterThan(measurements[0].externalMeasurementId)
   }
 
   @Test

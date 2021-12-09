@@ -33,11 +33,10 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.*
-import org.wfanet.measurement.api.v2alpha.EventGroup
-import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
-import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -48,14 +47,12 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt as internalEventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
-import org.wfanet.measurement.internal.kingdom.EventGroupPageTokenKt.previousPageEnd
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
-import org.wfanet.measurement.internal.kingdom.eventGroupPageToken
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
@@ -266,7 +263,7 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
-      val eventGroupPageToken = eventGroupPageToken {
+      val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         lastEventGroup =
@@ -275,7 +272,7 @@ class EventGroupsServiceTest {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
-      pageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
     val result = runBlocking { service.listEventGroups(request) }
@@ -283,7 +280,7 @@ class EventGroupsServiceTest {
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
       eventGroups += EVENT_GROUP.copy { name = EVENT_GROUP_NAME_2 }
-      val eventGroupPageToken = eventGroupPageToken {
+      val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = request.pageSize
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         lastEventGroup =
@@ -292,7 +289,7 @@ class EventGroupsServiceTest {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
-      nextPageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      nextPageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
     val streamEventGroupsRequest =
@@ -322,7 +319,7 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 4
-      val eventGroupPageToken = eventGroupPageToken {
+      val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         lastEventGroup =
@@ -331,7 +328,7 @@ class EventGroupsServiceTest {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
-      pageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
     runBlocking { service.listEventGroups(request) }
@@ -350,7 +347,7 @@ class EventGroupsServiceTest {
   fun `listEventGroups with no page size uses page size in page token`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      val eventGroupPageToken = eventGroupPageToken {
+      val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         lastEventGroup =
@@ -359,7 +356,7 @@ class EventGroupsServiceTest {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
-      pageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
     runBlocking { service.listEventGroups(request) }
@@ -476,7 +473,7 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
-      val eventGroupPageToken = eventGroupPageToken {
+      val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = 654
         lastEventGroup =
@@ -485,7 +482,7 @@ class EventGroupsServiceTest {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
-      pageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
     val exception =
@@ -500,7 +497,7 @@ class EventGroupsServiceTest {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
-      val eventGroupPageToken = eventGroupPageToken {
+      val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         externalMeasurementConsumerIds += 123
@@ -510,7 +507,7 @@ class EventGroupsServiceTest {
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
-      pageToken = eventGroupPageToken.toByteArray().base64UrlEncode()
+      pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
     val exception =

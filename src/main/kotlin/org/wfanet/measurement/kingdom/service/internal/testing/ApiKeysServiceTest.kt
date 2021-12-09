@@ -1,0 +1,264 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package org.wfanet.measurement.kingdom.service.internal.testing
+
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import java.time.Clock
+import kotlin.random.Random
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.apiKey
+import org.wfanet.measurement.internal.kingdom.authenticateApiKeyRequest
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.revokeApiKeyRequest
+
+private const val RANDOM_SEED = 1
+
+@RunWith(JUnit4::class)
+abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
+  protected data class Services<T>(
+    val apiKeysService: T,
+    val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+  )
+
+  private val clock: Clock = Clock.systemUTC()
+  private val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
+  private val population = Population(clock, idGenerator)
+
+  protected lateinit var apiKeysService: T
+    private set
+
+  protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    private set
+
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
+
+  @Before
+  fun initServices() {
+    val services = newServices(idGenerator)
+    apiKeysService = services.apiKeysService
+    measurementConsumersService = services.measurementConsumersService
+  }
+
+  @Test
+  fun `createApiKey with no description returns an api key`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer((measurementConsumersService))
+        .externalMeasurementConsumerId
+    val apiKey = apiKey {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      nickname = "nickname"
+    }
+
+    val result = apiKeysService.createApiKey(apiKey)
+
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(apiKey)
+    assertThat(result.externalApiKeyId).isGreaterThan(0L)
+  }
+
+  @Test
+  fun `createApiKey with description returns an api key()`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer((measurementConsumersService))
+        .externalMeasurementConsumerId
+    val apiKey = apiKey {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      nickname = "nickname"
+      description = "description"
+    }
+
+    val result = apiKeysService.createApiKey(apiKey)
+
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(apiKey)
+    assertThat(result.externalApiKeyId).isGreaterThan(0L)
+  }
+
+  @Test
+  fun `createApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.createApiKey(
+          apiKey {
+            externalMeasurementConsumerId = 1L
+            nickname = "nickname"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Measurement Consumer not found")
+  }
+
+  @Test
+  fun `revokeApiKey returns the api key`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer((measurementConsumersService))
+        .externalMeasurementConsumerId
+    val apiKey =
+      apiKeysService.createApiKey(
+        apiKey {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          nickname = "nickname"
+        }
+      )
+
+    val result =
+      apiKeysService.revokeApiKey(
+        revokeApiKeyRequest {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          externalApiKeyId = apiKey.externalApiKeyId
+        }
+      )
+
+    assertThat(result)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(apiKey.copy { clearAuthenticationKey() })
+  }
+
+  @Test
+  fun `revokeApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer((measurementConsumersService))
+        .externalMeasurementConsumerId
+    val apiKey =
+      apiKeysService.createApiKey(
+        apiKey {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          nickname = "nickname"
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.revokeApiKey(
+          revokeApiKeyRequest {
+            if (externalMeasurementConsumerId == 1L) {
+              this.externalMeasurementConsumerId = 2L
+            } else {
+              this.externalMeasurementConsumerId = 1L
+            }
+            externalApiKeyId = apiKey.externalApiKeyId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Measurement Consumer not found")
+  }
+
+  @Test
+  fun `revokeApiKey throws NOT FOUND when api key doesn't exist`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.revokeApiKey(
+          revokeApiKeyRequest {
+            externalMeasurementConsumerId =
+              population.createMeasurementConsumer((measurementConsumersService))
+                .externalMeasurementConsumerId
+            externalApiKeyId = 1L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Api Key not found")
+  }
+
+  @Test
+  fun `authenticateApiKey returns a measurement consumer`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer((measurementConsumersService))
+    val apiKey =
+      apiKeysService.createApiKey(
+        apiKey {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          nickname = "nickname"
+        }
+      )
+
+    val result =
+      apiKeysService.authenticateApiKey(
+        authenticateApiKeyRequest { authenticationKeyHash = hashSha256(apiKey.authenticationKey) }
+      )
+
+    assertThat(result).comparingExpectedFieldsOnly().isEqualTo(measurementConsumer)
+  }
+
+  @Test
+  fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash is missing`() =
+      runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.authenticateApiKey(authenticateApiKeyRequest {})
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception).hasMessageThat().contains("Authentication Key hash is missing")
+  }
+
+  @Test
+  fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash doesn't match`() =
+      runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.authenticateApiKey(
+          authenticateApiKeyRequest { authenticationKeyHash = hashSha256(1L) }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception).hasMessageThat().contains("Authentication Key is not valid")
+  }
+
+  @Test
+  fun `authenticateApiKey throws UNAUTHENTICATED when api key has been revoked`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer((measurementConsumersService))
+    val apiKey =
+      apiKeysService.createApiKey(
+        apiKey {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          nickname = "nickname"
+        }
+      )
+
+    apiKeysService.revokeApiKey(
+      revokeApiKeyRequest {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalApiKeyId = apiKey.externalApiKeyId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.authenticateApiKey(
+          authenticateApiKeyRequest { authenticationKeyHash = hashSha256(apiKey.authenticationKey) }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception).hasMessageThat().contains("Authentication Key is not valid")
+  }
+}

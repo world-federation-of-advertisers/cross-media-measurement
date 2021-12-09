@@ -36,28 +36,37 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.addMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.removeMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as InternalMeasurementConsumersService
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersClient
+import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest as internalAddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest as internalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
 
 /**
  * Path to `testdata` directory containing certs and keys.
@@ -79,9 +88,12 @@ private val TESTDATA_DIR =
     "testdata"
   )
 private const val MEASUREMENT_CONSUMER_ID = 123L
+private const val ACCOUNT_ID = 123L
 private const val CERTIFICATE_ID = 456L
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val ACCOUNT_NAME = "accounts/AAAAAAAAAHs"
 private const val CERTIFICATE_NAME = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = 12345673L
 
 @RunWith(JUnit4::class)
 class MeasurementConsumersServiceTest {
@@ -89,6 +101,8 @@ class MeasurementConsumersServiceTest {
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { createMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
       onBlocking { getMeasurementConsumer(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+      onBlocking { addMeasurementConsumerOwner(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
+      onBlocking { removeMeasurementConsumerOwner(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER)
     }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
@@ -213,6 +227,200 @@ class MeasurementConsumersServiceTest {
     assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
+  @Test
+  fun `addMeasurementConsumerOwner throws UNAUTHENTICATED when account principal is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.addMeasurementConsumerOwner(addMeasurementConsumerOwnerRequest {}) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws INVALID_ARGUMENT when name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.addMeasurementConsumerOwner(
+              addMeasurementConsumerOwnerRequest {
+                name = "foo"
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws PERMISSION_DENIED when account doesnt own mc`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(
+          ACTIVATED_INTERNAL_ACCOUNT.copy { externalOwnedMeasurementConsumerIds.clear() }
+        ) {
+          runBlocking {
+            service.addMeasurementConsumerOwner(
+              addMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Account doesn't own MeasurementConsumer")
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws INVALID_ARGUMENT when account is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.addMeasurementConsumerOwner(
+              addMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Account unspecified or invalid")
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner adds new owner and returns measurement consumer`() {
+    val result =
+      withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+        runBlocking {
+          service.addMeasurementConsumerOwner(
+            addMeasurementConsumerOwnerRequest {
+              name = MEASUREMENT_CONSUMER_NAME
+              account = ACCOUNT_NAME
+            }
+          )
+        }
+      }
+    assertThat(result).isEqualTo(MEASUREMENT_CONSUMER)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalMeasurementConsumersService::addMeasurementConsumerOwner
+      )
+      .isEqualTo(
+        internalAddMeasurementConsumerOwnerRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+          externalAccountId = ACCOUNT_ID
+        }
+      )
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws UNAUTHENTICATED when account principal is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.removeMeasurementConsumerOwner(removeMeasurementConsumerOwnerRequest {})
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws INVALID_ARGUMENT when name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.removeMeasurementConsumerOwner(
+              removeMeasurementConsumerOwnerRequest {
+                name = "foo"
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws PERMISSION_DENIED when account doesnt own mc`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(
+          ACTIVATED_INTERNAL_ACCOUNT.copy { externalOwnedMeasurementConsumerIds.clear() }
+        ) {
+          runBlocking {
+            service.removeMeasurementConsumerOwner(
+              removeMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = ACCOUNT_NAME
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Account doesn't own MeasurementConsumer")
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws INVALID_ARGUMENT when account is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking {
+            service.removeMeasurementConsumerOwner(
+              removeMeasurementConsumerOwnerRequest {
+                name = MEASUREMENT_CONSUMER_NAME
+                account = "foo"
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Account unspecified or invalid")
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner removes owner and returns measurement consumer`() {
+    val result =
+      withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+        runBlocking {
+          service.removeMeasurementConsumerOwner(
+            removeMeasurementConsumerOwnerRequest {
+              name = MEASUREMENT_CONSUMER_NAME
+              account = ACCOUNT_NAME
+            }
+          )
+        }
+      }
+    assertThat(result).isEqualTo(MEASUREMENT_CONSUMER)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalMeasurementConsumersService::removeMeasurementConsumerOwner
+      )
+      .isEqualTo(
+        internalRemoveMeasurementConsumerOwnerRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+          externalAccountId = ACCOUNT_ID
+        }
+      )
+  }
+
   companion object {
     private val serverCertificate: X509Certificate
     init {
@@ -261,6 +469,28 @@ class MeasurementConsumersServiceTest {
           notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
           details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
         }
+    }
+
+    private val MEASUREMENT_CONSUMER: MeasurementConsumer = measurementConsumer {
+      val measurementConsumerId: String = externalIdToApiId(MEASUREMENT_CONSUMER_ID)
+      val certificateId: String = externalIdToApiId(CERTIFICATE_ID)
+
+      name = MEASUREMENT_CONSUMER_NAME
+      certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
+      certificateDer = INTERNAL_MEASUREMENT_CONSUMER.certificate.details.x509Der
+      publicKey =
+        signedData {
+          data = INTERNAL_MEASUREMENT_CONSUMER.details.publicKey
+          signature = INTERNAL_MEASUREMENT_CONSUMER.details.publicKeySignature
+        }
+    }
+
+    private val ACTIVATED_INTERNAL_ACCOUNT: Account = account {
+      externalAccountId = ACCOUNT_ID
+      activationState = Account.ActivationState.ACTIVATED
+      externalOwnedMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      externalOwnedMeasurementConsumerIds += MEASUREMENT_CONSUMER_ID
     }
   }
 }
