@@ -102,7 +102,8 @@ private fun run(
       ExchangeStepsService(internalExchangeStepsCoroutineStub)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       MeasurementsService(InternalMeasurementsCoroutineStub(channel)).bindService(),
-      MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel)).bindService(),
+      MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
+        .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
