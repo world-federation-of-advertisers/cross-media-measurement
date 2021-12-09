@@ -79,6 +79,7 @@ class SpannerAccountsService(
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
           }
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
@@ -123,6 +124,7 @@ class SpannerAccountsService(
           failGrpc(Status.PERMISSION_DENIED) { "Cannot activate an account again" }
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Account to activate has not been found" }
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
