@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
-class OpenIdConnectIdentityReader() : SpannerReader<OpenIdConnectIdentityReader.Result>() {
+class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Result>() {
   data class Result(
     val issuer: String,
     val subject: String,
