@@ -28,8 +28,24 @@ service MeasurementConsumers {
 
   rpc GetMeasurementConsumer(GetMeasurementConsumerRequest)
       returns (MeasurementConsumer);
+
+  rpc AddMeasurementConsumerOwner(AddMeasurementConsumerOwnerRequest)
+      returns (MeasurementConsumer) {}
+
+  rpc RemoveMeasurementConsumerOwner(RemoveMeasurementConsumerOwnerRequest)
+      returns (MeasurementConsumer) {}
 }
 
 message GetMeasurementConsumerRequest {
   fixed64 external_measurement_consumer_id = 1;
+}
+
+message AddMeasurementConsumerOwnerRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_account_id = 2;
+}
+
+message RemoveMeasurementConsumerOwnerRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_account_id = 2;
 }

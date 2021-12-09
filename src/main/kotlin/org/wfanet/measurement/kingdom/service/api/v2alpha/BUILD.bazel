@@ -242,6 +242,7 @@ kt_jvm_library(
     name = "measurement_consumers_service",
     srcs = ["MeasurementConsumersService.kt"],
     deps = [
+        ":account_authentication_server_interceptor",
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
