@@ -127,7 +127,10 @@ class MeasurementConsumersServiceTest {
       measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
     }
 
-    val createdMeasurementConsumer = runBlocking { service.createMeasurementConsumer(request) }
+    val createdMeasurementConsumer =
+      withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+        runBlocking { service.createMeasurementConsumer(request) }
+      }
 
     val expectedMeasurementConsumer =
       request.measurementConsumer.copy {
@@ -153,6 +156,16 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
+  fun `create throws UNAUTHENTICATED when account principal is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.createMeasurementConsumer(createMeasurementConsumerRequest {}) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
+  }
+
+  @Test
   fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
     val request = createMeasurementConsumerRequest {
       measurementConsumer = measurementConsumer { publicKey = SIGNED_PUBLIC_KEY }
@@ -161,7 +174,9 @@ class MeasurementConsumersServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createMeasurementConsumer(request) }
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking { service.createMeasurementConsumer(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
@@ -179,7 +194,9 @@ class MeasurementConsumersServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createMeasurementConsumer(request) }
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking { service.createMeasurementConsumer(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
@@ -195,7 +212,9 @@ class MeasurementConsumersServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createMeasurementConsumer(request) }
+        withAccount(ACTIVATED_INTERNAL_ACCOUNT) {
+          runBlocking { service.createMeasurementConsumer(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("public_key.data is missing")

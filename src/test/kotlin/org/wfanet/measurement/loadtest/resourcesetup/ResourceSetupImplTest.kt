@@ -53,6 +53,7 @@ private val ENCRYPTION_PUBLIC_KEY_DER =
   FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
 private val CONSENT_SIGNAL_X509: X509Certificate = readCertificate(CONSENT_SIGNAL_CERTIFICATE_DER)
 private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = "MTIzNDU2NzM"
+private const val ID_TOKEN = "token"
 
 private var KEY_STORE = InMemoryKeyStore()
 
@@ -146,7 +147,8 @@ class ResourceSetupImplTest {
 
     resourceSetup.createMeasurementConsumer(
       measurementConsumerContent,
-      MEASUREMENT_CONSUMER_CREATION_TOKEN
+      MEASUREMENT_CONSUMER_CREATION_TOKEN,
+      ID_TOKEN
     )
 
     assertThat(apiRequest)

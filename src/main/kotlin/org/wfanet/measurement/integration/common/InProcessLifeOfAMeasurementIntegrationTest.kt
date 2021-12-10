@@ -181,7 +181,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     mcResourceName =
       resourceSetup.createMeasurementConsumer(
           mc,
-          externalIdToApiId(account.measurementConsumerCreationToken)
+          externalIdToApiId(account.measurementConsumerCreationToken),
+          idToken
         )
         .name
     // Create all EDPs

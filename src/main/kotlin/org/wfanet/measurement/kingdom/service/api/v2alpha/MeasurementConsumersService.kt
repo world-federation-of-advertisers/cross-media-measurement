@@ -50,6 +50,10 @@ class MeasurementConsumersService(
   override suspend fun createMeasurementConsumer(
     request: CreateMeasurementConsumerRequest
   ): MeasurementConsumer {
+    val account =
+      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+
     val measurementConsumer = request.measurementConsumer
 
     grpcRequire(!measurementConsumer.publicKey.data.isEmpty) { "public_key.data is missing" }

@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.crypto.sign
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
@@ -54,7 +55,8 @@ class ResourceSetup(
     dataProviderContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
-    measurementConsumerCreationToken: String
+    measurementConsumerCreationToken: String,
+    idToken: String,
   ) {
     logger.info("Starting with RunID: $runId ...")
 
@@ -69,7 +71,11 @@ class ResourceSetup(
 
     // Step 2: Create the MC via the public API.
     val measurementConsumer =
-      createMeasurementConsumer(measurementConsumerContent, measurementConsumerCreationToken)
+      createMeasurementConsumer(
+        measurementConsumerContent,
+        measurementConsumerCreationToken,
+        idToken
+      )
     logger.info(
       "Successfully created measurement consumer: ${measurementConsumer.name} " +
         "with certificate ${measurementConsumer.certificate} ..."
@@ -107,7 +113,8 @@ class ResourceSetup(
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
-    measurementConsumerCreationToken: String
+    measurementConsumerCreationToken: String,
+    idToken: String,
   ): MeasurementConsumer {
     val encryptionPublicKey = encryptionPublicKey {
       format = EncryptionPublicKey.Format.TINK_KEYSET
@@ -128,7 +135,7 @@ class ResourceSetup(
         }
       this.measurementConsumerCreationToken = measurementConsumerCreationToken
     }
-    return measurementConsumersClient.createMeasurementConsumer(request)
+    return measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
   }
 
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {

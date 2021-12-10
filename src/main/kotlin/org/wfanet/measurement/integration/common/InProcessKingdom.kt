@@ -129,25 +129,29 @@ class InProcessKingdom(
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's public API services")
+
+      addService(
+        AccountsService(internalAccountsClient, redirectUri)
+          .withVerboseLogging(verboseGrpcLogging)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
+      )
+
+      addService(
+        MeasurementConsumersService(internalMeasurementConsumersClient)
+          .withVerboseLogging(verboseGrpcLogging)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
+      )
+
       listOf(
-        AccountsService(internalAccountsClient, redirectUri),
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient),
-        MeasurementConsumersService(internalMeasurementConsumersClient),
         RequisitionsService(internalRequisitionsClient)
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
-          when (it) {
-            is AccountsService ->
-              addService(
-                it.withVerboseLogging(verboseGrpcLogging)
-                  .withAccountAuthenticationServerInterceptor(internalAccountsClient)
-              )
-            else -> addService(it.withVerboseLogging(verboseGrpcLogging))
-          }
+          addService(it.withVerboseLogging(verboseGrpcLogging))
         }
       listOf(
         ExchangeStepAttemptsService(
