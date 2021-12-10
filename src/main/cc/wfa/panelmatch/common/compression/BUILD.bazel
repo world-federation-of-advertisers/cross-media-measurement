@@ -45,6 +45,7 @@ cc_library(
         ":compressor",
         ":no_op",
         "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
+        "@com_google_absl//absl/status:statusor",
     ],
 )
 
