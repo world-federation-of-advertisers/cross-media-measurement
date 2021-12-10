@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.gson.JsonParser
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.net.URLEncoder
@@ -26,18 +27,21 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
+import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
 import org.wfanet.measurement.tools.generateIdToken
 
@@ -334,6 +338,168 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
           activationState = Account.ActivationState.ACTIVATED
           measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
+        }
+      )
+  }
+
+  @Test
+  fun `replaceAccountIdentity throws NOT_FOUND when account not found`() = runBlocking {
+    val idToken = generateIdToken(service)
+
+    val replaceAccountIdentity = replaceAccountIdentityRequest { externalAccountId = 1L }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.replaceAccountIdentity(replaceAccountIdentity) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.description).isEqualTo("Account was not found")
+  }
+
+  @Test
+  fun `replaceAccountIdentity throws PERMISSION_DENIED when account is unactivated`() =
+      runBlocking {
+    val idToken = generateIdToken(service)
+    service.createAccount(account {})
+
+    val replaceAccountIdentity = replaceAccountIdentityRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.replaceAccountIdentity(replaceAccountIdentity) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).isEqualTo("Account has not been activated yet")
+  }
+
+  @Test
+  fun `replaceAccountIdentity throws INVALID_ARGUMENT when new id token is invalid`() =
+      runBlocking {
+    service.createAccount(account {})
+
+    val replaceAccountIdentity = replaceAccountIdentityRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken("dafsdf") {
+          runBlocking { service.replaceAccountIdentity(replaceAccountIdentity) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("New Id token is invalid")
+  }
+
+  @Test
+  fun `replaceAccountIdentity throws INVALID_ARGUMENT when new id token not found`() = runBlocking {
+    val replaceAccountIdentity = replaceAccountIdentityRequest { externalAccountId = 1L }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.replaceAccountIdentity(replaceAccountIdentity)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("New Id token is missing")
+  }
+
+  @Test
+  fun `replaceAccountIdentity throws INVALID_ARGUMENT when passed-in id token already exists`() =
+      runBlocking {
+    val idToken = generateIdToken(service)
+    service.createAccount(account {})
+    withIdToken(idToken) {
+      runBlocking {
+        service.activateAccount(
+          activateAccountRequest {
+            externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+            activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+          }
+        )
+      }
+    }
+
+    val idToken2 = generateIdToken(serviceWithSecondFixedGenerator)
+    serviceWithSecondFixedGenerator.createAccount(account {})
+    withIdToken(idToken2) {
+      runBlocking {
+        serviceWithSecondFixedGenerator.activateAccount(
+          activateAccountRequest {
+            externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
+            activationToken = FIXED_GENERATED_EXTERNAL_ID_B
+          }
+        )
+      }
+    }
+
+    val replaceAccountIdentityRequest = replaceAccountIdentityRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withIdToken(idToken) {
+          runBlocking { service.replaceAccountIdentity(replaceAccountIdentityRequest) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Issuer and subject pair already exists")
+  }
+
+  @Test
+  fun `replaceAccountIdentity returns account with new open id connect identity`() = runBlocking {
+    val idToken = generateIdToken(service)
+    service.createAccount(account {})
+    withIdToken(idToken) {
+      runBlocking {
+        service.activateAccount(
+          activateAccountRequest {
+            externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+            activationToken = FIXED_GENERATED_EXTERNAL_ID_A
+          }
+        )
+      }
+    }
+
+    val replaceAccountIdentityRequest = replaceAccountIdentityRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+    }
+
+    val idToken2 = generateIdToken(serviceWithSecondFixedGenerator)
+
+    val account =
+      withIdToken(idToken2) {
+        runBlocking { service.replaceAccountIdentity(replaceAccountIdentityRequest) }
+      }
+
+    val tokenParts = idToken2.split(".")
+    val claims =
+      JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
+    val iss = claims.get("iss").asString
+    val sub = claims.get("sub").asString
+
+    assertThat(account)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        account {
+          externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+          activationState = Account.ActivationState.ACTIVATED
+          openIdIdentity =
+            openIdConnectIdentity {
+              issuer = iss
+              subject = sub
+            }
         }
       )
   }
