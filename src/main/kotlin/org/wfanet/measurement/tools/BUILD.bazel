@@ -163,6 +163,7 @@ kt_jvm_library(
     name = "self_issued_id_token",
     srcs = ["SelfIssuedIdToken.kt"],
     visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:__subpackages__",
     ],

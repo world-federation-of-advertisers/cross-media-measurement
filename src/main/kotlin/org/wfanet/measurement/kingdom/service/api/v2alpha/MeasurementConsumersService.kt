@@ -57,6 +57,10 @@ class MeasurementConsumersService(
       "public_key.signature is missing"
     }
 
+    grpcRequire(request.measurementConsumerCreationToken.isNotBlank()) {
+      "Measurement Consumer creation token is unspecified"
+    }
+
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
         internalMeasurementConsumer {
@@ -67,6 +71,8 @@ class MeasurementConsumersService(
               publicKey = measurementConsumer.publicKey.data
               publicKeySignature = measurementConsumer.publicKey.signature
             }
+          measurementConsumerCreationToken =
+            apiIdToExternalId(request.measurementConsumerCreationToken)
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
         // as owner.

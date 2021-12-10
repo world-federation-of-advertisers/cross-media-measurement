@@ -95,7 +95,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         measurementConsumersStub,
         flags.runId
       )
-      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts, "MTIzNDU2NzM")
   }
 }
 

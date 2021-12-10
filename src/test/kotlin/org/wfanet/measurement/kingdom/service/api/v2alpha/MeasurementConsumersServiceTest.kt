@@ -51,6 +51,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -93,7 +94,7 @@ private const val CERTIFICATE_ID = 456L
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val ACCOUNT_NAME = "accounts/AAAAAAAAAHs"
 private const val CERTIFICATE_NAME = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = 12345673L
+private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = "MTIzNDU2NzM"
 
 @RunWith(JUnit4::class)
 class MeasurementConsumersServiceTest {
@@ -123,6 +124,7 @@ class MeasurementConsumersServiceTest {
           certificateDer = SERVER_CERTIFICATE_DER
           publicKey = SIGNED_PUBLIC_KEY
         }
+      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
     }
 
     val createdMeasurementConsumer = runBlocking { service.createMeasurementConsumer(request) }
@@ -145,6 +147,7 @@ class MeasurementConsumersServiceTest {
               clearExternalMeasurementConsumerId()
               clearExternalCertificateId()
             }
+          measurementConsumerCreationToken = apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
         }
       )
   }
@@ -153,6 +156,7 @@ class MeasurementConsumersServiceTest {
   fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
     val request = createMeasurementConsumerRequest {
       measurementConsumer = measurementConsumer { publicKey = SIGNED_PUBLIC_KEY }
+      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
     }
 
     val exception =
@@ -164,9 +168,29 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
+  fun `create throws INVALID_ARGUMENT when creation token is missing`() {
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer =
+        measurementConsumer {
+          certificateDer = SERVER_CERTIFICATE_DER
+          publicKey = SIGNED_PUBLIC_KEY
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.createMeasurementConsumer(request) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Measurement Consumer creation token is unspecified")
+  }
+
+  @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
     val request = createMeasurementConsumerRequest {
       measurementConsumer = measurementConsumer { certificateDer = SERVER_CERTIFICATE_DER }
+      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
     }
 
     val exception =
@@ -489,7 +513,7 @@ class MeasurementConsumersServiceTest {
       externalAccountId = ACCOUNT_ID
       activationState = Account.ActivationState.ACTIVATED
       externalOwnedMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      measurementConsumerCreationToken = apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
       externalOwnedMeasurementConsumerIds += MEASUREMENT_CONSUMER_ID
     }
   }

@@ -16,6 +16,7 @@ package org.wfanet.measurement.integration.common
 
 import io.grpc.Channel
 import java.util.logging.Logger
+import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -24,7 +25,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -36,9 +39,11 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.common.service.withAccountsServerInterceptor
+import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
@@ -48,6 +53,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetup
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
@@ -58,10 +64,12 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService
 class InProcessKingdom(
   dataServicesProvider: () -> DataServices,
   val verboseGrpcLogging: Boolean = true,
+  private val redirectUri: String,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
   private val internalApiChannel by lazy { internalDataServer.channel }
+  private val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
   }
@@ -122,6 +130,7 @@ class InProcessKingdom(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's public API services")
       listOf(
+        AccountsService(internalAccountsClient, redirectUri),
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
@@ -131,7 +140,14 @@ class InProcessKingdom(
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
-          addService(it.withVerboseLogging(verboseGrpcLogging))
+          when (it) {
+            is AccountsService ->
+              addService(
+                it.withVerboseLogging(verboseGrpcLogging)
+                  .withAccountAuthenticationServerInterceptor(internalAccountsClient)
+              )
+            else -> addService(it.withVerboseLogging(verboseGrpcLogging))
+          }
         }
       listOf(
         ExchangeStepAttemptsService(
@@ -162,6 +178,10 @@ class InProcessKingdom(
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)
       .apply(statement, description)
   }
+
+  /** Provides an Account instance for MeasurementConsumer creation. */
+  val account: Account
+    get() = runBlocking { internalAccountsClient.createAccount(account {}) }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

@@ -36,7 +36,7 @@ import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.sign
-import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey as signMcEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
 
@@ -53,7 +53,8 @@ class ResourceSetup(
   suspend fun process(
     dataProviderContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
-    duchyCerts: List<DuchyCert>
+    duchyCerts: List<DuchyCert>,
+    measurementConsumerCreationToken: String
   ) {
     logger.info("Starting with RunID: $runId ...")
 
@@ -67,7 +68,8 @@ class ResourceSetup(
     }
 
     // Step 2: Create the MC via the public API.
-    val measurementConsumer = createMeasurementConsumer(measurementConsumerContent)
+    val measurementConsumer =
+      createMeasurementConsumer(measurementConsumerContent, measurementConsumerCreationToken)
     logger.info(
       "Successfully created measurement consumer: ${measurementConsumer.name} " +
         "with certificate ${measurementConsumer.certificate} ..."
@@ -104,7 +106,8 @@ class ResourceSetup(
   }
 
   suspend fun createMeasurementConsumer(
-    measurementConsumerContent: EntityContent
+    measurementConsumerContent: EntityContent,
+    measurementConsumerCreationToken: String
   ): MeasurementConsumer {
     val encryptionPublicKey = encryptionPublicKey {
       format = EncryptionPublicKey.Format.TINK_KEYSET
@@ -116,13 +119,14 @@ class ResourceSetup(
         measurementConsumer {
           certificateDer = measurementConsumerContent.consentSignalCertificateDer
           publicKey =
-            signMcEncryptionPublicKey(
+            signEncryptionPublicKey(
               encryptionPublicKey,
               privateKeyHandle,
               readCertificate(measurementConsumerContent.consentSignalCertificateDer)
             )
           displayName = measurementConsumerContent.displayName
         }
+      this.measurementConsumerCreationToken = measurementConsumerCreationToken
     }
     return measurementConsumersClient.createMeasurementConsumer(request)
   }
