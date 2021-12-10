@@ -51,11 +51,14 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
@@ -64,8 +67,6 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
-import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 data class EdpData(
@@ -73,12 +74,10 @@ data class EdpData(
   val name: String,
   /** The EDP's display name. */
   val displayName: String,
-  /** The ID of the EDP's encryption private key in keyStore. */
-  val encryptionPrivateKeyId: String,
-  /** The ID of the EDP's consent signaling private key in keyStore. */
-  val consentSignalingPrivateKeyId: String,
-  /** The EDP's consent signaling certificate in DER format. */
-  val consentSignalCertificateDer: ByteString,
+  /** The EDP's consent signaling encryption key. */
+  val encryptionKey: PrivateKeyHandle,
+  /** The EDP's consent signaling signing key. */
+  val signingKey: SigningKeyHandle
 )
 
 /** A simulator handling EDP businesses. */
@@ -90,7 +89,6 @@ class EdpSimulator(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
-  private val keyStore: KeyStore,
   private val eventQuery: EventQuery,
   private val throttler: MinimumIntervalThrottler
 ) {
@@ -154,12 +152,8 @@ class EdpSimulator(
     }
 
     val requisitionFingerprint = computeRequisitionFingerprint(requisition)
-    val signedRequisitionSpec =
-      decryptRequisitionSpec(
-        requisition.encryptedRequisitionSpec,
-        checkNotNull(keyStore.getPrivateKeyHandle(ENCRYPTION_PRIVATE_KEY_HANDLE_KEY)),
-        ::ReversingHybridCryptor
-      )
+    val signedRequisitionSpec: SignedData =
+      decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
     val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
     if (!verifyRequisitionSpec(
         requisitionSpecSignature = signedRequisitionSpec.signature,
