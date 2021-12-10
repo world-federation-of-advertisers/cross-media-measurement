@@ -145,7 +145,7 @@ message ExchangeWorkflow {
       // This is a serialized instance of private_membership.batch.Parameters.
       bytes serialized_parameters = 1;
       int32 encrypted_query_bundle_file_count = 2;
-      int32 query_id_and_panelist_key_file_count = 3;
+      int32 query_id_to_ids_file_count = 3;
       int32 num_shards = 4;
       int32 num_buckets_per_shard = 5;
       // Consider making this optional once its not experimental
