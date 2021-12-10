@@ -1,0 +1,19 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "AwsKingdomSchemaTest",
+    srcs = [
+        "AwsKingdomSchemaTest.kt",
+    ],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/aws/postgres/testing:kingdom.sql",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.deploy.aws.postgres.AwsKingdomSchemaTest",
+    deps = [
+        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/aws/postgres/testing:schemata",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
