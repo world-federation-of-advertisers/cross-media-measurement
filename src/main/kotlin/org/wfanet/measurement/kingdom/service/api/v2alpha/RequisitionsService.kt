@@ -287,10 +287,9 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
     grpcRequireNotNull(DataProviderKey.fromName(source.parent)) {
       "Parent is either unspecified or invalid"
     }
-  grpcRequire(
-    (source.filter.measurement.isNotBlank() && parentKey.dataProviderId == WILDCARD) ||
-      parentKey.dataProviderId != WILDCARD
-  ) { "Either parent data provider or measurement filter must be provided" }
+  grpcRequire(parentKey.dataProviderId != WILDCARD || source.filter.measurement.isNotBlank()) {
+    "Either parent data provider or measurement filter must be provided"
+  }
 
   grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
 
