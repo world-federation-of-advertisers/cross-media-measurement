@@ -21,7 +21,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signatures",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signed_blob",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

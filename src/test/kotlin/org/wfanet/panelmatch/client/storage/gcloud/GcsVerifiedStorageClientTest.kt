@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.client.storage.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
