@@ -360,7 +360,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   }
 
   @Test
-  fun `replaceAccountIdentity throws PERMISSION_DENIED when account is unactivated`() =
+  fun `replaceAccountIdentity throws FAILED_PRECONDITION when account is unactivated`() =
       runBlocking {
     val idToken = generateIdToken(service)
     service.createAccount(account {})
@@ -376,7 +376,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.status.description).isEqualTo("Account has not been activated yet")
   }
 

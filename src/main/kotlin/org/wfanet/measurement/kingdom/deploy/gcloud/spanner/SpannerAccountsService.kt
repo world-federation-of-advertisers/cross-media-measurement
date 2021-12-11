@@ -164,7 +164,7 @@ class SpannerAccountsService(
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Account was not found" }
         KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
-          failGrpc(Status.PERMISSION_DENIED) { "Account has not been activated yet" }
+          failGrpc(Status.FAILED_PRECONDITION) { "Account has not been activated yet" }
         KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
