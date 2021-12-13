@@ -57,13 +57,14 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticip
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
 
-/**
- * TestRule that starts and stops all Kingdom gRPC services. RedirectUri parameter is for the open
- * id client redirect uri when creating the authentication uri.
- */
+/** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(
   dataServicesProvider: () -> DataServices,
   val verboseGrpcLogging: Boolean = true,
+  /**
+   * RedirectUri parameter is for the open id client redirect uri when creating the authentication
+   * uri.
+   */
   private val redirectUri: String,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
@@ -129,17 +130,16 @@ class InProcessKingdom(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's public API services")
 
-      addService(
-        AccountsService(internalAccountsClient, redirectUri)
-          .withVerboseLogging(verboseGrpcLogging)
-          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
-      )
-
-      addService(
+      listOf(
+        AccountsService(internalAccountsClient, redirectUri),
         MeasurementConsumersService(internalMeasurementConsumersClient)
-          .withVerboseLogging(verboseGrpcLogging)
-          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
       )
+        .forEach {
+          addService(
+            it.withVerboseLogging(verboseGrpcLogging)
+              .withAccountAuthenticationServerInterceptor(internalAccountsClient)
+          )
+        }
 
       listOf(
         CertificatesService(internalCertificatesClient),
