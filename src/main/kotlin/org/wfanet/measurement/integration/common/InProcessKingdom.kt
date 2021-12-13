@@ -16,7 +16,6 @@ package org.wfanet.measurement.integration.common
 
 import io.grpc.Channel
 import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -25,7 +24,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
@@ -39,7 +37,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.common.service.withAccountsServerInterceptor
@@ -69,7 +66,7 @@ class InProcessKingdom(
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
   private val internalApiChannel by lazy { internalDataServer.channel }
-  private val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
+  val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
   }
@@ -182,10 +179,6 @@ class InProcessKingdom(
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)
       .apply(statement, description)
   }
-
-  /** Provides an Account instance for MeasurementConsumer creation. */
-  val account: Account
-    get() = runBlocking { internalAccountsClient.createAccount(account {}) }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

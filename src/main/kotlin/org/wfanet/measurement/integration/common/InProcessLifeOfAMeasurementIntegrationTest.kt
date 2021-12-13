@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
+import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -164,7 +165,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     val mc = createEntityContent(MC_DISPLAY_NAME)
     simulatorKeyStore.storePrivateKeyDer(mc.displayName, mc.consentSignalPrivateKeyDer)
 
-    val account = kingdom.account
+    val account = kingdom.internalAccountsClient.createAccount(account {})
     val authenticationResponse =
       publicAccountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
     val idToken =
