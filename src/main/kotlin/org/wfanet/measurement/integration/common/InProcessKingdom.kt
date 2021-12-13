@@ -66,7 +66,6 @@ class InProcessKingdom(
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
   private val internalApiChannel by lazy { internalDataServer.channel }
-  val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
   }
@@ -174,6 +173,9 @@ class InProcessKingdom(
   /** Provides a PanelMatchResourceSetup instance with the Kingdom's internal API. */
   val panelMatchResourceSetup: PanelMatchResourceSetup
     get() = PanelMatchResourceSetup(internalApiChannel)
+
+  /** Provides access to Account creation in place of the Kingdom's operator. */
+  val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)
