@@ -88,7 +88,10 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val ENCRYPTED_METADATA = ByteString.copyFromUtf8("encryptedMetadata")
+<<<<<<< HEAD
 private val API_VERSION = Version.V2_ALPHA
+=======
+>>>>>>> c238f441 (Populated additional fields)
 
 private val EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME)!!.eventGroupId)
