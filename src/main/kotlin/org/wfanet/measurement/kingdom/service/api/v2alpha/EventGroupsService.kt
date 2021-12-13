@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
@@ -121,15 +122,24 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
-    measurementConsumerPublicKey =
-      signedData {
-        data = details.measurementConsumerPublicKey
-        signature = details.measurementConsumerPublicKeySignature
-      }
+    measurementConsumerCertificate =
+      MeasurementConsumerCertificateKey(
+          externalIdToApiId(externalMeasurementConsumerId),
+          externalIdToApiId(externalMeasurementConsumerCertificateId)
+        )
+        .toName()
+    if (!details.measurementConsumerPublicKey.isEmpty) {
+      measurementConsumerPublicKey =
+        signedData {
+          data = details.measurementConsumerPublicKey
+          signature = details.measurementConsumerPublicKeySignature
+        }
+    }
     vidModelLines += details.vidModelLinesList
     eventTemplates.addAll(
       details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
     )
+    encryptedMetadata = details.encryptedMetadata
   }
 }
 
@@ -145,10 +155,17 @@ private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEve
     grpcRequireNotNull(MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)) {
       "Measurement consumer is either unspecified or invalid"
     }
+  val measurementConsumerCertificateId =
+    MeasurementConsumerCertificateKey.fromName(eventGroup.measurementConsumerCertificate)
 
   return internalEventGroup {
     externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+    if (measurementConsumerCertificateId != null) {
+      externalMeasurementConsumerCertificateId =
+        apiIdToExternalId(measurementConsumerCertificateId.certificateId)
+    }
+
     providedEventGroupId = eventGroupReferenceId
     details =
       details {
@@ -160,6 +177,7 @@ private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEve
             internalEventTemplate { fullyQualifiedType = event.type }
           }
         )
+        encryptedMetadata = eventGroup.encryptedMetadata
       }
   }
 }

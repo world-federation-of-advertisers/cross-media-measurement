@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -83,6 +84,9 @@ private val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
 private val EVENT_GROUP_NAME_2 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAJs"
 private val EVENT_GROUP_NAME_3 = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
+  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+private val ENCRYPTED_METADATA = ByteString.copyFromUtf8("encryptedMetadata")
 
 private val EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME)!!.eventGroupId)
@@ -93,6 +97,11 @@ private val EVENT_GROUP_EXTERNAL_ID_3 =
 private val MEASUREMENT_CONSUMER_EXTERNAL_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+  )
+private val MEASUREMENT_CONSUMER_CERTIFICATE_ID =
+  apiIdToExternalId(
+    MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+      .certificateId
   )
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA = ByteString.copyFromUtf8("foodata")
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("foosig")
@@ -108,6 +117,7 @@ private val INTERNAL_EVENT_TEMPLATES =
 private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   eventGroupReferenceId = "aaa"
   measurementConsumerPublicKey =
     signedData {
@@ -116,12 +126,14 @@ private val EVENT_GROUP: EventGroup = eventGroup {
     }
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
+  encryptedMetadata = ENCRYPTED_METADATA
 }
 
 private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
   externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
   externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+  externalMeasurementConsumerCertificateId = MEASUREMENT_CONSUMER_CERTIFICATE_ID
   providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
   createTime = CREATE_TIME
   details =
@@ -130,6 +142,7 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
       measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
       vidModelLines.addAll(VID_MODEL_LINES)
       eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
+      encryptedMetadata = ENCRYPTED_METADATA
     }
 }
 
