@@ -57,7 +57,10 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticip
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
 
-/** TestRule that starts and stops all Kingdom gRPC services. */
+/**
+ * TestRule that starts and stops all Kingdom gRPC services. RedirectUri parameter is for the open
+ * id client redirect uri when creating the authentication uri.
+ */
 class InProcessKingdom(
   dataServicesProvider: () -> DataServices,
   val verboseGrpcLogging: Boolean = true,
@@ -146,7 +149,8 @@ class InProcessKingdom(
         RequisitionsService(internalRequisitionsClient)
       )
         .forEach {
-          // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
+          // TODO(@wangyaopw): set up all public services to use the appropriate principal
+          // interceptors.
           addService(it.withVerboseLogging(verboseGrpcLogging))
         }
       listOf(
