@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import io.grpc.BindableService
 import io.grpc.Channel
+import io.grpc.ServerServiceDefinition
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -61,10 +63,7 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService
 class InProcessKingdom(
   dataServicesProvider: () -> DataServices,
   val verboseGrpcLogging: Boolean = true,
-  /**
-   * RedirectUri parameter is for the open id client redirect uri when creating the authentication
-   * uri.
-   */
+  /** The open id client redirect uri when creating the authentication uri. */
   private val redirectUri: String,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
@@ -131,27 +130,23 @@ class InProcessKingdom(
       logger.info("Building Kingdom's public API services")
 
       listOf(
-        AccountsService(internalAccountsClient, redirectUri),
-        MeasurementConsumersService(internalMeasurementConsumersClient)
-      )
-        .forEach {
-          addService(
-            it.withVerboseLogging(verboseGrpcLogging)
-              .withAccountAuthenticationServerInterceptor(internalAccountsClient)
-          )
-        }
-
-      listOf(
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient),
-        RequisitionsService(internalRequisitionsClient)
+        RequisitionsService(internalRequisitionsClient),
+        AccountsService(internalAccountsClient, redirectUri)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient),
+        MeasurementConsumersService(internalMeasurementConsumersClient)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use the appropriate principal
           // interceptors.
-          addService(it.withVerboseLogging(verboseGrpcLogging))
+          when (it) {
+            is BindableService -> addService(it.withVerboseLogging(verboseGrpcLogging))
+            is ServerServiceDefinition -> addService(it.withVerboseLogging(verboseGrpcLogging))
+          }
         }
       listOf(
         ExchangeStepAttemptsService(
