@@ -41,5 +41,5 @@ message JoinKeyAndId {
 
 // A collection of panelist keys and panelist key ids
 message JoinKeyAndIdCollection {
-  repeated JoinKeyAndId join_keys_and_ids = 1;
+  repeated JoinKeyAndId join_key_and_ids = 1;
 }

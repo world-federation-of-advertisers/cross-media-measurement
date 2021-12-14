@@ -24,14 +24,23 @@
 namespace wfa::panelmatch::client::privatemembership {
 namespace {
 
+using ::wfa::panelmatch::client::exchangetasks::JoinKeyAndId;
+
+JoinKeyAndId makeJoinKeyAndId(const std::string& join_key,
+                              const std::string& identifier) {
+  JoinKeyAndId join_key_and_id;
+  join_key_and_id.mutable_join_key()->set_key(join_key);
+  join_key_and_id.mutable_join_key_identifier()->set_id(identifier);
+  return join_key_and_id;
+}
+
 TEST(PrepareQuery, PrepareQueryTest) {
   PrepareQueryRequest test_request;
   test_request.set_identifier_hash_pepper("some-pepper");
-  test_request.add_single_blinded_keys("some joinkey0");
-  test_request.add_single_blinded_keys("some joinkey1");
-  test_request.add_single_blinded_keys("some joinkey2");
-  test_request.add_single_blinded_keys("some joinkey3");
-  test_request.add_single_blinded_keys("some joinkey4");
+  *test_request.add_decrypted_join_key_and_ids() =
+      makeJoinKeyAndId("some-join-key-0", "some-identifier-0");
+  *test_request.add_decrypted_join_key_and_ids() =
+      makeJoinKeyAndId("some-join-key-1", "some-identifier-1");
   absl::StatusOr<PrepareQueryResponse> test_response =
       PrepareQuery(test_request);
   EXPECT_THAT(test_response.status(), IsOk());

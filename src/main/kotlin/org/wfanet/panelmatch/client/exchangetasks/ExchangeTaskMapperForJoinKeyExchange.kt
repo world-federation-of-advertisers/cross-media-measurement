@@ -24,6 +24,7 @@ import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
+import org.wfanet.panelmatch.client.privatemembership.QueryPreparer
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
@@ -35,6 +36,7 @@ import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
   abstract val deterministicCommutativeCryptor: DeterministicCommutativeCipher
   abstract val getPrivateMembershipCryptor: (ByteString) -> PrivateMembershipCryptor
+  abstract val queryPreparer: QueryPreparer
   abstract val queryResultsDecryptor: QueryResultsDecryptor
   abstract val getQueryResultsEvaluator: (ByteString) -> QueryEvaluator
   abstract val privateStorageSelector: PrivateStorageSelector
@@ -55,6 +57,7 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       StepCase.REENCRYPT_STEP ->
         CryptorExchangeTask.forReEncryption(deterministicCommutativeCryptor)
       StepCase.DECRYPT_STEP -> CryptorExchangeTask.forDecryption(deterministicCommutativeCryptor)
+      StepCase.GENERATE_LOOKUP_KEYS_STEP -> JoinKeyHashingExchangeTask.forHashing(queryPreparer)
       StepCase.INPUT_STEP -> getInputStepTask()
       StepCase.INTERSECT_AND_VALIDATE_STEP -> getIntersectAndValidateStepTask()
       StepCase.GENERATE_COMMUTATIVE_DETERMINISTIC_KEY_STEP ->
@@ -68,7 +71,6 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
       StepCase.COPY_FROM_SHARED_STORAGE_STEP -> getCopyFromSharedStorageTask()
       StepCase.COPY_TO_SHARED_STORAGE_STEP -> getCopyToSharedStorageTask()
       StepCase.COPY_FROM_PREVIOUS_EXCHANGE_STEP -> getCopyFromPreviousExchangeTask()
-      StepCase.GENERATE_LOOKUP_KEYS -> GenerateLookupKeysTask()
       else -> throw IllegalArgumentException("Unsupported step type: ${step.stepCase}")
     }
   }
@@ -108,11 +110,10 @@ abstract class ExchangeTaskMapperForJoinKeyExchange : ExchangeTaskMapper {
     check(step.stepCase == StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP)
     val stepDetails = step.buildPrivateMembershipQueriesStep
     val privateMembershipCryptor = getPrivateMembershipCryptor(stepDetails.serializedParameters)
-
     val outputManifests =
       mapOf(
         "encrypted-queries" to stepDetails.encryptedQueryBundleFileCount,
-        "query-to-join-keys-map" to stepDetails.queryIdAndPanelistKeyFileCount,
+        "query-to-ids-map" to stepDetails.queryIdToIdsFileCount,
       )
 
     val parameters =

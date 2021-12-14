@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.io.Serializable
 import kotlin.test.assertFailsWith
 import org.apache.beam.sdk.metrics.MetricNameFilter
 import org.apache.beam.sdk.metrics.MetricsFilter
@@ -25,29 +26,38 @@ import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.bucketIdOf
+import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
 import org.wfanet.panelmatch.client.common.joinKeyOf
+import org.wfanet.panelmatch.client.common.lookupKeyOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
+import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesOutputs
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.LookupKeyAndId
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKeys
+import org.wfanet.panelmatch.client.privatemembership.QueryIdAndId
+import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.createQueries
+import org.wfanet.panelmatch.client.privatemembership.lookupKeyAndId
 import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.beam.values
 
 @RunWith(JUnit4::class)
 abstract class AbstractCreateQueriesTest : BeamTestBase() {
-  private val lookupKeysAndIds by lazy {
-    getJoinKeysAndIds(
+  private val lookupKeyAndIds by lazy {
+    getLookupKeyAndIds(
       53L to "abc",
       58L to "def",
       71L to "hij",
@@ -76,13 +86,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     parameters: CreateQueriesParameters,
   ): CreateQueriesOutputs {
     val keys = pcollectionViewOf("Create Keys", privateMembershipCryptor.generateKeys())
-    return createQueries(
-      lookupKeysAndIds,
-      hashedJoinKeysAndIds,
-      keys,
-      parameters,
-      privateMembershipCryptor
-    )
+    return createQueries(lookupKeyAndIds, keys, parameters, privateMembershipCryptor)
   }
 
   @Test
@@ -100,12 +104,12 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     val panelistQueries = getPanelistQueries(decodedQueries, queryIdAndJoinKeys)
     assertThat(panelistQueries.values())
       .containsInAnyOrder(
-        PanelistQuery(0, "hashed join key of abc", "abc", 0),
-        PanelistQuery(1, "hashed join key of def", "def", 1),
-        PanelistQuery(1, "hashed join key of hij", "hij", 3),
-        PanelistQuery(1, "hashed join key of klm", "klm", 1),
-        PanelistQuery(1, "hashed join key of nop", "nop", 2),
-        PanelistQuery(0, "hashed join key of qrs", "qrs", 0)
+        PanelistQuery(shard = 1, bucket = 1, joinKeyIdentifier = "abc"),
+        PanelistQuery(shard = 0, bucket = 4, joinKeyIdentifier = "def"),
+        PanelistQuery(shard = 1, bucket = 0, joinKeyIdentifier = "hij"),
+        PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "klm"),
+        PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "nop"),
+        PanelistQuery(shard = 1, bucket = 4, joinKeyIdentifier = "qrs")
       )
     assertFailsWith(NoSuchElementException::class) { runPipelineAndGetNumberOfDiscardedQueries() }
   }
@@ -128,12 +132,12 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     val panelistQueries = getPanelistQueries(decodedQueries, queryIdAndJoinKeys)
     assertThat(panelistQueries.values())
       .containsInAnyOrder(
-        PanelistQuery(0, "hashed join key of abc", "abc", 0),
-        PanelistQuery(1, "hashed join key of def", "def", 1),
-        PanelistQuery(1, "hashed join key of hij", "hij", 3),
-        PanelistQuery(1, "hashed join key of klm", "klm", 1),
-        PanelistQuery(1, "hashed join key of nop", "nop", 2),
-        PanelistQuery(0, "hashed join key of qrs", "qrs", 0)
+        PanelistQuery(shard = 1, bucket = 1, joinKeyIdentifier = "abc"),
+        PanelistQuery(shard = 0, bucket = 4, joinKeyIdentifier = "def"),
+        PanelistQuery(shard = 1, bucket = 0, joinKeyIdentifier = "hij"),
+        PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "klm"),
+        PanelistQuery(shard = 1, bucket = 2, joinKeyIdentifier = "nop"),
+        PanelistQuery(shard = 1, bucket = 4, joinKeyIdentifier = "qrs")
       )
     assertThat(decodedQueries.values()).satisfies { shardedQueries ->
       for (i in 0 until numShards) {
@@ -168,7 +172,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
       }
       null
     }
-    assertThat(runPipelineAndGetNumberOfDiscardedQueries()).isEqualTo(1)
+    assertThat(runPipelineAndGetNumberOfDiscardedQueries()).isEqualTo(2)
   }
 
   private fun runPipelineAndGetNumberOfDiscardedQueries(): Long {
@@ -182,17 +186,27 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     return metrics.distributions.map { it.committed.max }.first()
   }
 
+  private fun getLookupKeyAndIds(vararg entries: Pair<Long, String>): PCollection<LookupKeyAndId> {
+    return pcollectionOf(
+      "Create LookupKeys+Ids",
+      entries.map {
+        lookupKeyAndId {
+          lookupKey = lookupKeyOf(it.first)
+          joinKeyIdentifier = joinKeyIdentifierOf(it.second.toByteStringUtf8())
+        }
+      }
+    )
+  }
+
   private fun getJoinKeysAndIds(vararg entries: Pair<Long, String>): PCollection<JoinKeyAndId> {
     return pcollectionOf(
       "Create LookupKeys+Ids",
-      *entries
-        .map {
-          joinKeyAndId {
-            joinKeyIdentifier = joinKeyIdentifierOf(it.first)
-            joinKey = joinKeyOf(it.second.toByteStringUtf8())
-          }
+      entries.map {
+        joinKeyAndId {
+          joinKeyIdentifier = joinKeyIdentifierOf(it.first)
+          joinKey = joinKeyOf(it.second.toByteStringUtf8())
         }
-        .toTypedArray()
+      }
     )
   }
 
@@ -209,33 +223,45 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
 
   private fun getPanelistQueries(
     decryptedQueries: PCollection<KV<QueryId, ShardedQuery>>,
-    queryIdAndJoinKeys: PCollection<QueryIdAndJoinKeys>
+    queryIdAndIds: PCollection<QueryIdAndId>
   ): PCollection<KV<QueryId, PanelistQuery>> {
-    return queryIdAndJoinKeys.keyBy { it.queryId }.join(decryptedQueries) {
+    return queryIdAndIds.keyBy { it.queryId }.join(decryptedQueries) {
       key: QueryId,
-      panelistKeys: Iterable<QueryIdAndJoinKeys>,
+      queryIdAndIdsIterable: Iterable<QueryIdAndId>,
       shardedQueries: Iterable<ShardedQuery> ->
-      if (panelistKeys.count() > 0) {
-        val queriesList = shardedQueries.toList()
-        val queryIdAndJoinKeysList = panelistKeys.toList()
-
-        val query =
-          requireNotNull(queriesList.singleOrNull()) { "${queriesList.size} queries for $key" }
-
-        val queryIdAndKey =
-          requireNotNull(queryIdAndJoinKeysList.singleOrNull()) {
-            "${queryIdAndJoinKeysList.size} of panelistKeys for $key"
-          }
-
-        val panelistQuery =
-          PanelistQuery(
-            query.shardId,
-            queryIdAndKey.hashedJoinKey,
-            queryIdAndKey.lookupKey,
-            query.bucketId
-          )
-        yield(kvOf(key, panelistQuery))
+      val queryIdAndIdsList = queryIdAndIdsIterable.toList()
+      if (queryIdAndIdsList.isEmpty()) {
+        return@join
       }
+      val queriesList = shardedQueries.toList()
+
+      val query =
+        requireNotNull(queriesList.singleOrNull()) { "${queriesList.size} queries for $key" }
+
+      val queryIdAndId =
+        requireNotNull(queryIdAndIdsList.singleOrNull()) {
+          "${queryIdAndIdsList.size} of queryIdAndIds for $key"
+        }
+
+      val panelistQuery =
+        PanelistQuery(query.shardId, query.bucketId, queryIdAndId.joinKeyIdentifier)
+      yield(kvOf(key, panelistQuery))
     }
   }
+}
+
+data class PanelistQuery(
+  val shardId: ShardId,
+  val bucketId: BucketId,
+  val joinKeyIdentifier: JoinKeyIdentifier
+) : Serializable {
+  constructor(
+    shard: Int,
+    bucket: Int,
+    joinKeyIdentifier: String
+  ) : this(
+    shardIdOf(shard),
+    bucketIdOf(bucket),
+    joinKeyIdentifierOf(joinKeyIdentifier.toByteStringUtf8())
+  )
 }

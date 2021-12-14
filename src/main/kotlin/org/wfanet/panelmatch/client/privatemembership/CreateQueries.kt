@@ -32,88 +32,75 @@ import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
-import org.wfanet.panelmatch.client.common.joinKeyOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
-import org.wfanet.panelmatch.client.exchangetasks.JoinKey
-import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
-import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.common.beam.filter
 import org.wfanet.panelmatch.common.beam.groupByKey
-import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
-import org.wfanet.panelmatch.common.beam.oneToOneJoin
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 import org.wfanet.panelmatch.common.withTime
 
 private val FAKE_JOIN_KEY_ID = ByteString.EMPTY
-private val FAKE_JOIN_KEY = ByteString.EMPTY
 
 /**
  * Implements a query creation engine in Apache Beam that encrypts a query so that it can later be
  * expanded by another party using oblivious query expansion.
  */
 fun createQueries(
-  lookupKeyAndIds: PCollection<JoinKeyAndId>,
-  hashedJoinKeyAndIds: PCollection<JoinKeyAndId>,
+  lookupKeyAndIds: PCollection<LookupKeyAndId>,
   privateMembershipKeys: PCollectionView<AsymmetricKeys>,
   parameters: CreateQueriesParameters,
   privateMembershipCryptor: PrivateMembershipCryptor
 ): CreateQueriesOutputs {
   val tuple =
-    PCollectionTuple.of(CreateQueries.lookupKeyAndIdsTag, lookupKeyAndIds)
-      .and(CreateQueries.hashedJoinKeyAndIdsTag, hashedJoinKeyAndIds)
-      .apply(
-        "Create Queries",
-        CreateQueries(privateMembershipKeys, parameters, privateMembershipCryptor)
-      )
+    lookupKeyAndIds.apply(
+      "Create Queries",
+      CreateQueries(privateMembershipKeys, parameters, privateMembershipCryptor)
+    )
   return CreateQueriesOutputs(
-    queryIdMap = tuple[CreateQueries.queryIdAndJoinKeysTag],
+    queryIdMap = tuple[CreateQueries.queryIdAndIdTag],
     encryptedQueryBundles = tuple[CreateQueries.encryptedQueryBundlesTag]
   )
 }
 
 data class CreateQueriesOutputs(
-  val queryIdMap: PCollection<QueryIdAndJoinKeys>,
+  val queryIdMap: PCollection<QueryIdAndId>,
   val encryptedQueryBundles: PCollection<EncryptedQueryBundle>
 )
 
 private class CreateQueries(
   private val privateMembershipKeys: PCollectionView<AsymmetricKeys>,
   private val parameters: CreateQueriesParameters,
-  private val privateMembershipCryptor: PrivateMembershipCryptor
-) : PTransform<PCollectionTuple, PCollectionTuple>() {
+  private val privateMembershipCryptor: PrivateMembershipCryptor,
+) : PTransform<PCollection<LookupKeyAndId>, PCollectionTuple>() {
 
-  override fun expand(input: PCollectionTuple): PCollectionTuple {
-    val lookupKeysAndIds = input[lookupKeyAndIdsTag]
-    val hashedJoinKeyAndIds = input[hashedJoinKeyAndIdsTag]
-    val queriesByShard = shardJoinKeys(lookupKeysAndIds)
+  override fun expand(input: PCollection<LookupKeyAndId>): PCollectionTuple {
+    val queriesByShard = shardLookupKeys(input)
     val paddedQueriesByShard = addPaddedQueries(queriesByShard)
     val unencryptedQueriesByShard = buildUnencryptedQueries(paddedQueriesByShard)
-    val queryIdToKeysMapping =
-      extractRealQueryIdAndJoinKeys(unencryptedQueriesByShard, hashedJoinKeyAndIds)
+    val queryIdToIdsMapping = extractRealQueryIdAndId(unencryptedQueriesByShard)
     val encryptedQueryBundles = encryptQueries(unencryptedQueriesByShard, privateMembershipKeys)
-    return PCollectionTuple.of(queryIdAndJoinKeysTag, queryIdToKeysMapping)
+    return PCollectionTuple.of(queryIdAndIdTag, queryIdToIdsMapping)
       .and(encryptedQueryBundlesTag, encryptedQueryBundles)
   }
 
-  /** Determines shard and bucket for a [JoinKey]. */
-  private fun shardJoinKeys(
-    queries: PCollection<JoinKeyAndId>
+  /** Determines shard and bucket for a [LookupKey]. */
+  private fun shardLookupKeys(
+    lookupKeys: PCollection<LookupKeyAndId>
   ): PCollection<KV<ShardId, Iterable<@JvmWildcard BucketQuery>>> {
     val bucketing =
       Bucketing(
         numShards = parameters.numShards,
         numBucketsPerShard = parameters.numBucketsPerShard
       )
-
-    return queries
-      .map("Map to ShardId") { joinKeyAndId ->
-        val (shardId, bucketId) = bucketing.hashAndApply(joinKeyAndId.joinKey)
-        kvOf(shardId, BucketQuery(shardId, bucketId, joinKeyAndId))
+    return lookupKeys
+      .map("Map to ShardId") { lookupKeyAndId: LookupKeyAndId ->
+        val (shardId, bucketId) = bucketing.apply(lookupKeyAndId.lookupKey.key)
+        kvOf(shardId, BucketQuery(lookupKeyAndId.joinKeyIdentifier, shardId, bucketId))
       }
       .groupByKey("Group by Shard")
   }
@@ -154,7 +141,7 @@ private class CreateQueries(
           kv.value.map { query: BucketQuery ->
             val queryId = queryIdOf(queryIds.next() + offset)
             val unencryptedQuery = unencryptedQueryOf(shardId, query.bucketId, queryId)
-            FullUnencryptedQuery(unencryptedQuery, query.lookupKeyAndId)
+            FullUnencryptedQuery(query.joinKeyIdentifier, unencryptedQuery)
           }
         kvOf(shardId, unencryptedQueries)
       }
@@ -169,32 +156,18 @@ private class CreateQueries(
       )
   }
 
-  /** Filter out fake queries and return [QueryIdAndJoinKeys]s. */
-  private fun extractRealQueryIdAndJoinKeys(
-    unencryptedQueries: PCollection<KV<ShardId, List<FullUnencryptedQuery>>>,
-    hashedJoinKeyAndIds: PCollection<JoinKeyAndId>
-  ): PCollection<QueryIdAndJoinKeys> {
-    val keyedHashedJoinKeyAndIds = hashedJoinKeyAndIds.keyBy { it.joinKeyIdentifier }
-    return unencryptedQueries
+  /** Filter out fake queries and return [QueryIdAndId]s. */
+  private fun extractRealQueryIdAndId(
+    fullUnencryptedQueries: PCollection<KV<ShardId, List<FullUnencryptedQuery>>>
+  ): PCollection<QueryIdAndId> {
+    return fullUnencryptedQueries
       .values("Drop ShardIds")
       .apply("Flatten", Flatten.iterables())
-      .filter("Filter out padded queries") {
-        it.lookupKeyAndId.joinKeyIdentifier.id != FAKE_JOIN_KEY_ID
-      }
-      .keyBy("Key by JoinKey") { it.lookupKeyAndId.joinKeyIdentifier }
-      .oneToOneJoin(keyedHashedJoinKeyAndIds, name = "Join FullUnencryptedQuery+HashedJoinKeys")
-      // TODO: Consider using DoFn to export some metrics about this
-      .parDo("Make QueryIdAndJoinKeys") { kv ->
-        val query: FullUnencryptedQuery? = kv.key
-        val joinKeyAndId: JoinKeyAndId? = kv.value
-        if (query != null && joinKeyAndId != null) {
-          yield(
-            queryIdAndJoinKeys {
-              queryId = query.unencryptedQuery.queryId
-              hashedJoinKey = joinKeyAndId.joinKey
-              lookupKey = query.lookupKeyAndId.joinKey
-            }
-          )
+      .filter("Filter out padded queries") { it.joinKeyIdentifier.id != FAKE_JOIN_KEY_ID }
+      .map { fullUnencryptedQuery ->
+        queryIdAndId {
+          queryId = fullUnencryptedQuery.unencryptedQuery.queryId
+          joinKeyIdentifier = fullUnencryptedQuery.joinKeyIdentifier
         }
       }
   }
@@ -202,31 +175,35 @@ private class CreateQueries(
   /** Batch gets the oblivious queries grouped by [ShardId]. */
   private fun encryptQueries(
     unencryptedQueries: PCollection<KV<ShardId, List<FullUnencryptedQuery>>>,
-    keys: PCollectionView<AsymmetricKeys>
+    privateMembershipKeys: PCollectionView<AsymmetricKeys>
   ): PCollection<EncryptedQueryBundle> {
     return unencryptedQueries.apply(
       "Encrypt Queries per Shard",
-      ParDo.of(EncryptQueriesFn(privateMembershipCryptor, keys)).withSideInputs(keys)
+      ParDo.of(EncryptQueriesFn(this.privateMembershipCryptor, privateMembershipKeys))
+        .withSideInputs(privateMembershipKeys)
     )
   }
 
   companion object {
-    val lookupKeyAndIdsTag = TupleTag<JoinKeyAndId>()
-    val hashedJoinKeyAndIdsTag = TupleTag<JoinKeyAndId>()
-    val queryIdAndJoinKeysTag = TupleTag<QueryIdAndJoinKeys>()
+    val queryIdAndIdTag = TupleTag<QueryIdAndId>()
     val encryptedQueryBundlesTag = TupleTag<EncryptedQueryBundle>()
   }
 }
 
+/**
+ * Bucket queries are for join keys that have a shard and bucket id assigned but don't have a query
+ * id yet.
+ */
 private data class BucketQuery(
+  val joinKeyIdentifier: JoinKeyIdentifier,
   val shardId: ShardId,
-  val bucketId: BucketId,
-  val lookupKeyAndId: JoinKeyAndId
+  val bucketId: BucketId
 ) : Serializable
 
+/** An Unencrypted Query (shard id, bucket id, query id) tied back to a joinKeyIdentifier. */
 private data class FullUnencryptedQuery(
-  val unencryptedQuery: UnencryptedQuery,
-  val lookupKeyAndId: JoinKeyAndId
+  val joinKeyIdentifier: JoinKeyIdentifier,
+  val unencryptedQuery: UnencryptedQuery
 ) : Serializable
 
 private const val METRIC_NAMESPACE: String = "CreateQueries"
@@ -301,14 +278,7 @@ private class EqualizeQueriesPerShardFn(private val totalQueriesPerShard: Int) :
     val paddingQueries =
       List(-queryCountDelta) {
         // TODO: If we add in query mitigation, the BucketId should be set to the fake bucket
-        BucketQuery(
-          kv.key,
-          bucketIdOf(0),
-          joinKeyAndId {
-            joinKeyIdentifier = joinKeyIdentifierOf(FAKE_JOIN_KEY_ID)
-            joinKey = joinKeyOf(FAKE_JOIN_KEY)
-          }
-        )
+        BucketQuery(joinKeyIdentifierOf(FAKE_JOIN_KEY_ID), kv.key, bucketIdOf(0))
       }
 
     context.output(kvOf(kv.key, allQueries + paddingQueries))

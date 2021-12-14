@@ -31,6 +31,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.launcher.testing.inputStep
+import org.wfanet.panelmatch.client.privatemembership.JniQueryPreparer
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryResultsDecryptor
@@ -85,6 +86,7 @@ class ExchangeTaskMapperForJoinKeyExchangeTest {
         PlaintextPrivateMembershipCryptor()
       }
       override val queryResultsDecryptor = PlaintextQueryResultsDecryptor()
+      override val queryPreparer = JniQueryPreparer()
       override val privateStorageSelector = testPrivateStorageSelector.selector
       override val sharedStorageSelector = testSharedStorageSelector.selector
       override val certificateManager = TestCertificateManager

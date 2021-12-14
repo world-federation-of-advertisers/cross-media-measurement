@@ -22,7 +22,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.queryIdOf
-import org.wfanet.panelmatch.client.privatemembership.testing.queryIdAndJoinKeysOf
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
+import org.wfanet.panelmatch.client.privatemembership.testing.joinKeyAndIdOf
+import org.wfanet.panelmatch.client.privatemembership.testing.queryIdAndIdOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCompressionParameters
@@ -36,11 +38,25 @@ private val ENCRYPTED_QUERY_RESULTS =
     encryptedQueryResultOf(3, "payload-3"),
   )
 
-private val QUERY_ID_AND_JOIN_KEYS: List<QueryIdAndJoinKeys> =
+private val QUERY_ID_AND_IDS: List<QueryIdAndId> =
   listOf(
-    queryIdAndJoinKeysOf(1, "some-lookup-key-1", "some-hashed-joinkey-1"),
-    queryIdAndJoinKeysOf(2, "some-lookup-key-2", "some-hashed-joinkey-2"),
-    queryIdAndJoinKeysOf(3, "some-lookup-key-3", "some-hashed-joinkey-3")
+    queryIdAndIdOf(1, "some-id-1"),
+    queryIdAndIdOf(2, "some-id-2"),
+    queryIdAndIdOf(3, "some-id-3")
+  )
+
+private val PLAINTEXT_JOIN_KEY_AND_IDS: List<JoinKeyAndId> =
+  listOf(
+    joinKeyAndIdOf("some-plaintext-joinkey-1", "some-id-1"),
+    joinKeyAndIdOf("some-plaintext-joinkey-2", "some-id-2"),
+    joinKeyAndIdOf("some-plaintext-joinkey-3", "some-id-3")
+  )
+
+private val DECRYPTED_JOIN_KEY_AND_IDS: List<JoinKeyAndId> =
+  listOf(
+    joinKeyAndIdOf("some-decrypted-join-key-id-1", "some-id-1"),
+    joinKeyAndIdOf("some-decrypted-join-key-id-2", "some-id-2"),
+    joinKeyAndIdOf("some-decrypted-join-key-id-3", "some-id-3")
   )
 
 private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
@@ -60,13 +76,19 @@ class DecryptQueryResultsTest : BeamTestBase() {
   fun success() {
     val encryptedQueryResults =
       pcollectionOf("Create EncryptedQueryResults", ENCRYPTED_QUERY_RESULTS)
-    val queryIdAndJoinKeys: PCollection<QueryIdAndJoinKeys> =
-      pcollectionOf("Create QueryIdAndJoinKeys", QUERY_ID_AND_JOIN_KEYS)
+    val queryIdAndIds: PCollection<QueryIdAndId> =
+      pcollectionOf("Create QueryIdAndIds", QUERY_ID_AND_IDS)
+    val plaintextJoinKeyAndIds: PCollection<JoinKeyAndId> =
+      pcollectionOf("Create PlaintextJoinKeyAndIds", PLAINTEXT_JOIN_KEY_AND_IDS)
+    val decryptedJoinKeyAndIds: PCollection<JoinKeyAndId> =
+      pcollectionOf("Create DecryptedJoinKeyAndIds", DECRYPTED_JOIN_KEY_AND_IDS)
 
     val results =
       decryptQueryResults(
         encryptedQueryResults = encryptedQueryResults,
-        queryIdAndJoinKeys = queryIdAndJoinKeys,
+        plaintextJoinKeyAndIds = plaintextJoinKeyAndIds,
+        decryptedJoinKeyAndIds = decryptedJoinKeyAndIds,
+        queryIdAndIds = queryIdAndIds,
         compressionParameters =
           pcollectionViewOf("CompressionParameters View", COMPRESSION_PARAMETERS),
         privateMembershipKeys = pcollectionViewOf("Keys View", ASYMMETRIC_KEYS),
@@ -78,42 +100,42 @@ class DecryptQueryResultsTest : BeamTestBase() {
     assertThat(results).satisfies { keyedDecryptedEventDataSets ->
       val deserializedResults: List<Pair<String, List<ByteString>>> =
         keyedDecryptedEventDataSets.map {
-          it.hashedJoinKey.key.toStringUtf8() to
+          it.plaintextJoinKeyAndId.joinKey.key.toStringUtf8() to
             it.decryptedEventDataList.map { plaintext -> plaintext.payload }
         }
 
       assertThat(deserializedResults)
         .containsExactly(
-          "some-hashed-joinkey-1" to
+          "some-plaintext-joinkey-1" to
             listOf(
-              "some-lookup-key-1".toByteStringUtf8(),
+              "some-decrypted-join-key-id-1".toByteStringUtf8(),
               HKDF_PEPPER,
               PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
               COMPRESSION_PARAMETERS.toByteString(),
               ASYMMETRIC_KEYS.serializedPublicKey,
-              ASYMMETRIC_KEYS.serializedPrivateKey
+              ASYMMETRIC_KEYS.serializedPrivateKey,
+              "payload-1".toByteStringUtf8()
             ),
-          "some-hashed-joinkey-1" to listOf("payload-1".toByteStringUtf8()),
-          "some-hashed-joinkey-2" to
+          "some-plaintext-joinkey-2" to
             listOf(
-              "some-lookup-key-2".toByteStringUtf8(),
+              "some-decrypted-join-key-id-2".toByteStringUtf8(),
               HKDF_PEPPER,
               PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
               COMPRESSION_PARAMETERS.toByteString(),
               ASYMMETRIC_KEYS.serializedPublicKey,
-              ASYMMETRIC_KEYS.serializedPrivateKey
+              ASYMMETRIC_KEYS.serializedPrivateKey,
+              "payload-2".toByteStringUtf8()
             ),
-          "some-hashed-joinkey-2" to listOf("payload-2".toByteStringUtf8()),
-          "some-hashed-joinkey-3" to
+          "some-plaintext-joinkey-3" to
             listOf(
-              "some-lookup-key-3".toByteStringUtf8(),
+              "some-decrypted-join-key-id-3".toByteStringUtf8(),
               HKDF_PEPPER,
               PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
               COMPRESSION_PARAMETERS.toByteString(),
               ASYMMETRIC_KEYS.serializedPublicKey,
-              ASYMMETRIC_KEYS.serializedPrivateKey
-            ),
-          "some-hashed-joinkey-3" to listOf("payload-3".toByteStringUtf8()),
+              ASYMMETRIC_KEYS.serializedPrivateKey,
+              "payload-3".toByteStringUtf8()
+            )
         )
 
       null
@@ -131,7 +153,7 @@ private object TestQueryResultsDecryptor : QueryResultsDecryptor {
       // To ensure the request parameters are correct, we encode them in the first eventDataSet.
       eventDataSets +=
         decryptedEventDataSet {
-          decryptedEventData += plaintext { payload = request.lookupKey.key }
+          decryptedEventData += plaintext { payload = request.decryptedJoinKey.key }
           decryptedEventData += plaintext { payload = request.hkdfPepper }
           decryptedEventData += plaintext { payload = request.serializedParameters }
           decryptedEventData += plaintext { payload = request.compressionParameters.toByteString() }

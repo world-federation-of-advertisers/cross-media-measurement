@@ -8,7 +8,7 @@ package(default_visibility = [
 java_wrap_cc(
     name = "private_membership",
     src = "private_membership.swig",
-    module = "PrivateMembershipWrapper",
+    module = "PrivateMembershipSwig",
     package = "org.wfanet.panelmatch.protocol.privatemembership",
     deps = [
         "//src/main/cc/wfa/panelmatch/client/privatemembership:private_membership_wrapper",

@@ -103,7 +103,7 @@ TEST(DecryptQueryResults, DecryptQueryResultsTest) {
 
   DecryptQueryResultsRequest test_request;
   test_request.set_hkdf_pepper(hkdf_pepper);
-  test_request.mutable_lookup_key()->set_key(key);
+  test_request.mutable_decrypted_join_key()->set_key(key);
   test_request.set_serialized_private_key(
       request.private_key().SerializeAsString());
   test_request.set_serialized_public_key(
@@ -202,7 +202,7 @@ TEST(DecryptQueryResults, ParseCiphertextsWithDifferentKeys) {
 
   DecryptQueryResultsRequest test_request;
   test_request.set_hkdf_pepper(hkdf_pepper);
-  test_request.mutable_lookup_key()->set_key(key);
+  test_request.mutable_decrypted_join_key()->set_key(key);
   test_request.set_serialized_private_key(
       request.private_key().SerializeAsString());
   test_request.set_serialized_public_key(

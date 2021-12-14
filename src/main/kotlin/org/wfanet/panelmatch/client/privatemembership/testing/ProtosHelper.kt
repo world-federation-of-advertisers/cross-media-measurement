@@ -25,18 +25,20 @@ import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.client.exchangetasks.joinKey
+import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequestKt.encryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
 import org.wfanet.panelmatch.client.privatemembership.QueryId
-import org.wfanet.panelmatch.client.privatemembership.QueryIdAndJoinKeys
+import org.wfanet.panelmatch.client.privatemembership.QueryIdAndId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
 import org.wfanet.panelmatch.client.privatemembership.encryptedEventData
-import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKeys
+import org.wfanet.panelmatch.client.privatemembership.queryIdAndId
 
 /** Constructs a [UnencryptedQuery]. */
 fun unencryptedQueryOf(shard: Int, query: Int, bucket: Int): UnencryptedQuery =
@@ -67,9 +69,12 @@ fun joinKeyOf(key: String): JoinKey = joinKeyOf(key.toByteStringUtf8())
 fun joinKeyIdentifierOf(key: Long): JoinKeyIdentifier =
   joinKeyIdentifierOf("joinKeyIdentifier of $key".toByteStringUtf8())
 
-fun queryIdAndJoinKeysOf(query: Int, lookup: String, join: String): QueryIdAndJoinKeys =
-    queryIdAndJoinKeys {
+fun queryIdAndIdOf(query: Int, joinKeyIdentifier: String): QueryIdAndId = queryIdAndId {
   queryId = queryIdOf(query)
-  lookupKey = joinKey { key = lookup.toByteStringUtf8() }
-  hashedJoinKey = joinKey { key = join.toByteStringUtf8() }
+  this.joinKeyIdentifier = joinKeyIdentifierOf(joinKeyIdentifier.toByteStringUtf8())
+}
+
+fun joinKeyAndIdOf(key: String, id: String): JoinKeyAndId = joinKeyAndId {
+  joinKey = joinKeyOf(key)
+  joinKeyIdentifier = joinKeyIdentifierOf(id.toByteStringUtf8())
 }

@@ -83,10 +83,11 @@ absl::StatusOr<DecryptQueryResultsResponse> RemoveAes(
   DecryptQueryResultsResponse result;
   for (const ClientDecryptedQueryResult& client_decrypted_query_result :
        client_decrypt_queries_response.result()) {
-    ASSIGN_OR_RETURN(*result.add_event_data_sets(),
-                     RemoveAesFromDecryptedQueryResult(
-                         client_decrypted_query_result,
-                         request.lookup_key().key(), request.hkdf_pepper()));
+    ASSIGN_OR_RETURN(
+        *result.add_event_data_sets(),
+        RemoveAesFromDecryptedQueryResult(client_decrypted_query_result,
+                                          request.decrypted_join_key().key(),
+                                          request.hkdf_pepper()));
   }
   return result;
 }

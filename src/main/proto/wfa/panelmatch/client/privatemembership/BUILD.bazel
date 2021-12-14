@@ -100,6 +100,9 @@ proto_library(
     name = "prepare_query_proto",
     srcs = ["prepare_query.proto"],
     strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_proto",
+    ],
 )
 
 cc_proto_library(

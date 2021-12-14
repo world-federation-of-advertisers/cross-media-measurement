@@ -43,7 +43,7 @@ private const val MAXIMUM_NEW_ITEMS_ALLOWED = 2
 class IntersectValidateTaskTest {
 
   private suspend fun createBlob(items: List<JoinKeyAndId>): Blob {
-    val collection = joinKeyAndIdCollection { joinKeysAndIds += items }
+    val collection = joinKeyAndIdCollection { joinKeyAndIds += items }
     val storageClient = InMemoryStorageClient()
     return storageClient.createBlob("irrelevant-blob-key", collection.toByteString())
   }
@@ -75,8 +75,7 @@ class IntersectValidateTaskTest {
   ) = runBlocking {
     val outputs = runIntersectAndValidate(previousData, currentData, maxSize, isFirstExchange)
     val outputJoinKeys =
-      JoinKeyAndIdCollection.parseFrom(outputs.getValue("current-data").flatten())
-        .joinKeysAndIdsList
+      JoinKeyAndIdCollection.parseFrom(outputs.getValue("current-data").flatten()).joinKeyAndIdsList
     assertThat(outputJoinKeys).containsExactlyElementsIn(currentData)
   }
 

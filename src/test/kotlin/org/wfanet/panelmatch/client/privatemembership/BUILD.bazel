@@ -118,3 +118,18 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/junit",
     ],
 )
+
+kt_jvm_test(
+    name = "JniQueryPreparerTest",
+    timeout = "moderate",
+    srcs = ["JniQueryPreparerTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.privatemembership.JniQueryPreparerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
