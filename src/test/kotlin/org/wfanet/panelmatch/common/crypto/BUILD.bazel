@@ -1,23 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "HashingTest",
-    timeout = "short",
-    srcs = ["HashingTest.kt"],
-    test_class = "org.wfanet.panelmatch.common.crypto.HashingTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
-    ],
-)
-
-kt_jvm_test(
     name = "JniDeterministicCommutativeCipherTest",
     timeout = "short",
     srcs = ["JniDeterministicCommutativeCipherTest.kt"],

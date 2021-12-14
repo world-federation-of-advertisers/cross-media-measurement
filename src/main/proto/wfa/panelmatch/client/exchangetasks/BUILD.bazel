@@ -1,13 +1,12 @@
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@wfa_common_jvm//build:kt_jvm_proto_library.bzl", "kt_jvm_proto_library")
-load("@rules_cc//cc:defs.bzl", "cc_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
     name = "join_key_exchange_proto",
-    srcs = ["join_key_exchange.proto"],
+    srcs = ["join_key.proto"],
     strip_import_prefix = "/src/main/proto",
 )
 

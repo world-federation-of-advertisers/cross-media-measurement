@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.integration
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertNotNull
@@ -36,9 +37,9 @@ import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.toDelimitedByteString
 
 private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
-  joinKeysAndIds +=
+  joinKeyAndIds +=
     joinKeyAndIdOf("join-key-1".toByteStringUtf8(), "join-key-id-1".toByteStringUtf8())
-  joinKeysAndIds +=
+  joinKeyAndIds +=
     joinKeyAndIdOf("join-key-2".toByteStringUtf8(), "join-key-id-2".toByteStringUtf8())
 }
 
@@ -108,14 +109,12 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
           it.decryptedEventDataList.joinToString("") { plaintext ->
             plaintext.payload.toStringUtf8()
           }
-        it.hashedJoinKey.key.toStringUtf8() to payload
+        it.plaintextJoinKeyAndId.joinKey.key.toStringUtf8() to payload
       }
-
-    // TODO(@efoxepstein): assert that the decrypted events are correct:
-    //    assertThat(decryptedEvents)
-    //      .containsExactly(
-    //        "join-key-1" to "payload-for-join-key-1",
-    //        "join-key-2" to "payload-for-join-key-2",
-    //      )
+    assertThat(decryptedEvents)
+      .containsExactly(
+        "join-key-1" to "payload-for-join-key-1",
+        "join-key-2" to "payload-for-join-key-2",
+      )
   }
 }

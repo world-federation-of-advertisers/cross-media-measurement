@@ -30,6 +30,8 @@
 namespace wfa::panelmatch::client::privatemembership {
 using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataFromStringView;
+using ::wfa::panelmatch::client::exchangetasks::JoinKeyAndId;
+using ::wfa::panelmatch::common::crypto::GetPepperedFingerprinter;
 
 absl::StatusOr<PrepareQueryResponse> PrepareQuery(
     const PrepareQueryRequest& request) {
@@ -38,13 +40,19 @@ absl::StatusOr<PrepareQueryResponse> PrepareQuery(
   }
   const Fingerprinter& fingerprinter = GetSha256Fingerprinter();
   std::unique_ptr<Fingerprinter> peppered_fingerprinter =
-      wfa::panelmatch::common::crypto::GetPepperedFingerprinter(
+      GetPepperedFingerprinter(
           &fingerprinter,
           SecretDataFromStringView(request.identifier_hash_pepper()));
   PrepareQueryResponse prepared_query;
-  for (const std::string& single_blinded_key : request.single_blinded_keys()) {
-    prepared_query.add_hashed_single_blinded_keys(
-        peppered_fingerprinter->Fingerprint(single_blinded_key));
+  for (const JoinKeyAndId& decrypted_join_key_and_id :
+       request.decrypted_join_key_and_ids()) {
+    LookupKeyAndId lookup_key_and_id;
+    lookup_key_and_id.mutable_lookup_key()->set_key(
+        peppered_fingerprinter->Fingerprint(
+            decrypted_join_key_and_id.join_key().key()));
+    lookup_key_and_id.mutable_join_key_identifier()->CopyFrom(
+        decrypted_join_key_and_id.join_key_identifier());
+    *prepared_query.add_lookup_key_and_ids() = std::move(lookup_key_and_id);
   }
   return prepared_query;
 }

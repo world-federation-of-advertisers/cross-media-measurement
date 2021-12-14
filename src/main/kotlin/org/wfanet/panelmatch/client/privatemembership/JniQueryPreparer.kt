@@ -14,29 +14,33 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
 import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
-import org.wfanet.panelmatch.protocol.decryptqueryresults.DecryptQueryResultsSwig
+import org.wfanet.panelmatch.protocol.querypreparer.QueryPreparerSwig
 
-/**
- * A [QueryResultsDecryptor] implementation using the JNI [DecryptQueryResultsWrapper]. Keys should
- * have been generated prior to this step using an implementation of [PrivateMembershipCryptor].
- */
-class JniQueryResultsDecryptor : QueryResultsDecryptor {
+/** [QueryPreparer] that calls into C++ via JNI. */
+class JniQueryPreparer : QueryPreparer {
 
-  override fun decryptQueryResults(
-    request: DecryptQueryResultsRequest
-  ): DecryptQueryResultsResponse {
-    return wrapJniException {
-      DecryptQueryResultsResponse.parseFrom(
-        DecryptQueryResultsSwig.decryptQueryResultsWrapper(request.toByteArray())
-      )
+  override fun prepareLookupKeys(
+    identifierHashPepper: ByteString,
+    decryptedJoinKeyAndIds: List<JoinKeyAndId>
+  ): List<LookupKeyAndId> {
+
+    val request = prepareQueryRequest {
+      this.decryptedJoinKeyAndIds += decryptedJoinKeyAndIds
+      this.identifierHashPepper = identifierHashPepper
     }
+    val response = wrapJniException {
+      PrepareQueryResponse.parseFrom(QueryPreparerSwig.prepareQueryWrapper(request.toByteArray()))
+    }
+    return response.lookupKeyAndIdsList
   }
 
   companion object {
     init {
-      loadLibraryFromResource("decrypt_query_results", "$SWIG_PREFIX/decryptqueryresults")
+      loadLibraryFromResource("query_preparer", "$SWIG_PREFIX/querypreparer")
     }
   }
 }

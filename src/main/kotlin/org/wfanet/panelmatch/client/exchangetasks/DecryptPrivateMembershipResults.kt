@@ -21,7 +21,8 @@ import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResults
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
-import org.wfanet.panelmatch.client.privatemembership.queryIdAndJoinKeys
+import org.wfanet.panelmatch.client.privatemembership.queryIdAndId
+import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
@@ -35,7 +36,15 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
   val encryptedQueryResults: PCollection<EncryptedQueryResult> =
     readShardedPCollection("encrypted-results", encryptedQueryResult {})
 
-  val queryAndJoinKeys = readShardedPCollection("query-to-join-keys-map", queryIdAndJoinKeys {})
+  val queryAndIds = readShardedPCollection("query-to-ids-map", queryIdAndId {})
+  val plaintextJoinKeyAndIds: PCollection<JoinKeyAndId> =
+    readBlobAsPCollection("plaintext-join-keys-to-id-map").flatMap {
+      JoinKeyAndIdCollection.parseFrom(it).joinKeyAndIdsList
+    }
+  val decryptedJoinKeyAndIds: PCollection<JoinKeyAndId> =
+    readBlobAsPCollection("decrypted-join-keys-to-id-map").flatMap {
+      JoinKeyAndIdCollection.parseFrom(it).joinKeyAndIdsList
+    }
 
   val compressionParameters =
     readBlobAsPCollection("compression-parameters")
@@ -55,7 +64,9 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
   val keyedDecryptedEventDataSet: PCollection<KeyedDecryptedEventDataSet> =
     decryptQueryResults(
       encryptedQueryResults,
-      queryAndJoinKeys,
+      plaintextJoinKeyAndIds,
+      decryptedJoinKeyAndIds,
+      queryAndIds,
       compressionParameters,
       privateKeysView,
       serializedParameters,

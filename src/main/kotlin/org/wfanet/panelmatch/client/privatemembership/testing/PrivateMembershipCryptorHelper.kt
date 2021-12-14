@@ -68,17 +68,3 @@ data class ShardedQuery(val shardId: ShardId, val queryId: QueryId, val bucketId
     bucket: Int
   ) : this(shardIdOf(shard), queryIdOf(query), bucketIdOf(bucket))
 }
-
-data class PanelistQuery(
-  val shardId: ShardId,
-  val hashedJoinKey: JoinKey,
-  val lookupKey: JoinKey,
-  val bucketId: BucketId
-) : Serializable {
-  constructor(
-    shard: Int,
-    hashedJoinKey: String,
-    lookupKey: String,
-    bucket: Int
-  ) : this(shardIdOf(shard), joinKeyOf(hashedJoinKey), joinKeyOf(lookupKey), bucketIdOf(bucket))
-}

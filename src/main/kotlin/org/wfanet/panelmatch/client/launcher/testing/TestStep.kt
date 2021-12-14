@@ -14,22 +14,12 @@
 
 package org.wfanet.panelmatch.client.launcher.testing
 
-import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.inputStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.exchangeIdentifiers
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
-
-val JOIN_KEYS =
-  listOf(
-    "some joinkey0".toByteStringUtf8(),
-    "some joinkey1".toByteStringUtf8(),
-    "some joinkey2".toByteStringUtf8(),
-    "some joinkey3".toByteStringUtf8(),
-    "some joinkey4".toByteStringUtf8()
-  )
 
 fun buildWorkflow(
   testedStep: Step,

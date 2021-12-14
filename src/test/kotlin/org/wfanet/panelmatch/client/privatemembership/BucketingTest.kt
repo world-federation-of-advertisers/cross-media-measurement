@@ -15,13 +15,11 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFails
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.bucketIdOf
-import org.wfanet.panelmatch.client.common.joinKeyOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 
 @RunWith(JUnit4::class)
@@ -46,17 +44,6 @@ class BucketingTest {
 
     // 1000 % 7 == 6, (1000 / 7) % 3 == 1
     assertThat(bucketing.apply(1000)).isEqualTo(shardIdOf(6) to bucketIdOf(1))
-  }
-
-  @Test
-  fun `hash encrypted join keys`() {
-    val bucketing = Bucketing(numShards = 30000, numBucketsPerShard = 3)
-    assertThat(bucketing.hashAndApply(joinKeyOf("some-encrypted-joinkey".toByteStringUtf8())))
-      .isEqualTo(shardIdOf(18852) to bucketIdOf(0))
-    assertThat(bucketing.hashAndApply(joinKeyOf("some-other-encrypted-joinkey".toByteStringUtf8())))
-      .isEqualTo(shardIdOf(21603) to bucketIdOf(0))
-    assertThat(bucketing.hashAndApply(joinKeyOf("another-encrypted-joinkey-1".toByteStringUtf8())))
-      .isEqualTo(shardIdOf(29214) to bucketIdOf(2))
   }
 
   @Test

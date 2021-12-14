@@ -8,8 +8,8 @@ package(default_visibility = [
 java_wrap_cc(
     name = "decrypt_query_results",
     src = "decrypt_query_results.swig",
-    module = "DecryptQueryResultsWrapper",
-    package = "org.wfanet.panelmatch.client.privatemembership",
+    module = "DecryptQueryResultsSwig",
+    package = "org.wfanet.panelmatch.protocol.decryptqueryresults",
     deps = [
         "//src/main/cc/wfa/panelmatch/client/privatemembership:decrypt_query_results_wrapper",
     ],

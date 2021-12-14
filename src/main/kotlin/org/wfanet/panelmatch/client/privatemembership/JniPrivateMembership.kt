@@ -24,9 +24,9 @@ import com.google.privatemembership.batch.server.Server.ApplyQueriesRequest
 import com.google.privatemembership.batch.server.Server.ApplyQueriesResponse
 import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
-import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapperJNI
+import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipSwig
 
-/** Type-safe wrapper over [PrivateMembershipWrapperJNI]. */
+/** Type-safe wrapper over [PrivateMembershipSwig]. */
 object JniPrivateMembership {
   init {
     loadLibraryFromResource("private_membership", "$SWIG_PREFIX/privatemembership")
@@ -35,7 +35,7 @@ object JniPrivateMembership {
   fun applyQueries(request: ApplyQueriesRequest): ApplyQueriesResponse {
     return wrapJniException {
       ApplyQueriesResponse.parseFrom(
-        PrivateMembershipWrapperJNI.applyQueriesWrapper(request.toByteArray())
+        PrivateMembershipSwig.applyQueriesWrapper(request.toByteArray())
       )
     }
   }
@@ -43,7 +43,7 @@ object JniPrivateMembership {
   fun decryptQueries(request: DecryptQueriesRequest): DecryptQueriesResponse {
     return wrapJniException {
       DecryptQueriesResponse.parseFrom(
-        PrivateMembershipWrapperJNI.decryptQueriesWrapper(request.toByteArray())
+        PrivateMembershipSwig.decryptQueriesWrapper(request.toByteArray())
       )
     }
   }
@@ -51,7 +51,7 @@ object JniPrivateMembership {
   fun encryptQueries(request: EncryptQueriesRequest): EncryptQueriesResponse {
     return wrapJniException {
       EncryptQueriesResponse.parseFrom(
-        PrivateMembershipWrapperJNI.encryptQueriesWrapper(request.toByteArray())
+        PrivateMembershipSwig.encryptQueriesWrapper(request.toByteArray())
       )
     }
   }
@@ -59,7 +59,7 @@ object JniPrivateMembership {
   fun generateKeys(request: GenerateKeysRequest): GenerateKeysResponse {
     return wrapJniException {
       GenerateKeysResponse.parseFrom(
-        PrivateMembershipWrapperJNI.generateKeysWrapper(request.toByteArray())
+        PrivateMembershipSwig.generateKeysWrapper(request.toByteArray())
       )
     }
   }

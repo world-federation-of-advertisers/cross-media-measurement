@@ -24,9 +24,9 @@ import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
 import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
-import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipWrapper
+import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipSwig
 
-/** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipWrapper]. */
+/** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipSwig]. */
 class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) :
   PrivateMembershipCryptor {
 

@@ -31,7 +31,12 @@ private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
     2 to listOf(plaintextOf("<some long data c>"), plaintextOf("<some long data d>")),
     3 to listOf(plaintextOf("<some long data e>"))
   )
-private val JOINKEYS = listOf(1 to "some joinkey 1", 2 to "some joinkey 2", 3 to "some joinkey 3")
+private val DECRYPTED_JOIN_KEYS =
+  listOf(
+    1 to "some-join-decrypted-key-1",
+    2 to "some-join-decrypted-key-2",
+    3 to "some-join-decrypted-key-3"
+  )
 private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
 private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteStringUtf8()
 
@@ -46,7 +51,7 @@ class PlaintextQueryResultsDecryptorTest {
     val keys = privateMembershipCryptor.generateKeys()
 
     val encryptedEventData: List<EncryptedEventDataSet> =
-      (PLAINTEXTS zip JOINKEYS).map {
+      (PLAINTEXTS zip DECRYPTED_JOIN_KEYS).map {
         privateMembershipCryptorHelper.makeEncryptedEventDataSet(
           decryptedEventDataSet {
             queryId = queryIdOf(it.first.first)
@@ -60,13 +65,13 @@ class PlaintextQueryResultsDecryptorTest {
 
     val decryptedQueries =
       encryptedQueryResults
-        .zip(JOINKEYS)
+        .zip(DECRYPTED_JOIN_KEYS)
         .map { (encryptedQueryResult, joinkeyList) ->
           val request = decryptQueryResultsRequest {
             serializedParameters = SERIALIZED_PARAMETERS
             serializedPublicKey = keys.serializedPublicKey
             serializedPrivateKey = keys.serializedPrivateKey
-            lookupKey = joinKeyOf(joinkeyList.second)
+            decryptedJoinKey = joinKeyOf(joinkeyList.second)
             this.encryptedQueryResults += encryptedQueryResult
             hkdfPepper = HKDF_PEPPER
           }

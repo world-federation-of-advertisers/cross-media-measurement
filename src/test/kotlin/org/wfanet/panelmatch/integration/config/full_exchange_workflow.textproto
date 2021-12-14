@@ -215,9 +215,9 @@ steps {
   step_id: "generate-lookup-keys-step"
   party: MODEL_PROVIDER
 
-  generate_lookup_keys {}
+  generate_lookup_keys_step {}
 
-  input_labels { key: "decrypted-join-keys" value: "mp-decrypted-join-keys" }
+  input_labels { key: "join-keys" value: "mp-decrypted-join-keys" }
   input_labels { key: "pepper" value: "mp-identifier-hash-pepper" }
 
   output_labels { key: "lookup-keys" value: "mp-lookup-keys" }
@@ -261,7 +261,7 @@ steps {
   build_private_membership_queries_step {
     serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
     encrypted_query_bundle_file_count: 1
-    query_id_and_panelist_key_file_count: 1
+    query_id_to_ids_file_count: 1
     num_shards: 1
     num_buckets_per_shard: 10
     num_queries_per_shard: 10
@@ -269,11 +269,10 @@ steps {
   }
 
   input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
-  input_labels { key: "hashed-join-keys" value: "mp-plaintext-join-keys" }
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
 
-  output_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
+  output_labels { key: "query-to-ids-map" value: "mp-query-to-ids-map" }
   output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
 }
 
@@ -418,7 +417,9 @@ steps {
   input_labels { key: "serialized-rlwe-private-key" value: "mp-serialized-rlwe-private-key" }
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
   input_labels { key: "compression-parameters" value: "mp-compression-parameters" }
-  input_labels { key: "query-to-join-keys-map" value: "mp-query-to-join-keys-map" }
+  input_labels { key: "query-to-ids-map" value: "mp-query-to-ids-map" }
+  input_labels { key: "plaintext-join-keys-to-id-map" value: "mp-plaintext-join-keys" }
+  input_labels { key: "decrypted-join-keys-to-id-map" value: "mp-decrypted-join-keys" }
   input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }
   input_labels { key: "pepper" value: "mp-hkdf-pepper" }
 

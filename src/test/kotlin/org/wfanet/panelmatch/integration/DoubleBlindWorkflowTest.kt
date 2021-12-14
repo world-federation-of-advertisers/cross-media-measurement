@@ -24,9 +24,9 @@ import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
 
 private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
-  joinKeysAndIds +=
+  joinKeyAndIds +=
     joinKeyAndIdOf("join-key-1".toByteStringUtf8(), "join-key-id-1".toByteStringUtf8())
-  joinKeysAndIds +=
+  joinKeyAndIds +=
     joinKeyAndIdOf("join-key-2".toByteStringUtf8(), "join-key-id-2".toByteStringUtf8())
 }
 

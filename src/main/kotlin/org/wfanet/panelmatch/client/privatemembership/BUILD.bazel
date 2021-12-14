@@ -20,6 +20,7 @@ java_library(
     resources = [
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/decryptqueryresults:libdecrypt_query_results.so",
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/privatemembership:libprivate_membership.so",
+        "//src/main/swig/wfanet/panelmatch/client/privatemembership/querypreparer:libquery_preparer.so",
     ],
 )
 
@@ -41,11 +42,13 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:database_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:prepare_query_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:private_membership_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_evaluator_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_kt_jvm_proto",
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/decryptqueryresults:decrypt_query_results",
         "//src/main/swig/wfanet/panelmatch/client/privatemembership/privatemembership:private_membership",
+        "//src/main/swig/wfanet/panelmatch/client/privatemembership/querypreparer:query_preparer",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],

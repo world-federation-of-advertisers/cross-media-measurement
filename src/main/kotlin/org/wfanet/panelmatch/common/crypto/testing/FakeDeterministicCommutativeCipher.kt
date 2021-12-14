@@ -16,20 +16,18 @@ package org.wfanet.panelmatch.common.crypto.testing
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.util.UUID
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
 
 private const val SEPARATOR = " encrypted by "
+private const val FAKE_KEY_PREFIX = "fake-key-"
 
 /** For testing only. Does not play nicely with non-Utf8 source data. */
 object FakeDeterministicCommutativeCipher : DeterministicCommutativeCipher {
   val INVALID_KEY = "invalid key".toByteStringUtf8()
 
   override fun generateKey(): ByteString {
-    var key = ""
-    for (i in 1..20) {
-      key += ('A'..'Z').random()
-    }
-    return key.toByteStringUtf8()
+    return "$FAKE_KEY_PREFIX.${UUID.randomUUID()}".toByteStringUtf8()
   }
 
   override fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString> {

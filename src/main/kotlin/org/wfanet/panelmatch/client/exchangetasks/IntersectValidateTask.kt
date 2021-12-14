@@ -52,7 +52,7 @@ class IntersectValidateTask(
   }
 
   private fun parseJoinKeyAndIds(bytes: ByteString): Set<JoinKeyAndId> {
-    return JoinKeyAndIdCollection.parseFrom(bytes).joinKeysAndIdsList.toSet()
+    return JoinKeyAndIdCollection.parseFrom(bytes).joinKeyAndIdsList.toSet()
   }
 
   private fun validateIntersection(currentData: Set<JoinKeyAndId>, oldData: Set<JoinKeyAndId>) {
