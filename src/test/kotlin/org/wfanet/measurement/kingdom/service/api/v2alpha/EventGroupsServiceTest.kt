@@ -33,6 +33,7 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -87,6 +88,7 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private val ENCRYPTED_METADATA = ByteString.copyFromUtf8("encryptedMetadata")
+private val API_VERSION = Version.V2_ALPHA
 
 private val EVENT_GROUP_EXTERNAL_ID =
   apiIdToExternalId(EventGroupKey.fromName(EVENT_GROUP_NAME)!!.eventGroupId)
@@ -138,6 +140,7 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
   createTime = CREATE_TIME
   details =
     details {
+      apiVersion = API_VERSION.string
       measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
       measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
       vidModelLines.addAll(VID_MODEL_LINES)
