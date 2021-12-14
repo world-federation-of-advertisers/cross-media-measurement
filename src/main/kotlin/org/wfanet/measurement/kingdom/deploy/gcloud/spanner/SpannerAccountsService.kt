@@ -15,14 +15,21 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.common.primitives.Longs
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.jwt.JwkSetConverter
+import com.google.crypto.tink.jwt.JwtInvalidException
+import com.google.crypto.tink.jwt.JwtPublicKeyVerify
+import com.google.crypto.tink.jwt.JwtSignatureConfig
+import com.google.crypto.tink.jwt.JwtValidator
+import com.google.crypto.tink.tinkkey.KeyAccess
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import io.grpc.Status
-import java.math.BigInteger
-import java.security.KeyFactory
-import java.security.Signature
-import java.security.SignatureException
-import java.security.spec.RSAPublicKeySpec
+import java.io.IOException
+import java.security.GeneralSecurityException
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.calculateRSAThumbprint
+import org.wfanet.measurement.common.createJwkKeyset
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -42,7 +49,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdReques
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ActivateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
-import org.wfanet.measurement.tools.calculateRSAThumbprint
 
 private const val REDIRECT_URI = "https://localhost:2048"
 private const val VALID_SECONDS = 3600L
@@ -174,10 +180,7 @@ class SpannerAccountsService(
     return GenerateOpenIdRequestParams(VALID_SECONDS).execute(client, idGenerator)
   }
 
-  /**
-   * Returns the issuer and subject if the idToken is valid and null otherwise.
-   * TODO(https://github.com/google/tink/issues/541): Replace with Tink Java JWT
-   */
+  /** Returns the issuer and subject if the idToken is valid and null otherwise. */
   private suspend fun validateIdToken(idToken: String): IdToken? {
     val tokenParts = idToken.split(".")
 
@@ -185,92 +188,71 @@ class SpannerAccountsService(
       return null
     }
 
-    val header =
-      JsonParser.parseString(tokenParts[0].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
-
-    val alg = header.get("alg")
-    if (alg.isJsonNull || !alg.isJsonPrimitive || alg.asString != "RS256") {
-      return null
-    }
-
     val claims =
       JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
-
-    val iss = claims.get("iss")
-    if (iss.isJsonNull || !iss.isJsonPrimitive || iss.asString != "https://self-issued.me") {
-      return null
-    }
-
-    val aud = claims.get("aud")
-    if (aud.isJsonNull || !aud.isJsonPrimitive || aud.asString != REDIRECT_URI) {
-      return null
-    }
-
-    val state = claims.get("state")
-    val nonce = claims.get("nonce")
-
-    if (state.isJsonNull || !state.isJsonPrimitive || nonce.isJsonNull || !nonce.isJsonPrimitive) {
-      return null
-    }
-
-    val result =
-      OpenIdRequestParamsReader()
-        .readByState(
-          client.singleUse(),
-          ExternalId(Longs.fromByteArray(state.asString.base64UrlDecode()))
-        )
-    if (result != null) {
-      if (Longs.fromByteArray(nonce.asString.base64UrlDecode()) != result.nonce.value ||
-          result.isExpired
-      ) {
-        return null
-      }
-    } else {
-      return null
-    }
 
     val subJwk = claims.get("sub_jwk")
     if (subJwk.isJsonNull || !subJwk.isJsonObject) {
       return null
     }
 
-    val modulus = subJwk.asJsonObject.get("n")
-    val exponent = subJwk.asJsonObject.get("e")
+    JwtSignatureConfig.register()
 
-    if (modulus.isJsonNull ||
-        !modulus.isJsonPrimitive ||
-        exponent.isJsonNull ||
-        !modulus.isJsonPrimitive
-    ) {
-      return null
-    }
-
-    val sub = claims.get("sub")
-    if (sub.isJsonNull ||
-        !sub.isJsonPrimitive ||
-        !sub.asString.equals(calculateRSAThumbprint(modulus.asString, exponent.asString))
-    ) {
-      return null
-    }
-
-    val publicKeySpec =
-      RSAPublicKeySpec(
-        BigInteger(modulus.asString.base64UrlDecode()),
-        BigInteger(exponent.asString.base64UrlDecode())
-      )
-    val keyFactory = KeyFactory.getInstance("RSA")
-    val publicKey = keyFactory.generatePublic(publicKeySpec)
-    val verifier = Signature.getInstance("SHA256withRSA")
-    verifier.initVerify(publicKey)
-    verifier.update((tokenParts[0] + "." + tokenParts[1]).toByteArray(Charsets.US_ASCII))
+    val publicKeysetHandle: KeysetHandle?
+    val jwkKey = subJwk.asJsonObject
     try {
-      if (!verifier.verify(tokenParts[2].base64UrlDecode())) {
+      publicKeysetHandle =
+        JwkSetConverter.toKeysetHandle(createJwkKeyset(jwkKey), KeyAccess.publicAccess())
+    } catch (ex: GeneralSecurityException) {
+      return null
+    } catch (ex: IOException) {
+      return null
+    }
+
+    val verifier: JwtPublicKeyVerify?
+    try {
+      verifier = publicKeysetHandle.getPrimitive(JwtPublicKeyVerify::class.java)
+    } catch (ex: GeneralSecurityException) {
+      return null
+    }
+
+    try {
+      val expectedHeader = JsonObject()
+      expectedHeader.addProperty("typ", "JWT")
+      expectedHeader.addProperty("alg", "RS256")
+
+      val validator =
+        JwtValidator.newBuilder()
+          .expectIssuer("https://self-issued.me")
+          .expectAudience(REDIRECT_URI)
+          .expectTypeHeader(expectedHeader.toString())
+          .build()
+      val verifiedJwt = verifier!!.verifyAndDecode(idToken, validator)
+
+      val state = verifiedJwt.getStringClaim("state")
+      val nonce = verifiedJwt.getStringClaim("nonce")
+
+      val result =
+        OpenIdRequestParamsReader()
+          .readByState(client.singleUse(), ExternalId(Longs.fromByteArray(state.base64UrlDecode())))
+      if (result != null) {
+        if (Longs.fromByteArray(nonce.base64UrlDecode()) != result.nonce.value || result.isExpired
+        ) {
+          return null
+        }
+      } else {
         return null
       }
-    } catch (e: SignatureException) {
+
+      if (!verifiedJwt.subject.equals(calculateRSAThumbprint(jwkKey.toString()))) {
+        return null
+      }
+
+      return IdToken(issuer = verifiedJwt.issuer, subject = verifiedJwt.subject)
+    } catch (ex: GeneralSecurityException) {
+      return null
+    } catch (ex: JwtInvalidException) {
       return null
     }
-
-    return IdToken(issuer = iss.asString, subject = sub.asString)
   }
 }
