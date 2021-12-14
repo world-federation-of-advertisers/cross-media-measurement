@@ -124,7 +124,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
-    if (externalMeasurementConsumerCertificateId != null) {
+    if (externalMeasurementConsumerCertificateId != 0L) {
       measurementConsumerCertificate =
         MeasurementConsumerCertificateKey(
             externalIdToApiId(externalMeasurementConsumerId),
