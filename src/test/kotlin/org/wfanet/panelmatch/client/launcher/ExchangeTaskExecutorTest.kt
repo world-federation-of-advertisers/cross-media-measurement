@@ -15,13 +15,10 @@
 package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.Flow
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,29 +29,15 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
-import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.common.ExchangeContext
-import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
-import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
+import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt
 import org.wfanet.panelmatch.client.storage.storageDetails
-import org.wfanet.panelmatch.client.storage.testing.makeTestPrivateStorageSelector
-import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
+import org.wfanet.panelmatch.client.storage.testing.TestPrivateStorageSelector
 import org.wfanet.panelmatch.common.storage.toStringUtf8
 import org.wfanet.panelmatch.common.testing.runBlockingTest
-
-// TODO: move somewhere for reuse
-class TestPrivateStorageSelector {
-  private val blobs = ConcurrentHashMap<String, StorageClient.Blob>()
-
-  val storageClient = InMemoryStorageClient(blobs)
-  val storageDetails = TestSecretMap()
-  val selector = makeTestPrivateStorageSelector(storageDetails, storageClient)
-}
 
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"
 private val ATTEMPT_KEY = ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "x", "y", "z")
@@ -83,24 +66,7 @@ class ExchangeTaskExecutorTest {
     visibility = StorageDetails.Visibility.PRIVATE
   }
 
-  private val exchangeTask =
-    object : ExchangeTask {
-      override suspend fun execute(
-        input: Map<String, StorageClient.Blob>
-      ): Map<String, Flow<ByteString>> {
-        return input.mapKeys { "Out:${it.key}" }.mapValues {
-          val valString: String = it.value.toStringUtf8()
-          "Out:$valString".toByteStringUtf8().asBufferedFlow(1024)
-        }
-      }
-    }
-
-  private val exchangeTaskMapper =
-    object : ExchangeTaskMapper {
-      override suspend fun getExchangeTaskForStep(context: ExchangeContext): ExchangeTask {
-        return exchangeTask
-      }
-    }
+  private val exchangeTaskMapper = FakeExchangeTaskMapper()
 
   private val exchangeTaskExecutor =
     ExchangeTaskExecutor(
@@ -125,7 +91,7 @@ class ExchangeTaskExecutorTest {
     exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")?.toStringUtf8())
-      .isEqualTo("Out:some-blob")
+      .isEqualTo("Out:encrypt-some-blob")
   }
 
   @Test
