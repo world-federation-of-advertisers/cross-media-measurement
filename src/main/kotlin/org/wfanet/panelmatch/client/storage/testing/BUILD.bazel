@@ -20,6 +20,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/secrets/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

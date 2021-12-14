@@ -85,6 +85,10 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     )
   }
 
+  override val throttler: Throttler by lazy {
+    MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
+  }
+
   override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(
       inputTaskThrottler = throttler,
@@ -116,10 +120,6 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
 
     GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, Clock.systemUTC())
-  }
-
-  override val throttler: Throttler by lazy {
-    MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   }
 
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }
