@@ -17,9 +17,9 @@
 package org.wfanet.measurement.duchy.daemon.testing
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import kotlin.random.Random
 import org.wfanet.measurement.common.crypto.hashSha256
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionMetadata

@@ -28,6 +28,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
@@ -49,24 +50,23 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey.Format
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
-import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
+import org.wfanet.measurement.duchy.daemon.utils.toDuchyEncryptionPublicKey
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
@@ -87,7 +87,6 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
-import org.wfanet.measurement.internal.duchy.EncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
@@ -246,8 +245,9 @@ private val LLV2_PARAMETERS =
 private const val CONSENT_SIGNALING_CERT_NAME = "Just a name"
 private val CONSENT_SIGNALING_CERT_DER = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
 private val CONSENT_SIGNALING_PRIVATE_KEY_DER = FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
-private val ENCRYPTION_PUBLIC_KEY_DER =
-  FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
+private val ENCRYPTION_PRIVATE_KEY = TinkPrivateKeyHandle.generateEcies()
+private val ENCRYPTION_PUBLIC_KEY: org.wfanet.measurement.api.v2alpha.EncryptionPublicKey =
+  ENCRYPTION_PRIVATE_KEY.publicKey.toEncryptionPublicKey()
 
 /** A public Key used for consent signaling check. */
 private val CONSENT_SIGNALING_EL_GAMAL_PUBLIC_KEY =
@@ -324,11 +324,7 @@ private val AGGREGATOR_COMPUTATION_DETAILS =
     .apply {
       kingdomComputationBuilder.apply {
         publicApiVersion = PUBLIC_API_VERSION
-        measurementPublicKeyBuilder.apply {
-          format = EncryptionPublicKey.Format.TINK_KEYSET
-          // TODO(@SanjayVas): Set to a Tink keyset in order to use real encryption.
-          data = ENCRYPTION_PUBLIC_KEY_DER
-        }
+        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
         measurementSpec = SERIALIZED_MEASUREMENT_SPEC
       }
       liquidLegionsV2Builder.apply {
@@ -350,11 +346,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
     .apply {
       kingdomComputationBuilder.apply {
         publicApiVersion = PUBLIC_API_VERSION
-        measurementPublicKeyBuilder.apply {
-          format = EncryptionPublicKey.Format.TINK_KEYSET
-          // TODO(@corbantek): Set to a Tink keyset in order to use real encryption.
-          data = ENCRYPTION_PUBLIC_KEY_DER
-        }
+        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
         measurementSpec = SERIALIZED_MEASUREMENT_SPEC
       }
       liquidLegionsV2Builder.apply {
@@ -419,7 +411,6 @@ class LiquidLegionsV2MillTest {
   private lateinit var requisitionStore: RequisitionStore
 
   private val tempDirectory = TemporaryFolder()
-  private val keyStore = InMemoryKeyStore()
 
   private val blobCount = AtomicInteger()
   private val generatedBlobKeys = mutableListOf<String>()
@@ -527,16 +518,19 @@ class LiquidLegionsV2MillTest {
   @Before
   fun initializeMill() = runBlocking {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
-    val csCertificate =
-      Certificate(CONSENT_SIGNALING_CERT_NAME, readCertificate(CONSENT_SIGNALING_CERT_DER))
-
-    keyStore.storePrivateKeyDer(CONSENT_SIGNALING_PRIVATE_KEY_ID, CONSENT_SIGNALING_PRIVATE_KEY_DER)
+    val csX509Certificate = readCertificate(CONSENT_SIGNALING_CERT_DER)
+    val csSigningKey =
+      SigningKeyHandle(
+        csX509Certificate,
+        readPrivateKey(CONSENT_SIGNALING_PRIVATE_KEY_DER, csX509Certificate.publicKey.algorithm)
+      )
+    val csCertificate = Certificate(CONSENT_SIGNALING_CERT_NAME, csX509Certificate)
 
     aggregatorMill =
       LiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
-        keyStore = keyStore,
+        signingKey = csSigningKey,
         consentSignalCert = csCertificate,
         dataClients = computationDataClients,
         systemComputationParticipantsClient = systemComputationParticipantsStub,
@@ -553,7 +547,7 @@ class LiquidLegionsV2MillTest {
       LiquidLegionsV2Mill(
         millId = MILL_ID,
         duchyId = DUCHY_ONE_NAME,
-        keyStore = keyStore,
+        signingKey = csSigningKey,
         consentSignalCert = csCertificate,
         dataClients = computationDataClients,
         systemComputationParticipantsClient = systemComputationParticipantsStub,
@@ -1863,12 +1857,7 @@ class LiquidLegionsV2MillTest {
         setComputationResultRequest {
           name = "computations/$GLOBAL_ID"
           aggregatorCertificate = CONSENT_SIGNALING_CERT_DER
-          resultPublicKey =
-            encryptionPublicKey {
-                format = Format.TINK_KEYSET
-                data = ENCRYPTION_PUBLIC_KEY_DER
-              }
-              .toByteString()
+          resultPublicKey = ENCRYPTION_PUBLIC_KEY.toByteString()
         }
       )
 

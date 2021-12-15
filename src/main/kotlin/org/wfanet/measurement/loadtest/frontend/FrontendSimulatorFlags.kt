@@ -43,6 +43,14 @@ class FrontendSimulatorFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--mc-consent-signaling-cert-der-file"],
+    description = ["The MC's consent signaling cert (DER format) file."],
+    required = true
+  )
+  lateinit var mcCsCertDerFile: File
+    private set
+
+  @CommandLine.Option(
     names = ["--mc-consent-signaling-key-der-file"],
     description = ["The MC's consent signaling private key (DER format) file."],
     required = true
@@ -51,11 +59,11 @@ class FrontendSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--mc-encryption-private-key-der-file"],
-    description = ["The MC's encryption private key (DER format) file."],
+    names = ["--mc-encryption-private-keyset"],
+    description = ["The MC's encryption private Tink Keyset."],
     required = true
   )
-  lateinit var mcEncPrivateKeyDerFile: File
+  lateinit var mcEncryptionPrivateKeyset: File
     private set
 
   @set:CommandLine.Option(

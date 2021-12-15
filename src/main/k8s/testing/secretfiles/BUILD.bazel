@@ -13,6 +13,11 @@ filegroup(
 )
 
 filegroup(
+    name = "all_tink_keysets",
+    srcs = glob(["*.tink"]),
+)
+
+filegroup(
     name = "all_configs",
     srcs = glob(["*.textproto"]),
 )
