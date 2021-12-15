@@ -60,6 +60,9 @@ message StreamRequisitionsRequest {
     repeated Requisition.State states = 4;
     repeated Measurement.State measurement_states = 5;
     google.protobuf.Timestamp updated_after = 6;
+    // for next page token, both after fields need to be set
+    fixed64 external_data_provider_id_after = 7;
+    fixed64 external_requisition_id_after = 8;
   }
   Filter filter = 1;
 

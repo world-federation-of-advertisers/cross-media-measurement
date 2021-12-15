@@ -7,6 +7,7 @@ package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/testing:__pkg__",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing/integration:__pkg__",
+    "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
 ])
 
@@ -290,6 +291,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_proto",

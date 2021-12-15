@@ -115,56 +115,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
-  fun `streamRequisitions returns all requisitions for EDP in order`(): Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(dataServices.measurementConsumersService)
-    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement1 =
-      population.createMeasurement(
-        dataServices.measurementsService,
-        measurementConsumer,
-        "measurement 1",
-        dataProvider
-      )
-    val measurement2 =
-      population.createMeasurement(
-        dataServices.measurementsService,
-        measurementConsumer,
-        "measurement 2",
-        dataProvider
-      )
-    population.createMeasurement(
-      dataServices.measurementsService,
-      measurementConsumer,
-      "measurement 3",
-      population.createDataProvider(dataServices.dataProvidersService)
-    )
-
-    val requisitions: List<Requisition> =
-      service
-        .streamRequisitions(
-          streamRequisitionsRequest {
-            filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-          }
-        )
-        .toList()
-
-    assertThat(requisitions)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(
-        requisition {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementId = measurement1.externalMeasurementId
-        },
-        requisition {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementId = measurement2.externalMeasurementId
-        }
-      )
-      .inOrder()
-  }
-
-  @Test
   fun `streamRequisitions returns all requisitions for MC`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(dataServices.measurementConsumersService)
@@ -329,13 +279,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val measurementConsumer =
       population.createMeasurementConsumer(dataServices.measurementConsumersService)
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement1 =
-      population.createMeasurement(
-        dataServices.measurementsService,
-        measurementConsumer,
-        "measurement 1",
-        dataProvider
-      )
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 1",
+      dataProvider
+    )
+
     population.createMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
@@ -355,12 +305,62 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
     assertThat(requisitions)
       .comparingExpectedFieldsOnly()
-      .containsExactly(
-        requisition {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementId = measurement1.externalMeasurementId
-        }
-      )
+      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
+  }
+
+  @Test
+  fun `streamRequisitions can get one page at a time`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 1",
+      dataProvider
+    )
+
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement 2",
+      dataProvider
+    )
+
+    val requisitions: List<Requisition> =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
+
+    val requisitions2: List<Requisition> =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalDataProviderId = dataProvider.externalDataProviderId
+                externalRequisitionIdAfter = requisitions[0].externalRequisitionId
+                externalDataProviderIdAfter = requisitions[0].externalDataProviderId
+              }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(requisitions2)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(requisition { externalDataProviderId = dataProvider.externalDataProviderId })
+    assertThat(requisitions2[0].externalRequisitionId)
+      .isGreaterThan(requisitions[0].externalRequisitionId)
   }
 
   @Test

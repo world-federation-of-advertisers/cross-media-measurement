@@ -48,9 +48,9 @@ message StreamEventGroupsRequest {
   message Filter {
     int64 external_data_provider_id = 1;
     repeated int64 external_measurement_consumer_ids = 2;
-    // for next page token
-    fixed64 external_event_group_id_after = 3;
-    fixed64 external_data_provider_id_after = 4;
+    // for next page token, both after fields need to be set
+    fixed64 external_data_provider_id_after = 3;
+    fixed64 external_event_group_id_after = 4;
   }
   Filter filter = 1;
 
