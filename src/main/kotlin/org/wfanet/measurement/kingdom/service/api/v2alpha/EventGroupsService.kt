@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
@@ -24,13 +25,16 @@ import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -38,6 +42,8 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
@@ -49,6 +55,7 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
+private val API_VERSION = Version.V2_ALPHA
 
 class EventGroupsService(private val internalEventGroupsStub: EventGroupsCoroutineStub) :
   EventGroupsCoroutineImplBase() {
@@ -68,18 +75,19 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
-    val parentKey =
-      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-        "Parent is either unspecified or invalid"
-      }
-
-    val measurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.eventGroup.measurementConsumer)) {
-        "Measurement consumer is either unspecified or invalid"
-      }
-
+    grpcRequire(
+      request.eventGroup.encryptedMetadata.isEmpty ||
+        request.eventGroup.hasMeasurementConsumerPublicKey()
+    ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
+    grpcRequire(
+      !request.eventGroup.hasMeasurementConsumerPublicKey() ||
+        !request.eventGroup.measurementConsumerCertificate.isBlank()
+    ) {
+      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
+        "specified"
+    }
     return internalEventGroupsStub
-      .createEventGroup(request.eventGroup.toInternal(parentKey, measurementConsumerKey))
+      .createEventGroup(request.eventGroup.toInternal(request))
       .toEventGroup()
   }
 
@@ -127,18 +135,65 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
     measurementConsumer =
       MeasurementConsumerKey(externalIdToApiId(externalMeasurementConsumerId)).toName()
     eventGroupReferenceId = providedEventGroupId
+    if (externalMeasurementConsumerCertificateId != 0L) {
+      measurementConsumerCertificate =
+        MeasurementConsumerCertificateKey(
+            externalIdToApiId(externalMeasurementConsumerId),
+            externalIdToApiId(externalMeasurementConsumerCertificateId)
+          )
+          .toName()
+    }
+    if (!details.measurementConsumerPublicKey.isEmpty) {
+      measurementConsumerPublicKey =
+        signedData {
+          data = details.measurementConsumerPublicKey
+          signature = details.measurementConsumerPublicKeySignature
+        }
+    }
+    vidModelLines += details.vidModelLinesList
+    eventTemplates.addAll(
+      details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
+    )
+    encryptedMetadata = details.encryptedMetadata
   }
 }
 
 /** Converts a public [EventGroup] to an internal [InternalEventGroup]. */
-private fun EventGroup.toInternal(
-  parentKey: DataProviderKey,
-  measurementConsumerKey: MeasurementConsumerKey
-): InternalEventGroup {
+private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEventGroup {
+  val parentKey =
+    grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid"
+    }
+  val measurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.eventGroup.measurementConsumer)) {
+      "Measurement consumer is either unspecified or invalid"
+    }
+  val measurementConsumerCertificateKey =
+    MeasurementConsumerCertificateKey.fromName(this.measurementConsumerCertificate)
+
   return internalEventGroup {
     externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+    if (measurementConsumerCertificateKey != null) {
+      externalMeasurementConsumerCertificateId =
+        apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
+    }
+
     providedEventGroupId = eventGroupReferenceId
+    details =
+      details {
+        apiVersion = API_VERSION.string
+        measurementConsumerPublicKey = this@toInternal.measurementConsumerPublicKey.data
+        measurementConsumerPublicKeySignature =
+          this@toInternal.measurementConsumerPublicKey.signature
+        vidModelLines += this@toInternal.vidModelLinesList
+        eventTemplates.addAll(
+          this@toInternal.eventTemplatesList.map { event ->
+            internalEventTemplate { fullyQualifiedType = event.type }
+          }
+        )
+        encryptedMetadata = this@toInternal.encryptedMetadata
+      }
   }
 }
 
