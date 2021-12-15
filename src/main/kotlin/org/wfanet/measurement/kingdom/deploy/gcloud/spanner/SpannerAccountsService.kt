@@ -15,21 +15,13 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.common.primitives.Longs
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.jwt.JwkSetConverter
-import com.google.crypto.tink.jwt.JwtInvalidException
-import com.google.crypto.tink.jwt.JwtPublicKeyVerify
-import com.google.crypto.tink.jwt.JwtSignatureConfig
-import com.google.crypto.tink.jwt.JwtValidator
-import com.google.crypto.tink.tinkkey.KeyAccess
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import io.grpc.Status
-import java.io.IOException
-import java.security.GeneralSecurityException
 import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.calculateRSAThumbprint
-import org.wfanet.measurement.common.createJwkKeyset
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.calculateRSAThumbprint
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.getPublicKeyVerifier
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.getPublicKeysetHandle
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.validateJwt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -157,7 +149,11 @@ class SpannerAccountsService(
     val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is missing" }
 
     val parsedValidatedIdToken =
-      validateIdToken(idToken) ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+      try {
+        validateIdToken(idToken) ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+      } catch (ex: Exception) {
+        failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+      }
 
     val identityResult =
       OpenIdConnectIdentityReader()
@@ -196,63 +192,31 @@ class SpannerAccountsService(
       return null
     }
 
-    JwtSignatureConfig.register()
-
-    val publicKeysetHandle: KeysetHandle?
     val jwkKey = subJwk.asJsonObject
-    try {
-      publicKeysetHandle =
-        JwkSetConverter.toKeysetHandle(createJwkKeyset(jwkKey), KeyAccess.publicAccess())
-    } catch (ex: GeneralSecurityException) {
-      return null
-    } catch (ex: IOException) {
-      return null
-    }
+    val publicKeysetHandle = getPublicKeysetHandle(jwkKey)
+    val verifier = getPublicKeyVerifier(publicKeysetHandle)
 
-    val verifier: JwtPublicKeyVerify?
-    try {
-      verifier = publicKeysetHandle.getPrimitive(JwtPublicKeyVerify::class.java)
-    } catch (ex: GeneralSecurityException) {
+    val verifiedJwt =
+      validateJwt(redirectUri = REDIRECT_URI, idToken = idToken, verifier = verifier)
+
+    if (!verifiedJwt.subject.equals(calculateRSAThumbprint(jwkKey.toString()))) {
       return null
     }
 
-    try {
-      val expectedHeader = JsonObject()
-      expectedHeader.addProperty("typ", "JWT")
-      expectedHeader.addProperty("alg", "RS256")
+    val state = verifiedJwt.getStringClaim("state")
+    val nonce = verifiedJwt.getStringClaim("nonce")
 
-      val validator =
-        JwtValidator.newBuilder()
-          .expectIssuer("https://self-issued.me")
-          .expectAudience(REDIRECT_URI)
-          .expectTypeHeader(expectedHeader.toString())
-          .build()
-      val verifiedJwt = verifier!!.verifyAndDecode(idToken, validator)
-
-      val state = verifiedJwt.getStringClaim("state")
-      val nonce = verifiedJwt.getStringClaim("nonce")
-
-      val result =
-        OpenIdRequestParamsReader()
-          .readByState(client.singleUse(), ExternalId(Longs.fromByteArray(state.base64UrlDecode())))
-      if (result != null) {
-        if (Longs.fromByteArray(nonce.base64UrlDecode()) != result.nonce.value || result.isExpired
-        ) {
-          return null
-        }
-      } else {
+    val result =
+      OpenIdRequestParamsReader()
+        .readByState(client.singleUse(), ExternalId(Longs.fromByteArray(state.base64UrlDecode())))
+    if (result != null) {
+      if (Longs.fromByteArray(nonce.base64UrlDecode()) != result.nonce.value || result.isExpired) {
         return null
       }
-
-      if (!verifiedJwt.subject.equals(calculateRSAThumbprint(jwkKey.toString()))) {
-        return null
-      }
-
-      return IdToken(issuer = verifiedJwt.issuer, subject = verifiedJwt.subject)
-    } catch (ex: GeneralSecurityException) {
-      return null
-    } catch (ex: JwtInvalidException) {
+    } else {
       return null
     }
+
+    return IdToken(issuer = verifiedJwt.issuer, subject = verifiedJwt.subject)
   }
 }

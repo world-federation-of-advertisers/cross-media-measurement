@@ -16,6 +16,7 @@ kt_jvm_library(
         "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwt_public_key_sign",
         "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwt_signature_config",
         "@tink_java//src/main/java/com/google/crypto/tink/jwt:raw_jwt",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
     ],
 )
