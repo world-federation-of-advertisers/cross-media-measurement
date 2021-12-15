@@ -82,6 +82,14 @@ fun BindableService.withAccountAuthenticationServerInterceptor(
     AccountAuthenticationServerInterceptor(internalAccountsStub)
   )
 
+fun ServerServiceDefinition.withAccountAuthenticationServerInterceptor(
+  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(
+    this,
+    AccountAuthenticationServerInterceptor(internalAccountsStub)
+  )
+
 /** Executes [block] with [Account] installed in a new [Context]. */
 fun <T> withAccount(account: Account, block: () -> T): T {
   return Context.current().withAccount(account).call(block)
