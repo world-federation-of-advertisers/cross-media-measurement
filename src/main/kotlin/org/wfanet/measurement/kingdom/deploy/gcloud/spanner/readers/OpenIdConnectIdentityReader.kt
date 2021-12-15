@@ -46,6 +46,18 @@ class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Re
       openIdConnectIdentityId = InternalId(struct.getLong("OpenIdConnectIdentityId"))
     )
 
+  suspend fun readByAccountId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    accountId: InternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause("WHERE OpenIdConnectIdentities.AccountId = @accountId")
+        bind("accountId").to(accountId.value)
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
+
   suspend fun readByIssuerAndSubject(
     readContext: AsyncDatabaseClient.ReadContext,
     issuer: String,
