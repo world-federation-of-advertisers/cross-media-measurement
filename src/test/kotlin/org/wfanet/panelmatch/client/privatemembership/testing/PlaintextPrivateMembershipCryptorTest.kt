@@ -26,8 +26,6 @@ import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 
-private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteStringUtf8()
-
 @RunWith(JUnit4::class)
 class PlaintextPrivateMembershipCryptorTest {
   private val privateMembershipCryptor = PlaintextPrivateMembershipCryptor()

@@ -25,7 +25,7 @@ interface DeterministicCommutativeCipher : SymmetricCryptor {
   /** Encrypts plaintexts. */
   override fun encrypt(privateKey: ByteString, plaintexts: List<ByteString>): List<ByteString>
 
-  /** Adds an additional layer of encryption to ciphertexts. */
+  /** Adds a subsequent layer of encryption to ciphertexts. */
   fun reEncrypt(privateKey: ByteString, ciphertexts: List<ByteString>): List<ByteString>
 
   /** Removes a layer of encryption from ciphertexts. */

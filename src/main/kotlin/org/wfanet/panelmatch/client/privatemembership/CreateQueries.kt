@@ -244,7 +244,7 @@ private class EncryptQueriesFn(
 
 /**
  * Adds or deletes queries from sharded data until it is the desired size. We keep track of which
- * queries are fake so we don't need to decrypt them in the end.
+ * queries are fake in order to avoid attempting to decrypt them later.
  */
 private class EqualizeQueriesPerShardFn(private val totalQueriesPerShard: Int) :
   DoFn<

@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -27,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.Labe
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyOptions
-import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
@@ -48,8 +46,7 @@ private val SHARD_CONTENTS2 = "shard-2-contents".toByteStringUtf8()
 class CopyFromSharedStorageTaskTest {
   private val underlyingSource = InMemoryStorageClient()
   private val source = makeTestVerifiedStorageClient(underlyingSource)
-  private val destinationContents = ConcurrentHashMap<String, Blob>()
-  private val destination = InMemoryStorageClient(destinationContents)
+  private val destination = InMemoryStorageClient()
 
   private suspend fun executeTask(labelType: LabelType) {
     CopyFromSharedStorageTask(
@@ -71,7 +68,7 @@ class CopyFromSharedStorageTaskTest {
   }
 
   private val destinationByteStrings: List<Pair<String, ByteString>>
-    get() = runBlocking { destinationContents.mapValues { it.value.toByteString() }.toList() }
+    get() = runBlocking { destination.contents.mapValues { it.value.toByteString() }.toList() }
 
   @Test
   fun singleFile() = runBlockingTest {

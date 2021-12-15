@@ -26,7 +26,7 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
-/** Example base class for [ExchangeWorkflowDaemon] implementations. */
+/** Example base class for [ExchangeWorkflowDaemonFromFlags] implementations. */
 abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
   @Option(names = ["--tink-key-uri"], description = ["KMS URI for Tink"], required = true)
   private lateinit var tinkKeyUri: String

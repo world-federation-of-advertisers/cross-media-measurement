@@ -25,6 +25,11 @@ import org.wfanet.panelmatch.common.storage.toByteString
 
 private const val INPUT_CRYPTO_KEY_LABEL = "encryption-key"
 
+/**
+ * Performs deterministic, commutative encryption on the items in a [JoinKeyAndIdCollection].
+ *
+ * The [operation] should output items in the same order that they are input.
+ */
 class CryptorExchangeTask
 internal constructor(
   private val operation: (ByteString, List<ByteString>) -> List<ByteString>,
@@ -48,7 +53,6 @@ internal constructor(
     val joinKeys = inputList.map { it.joinKey.key }
     val joinKeyIds = inputList.map { it.joinKeyIdentifier }
     val results = operation(cryptoKey, joinKeys)
-    /** For now, we assume the join keys return in the same order that they were input. */
     val serializedOutput =
       joinKeyAndIdCollection {
           joinKeyAndIds +=

@@ -15,9 +15,9 @@
 package org.wfanet.panelmatch.common.secrets
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import java.nio.file.Path
 import java.util.Base64
-import org.wfanet.measurement.common.toByteString
 
 /**
  * SecretSet that reads in a file and treats it as a two-column CSV file.

@@ -59,8 +59,8 @@ class EvaluateQueriesTest : BeamTestBase() {
   @Test
   fun `single EncryptedQueryBundle`() {
     // With `parameters`, we expect database to have:
-    //  - Shard 0 to have bucket 4 with "def" in it
-    //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
+    //  - Shard 0: bucket 4 with "def" in it
+    //  - Shard 1: buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
     val parameters =
       EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
 
@@ -74,8 +74,8 @@ class EvaluateQueriesTest : BeamTestBase() {
   @Test
   fun `multiple shards`() {
     // With `parameters`, we expect database to have:
-    //  - Shard 0 to have bucket 4 with "def" in it
-    //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
+    //  - Shard 0: bucket 4 with "def" in it
+    //  - Shard 1: buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
     val parameters =
       EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
 
@@ -97,8 +97,8 @@ class EvaluateQueriesTest : BeamTestBase() {
   @Test
   fun `multiple bundles for one shard`() {
     // With `parameters`, we expect database to have:
-    //  - Shard 0 to have bucket 4 with "def" in it
-    //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
+    //  - Shard 0: bucket 4 with "def" in it
+    //  - Shard 1: buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
     val parameters =
       EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 10)
 
@@ -140,8 +140,8 @@ class EvaluateQueriesTest : BeamTestBase() {
   @Test
   fun `too many queries per shard`() {
     // With `parameters`, we expect database to have:
-    //  - Shard 0 to have bucket 4 with "def" in it
-    //  - Shard 1 to have buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
+    //  - Shard 0: bucket 4 with "def" in it
+    //  - Shard 1: buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
     val parameters =
       EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 2)
 

@@ -114,8 +114,8 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
       // First, we decode each result and then split each bucket up into individual values.
       // This is to handle the case where multiple database entries fall into the same bucket.
       //
-      // Then, since the same bucket could be selected by multiple queries, we convert all of
-      // the individual results into a set.
+      // Then, since the same bucket could be selected by multiple queries, we convert all the
+      // individual results into a set.
       //
       // Finally, we compare the unique results with the expected results.
       val uniqueResults =
