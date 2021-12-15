@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import io.grpc.BindableService
 import io.grpc.Channel
+import io.grpc.ServerServiceDefinition
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -25,6 +27,7 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -39,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.common.service.withAccountsServerInterceptor
+import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
@@ -48,6 +52,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetup
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
@@ -58,6 +63,8 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService
 class InProcessKingdom(
   dataServicesProvider: () -> DataServices,
   val verboseGrpcLogging: Boolean = true,
+  /** The open id client redirect uri when creating the authentication uri. */
+  private val redirectUri: String,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
@@ -121,17 +128,25 @@ class InProcessKingdom(
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's public API services")
+
       listOf(
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient),
-        MeasurementConsumersService(internalMeasurementConsumersClient),
-        RequisitionsService(internalRequisitionsClient)
+        RequisitionsService(internalRequisitionsClient),
+        AccountsService(internalAccountsClient, redirectUri)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient),
+        MeasurementConsumersService(internalMeasurementConsumersClient)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
       )
         .forEach {
-          // TODO(@wangyaopw): set up all public services to use withMetadataPrincipalIdentities.
-          addService(it.withVerboseLogging(verboseGrpcLogging))
+          // TODO(@wangyaopw): set up all public services to use the appropriate principal
+          // interceptors.
+          when (it) {
+            is BindableService -> addService(it.withVerboseLogging(verboseGrpcLogging))
+            is ServerServiceDefinition -> addService(it.withVerboseLogging(verboseGrpcLogging))
+          }
         }
       listOf(
         ExchangeStepAttemptsService(
@@ -157,6 +172,9 @@ class InProcessKingdom(
   /** Provides a PanelMatchResourceSetup instance with the Kingdom's internal API. */
   val panelMatchResourceSetup: PanelMatchResourceSetup
     get() = PanelMatchResourceSetup(internalApiChannel)
+
+  /** Provides access to Account creation in place of the Kingdom's operator. */
+  val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)

@@ -50,11 +50,19 @@ class MeasurementConsumersService(
   override suspend fun createMeasurementConsumer(
     request: CreateMeasurementConsumerRequest
   ): MeasurementConsumer {
+    val account =
+      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+
     val measurementConsumer = request.measurementConsumer
 
     grpcRequire(!measurementConsumer.publicKey.data.isEmpty) { "public_key.data is missing" }
     grpcRequire(!measurementConsumer.publicKey.signature.isEmpty) {
       "public_key.signature is missing"
+    }
+
+    grpcRequire(request.measurementConsumerCreationToken.isNotBlank()) {
+      "Measurement Consumer creation token is unspecified"
     }
 
     val internalResponse: InternalMeasurementConsumer =
@@ -67,6 +75,8 @@ class MeasurementConsumersService(
               publicKey = measurementConsumer.publicKey.data
               publicKeySignature = measurementConsumer.publicKey.signature
             }
+          measurementConsumerCreationToken =
+            apiIdToExternalId(request.measurementConsumerCreationToken)
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
         // as owner.

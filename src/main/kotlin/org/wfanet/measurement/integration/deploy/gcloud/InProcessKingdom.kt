@@ -21,6 +21,8 @@ import org.wfanet.measurement.integration.common.InProcessKingdom
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
 
+private const val REDIRECT_URI = "https://localhost:2048"
+
 fun buildKingdomSpannerEmulatorDatabaseRule(): SpannerEmulatorDatabaseRule {
   return SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
 }
@@ -35,5 +37,6 @@ fun buildSpannerInProcessKingdom(
       SpannerDataServices(clock, RandomIdGenerator(clock), databaseRule.databaseClient)
     },
     verboseGrpcLogging = verboseGrpcLogging,
+    REDIRECT_URI
   )
 }
