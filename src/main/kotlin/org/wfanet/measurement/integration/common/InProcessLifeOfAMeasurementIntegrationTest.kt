@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.generateIdToken
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -54,7 +55,6 @@ import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.tools.generateIdToken
 
 private const val MC_CONSENT_SIGNALING_PRIVATE_KEY_ID = "mc-cs-private-key"
 private const val MC_ENCRYPTION_PRIVATE_KEY_ID = "mc-enc-private-key"
