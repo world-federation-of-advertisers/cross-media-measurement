@@ -48,7 +48,7 @@ import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStu
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.apiKey as internalApiKey
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.revokeApiKeyRequest
+import org.wfanet.measurement.internal.kingdom.deleteApiKeyRequest as internalDeleteApiKeyRequest
 
 private const val ACCOUNT_NAME = "accounts/AAAAAAC8YU4"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
@@ -63,7 +63,7 @@ class ApiKeysServiceTest {
   private val internalApiKeysMock: InternalApiKeysCoroutineImplBase =
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { createApiKey(any()) }.thenReturn(INTERNAL_API_KEY)
-      onBlocking { revokeApiKey(any()) }.thenReturn(INTERNAL_API_KEY)
+      onBlocking { deleteApiKey(any()) }.thenReturn(INTERNAL_API_KEY)
     }
 
   private val internalAccountsMock: InternalAccountsCoroutineImplBase =
@@ -163,9 +163,9 @@ class ApiKeysServiceTest {
 
     assertThat(result).isEqualTo(PUBLIC_API_KEY)
 
-    verifyProtoArgument(internalApiKeysMock, InternalApiKeysCoroutineImplBase::revokeApiKey)
+    verifyProtoArgument(internalApiKeysMock, InternalApiKeysCoroutineImplBase::deleteApiKey)
       .isEqualTo(
-        revokeApiKeyRequest {
+        internalDeleteApiKeyRequest {
           val key = ApiKeyKey.fromName(API_KEY_NAME)
           externalMeasurementConsumerId = apiIdToExternalId(key!!.measurementConsumerId)
           externalApiKeyId = apiIdToExternalId(key.apiKeyId)
