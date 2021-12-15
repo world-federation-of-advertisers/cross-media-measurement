@@ -61,27 +61,18 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   private val clock: Clock = Clock.systemUTC()
 
-  private val idGeneratorA =
+  private val idGenerator =
     FixedIdGenerator(
       InternalId(FIXED_GENERATED_INTERNAL_ID_A),
       ExternalId(FIXED_GENERATED_EXTERNAL_ID_A)
     )
 
-  private val idGeneratorB =
-    FixedIdGenerator(
-      InternalId(FIXED_GENERATED_INTERNAL_ID_B),
-      ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
-    )
-
-  private val population = Population(clock, idGeneratorA)
+  private val population = Population(clock, idGenerator)
 
   private lateinit var dataServices: TestDataServices
 
-  /**
-   * Different instances of the service under test with different fixed id and string generators.
-   */
+  /** Instance of the service under test. */
   private lateinit var service: T
-  private lateinit var serviceWithSecondFixedGenerator: T
 
   /** Constructs services used to populate test data. */
   protected abstract fun newTestDataServices(idGenerator: IdGenerator): TestDataServices
@@ -91,13 +82,12 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
   @Before
   fun initDataServices() {
-    dataServices = newTestDataServices(idGeneratorA)
+    dataServices = newTestDataServices(idGenerator)
   }
 
   @Before
   fun initService() {
-    service = newService(idGeneratorA)
-    serviceWithSecondFixedGenerator = newService(idGeneratorB)
+    service = newService(idGenerator)
   }
 
   @Test
@@ -135,13 +125,17 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     val measurementConsumer =
       population.createMeasurementConsumer(dataServices.measurementConsumersService, service)
 
-    serviceWithSecondFixedGenerator.createAccount(account {})
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    service.createAccount(account {})
 
     val createAccountRequest = account {
       externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_B
       externalOwnedMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     }
 
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B + 1L)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B + 1L)
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
@@ -169,8 +163,10 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `createAccount returns account when there is creator`() = runBlocking {
     service.createAccount(account {})
 
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
     val createAccountRequest = account { externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A }
-    val account = serviceWithSecondFixedGenerator.createAccount(createAccountRequest)
+    val account = service.createAccount(createAccountRequest)
 
     assertThat(account)
       .isEqualTo(
@@ -180,6 +176,32 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           activationToken = FIXED_GENERATED_EXTERNAL_ID_B
           activationState = Account.ActivationState.UNACTIVATED
           measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
+        }
+      )
+  }
+
+  @Test
+  fun `createAccount returns account with owned MC when creator owns MC`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService, service)
+
+    val createAccountRequest = account {
+      externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      externalOwnedMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    }
+
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    val account = service.createAccount(createAccountRequest)
+
+    assertThat(account)
+      .isEqualTo(
+        account {
+          externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
+          externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+          activationToken = FIXED_GENERATED_EXTERNAL_ID_B
+          activationState = Account.ActivationState.UNACTIVATED
+          externalOwnedMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
         }
       )
   }
@@ -251,7 +273,9 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
 
     withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
 
-    val idToken2 = generateIdToken(serviceWithSecondFixedGenerator)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    val idToken2 = generateIdToken(service)
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withIdToken(idToken2) { runBlocking { service.activateAccount(activateAccountRequest) } }
@@ -297,7 +321,9 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
     }
 
-    serviceWithSecondFixedGenerator.createAccount(account {})
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    service.createAccount(account {})
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withIdToken(idToken) {
@@ -338,6 +364,42 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
           activationState = Account.ActivationState.ACTIVATED
           measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
+        }
+      )
+  }
+
+  @Test
+  fun `activateAccount returns account when account is activated with owned MC`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(dataServices.measurementConsumersService, service)
+
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    service.createAccount(
+      account {
+        externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+        externalOwnedMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+    )
+
+    val idToken = generateIdToken(service)
+    val activateAccountRequest = activateAccountRequest {
+      externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
+      activationToken = FIXED_GENERATED_EXTERNAL_ID_B
+    }
+
+    val account =
+      withIdToken(idToken) { runBlocking { service.activateAccount(activateAccountRequest) } }
+
+    assertThat(account)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        account {
+          externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+          externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
+          activationState = Account.ActivationState.ACTIVATED
+          measurementConsumerCreationToken = 0L
+          externalOwnedMeasurementConsumerIds += measurementConsumer.externalMeasurementConsumerId
         }
       )
   }
@@ -429,11 +491,13 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
     }
 
-    val idToken2 = generateIdToken(serviceWithSecondFixedGenerator)
-    serviceWithSecondFixedGenerator.createAccount(account {})
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    val idToken2 = generateIdToken(service)
+    service.createAccount(account {})
     withIdToken(idToken2) {
       runBlocking {
-        serviceWithSecondFixedGenerator.activateAccount(
+        service.activateAccount(
           activateAccountRequest {
             externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
             activationToken = FIXED_GENERATED_EXTERNAL_ID_B
@@ -476,7 +540,9 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
     }
 
-    val idToken2 = generateIdToken(serviceWithSecondFixedGenerator)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
+    val idToken2 = generateIdToken(service)
 
     val account =
       withIdToken(idToken2) {

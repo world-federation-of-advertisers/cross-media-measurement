@@ -56,7 +56,7 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
     LEFT JOIN OpenIdConnectIdentities
       ON (Accounts.AccountId = OpenIdConnectIdentities.AccountId)
     LEFT JOIN MeasurementConsumers
-      ON (Accounts.OwnedMeasurementConsumerId = MeasurementConsumers.ExternalMeasurementConsumerId)
+      ON (Accounts.OwnedMeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId)
     """.trimIndent()
 
   override suspend fun translate(struct: Struct): Result =

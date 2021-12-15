@@ -70,7 +70,10 @@ class SpannerAccountsService(
           null
         }
 
-      return CreateAccount(externalCreatorAccountId, externalOwnedMeasurementConsumerId)
+      return CreateAccount(
+          externalCreatorAccountId = externalCreatorAccountId,
+          externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+        )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
