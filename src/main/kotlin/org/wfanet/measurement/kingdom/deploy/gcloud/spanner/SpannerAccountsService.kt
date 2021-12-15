@@ -41,6 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdReques
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ActivateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceAccountIdentityWithNewOpenIdConnectIdentity
 
 private const val REDIRECT_URI = "https://localhost:2048"
 private const val VALID_SECONDS = 3600L
@@ -142,7 +143,44 @@ class SpannerAccountsService(
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
-    TODO("Not yet implemented")
+    val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is missing" }
+
+    val parsedValidatedIdToken =
+      validateIdToken(idToken) ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is invalid" }
+
+    try {
+      return ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
+          externalAccountId = ExternalId(request.externalAccountId),
+          issuer = parsedValidatedIdToken.issuer,
+          subject = parsedValidatedIdToken.subject
+        )
+        .execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY ->
+          failGrpc(Status.INVALID_ARGUMENT) { "Issuer and subject pair already exists" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Account was not found" }
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Account has not been activated yet" }
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
+        KingdomInternalException.Code.PERMISSION_DENIED,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+      }
+    }
   }
 
   override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {

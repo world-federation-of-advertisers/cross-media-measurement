@@ -34,8 +34,9 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2.alpha.ListRequisitionsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -86,7 +87,6 @@ import org.wfanet.measurement.internal.kingdom.requisition as internalRequisitio
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-private val UPDATE_TIME_B: Timestamp = Instant.ofEpochSecond(456).toProtoTime()
 
 private const val DEFAULT_LIMIT = 50
 
@@ -96,7 +96,16 @@ private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
 private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
 
-private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
+private val DATA_PROVIDER_NAME = makeDataProvider(123L)
+
+private val EXTERNAL_REQUISITION_ID =
+  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
+private val EXTERNAL_DATA_PROVIDER_ID =
+  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
+private val EXTERNAL_MEASUREMENT_ID =
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
+private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
 
 private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
   setOf(
@@ -109,11 +118,11 @@ private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
   )
 
 private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
-  externalMeasurementConsumerId = 1L
-  externalMeasurementId = 2L
-  externalRequisitionId = 3L
+  externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+  externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+  externalRequisitionId = EXTERNAL_REQUISITION_ID
   externalComputationId = 4L
-  externalDataProviderId = 5L
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
   updateTime = UPDATE_TIME
   state = InternalState.FULFILLED
   externalFulfillingDuchyId = "9"
@@ -144,19 +153,8 @@ private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
 }
 
 private val REQUISITION: Requisition = requisition {
-  name =
-    RequisitionKey(
-        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-        externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
-      )
-      .toName()
-
-  measurement =
-    MeasurementKey(
-        externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
-        externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
-      )
-      .toName()
+  name = REQUISITION_NAME
+  measurement = MEASUREMENT_NAME
   measurementConsumerCertificate =
     MeasurementConsumerCertificateKey(
         externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
@@ -235,7 +233,6 @@ class RequisitionsServiceTest {
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
       requisitions += REQUISITION
-      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
     }
 
     val streamRequisitionRequest =
@@ -247,11 +244,10 @@ class RequisitionsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamRequisitionsRequest {
-          limit = DEFAULT_LIMIT
+          limit = DEFAULT_LIMIT + 1
           filter =
             StreamRequisitionsRequestKt.filter {
-              externalDataProviderId =
-                apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
             }
         }
@@ -261,15 +257,24 @@ class RequisitionsServiceTest {
   }
 
   @Test
-  fun `listRequisitions with page token and filter uses filter with timestamp from page token`() =
-      runBlocking {
+  fun `listRequisitions with page token returns next page`() = runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION.copy { updateTime = UPDATE_TIME_B }))
+      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
     val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 2
-      pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
+      val requisitionPageToken = listRequisitionsPageToken {
+        pageSize = 2
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        states += State.UNFULFILLED
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
       filter = filter { states += State.UNFULFILLED }
     }
 
@@ -277,7 +282,18 @@ class RequisitionsServiceTest {
 
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
-      nextPageToken = UPDATE_TIME_B.toByteArray().base64UrlEncode()
+      requisitions += REQUISITION
+      val requisitionPageToken = listRequisitionsPageToken {
+        pageSize = 2
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        states += State.UNFULFILLED
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      nextPageToken = requisitionPageToken.toByteArray().base64UrlEncode()
     }
 
     val streamRequisitionRequest =
@@ -289,13 +305,61 @@ class RequisitionsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamRequisitionsRequest {
+          limit = 3
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              states += InternalState.UNFULFILLED
+              measurementStates += VISIBLE_MEASUREMENT_STATES
+              externalDataProviderIdAfter = EXTERNAL_DATA_PROVIDER_ID
+              externalRequisitionIdAfter = EXTERNAL_REQUISITION_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRequisitions with more results remaining returns response with next page token`() =
+      runBlocking {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 1
+    }
+
+    val result = service.listRequisitions(request)
+
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION
+      val requisitionPageToken = listRequisitionsPageToken {
+        pageSize = 1
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      nextPageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val streamRequisitionsRequest =
+      captureFirst<StreamRequisitionsRequest> {
+        verify(internalRequisitionMock).streamRequisitions(capture())
+      }
+
+    assertThat(streamRequisitionsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamRequisitionsRequest {
           limit = 2
           filter =
             StreamRequisitionsRequestKt.filter {
-              externalDataProviderId =
-                apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-              updatedAfter = UPDATE_TIME
-              states += InternalState.UNFULFILLED
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
             }
         }
@@ -317,35 +381,141 @@ class RequisitionsServiceTest {
 
     val result = service.listRequisitions(request)
 
-    val expected = listRequisitionsResponse {
-      requisitions += REQUISITION
-      nextPageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-    }
+    val expected = listRequisitionsResponse { requisitions += REQUISITION }
 
-    val streamRequisitionRequest =
+    val streamRequisitionsRequest =
       captureFirst<StreamRequisitionsRequest> {
         verify(internalRequisitionMock).streamRequisitions(capture())
       }
 
-    assertThat(streamRequisitionRequest)
+    assertThat(streamRequisitionsRequest)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamRequisitionsRequest {
-          limit = DEFAULT_LIMIT
+          limit = DEFAULT_LIMIT + 1
           filter =
             StreamRequisitionsRequestKt.filter {
-              val measurementKey = MeasurementKey.fromName(MEASUREMENT_NAME)!!
-              externalMeasurementConsumerId =
-                apiIdToExternalId(measurementKey.measurementConsumerId)
-              externalMeasurementId = apiIdToExternalId(measurementKey.measurementId)
-              externalDataProviderId =
-                apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
             }
         }
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRequisitions throws INVALID ARGUMENT when mc doesn't match mc in page token `() =
+      runBlocking {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_REQUISITION))
+
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      val requisitionPageToken = listRequisitionsPageToken {
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        externalMeasurementConsumerId = 456
+        externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+      filter = filter { measurement = MEASUREMENT_NAME }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Arguments must be kept the same when using a page token")
+  }
+
+  @Test
+  fun `listRequisitions throws INVALID ARGUMENT when measurement filter doesn't match `() =
+      runBlocking {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_REQUISITION))
+
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      val requisitionPageToken = listRequisitionsPageToken {
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+        externalMeasurementId = 456
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+      filter = filter { measurement = MEASUREMENT_NAME }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Arguments must be kept the same when using a page token")
+  }
+
+  @Test
+  fun `listRequisitions throws INVALID ARGUMENT when edp doesn't match edp in page token `() =
+      runBlocking {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_REQUISITION))
+
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      val requisitionPageToken = listRequisitionsPageToken {
+        externalDataProviderId = 456
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Arguments must be kept the same when using a page token")
+  }
+
+  @Test
+  fun `listRequisitions throws INVALID ARGUMENT when states don't match states in page token `() =
+      runBlocking {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_REQUISITION))
+
+    val request = listRequisitionsRequest {
+      parent = DATA_PROVIDER_NAME
+      val requisitionPageToken = listRequisitionsPageToken {
+        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        states += State.UNFULFILLED
+        lastRequisition =
+          previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+      }
+      pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+      filter = filter { states += State.REFUSED }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -367,23 +537,6 @@ class RequisitionsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid")
-  }
-
-  @Test
-  fun `listRequisitions throws INVALID_ARGUMENT when state in filter is invalid`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listRequisitions(
-            listRequisitionsRequest {
-              parent = DATA_PROVIDER_NAME
-              filter = filter { states += State.STATE_UNSPECIFIED }
-            }
-          )
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("State is invalid")
   }
 
   @Test
