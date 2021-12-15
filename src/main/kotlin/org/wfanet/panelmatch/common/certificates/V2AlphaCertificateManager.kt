@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.certificates
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
@@ -26,7 +27,6 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.crypto.jceProvider
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager.KeyPair
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap

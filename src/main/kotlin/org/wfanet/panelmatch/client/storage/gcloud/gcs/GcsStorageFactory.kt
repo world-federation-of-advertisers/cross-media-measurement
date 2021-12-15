@@ -15,9 +15,9 @@
 package org.wfanet.panelmatch.client.storage.gcloud.gcs
 
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.kotlin.toByteString
 import java.security.MessageDigest
 import org.wfanet.measurement.common.HexString
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails

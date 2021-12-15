@@ -65,7 +65,7 @@ As of writing, Azure Key Vault does not support this functionality.
 #### Advanced Configuration
 
 We recommend generating a new certificate per exchange, but this is not actually
-necessary. If there is already a process to generate certificates outside of the
+necessary. If there is already a process to generate certificates outside the
 reference implementation, that can be used instead.
 
 In this situation, implement a custom

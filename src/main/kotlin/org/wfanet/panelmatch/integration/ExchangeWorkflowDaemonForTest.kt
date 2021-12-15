@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.integration
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.nio.file.Path
 import java.time.Clock
@@ -29,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemon
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper

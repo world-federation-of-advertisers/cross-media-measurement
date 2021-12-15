@@ -40,8 +40,10 @@ import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
 /**
- * Maps ExchangeWorkflow.Step to respective tasks. Retrieves necessary inputs. Executes step. Stores
- * outputs.
+ * Executes the work required for [ValidatedExchangeStep]s.
+ *
+ * This involves finding the appropriate [ExchangeTask], reading the inputs, executing the
+ * [ExchangeTask], and saving the outputs.
  */
 class ExchangeTaskExecutor(
   private val apiClient: ApiClient,

@@ -14,17 +14,20 @@
 
 package org.wfanet.panelmatch.client.storage.aws.s3
 
+import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import software.amazon.awssdk.services.s3.S3Client
 
+/** [StorageFactory] for [S3StorageClient]. */
 class S3StorageFactory(
   private val storageDetails: StorageDetails,
   private val exchangeDateKey: ExchangeDateKey
 ) : StorageFactory {
 
   override fun build(): StorageClient {
-    TODO("Not yet implemented")
+    return S3StorageClient(S3Client.create(), storageDetails.aws.bucket)
   }
 }

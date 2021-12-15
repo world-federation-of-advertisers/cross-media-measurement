@@ -18,8 +18,9 @@ import java.io.Serializable
 
 /**
  * Provides a computationally symmetric form of private information query result decryption.
+ *
  * Computationally symmetric forms of private information retrieval do not allow the client to be
- * able to access information for queries outside of their scope while still preventing the database
+ * able to access information for queries outside their scopes while still preventing the database
  * from knowing what was queried.
  */
 interface QueryResultsDecryptor : Serializable {
