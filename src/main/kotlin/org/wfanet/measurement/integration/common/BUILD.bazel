@@ -9,6 +9,7 @@ package(
 )
 
 KINGDOM_PUBLIC_API_SERVICES = [
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_groups_service",
@@ -85,6 +86,7 @@ kt_jvm_library(
     deps = [
         ":configs",
         ":in_process_kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/tools:self_issued_id_token",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
