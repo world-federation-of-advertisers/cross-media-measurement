@@ -258,6 +258,46 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `createEventGroup throws INVALID_ARGUMENT if encrypted_metadata is set without public key`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createEventGroup(
+            createEventGroupRequest {
+              parent = DATA_PROVIDER_NAME
+              eventGroup = EVENT_GROUP.copy { clearMeasurementConsumerPublicKey() }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo(
+        "measurement_consumer_public_key must be specified if encrypted_metadata is specified"
+      )
+  }
+
+  @Test
+  fun `createEventGroup throws INVALID_ARGUMENT if public key is set without certificate`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createEventGroup(
+            createEventGroupRequest {
+              parent = DATA_PROVIDER_NAME
+              eventGroup = EVENT_GROUP.copy { clearMeasurementConsumerCertificate() }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo(
+        "measurement_consumer_certificate must be specified if measurement_consumer_public_key is specified"
+      )
+  }
+
+  @Test
   fun `listEventGroups with parent uses filter with parent`() {
     val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 

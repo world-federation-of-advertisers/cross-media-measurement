@@ -75,6 +75,16 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
+    grpcRequire(
+      request.eventGroup.encryptedMetadata.isEmpty ||
+        request.eventGroup.hasMeasurementConsumerPublicKey()
+    ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
+    grpcRequire(
+      !request.eventGroup.hasMeasurementConsumerPublicKey() ||
+        !request.eventGroup.measurementConsumerCertificate.isBlank()
+    ) {
+      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is specified"
+    }
     return internalEventGroupsStub
       .createEventGroup(request.eventGroup.toInternal(request))
       .toEventGroup()
@@ -153,9 +163,8 @@ private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEve
     grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid"
     }
-
   val measurementConsumerKey =
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(this.measurementConsumer)) {
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.eventGroup.measurementConsumer)) {
       "Measurement consumer is either unspecified or invalid"
     }
   val measurementConsumerCertificateKey =
