@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -53,16 +54,17 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
     return if (eventGroup.providedEventGroupId.isBlank()) {
-      createNewEventGroup(dataProviderId, measurementConsumerId)
+      createNewEventGroup(dataProviderId, measurementConsumerId, eventGroup)
     } else {
       findExistingEventGroup(dataProviderId)
-        ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+        ?: createNewEventGroup(dataProviderId, measurementConsumerId, eventGroup)
     }
   }
 
   private fun TransactionScope.createNewEventGroup(
     dataProviderId: Long,
-    measurementConsumerId: Long
+    measurementConsumerId: Long,
+    eventGroup: EventGroup
   ): EventGroup {
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
@@ -71,11 +73,14 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("EventGroupId" to internalEventGroupId)
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementConsumerCertificateId" to eventGroup.externalMeasurementConsumerCertificateId)
       set("DataProviderId" to dataProviderId)
       if (eventGroup.providedEventGroupId.isNotBlank()) {
         set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("EventGroupDetails" to eventGroup.details)
+      setJson("EventGroupDetailsJson" to eventGroup.details)
     }
 
     return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()

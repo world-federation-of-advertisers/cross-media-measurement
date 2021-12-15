@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroup
 
 private val BASE_SQL =
@@ -31,6 +32,8 @@ private val BASE_SQL =
       EventGroups.DataProviderId,
       EventGroups.ProvidedEventGroupId,
       EventGroups.CreateTime,
+      EventGroups.EventGroupDetails,
+      EventGroups.EventGroupDetailsJson,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       DataProviders.ExternalDataProviderId
     FROM EventGroups
@@ -92,6 +95,7 @@ class EventGroupReader : BaseSpannerReader<EventGroup>() {
           providedEventGroupId = struct.getString("ProvidedEventGroupId")
         }
         createTime = struct.getTimestamp("CreateTime").toProto()
+        details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
       }
       .build()
 }
