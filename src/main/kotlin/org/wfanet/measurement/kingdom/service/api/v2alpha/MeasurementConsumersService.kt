@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMe
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
@@ -67,20 +68,22 @@ class MeasurementConsumersService(
 
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
-        internalMeasurementConsumer {
-          certificate = parseCertificateDer(measurementConsumer.certificateDer)
-          details =
-            details {
-              apiVersion = API_VERSION.string
-              publicKey = measurementConsumer.publicKey.data
-              publicKeySignature = measurementConsumer.publicKey.signature
+        createMeasurementConsumerRequest {
+          this.measurementConsumer =
+            internalMeasurementConsumer {
+              certificate = parseCertificateDer(measurementConsumer.certificateDer)
+              details =
+                details {
+                  apiVersion = API_VERSION.string
+                  publicKey = measurementConsumer.publicKey.data
+                  publicKeySignature = measurementConsumer.publicKey.signature
+                }
+              measurementConsumerCreationToken =
+                apiIdToExternalId(request.measurementConsumerCreationToken)
             }
-          measurementConsumerCreationToken =
-            apiIdToExternalId(request.measurementConsumerCreationToken)
+          externalAccountId = account.externalAccountId
         }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
-        // as owner.
-        )
+      )
     return internalResponse.toMeasurementConsumer()
   }
 

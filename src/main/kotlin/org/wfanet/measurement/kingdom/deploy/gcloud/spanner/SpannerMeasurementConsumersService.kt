@@ -20,9 +20,11 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
 
@@ -31,15 +33,43 @@ class SpannerMeasurementConsumersService(
   private val client: AsyncDatabaseClient
 ) : MeasurementConsumersCoroutineImplBase() {
   override suspend fun createMeasurementConsumer(
-    request: MeasurementConsumer
+    request: CreateMeasurementConsumerRequest
   ): MeasurementConsumer {
+    val measurementConsumer = request.measurementConsumer
     grpcRequire(
-      request.details.apiVersion.isNotEmpty() &&
-        !request.details.publicKey.isEmpty &&
-        !request.details.publicKeySignature.isEmpty
+      measurementConsumer.details.apiVersion.isNotEmpty() &&
+        !measurementConsumer.details.publicKey.isEmpty &&
+        !measurementConsumer.details.publicKeySignature.isEmpty
     ) { "Details field of MeasurementConsumer is missing fields." }
-    return CreateMeasurementConsumer(request).execute(client, idGenerator)
+    try {
+      return CreateMeasurementConsumer(measurementConsumer, ExternalId(request.externalAccountId))
+        .execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.PERMISSION_DENIED ->
+          failGrpc(Status.PERMISSION_DENIED) { "Measurement Consumer creation token is not valid" }
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+      }
+    }
   }
+
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {

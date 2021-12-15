@@ -133,12 +133,12 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `createAccount throws PERMISSION_DENIED when caller doesn't own measurement consumer`() =
       runBlocking {
     val measurementConsumer =
-      population.createMeasurementConsumer(dataServices.measurementConsumersService)
+      population.createMeasurementConsumer(dataServices.measurementConsumersService, service)
 
-    service.createAccount(account {})
+    serviceWithSecondFixedGenerator.createAccount(account {})
 
     val createAccountRequest = account {
-      externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
+      externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_B
       externalOwnedMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     }
 

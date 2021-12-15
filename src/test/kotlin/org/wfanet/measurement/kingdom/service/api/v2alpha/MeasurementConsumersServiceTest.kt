@@ -65,6 +65,7 @@ import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest as internalAddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest as internalCreateMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest as internalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
@@ -143,14 +144,19 @@ class MeasurementConsumersServiceTest {
         InternalMeasurementConsumersService::createMeasurementConsumer
       )
       .isEqualTo(
-        INTERNAL_MEASUREMENT_CONSUMER.copy {
-          clearExternalMeasurementConsumerId()
-          certificate =
-            certificate.copy {
+        internalCreateMeasurementConsumerRequest {
+          measurementConsumer =
+            INTERNAL_MEASUREMENT_CONSUMER.copy {
               clearExternalMeasurementConsumerId()
-              clearExternalCertificateId()
+              certificate =
+                certificate.copy {
+                  clearExternalMeasurementConsumerId()
+                  clearExternalCertificateId()
+                }
+              measurementConsumerCreationToken =
+                apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
             }
-          measurementConsumerCreationToken = apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
+          externalAccountId = ACCOUNT_ID
         }
       )
   }

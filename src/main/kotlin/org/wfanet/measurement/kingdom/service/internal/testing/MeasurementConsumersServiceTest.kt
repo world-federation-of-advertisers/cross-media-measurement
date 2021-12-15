@@ -17,8 +17,10 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -29,9 +31,15 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -40,8 +48,30 @@ private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
 
+private val MEASUREMENT_CONSUMER = measurementConsumer {
+  certificate =
+    certificate {
+      notValidBefore = timestamp { seconds = 12345 }
+      notValidAfter = timestamp { seconds = 23456 }
+      details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+    }
+  details =
+    details {
+      apiVersion = "v2alpha"
+      publicKey = PUBLIC_KEY
+      publicKeySignature = PUBLIC_KEY_SIGNATURE
+    }
+}
+
 @RunWith(JUnit4::class)
 abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutineImplBase> {
+
+  protected data class Services<T>(
+    val measurementConsumersService: T,
+    val accountsService: AccountsGrpcKt.AccountsCoroutineImplBase
+  )
+
+  protected val clock: Clock = Clock.systemUTC()
 
   protected val idGenerator =
     FixedIdGenerator(
@@ -49,14 +79,21 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       ExternalId(FIXED_GENERATED_EXTERNAL_ID)
     )
 
+  private val population = Population(clock, idGenerator)
+
   protected lateinit var measurementConsumersService: T
     private set
 
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  protected lateinit var accountsService: AccountsGrpcKt.AccountsCoroutineImplBase
+    private set
+
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
   fun initService() {
-    measurementConsumersService = newService(idGenerator)
+    val services = newServices(idGenerator)
+    measurementConsumersService = services.measurementConsumersService
+    accountsService = services.accountsService
   }
 
   @Test
@@ -76,23 +113,16 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `createMeasurementConsumer fails for missing fields`() = runBlocking {
-    val measurementConsumer =
-      MeasurementConsumer.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
-          }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-          }
-        }
-        .build()
+    val measurementConsumer = MEASUREMENT_CONSUMER.copy { clearDetails() }
+
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        measurementConsumersService.createMeasurementConsumer(measurementConsumer)
+        measurementConsumersService.createMeasurementConsumer(
+          createMeasurementConsumerRequest {
+            this.measurementConsumer = measurementConsumer
+            externalAccountId = 5L
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -102,59 +132,83 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   @Test
-  fun `createMeasurementConsumer succeeds`() = runBlocking {
+  fun `createMeasurementConsumer fails when creation token has already been used`() = runBlocking {
+    val accountTokenPair = population.createActivatedAccount(accountsService)
+    val account = accountTokenPair.first
     val measurementConsumer =
-      MeasurementConsumer.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
+      MEASUREMENT_CONSUMER.copy {
+        measurementConsumerCreationToken = accountTokenPair.first.measurementConsumerCreationToken
+      }
+    measurementConsumersService.createMeasurementConsumer(
+      createMeasurementConsumerRequest {
+        this.measurementConsumer = measurementConsumer
+        externalAccountId = account.externalAccountId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementConsumersService.createMeasurementConsumer(
+          createMeasurementConsumerRequest {
+            this.measurementConsumer = measurementConsumer
+            externalAccountId = account.externalAccountId
           }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-        }
-        .build()
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Measurement Consumer creation token is not valid")
+  }
+
+  @Test
+  fun `createMeasurementConsumer succeeds`() = runBlocking {
+    val accountTokenPair = population.createActivatedAccount(accountsService)
+    val account = accountTokenPair.first
+    val measurementConsumer =
+      MEASUREMENT_CONSUMER.copy {
+        measurementConsumerCreationToken = account.measurementConsumerCreationToken
+      }
+
     val createdMeasurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(measurementConsumer)
+      measurementConsumersService.createMeasurementConsumer(
+        createMeasurementConsumerRequest {
+          this.measurementConsumer = measurementConsumer
+          externalAccountId = account.externalAccountId
+        }
+      )
 
     assertThat(createdMeasurementConsumer)
       .isEqualTo(
-        measurementConsumer
-          .toBuilder()
-          .apply {
-            externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-            certificateBuilder.apply {
+        measurementConsumer.copy {
+          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
+          certificate =
+            certificate.copy {
               externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
               externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
             }
-          }
-          .build()
+          clearMeasurementConsumerCreationToken()
+        }
       )
   }
 
   @Test
   fun `getMeasurementConsumer succeeds`() = runBlocking {
+    val accountTokenPair = population.createActivatedAccount(accountsService)
+    val account = accountTokenPair.first
     val measurementConsumer =
-      MeasurementConsumer.newBuilder()
-        .apply {
-          certificateBuilder.apply {
-            notValidBeforeBuilder.seconds = 12345
-            notValidAfterBuilder.seconds = 23456
-            detailsBuilder.x509Der = CERTIFICATE_DER
-          }
-          detailsBuilder.apply {
-            apiVersion = "v2alpha"
-            publicKey = PUBLIC_KEY
-            publicKeySignature = PUBLIC_KEY_SIGNATURE
-          }
-        }
-        .build()
+      MEASUREMENT_CONSUMER.copy {
+        measurementConsumerCreationToken = account.measurementConsumerCreationToken
+      }
+
     val createdMeasurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(measurementConsumer)
+      measurementConsumersService.createMeasurementConsumer(
+        createMeasurementConsumerRequest {
+          this.measurementConsumer = measurementConsumer
+          externalAccountId = account.externalAccountId
+        }
+      )
 
     val measurementConsumerRead =
       measurementConsumersService.getMeasurementConsumer(

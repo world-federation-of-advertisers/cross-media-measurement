@@ -16,13 +16,18 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.net.URLEncoder
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
@@ -41,13 +46,19 @@ import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
+import org.wfanet.measurement.tools.generateIdToken
 
 private const val API_VERSION = "v2alpha"
 
@@ -73,24 +84,32 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createMeasurementConsumer(
     measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    accountsService: AccountsCoroutineImplBase,
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): MeasurementConsumer {
+    val accountTokenPair = createActivatedAccount(accountsService)
+    val account = accountTokenPair.first
     return measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        certificate =
-          buildRequestCertificate(
-            "MC cert",
-            "MC SKID " + idGenerator.generateExternalId().value,
-            notValidBefore,
-            notValidAfter
-          )
-        details =
-          MeasurementConsumerKt.details {
-            apiVersion = API_VERSION
-            publicKey = ByteString.copyFromUtf8("MC public key")
-            publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
+      createMeasurementConsumerRequest {
+        measurementConsumer =
+          measurementConsumer {
+            certificate =
+              buildRequestCertificate(
+                "MC cert",
+                "MC SKID " + idGenerator.generateExternalId().value,
+                notValidBefore,
+                notValidAfter
+              )
+            details =
+              MeasurementConsumerKt.details {
+                apiVersion = API_VERSION
+                publicKey = ByteString.copyFromUtf8("MC public key")
+                publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
+              }
+            measurementConsumerCreationToken = account.measurementConsumerCreationToken
           }
+        externalAccountId = account.externalAccountId
       }
     )
   }
@@ -207,6 +226,57 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         )
       }
     )
+  }
+
+  /** Returns a pair containing the [Account] and the id token. */
+  suspend fun createActivatedAccount(
+    accountsService: AccountsCoroutineImplBase,
+    externalCreatorAccountId: Long = 0L,
+    externalOwnedMeasurementConsumerId: Long = 0L
+  ): Pair<Account, String> {
+    val account =
+      accountsService.createAccount(
+        account {
+          this.externalCreatorAccountId = externalCreatorAccountId
+          this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+        }
+      )
+
+    val openIdRequestParams =
+      accountsService.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        generateRequestUri(state = openIdRequestParams.state, nonce = openIdRequestParams.nonce),
+        clock
+      )
+
+    withIdToken(idToken) {
+      runBlocking {
+        accountsService.activateAccount(
+          activateAccountRequest {
+            externalAccountId = account.externalAccountId
+            activationToken = account.activationToken
+          }
+        )
+      }
+    }
+
+    return Pair(account, idToken)
+  }
+
+  private fun generateRequestUri(
+    state: Long,
+    nonce: Long,
+  ): String {
+    val uriParts = mutableListOf<String>()
+    uriParts.add("openid://?response_type=id_token")
+    uriParts.add("scope=openid")
+    uriParts.add("state=" + externalIdToApiId(state))
+    uriParts.add("nonce=" + externalIdToApiId(nonce))
+    val redirectUri = URLEncoder.encode("https://localhost:2048", "UTF-8")
+    uriParts.add("client_id=$redirectUri")
+
+    return uriParts.joinToString("&")
   }
 }
 

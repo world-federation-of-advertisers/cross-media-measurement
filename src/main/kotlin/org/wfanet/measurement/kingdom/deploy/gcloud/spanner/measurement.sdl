@@ -86,7 +86,6 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
--- TODO: add MeasurementConsumerCreationToken and a unique index on it
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId INT64 NOT NULL,
 
@@ -97,12 +96,17 @@ CREATE TABLE MeasurementConsumers (
   MeasurementConsumerDetails BYTES(MAX) NOT NULL,
   MeasurementConsumerDetailsJson STRING(MAX) NOT NULL,
 
+  MeasurementConsumerCreationToken INT64 NOT NULL,
+
   FOREIGN KEY (PublicKeyCertificateId) REFERENCES Certificates(CertificateId),
 ) PRIMARY KEY (MeasurementConsumerId);
 
 -- For measurement consumer APIs.
 CREATE UNIQUE INDEX MeasurementConsumersByExternalId
   ON MeasurementConsumers(ExternalMeasurementConsumerId);
+
+CREATE UNIQUE INDEX MeasurementConsumersByMeasurementConsumerCreationToken
+  ON MeasurementConsumers(MeasurementConsumerCreationToken);
 
 CREATE TABLE MeasurementConsumerApiKeys (
   MeasurementConsumerId INT64 NOT NULL,

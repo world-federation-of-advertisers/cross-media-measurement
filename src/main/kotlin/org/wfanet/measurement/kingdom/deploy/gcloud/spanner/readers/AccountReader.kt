@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -107,5 +108,19 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
       }
       .execute(readContext)
       .singleOrNull()
+  }
+
+  suspend fun readByMeasurementConsumerCreationToken(
+    readContext: AsyncDatabaseClient.ReadContext,
+    measurementConsumerCreationToken: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause(
+          "WHERE Accounts.MeasurementConsumerCreationToken = @measurementConsumerCreationToken"
+        )
+        bind("measurementConsumerCreationToken").to(measurementConsumerCreationToken.value)
+      }
+      .execute(readContext)
+      .firstOrNull()
   }
 }
