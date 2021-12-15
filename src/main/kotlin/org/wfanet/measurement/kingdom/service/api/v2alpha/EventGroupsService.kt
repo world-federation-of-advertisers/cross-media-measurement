@@ -83,7 +83,8 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       !request.eventGroup.hasMeasurementConsumerPublicKey() ||
         !request.eventGroup.measurementConsumerCertificate.isBlank()
     ) {
-      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is specified"
+      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
+        "specified"
     }
     return internalEventGroupsStub
       .createEventGroup(request.eventGroup.toInternal(request))

@@ -293,7 +293,8 @@ class EventGroupsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo(
-        "measurement_consumer_certificate must be specified if measurement_consumer_public_key is specified"
+        "measurement_consumer_certificate must be specified if " +
+          "measurement_consumer_public_key is specified"
       )
   }
 
