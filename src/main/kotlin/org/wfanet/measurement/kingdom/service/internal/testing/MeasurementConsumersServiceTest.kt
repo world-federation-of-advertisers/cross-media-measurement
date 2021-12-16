@@ -27,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -134,10 +135,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `createMeasurementConsumer fails when creation token has already been used`() = runBlocking {
-    val accountTokenPair = population.createActivatedAccount(accountsService)
-    val account = accountTokenPair.first
+    val account = population.createActivatedAccount(accountsService)
     val measurementConsumerCreationTokenHash =
-      population.createMeasurementConsumerCreationTokenHash(accountsService)
+      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
     measurementConsumersService.createMeasurementConsumer(
       createMeasurementConsumerRequest {
         this.measurementConsumer = MEASUREMENT_CONSUMER
@@ -164,10 +164,11 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   @Test
-  fun `createMeasurementConsumer fails when account to be owner doesn't exist`() = runBlocking {
+  fun `createMeasurementConsumer fails when account to be owner has not been activated`() =
+      runBlocking {
     val account = accountsService.createAccount(account {})
     val measurementConsumerCreationTokenHash =
-      population.createMeasurementConsumerCreationTokenHash(accountsService)
+      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -185,10 +186,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   @Test
-  fun `createMeasurementConsumer fails when account to be owner has not been activated`() =
-      runBlocking {
+  fun `createMeasurementConsumer fails when account to be owner doesn't exist`() = runBlocking {
     val measurementConsumerCreationTokenHash =
-      population.createMeasurementConsumerCreationTokenHash(accountsService)
+      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -207,10 +207,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
-    val accountTokenPair = population.createActivatedAccount(accountsService)
-    val account = accountTokenPair.first
+    val account = population.createActivatedAccount(accountsService)
     val measurementConsumerCreationTokenHash =
-      population.createMeasurementConsumerCreationTokenHash(accountsService)
+      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
@@ -236,10 +235,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `getMeasurementConsumer succeeds`() = runBlocking {
-    val accountTokenPair = population.createActivatedAccount(accountsService)
-    val account = accountTokenPair.first
+    val account = population.createActivatedAccount(accountsService)
     val measurementConsumerCreationHash =
-      population.createMeasurementConsumerCreationTokenHash(accountsService)
+      hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(

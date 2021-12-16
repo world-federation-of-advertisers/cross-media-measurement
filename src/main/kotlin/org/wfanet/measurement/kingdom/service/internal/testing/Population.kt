@@ -89,10 +89,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): MeasurementConsumer {
-    val accountTokenPair = createActivatedAccount(accountsService)
-    val account = accountTokenPair.first
+    val account = createActivatedAccount(accountsService)
     val measurementConsumerCreationTokenHash =
-      createMeasurementConsumerCreationTokenHash(accountsService)
+      hashSha256(createMeasurementConsumerCreationToken(accountsService))
     return measurementConsumersService.createMeasurementConsumer(
       createMeasurementConsumerRequest {
         measurementConsumer =
@@ -231,12 +230,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  /** Returns a pair containing the [Account] and the id token. */
+  /** Returns an activated [Account]. */
   suspend fun createActivatedAccount(
     accountsService: AccountsCoroutineImplBase,
     externalCreatorAccountId: Long = 0L,
     externalOwnedMeasurementConsumerId: Long = 0L
-  ): Pair<Account, String> {
+  ): Account {
     val account =
       accountsService.createAccount(
         account {
@@ -264,20 +263,18 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       }
     }
 
-    return Pair(account, idToken)
+    return account
   }
 
-  suspend fun createMeasurementConsumerCreationTokenHash(
+  suspend fun createMeasurementConsumerCreationToken(
     accountsService: AccountsCoroutineImplBase
-  ): ByteString {
+  ): Long {
     val createMeasurementConsumerCreationTokenResponse =
       accountsService.createMeasurementConsumerCreationToken(
         createMeasurementConsumerCreationTokenRequest {}
       )
 
-    return hashSha256(
-      createMeasurementConsumerCreationTokenResponse.measurementConsumerCreationToken
-    )
+    return createMeasurementConsumerCreationTokenResponse.measurementConsumerCreationToken
   }
 
   private fun generateRequestUri(
