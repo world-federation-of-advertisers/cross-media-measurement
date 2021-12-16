@@ -17,9 +17,9 @@ package org.wfanet.panelmatch.common.secrets
 import com.google.protobuf.ByteString
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.secrets.testing.AbstractMutableSecretMapTest
-import org.wfanet.panelmatch.common.storage.createBlob
 
 @RunWith(JUnit4::class)
 class StorageClientSecretMapTest : AbstractMutableSecretMapTest<StorageClientSecretMap>() {

@@ -21,6 +21,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 

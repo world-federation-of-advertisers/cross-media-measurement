@@ -25,8 +25,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient.Blob
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.common.storage.createBlob
 
 private val JOIN_KEYS: List<JoinKeyAndId> =
   (1..10).map {

@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.panelmatch.client.common.Identity
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemon
 import org.wfanet.panelmatch.client.deploy.ProductionExchangeTaskMapper
@@ -50,7 +51,6 @@ import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
-import org.wfanet.panelmatch.common.storage.createBlob
 import org.wfanet.panelmatch.common.storage.toByteString
 
 /** Executes ExchangeWorkflows for InProcess Integration testing. */

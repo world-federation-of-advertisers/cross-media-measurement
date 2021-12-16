@@ -18,11 +18,11 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
 import org.wfanet.panelmatch.common.ShardedFileName
-import org.wfanet.panelmatch.common.storage.createBlob
 
 /** Implements CopyFromSharedStorageStep. */
 class CopyFromSharedStorageTask(
