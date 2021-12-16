@@ -62,7 +62,10 @@ message StreamMeasurementsRequest {
     repeated Measurement.State states = 3;
     // for next page token, both after fields need to be set
     google.protobuf.Timestamp updated_after = 4;
-    fixed64 external_measurement_id_after = 5;
+    oneof id_after {
+      fixed64 external_measurement_id_after = 5;
+      fixed64 external_computation_id_after = 6;
+    }
   }
   Filter filter = 1;
 

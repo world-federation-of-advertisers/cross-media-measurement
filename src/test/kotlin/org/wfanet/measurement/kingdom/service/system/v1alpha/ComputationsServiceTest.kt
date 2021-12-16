@@ -342,7 +342,10 @@ class ComputationsServiceTest {
       )
       .inOrder()
 
-    fun expectedStreamMeasurementsRequest(updatedAfterSeconds: Long) =
+    fun expectedStreamMeasurementsRequest(
+      updatedAfterSeconds: Long,
+      lastSeenExternalComputationId: Long
+    ) =
       StreamMeasurementsRequest.newBuilder()
         .apply {
           measurementView = InternalMeasurement.View.COMPUTATION
@@ -357,6 +360,7 @@ class ComputationsServiceTest {
               )
             )
             updatedAfterBuilder.seconds = updatedAfterSeconds
+            externalComputationIdAfter = lastSeenExternalComputationId
           }
         }
         .build()
@@ -367,9 +371,9 @@ class ComputationsServiceTest {
         assertThat(allValues)
           .ignoringRepeatedFieldOrder()
           .containsExactly(
-            expectedStreamMeasurementsRequest(0),
-            expectedStreamMeasurementsRequest(1001),
-            expectedStreamMeasurementsRequest(1003)
+            expectedStreamMeasurementsRequest(0, 0),
+            expectedStreamMeasurementsRequest(1001, 101),
+            expectedStreamMeasurementsRequest(1003, 103)
           )
           .inOrder()
       }
