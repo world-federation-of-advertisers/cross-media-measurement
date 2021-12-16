@@ -28,12 +28,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
-import org.wfanet.panelmatch.client.common.joinKeyOf
 import org.wfanet.panelmatch.client.common.lookupKeyOf
 import org.wfanet.panelmatch.client.common.shardIdOf
-import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
-import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesOutputs
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
@@ -49,7 +46,6 @@ import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
-import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.beam.values
@@ -64,16 +60,6 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
       85L to "klm",
       95L to "nop",
       99L to "qrs"
-    )
-  }
-  private val hashedJoinKeysAndIds by lazy {
-    getJoinKeysAndIds(
-      53L to "hashed join key of abc",
-      58L to "hashed join key of def",
-      71L to "hashed join key of hij",
-      85L to "hashed join key of klm",
-      95L to "hashed join key of nop",
-      99L to "hashed join key of qrs"
     )
   }
 
@@ -198,18 +184,6 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     )
   }
 
-  private fun getJoinKeysAndIds(vararg entries: Pair<Long, String>): PCollection<JoinKeyAndId> {
-    return pcollectionOf(
-      "Create LookupKeys+Ids",
-      entries.map {
-        joinKeyAndId {
-          joinKeyIdentifier = joinKeyIdentifierOf(it.first)
-          joinKey = joinKeyOf(it.second.toByteStringUtf8())
-        }
-      }
-    )
-  }
-
   private fun decodeEncryptedQueryBundle(
     privateMembershipCryptorHelper: PrivateMembershipCryptorHelper,
     encryptedQueryBundles: PCollection<EncryptedQueryBundle>
@@ -250,7 +224,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
   }
 }
 
-data class PanelistQuery(
+private data class PanelistQuery(
   val shardId: ShardId,
   val bucketId: BucketId,
   val joinKeyIdentifier: JoinKeyIdentifier

@@ -150,7 +150,7 @@ private class DecryptQueryResults(
         .setCoder(plaintextListCoder)
 
     val keyedPlaintextJoinKeyAndIds = plaintextJoinKeyAndIds.keyBy { it.joinKeyIdentifier }
-    return groupedDecryptedResults.strictOneToOneJoin(keyedPlaintextJoinKeyAndIds).map { it ->
+    return groupedDecryptedResults.strictOneToOneJoin(keyedPlaintextJoinKeyAndIds).map {
       keyedDecryptedEventDataSet {
         plaintextJoinKeyAndId = it.value
         decryptedEventData += it.key

@@ -27,14 +27,14 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.privatemembership.JniQueryPreparer
 import org.wfanet.panelmatch.client.privatemembership.LookupKeyAndId
 import org.wfanet.panelmatch.client.privatemembership.LookupKeyAndIdCollection
 import org.wfanet.panelmatch.client.privatemembership.testing.joinKeyAndIdOf
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
-val PLAINTEXT_JOIN_KEYS =
+
+private val PLAINTEXT_JOIN_KEYS =
   listOf(
     joinKeyAndIdOf("some plaintext0", "some identifier0"),
     joinKeyAndIdOf("some plaintext1", "some identifier1"),
@@ -43,14 +43,15 @@ val PLAINTEXT_JOIN_KEYS =
     joinKeyAndIdOf("some plaintext4", "some identifier4"),
   )
 
+private val PEPPER = "some-pepper-value".toByteStringUtf8()
+
 @RunWith(JUnit4::class)
 class JoinKeyHashingExchangeTaskTest {
   private val storage = InMemoryStorageClient()
   private val queryPreparer = JniQueryPreparer()
-  private val pepper = "some-secret-salt-1".toByteStringUtf8()
-  private val saltedJoinKeys = queryPreparer.prepareLookupKeys(pepper, PLAINTEXT_JOIN_KEYS)
+  private val saltedJoinKeys = queryPreparer.prepareLookupKeys(PEPPER, PLAINTEXT_JOIN_KEYS)
 
-  private val blobOfPepper = runBlocking { storage.createBlob("mp-pepper", pepper) }
+  private val blobOfPepper = runBlocking { storage.createBlob("mp-pepper", PEPPER) }
   private val blobOfJoinKeys = runBlocking {
     storage.createBlob(
       "join-keys",

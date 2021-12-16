@@ -26,8 +26,6 @@ import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
-import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
-import org.wfanet.panelmatch.client.exchangetasks.joinKey
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequestKt.encryptedEventDataSet
@@ -65,9 +63,6 @@ fun decryptedQueryOf(query: Int, queryResult: ByteString): DecryptedQueryResult 
 fun plaintextOf(payload: String): Plaintext = plaintextOf(payload.toByteStringUtf8())
 
 fun joinKeyOf(key: String): JoinKey = joinKeyOf(key.toByteStringUtf8())
-
-fun joinKeyIdentifierOf(key: Long): JoinKeyIdentifier =
-  joinKeyIdentifierOf("joinKeyIdentifier of $key".toByteStringUtf8())
 
 fun queryIdAndIdOf(query: Int, joinKeyIdentifier: String): QueryIdAndId = queryIdAndId {
   queryId = queryIdOf(query)
