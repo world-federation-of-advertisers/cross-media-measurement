@@ -22,10 +22,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
@@ -38,7 +38,7 @@ abstract class FrontendSimulatorRunner : Runnable {
 
   protected fun run(storageClient: StorageClient) {
     val clientCerts =
-      SigningCerts.fromPemFiles(
+      SigningCertsTesting.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
         trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
@@ -55,13 +55,14 @@ abstract class FrontendSimulatorRunner : Runnable {
     val measurementsStub = MeasurementsCoroutineStub(v2alphaPublicApiChannel)
     val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
 
-    val inMemoryKeyStore = InMemoryKeyStore()
     val mcName = flags.mcResourceName
-    val mcConsentSignalingKeyId = "$mcName-cs-private-key"
-    val mcEncryptionKeyId = "$mcName-enc-private-key"
 
     val measurementConsumerData =
-      MeasurementConsumerData(mcName, mcConsentSignalingKeyId, mcEncryptionKeyId)
+      MeasurementConsumerData(
+        mcName,
+        loadSigningKey(flags.mcCsCertDerFile, flags.mcCsPrivateKeyDerFile),
+        loadPrivateKey(flags.mcEncryptionPrivateKeyset)
+      )
     val outputDpParams =
       DifferentialPrivacyParams.newBuilder()
         .apply {
@@ -71,21 +72,10 @@ abstract class FrontendSimulatorRunner : Runnable {
         .build()
 
     runBlocking {
-      // Populates data to the inMemoryKeyStore.
-      inMemoryKeyStore.storePrivateKeyDer(
-        mcConsentSignalingKeyId,
-        flags.mcCsPrivateKeyDerFile.readBytes().toByteString()
-      )
-      inMemoryKeyStore.storePrivateKeyDer(
-        mcEncryptionKeyId,
-        flags.mcEncPrivateKeyDerFile.readBytes().toByteString()
-      )
-
       // Runs the frontend simulator.
       FrontendSimulator(
           measurementConsumerData,
           outputDpParams,
-          inMemoryKeyStore,
           dataProvidersStub,
           eventGroupsStub,
           measurementsStub,

@@ -21,6 +21,7 @@ import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2alphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.loadLibrary
@@ -30,10 +31,6 @@ import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.duchy.verifyDataProviderParticipation
 import org.wfanet.measurement.consent.client.duchy.verifyElGamalPublicKey
-import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
-import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
-import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
 import org.wfanet.measurement.duchy.daemon.mill.CRYPTO_LIB_CPU_DURATION
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
@@ -96,7 +93,7 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  *
  * @param millId The identifier of this mill, used to claim a work.
  * @param duchyId The identifier of this duchy who owns this mill.
- * @param keyStore The [keyStore] holding the private keys.
+ * @param signingKey handle to a signing private key for consent signaling.
  * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
@@ -118,7 +115,7 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
 class LiquidLegionsV2Mill(
   millId: String,
   duchyId: String,
-  keyStore: KeyStore,
+  signingKey: SigningKeyHandle,
   consentSignalCert: Certificate,
   dataClients: ComputationDataClients,
   systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
@@ -135,7 +132,7 @@ class LiquidLegionsV2Mill(
   MillBase(
     millId,
     duchyId,
-    keyStore,
+    signingKey,
     consentSignalCert,
     dataClients,
     systemComputationParticipantsClient,
@@ -189,8 +186,7 @@ class LiquidLegionsV2Mill(
         Version.V2_ALPHA ->
           signElgamalPublicKey(
             llv2ComputationDetails.localElgamalKey.publicKey.toV2AlphaElGamalPublicKey(),
-            PrivateKeyHandle(CONSENT_SIGNALING_PRIVATE_KEY_ID, keyStore),
-            consentSignalCert.value
+            signingKey
           )
         Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
@@ -737,20 +733,11 @@ class LiquidLegionsV2Mill(
     val encryptedResult =
       when (Version.fromString(kingdomComputation.publicApiVersion)) {
         Version.V2_ALPHA -> {
-          val signedResult =
-            signResult(
-              reachAndFrequency.toV2AlphaMeasurementResult(),
-              PrivateKeyHandle(CONSENT_SIGNALING_PRIVATE_KEY_ID, keyStore),
-              consentSignalCert.value
-            )
+          val signedResult = signResult(reachAndFrequency.toV2AlphaMeasurementResult(), signingKey)
           val publicApiEncryptionPublicKey =
             kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
           serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(
-            signedResult,
-            publicApiEncryptionPublicKey,
-            ::ReversingHybridCryptor // TODO: use the real HybridCryptor.
-          )
+          encryptResult(signedResult, publicApiEncryptionPublicKey)
         }
         Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
       }
