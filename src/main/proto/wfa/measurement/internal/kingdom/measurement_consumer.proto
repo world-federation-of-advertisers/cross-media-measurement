@@ -38,7 +38,4 @@ message MeasurementConsumer {
     bytes public_key_signature = 3;
   }
   Details details = 3;
-
-  // Token used to create the `MeasurementConsumer` resource.
-  fixed64 measurement_consumer_creation_token = 4;
 }

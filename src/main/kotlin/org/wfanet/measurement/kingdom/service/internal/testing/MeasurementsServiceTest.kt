@@ -831,7 +831,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
     assertThat(measurements).hasSize(1)
-    assertThat(measurements).containsAnyOf(measurement1, measurement2)
+    assertThat(measurements).contains(measurement1)
 
     val measurements2: List<Measurement> =
       measurementsService
@@ -847,9 +847,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements2).hasSize(1)
-    assertThat(measurements2).containsAnyOf(measurement1, measurement2)
-    assertThat(measurements2[0].externalMeasurementId)
-      .isGreaterThan(measurements[0].externalMeasurementId)
+    assertThat(measurements2).contains(measurement2)
   }
 
   @Test

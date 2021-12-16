@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -78,10 +79,10 @@ class MeasurementConsumersService(
                   publicKey = measurementConsumer.publicKey.data
                   publicKeySignature = measurementConsumer.publicKey.signature
                 }
-              measurementConsumerCreationToken =
-                apiIdToExternalId(request.measurementConsumerCreationToken)
             }
           externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(apiIdToExternalId(request.measurementConsumerCreationToken))
         }
       )
     return internalResponse.toMeasurementConsumer()

@@ -73,19 +73,6 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
       .singleOrNull()
   }
 
-  suspend fun readByMeasurementConsumerCreationToken(
-    readContext: AsyncDatabaseClient.ReadContext,
-    measurementConsumerCreationToken: ExternalId,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause("WHERE MeasurementConsumerCreationToken = @measurementConsumerCreationToken")
-        bind("measurementConsumerCreationToken").to(measurementConsumerCreationToken.value)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
   // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
   private fun buildCertificate(struct: Struct): Certificate =
     Certificate.newBuilder()

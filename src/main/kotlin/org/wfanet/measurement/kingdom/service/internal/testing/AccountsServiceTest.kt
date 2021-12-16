@@ -154,7 +154,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
           activationToken = FIXED_GENERATED_EXTERNAL_ID_A
           activationState = Account.ActivationState.UNACTIVATED
-          measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }
       )
   }
@@ -175,7 +174,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
           activationToken = FIXED_GENERATED_EXTERNAL_ID_B
           activationState = Account.ActivationState.UNACTIVATED
-          measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }
       )
   }
@@ -363,7 +361,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         account {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
           activationState = Account.ActivationState.ACTIVATED
-          measurementConsumerCreationToken = FIXED_GENERATED_EXTERNAL_ID_A
         }
       )
   }
@@ -398,7 +395,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           externalCreatorAccountId = FIXED_GENERATED_EXTERNAL_ID_A
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
           activationState = Account.ActivationState.ACTIVATED
-          measurementConsumerCreationToken = 0L
           externalOwnedMeasurementConsumerIds += measurementConsumer.externalMeasurementConsumerId
         }
       )

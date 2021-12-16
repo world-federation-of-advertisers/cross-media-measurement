@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
@@ -90,6 +91,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   ): MeasurementConsumer {
     val accountTokenPair = createActivatedAccount(accountsService)
     val account = accountTokenPair.first
+    val measurementConsumerCreationTokenHash =
+      createMeasurementConsumerCreationTokenHash(accountsService)
     return measurementConsumersService.createMeasurementConsumer(
       createMeasurementConsumerRequest {
         measurementConsumer =
@@ -107,9 +110,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
                 publicKey = ByteString.copyFromUtf8("MC public key")
                 publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
               }
-            measurementConsumerCreationToken = account.measurementConsumerCreationToken
           }
         externalAccountId = account.externalAccountId
+        this.measurementConsumerCreationTokenHash = measurementConsumerCreationTokenHash
       }
     )
   }
@@ -262,6 +265,19 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     }
 
     return Pair(account, idToken)
+  }
+
+  suspend fun createMeasurementConsumerCreationTokenHash(
+    accountsService: AccountsCoroutineImplBase
+  ): ByteString {
+    val createMeasurementConsumerCreationTokenResponse =
+      accountsService.createMeasurementConsumerCreationToken(
+        createMeasurementConsumerCreationTokenRequest {}
+      )
+
+    return hashSha256(
+      createMeasurementConsumerCreationTokenResponse.measurementConsumerCreationToken
+    )
   }
 
   private fun generateRequestUri(

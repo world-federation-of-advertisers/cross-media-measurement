@@ -101,10 +101,7 @@ class AccountsService(
       internalAccountsStub.withIdToken(idToken).activateAccount(internalActivateAccountRequest)
 
     // method only returns the basic account view so some fields are cleared
-    return result.toAccount().copy {
-      clearActivationParams()
-      clearMeasurementConsumerCreationToken()
-    }
+    return result.toAccount().copy { clearActivationParams() }
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
@@ -127,10 +124,7 @@ class AccountsService(
         .replaceAccountIdentity(internalReplaceAccountIdentityRequest)
 
     // method only returns the basic account view so some fields are cleared
-    return result.toAccount().copy {
-      clearActivationParams()
-      clearMeasurementConsumerCreationToken()
-    }
+    return result.toAccount().copy { clearActivationParams() }
   }
 
   override suspend fun authenticate(request: AuthenticateRequest): AuthenticateResponse {
@@ -180,8 +174,6 @@ class AccountsService(
                 .toName()
           }
         }
-
-      measurementConsumerCreationToken = externalIdToApiId(source.measurementConsumerCreationToken)
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.identityCase) {

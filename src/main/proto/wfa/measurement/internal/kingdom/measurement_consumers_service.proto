@@ -39,6 +39,7 @@ service MeasurementConsumers {
 message CreateMeasurementConsumerRequest {
   MeasurementConsumer measurement_consumer = 1;
   fixed64 external_account_id = 2;
+  bytes measurement_consumer_creation_token_hash = 3;
 }
 
 message GetMeasurementConsumerRequest {

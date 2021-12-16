@@ -23,7 +23,6 @@ import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerOwnerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 /**
  * Creates an account in the database.
@@ -51,15 +50,6 @@ class CreateAccount(
 
           externalCreatorAccountId = source.externalCreatorAccountId.value
 
-          val creatorMeasurementConsumerCreationToken =
-            readCreatorAccountResult.account.measurementConsumerCreationToken
-          if (!isMeasurementConsumerCreationTokenUsed(
-              ExternalId(creatorMeasurementConsumerCreationToken)
-            )
-          ) {
-            measurementConsumerCreationToken = creatorMeasurementConsumerCreationToken
-          }
-
           if (source.externalOwnedMeasurementConsumerId != null) {
             MeasurementConsumerOwnerReader()
               .checkOwnershipExist(
@@ -73,14 +63,12 @@ class CreateAccount(
               }
               ?: throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
           }
-        } else {
-          measurementConsumerCreationToken = idGenerator.generateExternalId().value
         }
+
         set("AccountId" to internalAccountId)
         set("ExternalAccountId" to externalAccountId)
         set("ActivationState" to Account.ActivationState.UNACTIVATED)
         set("ActivationToken" to activationToken)
-        set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
         set("CreateTime" to Value.COMMIT_TIMESTAMP)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       }
@@ -89,19 +77,6 @@ class CreateAccount(
       activationState = Account.ActivationState.UNACTIVATED
       this.activationToken = activationToken.value
     }
-  }
-
-  private suspend fun TransactionScope.isMeasurementConsumerCreationTokenUsed(
-    measurementConsumerCreationToken: ExternalId
-  ): Boolean {
-    val measurementConsumerResult =
-      MeasurementConsumerReader()
-        .readByMeasurementConsumerCreationToken(
-          transactionContext,
-          measurementConsumerCreationToken
-        )
-
-    return measurementConsumerResult != null
   }
 
   private suspend fun TransactionScope.readAccount(

@@ -21,6 +21,7 @@
 --   │   ├── DataProviderCertificates
 --   │   └── EventGroups
 --   ├── DuchyCertificates
+--   ├── MeasurementConsumerCreationTokens
 --   ├── MeasurementConsumers
 --   │   ├── MeasurementConsumerApiKeys
 --   │   ├── MeasurementConsumerCertificates
@@ -86,6 +87,17 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
+CREATE TABLE MeasurementConsumerCreationTokens (
+  MeasurementConsumerCreationTokenId INT64 NOT NULL,
+
+  MeasurementConsumerCreationTokenHash BYTES(32) NOT NULL,
+
+  CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+) PRIMARY KEY (MeasurementConsumerCreationTokenId);
+
+CREATE UNIQUE INDEX MeasurementConsumerCreationTokensByHash
+  ON MeasurementConsumerCreationTokens(MeasurementConsumerCreationTokenHash);
+
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId INT64 NOT NULL,
 
@@ -96,17 +108,12 @@ CREATE TABLE MeasurementConsumers (
   MeasurementConsumerDetails BYTES(MAX) NOT NULL,
   MeasurementConsumerDetailsJson STRING(MAX) NOT NULL,
 
-  MeasurementConsumerCreationToken INT64 NOT NULL,
-
   FOREIGN KEY (PublicKeyCertificateId) REFERENCES Certificates(CertificateId),
 ) PRIMARY KEY (MeasurementConsumerId);
 
 -- For measurement consumer APIs.
 CREATE UNIQUE INDEX MeasurementConsumersByExternalId
   ON MeasurementConsumers(ExternalMeasurementConsumerId);
-
-CREATE UNIQUE INDEX MeasurementConsumersByMeasurementConsumerCreationToken
-  ON MeasurementConsumers(MeasurementConsumerCreationToken);
 
 CREATE TABLE MeasurementConsumerApiKeys (
   MeasurementConsumerId INT64 NOT NULL,
@@ -414,8 +421,6 @@ CREATE TABLE Accounts (
 
   OwnedMeasurementConsumerId INT64,
   ActivationToken INT64 NOT NULL,
-
-  MeasurementConsumerCreationToken INT64 NOT NULL,
 
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),

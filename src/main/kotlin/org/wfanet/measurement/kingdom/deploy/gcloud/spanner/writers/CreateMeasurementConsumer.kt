@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferTo
@@ -24,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerCreationTokenReader
 
 /**
  * Creates a measurement consumer in the database.
@@ -32,20 +33,21 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.PERMISSION_DENIED]
  * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
+ * * [KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
  */
 class CreateMeasurementConsumer(
   private val measurementConsumer: MeasurementConsumer,
-  private val externalAccountId: ExternalId
+  private val externalAccountId: ExternalId,
+  private val measurementConsumerCreationTokenHash: ByteString,
 ) : SpannerWriter<MeasurementConsumer, MeasurementConsumer>() {
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
-    if (!isMeasurementConsumerCreationTokenValid(
-        ExternalId(measurementConsumer.measurementConsumerCreationToken)
-      )
-    ) {
-      throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
-    }
-
     val internalCertificateId = idGenerator.generateInternalId()
+
+    val measurementConsumerCreationTokenResult =
+      readMeasurementConsumerCreationToken(measurementConsumerCreationTokenHash)
+    deleteMeasurementConsumerCreationToken(
+      measurementConsumerCreationTokenResult.measurementConsumerCreationTokenId
+    )
 
     measurementConsumer
       .certificate
@@ -56,6 +58,10 @@ class CreateMeasurementConsumer(
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
 
     val accountResult = readAccount(externalAccountId)
+    if (accountResult.account.activationState != Account.ActivationState.ACTIVATED) {
+      throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
+    }
+
     transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {
       set("MeasurementConsumerId" to internalMeasurementConsumerId)
       set("AccountId" to accountResult.accountId)
@@ -67,9 +73,6 @@ class CreateMeasurementConsumer(
       set("ExternalMeasurementConsumerId" to externalMeasurementConsumerId)
       set("MeasurementConsumerDetails" to measurementConsumer.details)
       setJson("MeasurementConsumerDetailsJson" to measurementConsumer.details)
-      set(
-        "MeasurementConsumerCreationToken" to measurementConsumer.measurementConsumerCreationToken
-      )
     }
 
     val externalMeasurementConsumerCertificateId = idGenerator.generateExternalId()
@@ -89,7 +92,6 @@ class CreateMeasurementConsumer(
           this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
           externalCertificateId = externalMeasurementConsumerCertificateId.value
         }
-      clearMeasurementConsumerCreationToken()
     }
   }
 
@@ -97,27 +99,15 @@ class CreateMeasurementConsumer(
     return checkNotNull(transactionResult)
   }
 
-  private suspend fun TransactionScope.isMeasurementConsumerCreationTokenValid(
-    measurementConsumerCreationToken: ExternalId
-  ): Boolean {
-    val measurementConsumerResult =
-      MeasurementConsumerReader()
-        .readByMeasurementConsumerCreationToken(
-          transactionContext,
-          measurementConsumerCreationToken
-        )
-
-    val accountResult =
-      AccountReader()
-        .readByMeasurementConsumerCreationToken(
-          transactionContext,
-          measurementConsumerCreationToken
-        )
-
-    return measurementConsumerResult == null &&
-      accountResult != null &&
-      accountResult.account.activationState == Account.ActivationState.ACTIVATED
-  }
+  private suspend fun TransactionScope.readMeasurementConsumerCreationToken(
+    measurementConsumerCreationTokenHash: ByteString
+  ): MeasurementConsumerCreationTokenReader.Result =
+    MeasurementConsumerCreationTokenReader()
+      .readByMeasurementConsumerCreationTokenHash(
+        transactionContext,
+        measurementConsumerCreationTokenHash
+      )
+      ?: throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
 
   private suspend fun TransactionScope.readAccount(
     externalAccountId: ExternalId

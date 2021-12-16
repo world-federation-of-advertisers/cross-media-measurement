@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -166,6 +167,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     simulatorKeyStore.storePrivateKeyDer(mc.displayName, mc.consentSignalPrivateKeyDer)
 
     val account = kingdom.internalAccountsClient.createAccount(account {})
+    val measurementConsumerCreationToken =
+      kingdom.internalAccountsClient.createMeasurementConsumerCreationToken(
+          createMeasurementConsumerCreationTokenRequest {}
+        )
+        .measurementConsumerCreationToken
     val authenticationResponse =
       publicAccountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
     val idToken =
@@ -182,7 +188,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     mcResourceName =
       resourceSetup.createMeasurementConsumer(
           mc,
-          externalIdToApiId(account.measurementConsumerCreationToken),
+          externalIdToApiId(measurementConsumerCreationToken),
           idToken
         )
         .name

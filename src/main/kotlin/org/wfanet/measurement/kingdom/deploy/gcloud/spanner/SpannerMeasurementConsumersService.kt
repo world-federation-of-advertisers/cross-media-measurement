@@ -42,16 +42,22 @@ class SpannerMeasurementConsumersService(
         !measurementConsumer.details.publicKeySignature.isEmpty
     ) { "Details field of MeasurementConsumer is missing fields." }
     try {
-      return CreateMeasurementConsumer(measurementConsumer, ExternalId(request.externalAccountId))
+      return CreateMeasurementConsumer(
+          measurementConsumer,
+          ExternalId(request.externalAccountId),
+          request.measurementConsumerCreationTokenHash
+        )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.PERMISSION_DENIED ->
           failGrpc(Status.PERMISSION_DENIED) { "Measurement Consumer creation token is not valid" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "Account not found" }
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Account has not been activated yet" }
         KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
