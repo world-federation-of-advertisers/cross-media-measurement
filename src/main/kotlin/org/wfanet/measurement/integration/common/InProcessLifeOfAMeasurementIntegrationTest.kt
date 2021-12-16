@@ -173,7 +173,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
     mcResourceName =
       resourceSetup.createMeasurementConsumer(
-          mc,
+          MC_ENTITY_CONTENT,
           externalIdToApiId(measurementConsumerCreationToken),
           idToken
         )
