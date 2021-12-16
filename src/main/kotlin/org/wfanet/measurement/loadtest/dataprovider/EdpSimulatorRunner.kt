@@ -21,18 +21,14 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
-
-/* Key handle of the EDP's private key */
-const val CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY = "edp-consent-signaling-private-key"
-const val ENCRYPTION_PRIVATE_KEY_HANDLE_KEY = "edp-encryption-private-key"
 
 /** The base class of the EdpSimulator runner. */
 abstract class EdpSimulatorRunner : Runnable {
@@ -41,9 +37,8 @@ abstract class EdpSimulatorRunner : Runnable {
     private set
 
   protected fun run(storageClient: StorageClient, eventQuery: EventQuery) {
-
     val clientCerts =
-      SigningCerts.fromPemFiles(
+      SigningCertsTesting.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
         trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
@@ -69,23 +64,12 @@ abstract class EdpSimulatorRunner : Runnable {
       )
 
     runBlocking {
-      val inMemoryKeyStore = InMemoryKeyStore()
-      inMemoryKeyStore.storePrivateKeyDer(
-        ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
-        flags.edpEncryptionPrivateKeyDerFile.readBytes().toByteString()
-      )
-      inMemoryKeyStore.storePrivateKeyDer(
-        CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
-        flags.edpCsPrivateKeyDerFile.readBytes().toByteString()
-      )
-
       val edpData =
         EdpData(
           flags.dataProviderResourceName,
           flags.dataProviderDisplayName,
-          ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
-          CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
-          flags.edpCsCertificateDerFile.readBytes().toByteString()
+          loadPrivateKey(flags.edpEncryptionPrivateKeyset),
+          loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
         )
       EdpSimulator(
           edpData,
@@ -95,7 +79,6 @@ abstract class EdpSimulatorRunner : Runnable {
           requisitionsStub,
           requisitionFulfillmentStub,
           SketchStore(storageClient),
-          inMemoryKeyStore,
           eventQuery,
           MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
         )

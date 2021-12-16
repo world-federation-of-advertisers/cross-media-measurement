@@ -33,11 +33,11 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
@@ -71,7 +71,7 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  *
  * @param millId The identifier of this mill, used to claim a work.
  * @param duchyId The identifier of this duchy who owns this mill.
- * @param keyStore The [keyStore] holding the private keys.
+ * @param signingKey handle to a signing private key for consent signaling.
  * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
@@ -91,7 +91,7 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
 abstract class MillBase(
   protected val millId: String,
   protected val duchyId: String,
-  protected val keyStore: KeyStore,
+  protected val signingKey: SigningKeyHandle,
   protected val consentSignalCert: Certificate,
   protected val dataClients: ComputationDataClients,
   protected val systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
@@ -440,7 +440,6 @@ const val BYTES_OF_DATA_IN_RPC = "bytes_of_data_in_rpc"
 const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
 const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
-const val CONSENT_SIGNALING_PRIVATE_KEY_ID = "consent_signaling_private_key"
 
 data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
 

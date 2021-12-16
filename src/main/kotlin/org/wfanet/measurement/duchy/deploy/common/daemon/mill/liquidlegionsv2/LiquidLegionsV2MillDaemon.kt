@@ -14,18 +14,18 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
+import com.google.protobuf.ByteString
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
-import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
@@ -95,12 +95,18 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
 
     val computationStatsClient = ComputationStatsCoroutineStub(computationsServiceChannel)
 
-    val csCertificate =
-      Certificate(
-        flags.csCertificateName,
-        readCertificate(flags.csCertificateDerFile.readBytes().toByteString())
+    val csX509Certificate =
+      flags.csCertificateDerFile.inputStream().use { input -> readCertificate(input) }
+    val csCertificate = Certificate(flags.csCertificateName, csX509Certificate)
+    // TODO: Read from a KMS-encrypted store instead.
+    val csSigningKey =
+      SigningKeyHandle(
+        csX509Certificate,
+        flags.csPrivateKeyDerFile.inputStream().use { input ->
+          readPrivateKey(ByteString.readFrom(input), csX509Certificate.publicKey.algorithm)
+        }
       )
-    val keyStore = InMemoryKeyStore() // TODO: use real keystore
+
     // This will be the name of the pod when deployed to Kubernetes. Note that the millId is
     // included in mill logs to help debugging.
     val millId = System.getenv("HOSTNAME")
@@ -109,7 +115,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       LiquidLegionsV2Mill(
         millId = millId,
         duchyId = flags.duchy.duchyName,
-        keyStore = keyStore,
+        signingKey = csSigningKey,
         consentSignalCert = csCertificate,
         dataClients = dataClients,
         systemComputationParticipantsClient = systemComputationParticipantsClient,
@@ -122,13 +128,6 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         requestChunkSizeBytes = flags.requestChunkSizeBytes
       )
 
-    runBlocking {
-      // TODO: delete when an external keystore is used.
-      keyStore.storePrivateKeyDer(
-        CONSENT_SIGNALING_PRIVATE_KEY_ID,
-        flags.csPrivateKeyDerFile.readBytes().toByteString()
-      )
-      mill.continuallyProcessComputationQueue()
-    }
+    runBlocking { mill.continuallyProcessComputationQueue() }
   }
 }

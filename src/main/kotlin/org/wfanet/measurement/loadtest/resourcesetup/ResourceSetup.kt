@@ -15,7 +15,7 @@
 package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
-import java.security.cert.X509Certificate
+import com.google.protobuf.kotlin.toByteString
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -25,25 +25,18 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
-import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.sign
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
-import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
-  private val keyStore: KeyStore,
   private val dataProvidersClient: DataProvidersCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
@@ -89,22 +82,12 @@ class ResourceSetup(
   }
 
   suspend fun createDataProvider(dataProviderContent: EntityContent): DataProvider {
-    val encryptionPublicKey = encryptionPublicKey {
-      format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = dataProviderContent.encryptionPublicKeyDer
-      // TODO: get the data in the right format: a Tink Keyset instead of a DER public key info
-    }
-
-    val privateKeyHandle = PrivateKeyHandle(dataProviderContent.displayName, keyStore)
+    val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val request = createDataProviderRequest {
       dataProvider =
         dataProvider {
-          certificateDer = dataProviderContent.consentSignalCertificateDer
-          publicKey =
-            privateKeyHandle.signEncryptionPublicKey(
-              readCertificate(dataProviderContent.consentSignalCertificateDer),
-              encryptionPublicKey
-            )
+          certificateDer = dataProviderContent.signingKey.certificate.encoded.toByteString()
+          publicKey = signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
           displayName = dataProviderContent.displayName
         }
     }
@@ -116,21 +99,13 @@ class ResourceSetup(
     measurementConsumerCreationToken: String,
     idToken: String,
   ): MeasurementConsumer {
-    val encryptionPublicKey = encryptionPublicKey {
-      format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = measurementConsumerContent.encryptionPublicKeyDer
-    }
-    val privateKeyHandle = PrivateKeyHandle(measurementConsumerContent.displayName, keyStore)
+    val encryptionPublicKey = measurementConsumerContent.encryptionPublicKey
     val request = createMeasurementConsumerRequest {
       measurementConsumer =
         measurementConsumer {
-          certificateDer = measurementConsumerContent.consentSignalCertificateDer
+          certificateDer = measurementConsumerContent.signingKey.certificate.encoded.toByteString()
           publicKey =
-            signEncryptionPublicKey(
-              encryptionPublicKey,
-              privateKeyHandle,
-              readCertificate(measurementConsumerContent.consentSignalCertificateDer)
-            )
+            signEncryptionPublicKey(encryptionPublicKey, measurementConsumerContent.signingKey)
           displayName = measurementConsumerContent.displayName
         }
       this.measurementConsumerCreationToken = measurementConsumerCreationToken
@@ -155,12 +130,10 @@ class ResourceSetup(
 data class EntityContent(
   /** The display name of the entity. */
   val displayName: String,
-  /** The private key mapping the consent signaling certificate in DER format. */
-  val consentSignalPrivateKeyDer: ByteString,
-  /** The consent signaling certificate in DER format. */
-  val consentSignalCertificateDer: ByteString,
-  /** The ASN.1 SubjectPublicKeyInfo in DER format */
-  val encryptionPublicKeyDer: ByteString
+  /** The consent signaling encryption key. */
+  val encryptionPublicKey: EncryptionPublicKey,
+  /** The consent signaling signing key. */
+  val signingKey: SigningKeyHandle
 )
 
 data class DuchyCert(
@@ -169,20 +142,3 @@ data class DuchyCert(
   /** The consent signaling certificate in DER format. */
   val consentSignalCertificateDer: ByteString
 )
-
-/**
- * Signs an [EncryptionPublicKey] using this private key and the corresponding [certificate].
- *
- * TODO(@wangyaopw): Switch this to use SigningKeyHandle.
- */
-private suspend fun PrivateKeyHandle.signEncryptionPublicKey(
-  certificate: X509Certificate,
-  publicKey: EncryptionPublicKey
-): SignedData {
-  val serialized = publicKey.toByteString()
-  val signature = checkNotNull(toJavaPrivateKey(certificate)).sign(certificate, serialized)
-  return signedData {
-    data = serialized
-    this.signature = signature
-  }
-}

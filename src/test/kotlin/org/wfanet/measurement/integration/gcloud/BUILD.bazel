@@ -19,7 +19,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/cloud/storage/contrib/nio",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/keystore/testing",
     ],
 )
 

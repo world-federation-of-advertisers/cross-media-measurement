@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.common.primitives.Longs
 import com.google.gson.JsonParser
 import io.grpc.Status
 import java.math.BigInteger
@@ -26,6 +25,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toLong
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -269,14 +269,9 @@ class SpannerAccountsService(
 
     val result =
       OpenIdRequestParamsReader()
-        .readByState(
-          client.singleUse(),
-          ExternalId(Longs.fromByteArray(state.asString.base64UrlDecode()))
-        )
+        .readByState(client.singleUse(), ExternalId(state.asString.base64UrlDecode().toLong()))
     if (result != null) {
-      if (Longs.fromByteArray(nonce.asString.base64UrlDecode()) != result.nonce.value ||
-          result.isExpired
-      ) {
+      if (nonce.asString.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
         return null
       }
     } else {
@@ -309,8 +304,8 @@ class SpannerAccountsService(
 
     val publicKeySpec =
       RSAPublicKeySpec(
-        BigInteger(modulus.asString.base64UrlDecode()),
-        BigInteger(exponent.asString.base64UrlDecode())
+        BigInteger(modulus.asString.base64UrlDecode().toByteArray()),
+        BigInteger(exponent.asString.base64UrlDecode().toByteArray())
       )
     val keyFactory = KeyFactory.getInstance("RSA")
     val publicKey = keyFactory.generatePublic(publicKeySpec)
@@ -318,7 +313,7 @@ class SpannerAccountsService(
     verifier.initVerify(publicKey)
     verifier.update((tokenParts[0] + "." + tokenParts[1]).toByteArray(Charsets.US_ASCII))
     try {
-      if (!verifier.verify(tokenParts[2].base64UrlDecode())) {
+      if (!verifier.verify(tokenParts[2].base64UrlDecode().toByteArray())) {
         return null
       }
     } catch (e: SignatureException) {
