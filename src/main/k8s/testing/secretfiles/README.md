@@ -84,6 +84,25 @@ genrule(
 )
 ```
 
+## Tink Keyset Generation
+
+Use the
+[`tinkey` CLI tool](https://github.com/google/tink/blob/master/docs/TINKEY.md).
+
+### Example
+
+Generate a private ECIES Keyset:
+
+```shell
+tinkey create-keyset --key-template ECIES_P256_HKDF_HMAC_SHA256_AES128_GCM --out-format binary --out edp1_enc_private.tink
+```
+
+Extract a public Keyset from the private one:
+
+```shell
+tinkey create-public-keyset --in-format binary --out-format binary --in edp1_enc_private.tink --out edp1_enc_public.tink
+```
+
 ## Create the Kubernetes Secret
 
 Make sure the `kustomization.yaml` and all the cert files listed inside are in

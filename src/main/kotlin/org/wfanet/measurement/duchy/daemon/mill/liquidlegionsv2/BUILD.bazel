@@ -47,7 +47,5 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/hybridencryption/testing",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/crypto/keystore/testing",
     ],
 )

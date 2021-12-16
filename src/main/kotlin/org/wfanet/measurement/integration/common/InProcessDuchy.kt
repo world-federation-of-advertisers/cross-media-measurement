@@ -27,7 +27,9 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
@@ -36,9 +38,7 @@ import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
 import org.wfanet.measurement.duchy.daemon.herald.Herald
-import org.wfanet.measurement.duchy.daemon.mill.CONSENT_SIGNALING_PRIVATE_KEY_ID
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
@@ -76,8 +76,7 @@ class InProcessDuchy(
 ) : TestRule {
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
-    val storageClient: StorageClient,
-    val keyStore: KeyStore
+    val storageClient: StorageClient
   )
 
   private val backgroundScope = CoroutineScope(Dispatchers.Default)
@@ -164,10 +163,16 @@ class InProcessDuchy(
 
   fun startLiquidLegionsV2mill(duchyCertMap: Map<String, String>) {
     backgroundScope.launch {
-      duchyDependencies.keyStore.storePrivateKeyDer(
-        CONSENT_SIGNALING_PRIVATE_KEY_ID,
-        loadTestCertDerFile("${externalDuchyId}_cs_private.der")
-      )
+      val consentSignal509Cert =
+        readCertificate(loadTestCertDerFile("${externalDuchyId}_cs_cert.der"))
+      val signingKey =
+        SigningKeyHandle(
+          consentSignal509Cert,
+          readPrivateKey(
+            loadTestCertDerFile("${externalDuchyId}_cs_private.der"),
+            consentSignal509Cert.publicKey.algorithm
+          )
+        )
       val workerStubs =
         ALL_DUCHY_NAMES.minus(externalDuchyId).associateWith {
           val channel = computationControlChannel(it)
@@ -178,12 +183,8 @@ class InProcessDuchy(
         LiquidLegionsV2Mill(
           millId = "$externalDuchyId liquidLegionsV2 Mill",
           duchyId = externalDuchyId,
-          keyStore = duchyDependencies.keyStore,
-          consentSignalCert =
-            Certificate(
-              duchyCertMap[externalDuchyId]!!,
-              readCertificate(loadTestCertDerFile("${externalDuchyId}_cs_cert.der"))
-            ),
+          signingKey = signingKey,
+          consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
           dataClients = computationDataClients,
           systemComputationParticipantsClient = systemComputationParticipantsClient,
           systemComputationsClient = systemComputationsClient,
