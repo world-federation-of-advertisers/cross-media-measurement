@@ -16,15 +16,29 @@ package org.wfanet.measurement.integration.common
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
-import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+
+private val SECRET_FILES_PATH: Path =
+  checkNotNull(
+    getRuntimePath(
+      Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+    )
+  )
 
 val DUCHY_ID_CONFIG: DuchyIdConfig =
   loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
@@ -51,24 +65,33 @@ val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 const val MC_DISPLAY_NAME = "mc"
 
 fun <T : Message> loadTextProto(fileName: String, default: T): T {
-  val runfilesRelativePath =
-    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles", fileName)
-  val path = checkNotNull(getRuntimePath(runfilesRelativePath))
-  return Files.newBufferedReader(path).use { reader -> parseTextProto(reader, default) }
+  return parseTextProto(SECRET_FILES_PATH.resolve(fileName).toFile(), default)
 }
 
 fun loadTestCertDerFile(fileName: String): ByteString {
-  val runfilesRelativePath =
-    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles", fileName)
-  val path = checkNotNull(getRuntimePath(runfilesRelativePath))
-  return path.toFile().readBytes().toByteString()
+  return SECRET_FILES_PATH.resolve(fileName).toFile().readByteString()
+}
+
+fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
+  return loadSigningKey(
+    SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
+    SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
+  )
+}
+
+fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
+  return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
+}
+
+fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
+  return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }
 
 /** Builds a [EntityContent] for the entity with a certain [displayName]. */
 fun createEntityContent(displayName: String) =
   EntityContent(
     displayName = displayName,
-    consentSignalPrivateKeyDer = loadTestCertDerFile("${displayName}_cs_private.der"),
-    consentSignalCertificateDer = loadTestCertDerFile("${displayName}_cs_cert.der"),
-    encryptionPublicKeyDer = loadTestCertDerFile("${displayName}_enc_public.der")
+    encryptionPublicKey =
+      loadEncryptionPublicKey("${displayName}_enc_public.tink").toEncryptionPublicKey(),
+    signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
   )

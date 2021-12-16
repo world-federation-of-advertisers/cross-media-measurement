@@ -28,9 +28,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
-import org.wfanet.measurement.loadtest.dataprovider.CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY
-import org.wfanet.measurement.loadtest.dataprovider.ENCRYPTION_PRIVATE_KEY_HANDLE_KEY
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
 import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
@@ -41,7 +38,6 @@ import org.wfanet.measurement.storage.StorageClient
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
   val displayName: String,
-  private val keyStore: KeyStore,
   private val storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
@@ -64,14 +60,6 @@ class InProcessEdpSimulator(
     edpJob =
       backgroundScope.launch {
         val edpData = createEdpData(displayName, edpName)
-        keyStore.storePrivateKeyDer(
-          edpData.encryptionPrivateKeyId,
-          loadTestCertDerFile("${displayName}_enc_private.der")
-        )
-        keyStore.storePrivateKeyDer(
-          edpData.consentSignalingPrivateKeyId,
-          loadTestCertDerFile("${displayName}_cs_private.der")
-        )
 
         EdpSimulator(
             edpData = edpData,
@@ -81,7 +69,6 @@ class InProcessEdpSimulator(
             requisitionsStub = requisitionsClient,
             requisitionFulfillmentStub = requisitionFulfillmentClient,
             sketchStore = SketchStore(storageClient),
-            keyStore = keyStore,
             eventQuery =
               RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
@@ -99,8 +86,7 @@ class InProcessEdpSimulator(
     EdpData(
       name = resourceName,
       displayName = displayName,
-      encryptionPrivateKeyId = ENCRYPTION_PRIVATE_KEY_HANDLE_KEY,
-      consentSignalingPrivateKeyId = CONSENT_SIGNALING_PRIVATE_KEY_HANDLE_KEY,
-      consentSignalCertificateDer = loadTestCertDerFile("${displayName}_cs_cert.der")
+      encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
+      signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
     )
 }
