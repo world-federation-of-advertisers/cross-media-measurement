@@ -14,48 +14,36 @@
 
 package org.wfanet.measurement.loadtest.resourcesetup
 
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import java.security.cert.X509Certificate
+import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.runBlocking
-import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.UseConstructor
-import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYSET as ENCRYPTION_PUBLIC_KEYSET
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE as CONSENT_SIGNAL_CERTIFICATE_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE as CONSENT_SIGNAL_PRIVATE_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
+import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 
 private const val RUN_ID = "run id"
 private const val EDP_DISPLAY_NAME = "edp"
 private const val MC_DISPLAY_NAME = "mc"
-private val CONSENT_SIGNAL_PRIVATE_KEY_DER = FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
-private val CONSENT_SIGNAL_CERTIFICATE_DER = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
-private val ENCRYPTION_PUBLIC_KEY_DER =
-  FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
-private val CONSENT_SIGNAL_X509: X509Certificate = readCertificate(CONSENT_SIGNAL_CERTIFICATE_DER)
 private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = "MTIzNDU2NzM"
 private const val ID_TOKEN = "token"
-
-private var KEY_STORE = InMemoryKeyStore()
 
 @RunWith(JUnit4::class)
 class ResourceSetupImplTest {
@@ -85,40 +73,32 @@ class ResourceSetupImplTest {
   }
 
   private var resourceSetup: ResourceSetup =
-    ResourceSetup(KEY_STORE, dataProvidersStub, certificatesStub, measurementConsumersStub, RUN_ID)
+    ResourceSetup(dataProvidersStub, certificatesStub, measurementConsumersStub, RUN_ID)
 
   @Test
   fun `create data provider successfully`() = runBlocking {
     val dataProviderContent =
       EntityContent(
         displayName = EDP_DISPLAY_NAME,
-        consentSignalPrivateKeyDer = CONSENT_SIGNAL_PRIVATE_KEY_DER,
-        consentSignalCertificateDer = CONSENT_SIGNAL_CERTIFICATE_DER,
-        encryptionPublicKeyDer = ENCRYPTION_PUBLIC_KEY_DER
+        signingKey =
+          loadSigningKey(CONSENT_SIGNAL_CERTIFICATE_DER_FILE, CONSENT_SIGNAL_PRIVATE_KEY_DER_FILE),
+        encryptionPublicKey = loadPublicKey(ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
       )
-
-    var apiRequest = CreateDataProviderRequest.getDefaultInstance()
-    whenever(mockDataProvidersService.createDataProvider(any())).thenAnswer {
-      apiRequest = it.getArgument(0)
-      apiRequest.dataProvider
-    }
 
     resourceSetup.createDataProvider(dataProviderContent)
 
-    assertThat(apiRequest)
+    verifyProtoArgument(
+        mockDataProvidersService,
+        DataProvidersCoroutineImplBase::createDataProvider
+      )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         CreateDataProviderRequest.newBuilder()
           .apply {
             dataProviderBuilder.apply {
-              certificateDer = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
+              certificateDer = dataProviderContent.signingKey.certificate.encoded.toByteString()
               publicKeyBuilder.apply {
-                data =
-                  encryptionPublicKey {
-                      format = EncryptionPublicKey.Format.TINK_KEYSET
-                      data = FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
-                    }
-                    .toByteString()
+                data = dataProviderContent.encryptionPublicKey.toByteString()
               }
               displayName = EDP_DISPLAY_NAME
             }
@@ -134,16 +114,10 @@ class ResourceSetupImplTest {
     val measurementConsumerContent =
       EntityContent(
         displayName = MC_DISPLAY_NAME,
-        consentSignalPrivateKeyDer = CONSENT_SIGNAL_PRIVATE_KEY_DER,
-        consentSignalCertificateDer = CONSENT_SIGNAL_CERTIFICATE_DER,
-        encryptionPublicKeyDer = ENCRYPTION_PUBLIC_KEY_DER
+        signingKey =
+          loadSigningKey(CONSENT_SIGNAL_CERTIFICATE_DER_FILE, CONSENT_SIGNAL_PRIVATE_KEY_DER_FILE),
+        encryptionPublicKey = loadPublicKey(ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
       )
-
-    var apiRequest = CreateMeasurementConsumerRequest.getDefaultInstance()
-    whenever(mockMeasurementConsumersService.createMeasurementConsumer(any())).thenAnswer {
-      apiRequest = it.getArgument(0)
-      apiRequest.measurementConsumer
-    }
 
     resourceSetup.createMeasurementConsumer(
       measurementConsumerContent,
@@ -151,20 +125,19 @@ class ResourceSetupImplTest {
       ID_TOKEN
     )
 
-    assertThat(apiRequest)
+    verifyProtoArgument(
+        mockMeasurementConsumersService,
+        MeasurementConsumersCoroutineImplBase::createMeasurementConsumer
+      )
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         CreateMeasurementConsumerRequest.newBuilder()
           .apply {
             measurementConsumerBuilder.apply {
-              certificateDer = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
+              certificateDer =
+                measurementConsumerContent.signingKey.certificate.encoded.toByteString()
               publicKeyBuilder.apply {
-                data =
-                  encryptionPublicKey {
-                      format = EncryptionPublicKey.Format.TINK_KEYSET
-                      data = FIXED_ENCRYPTION_PUBLIC_KEY_DER_FILE.readBytes().toByteString()
-                    }
-                    .toByteString()
+                data = measurementConsumerContent.encryptionPublicKey.toByteString()
               }
               displayName = MC_DISPLAY_NAME
             }
@@ -173,16 +146,5 @@ class ResourceSetupImplTest {
       )
 
     // TODO: verify signature
-  }
-
-  companion object {
-    @JvmStatic
-    @BeforeClass
-    fun writePrivateKeysToKeyStore() =
-      runBlocking<Unit> {
-        // Uses the same private key for EDP and MC in the test.
-        KEY_STORE.storePrivateKeyDer(EDP_DISPLAY_NAME, CONSENT_SIGNAL_PRIVATE_KEY_DER)
-        KEY_STORE.storePrivateKeyDer(MC_DISPLAY_NAME, CONSENT_SIGNAL_PRIVATE_KEY_DER)
-      }
   }
 }

@@ -32,8 +32,9 @@ package k8s
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--mc-resource-name=\(_mc_resource_name)",
+				"--mc-consent-signaling-cert-der-file=/var/run/secrets/files/mc_cs_cert.der",
 				"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
-				"--mc-encryption-private-key-der-file=/var/run/secrets/files/mc_enc_private.der",
+				"--mc-encryption-private-keyset=/var/run/secrets/files/mc_enc_private.tink",
 				"--output-differential-privacy-epsilon=0.1",
 				"--output-differential-privacy-delta=0.000001",
 		] + _blob_storage_flags
