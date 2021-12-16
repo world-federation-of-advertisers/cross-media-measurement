@@ -30,7 +30,13 @@ class StreamMeasurements(
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY UpdateTime ASC, ExternalMeasurementId ASC")
+      when (view) {
+        Measurement.View.COMPUTATION ->
+          appendClause("ORDER BY UpdateTime ASC, ExternalComputationId ASC")
+        Measurement.View.DEFAULT ->
+          appendClause("ORDER BY UpdateTime ASC, ExternalMeasurementId ASC")
+        Measurement.View.UNRECOGNIZED -> error("Unrecognized View")
+      }
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT_PARAM")
         bind(LIMIT_PARAM to limit.toLong())
@@ -60,16 +66,29 @@ class StreamMeasurements(
       bind(STATES_PARAM).toInt64Array(filter.statesValueList.map { it.toLong() })
     }
 
-    if (filter.hasUpdatedAfter() && filter.externalMeasurementIdAfter > 0L) {
-      conjuncts.add(
-        """
+    if (filter.hasUpdatedAfter()) {
+      if (filter.hasExternalMeasurementIdAfter()) {
+        conjuncts.add(
+          """
           ((UpdateTime > @$UPDATED_AFTER)
           OR (UpdateTime = @$UPDATED_AFTER
           AND ExternalMeasurementId > @$EXTERNAL_MEASUREMENT_ID_AFTER))
         """.trimIndent()
-      )
+        )
+        bind(EXTERNAL_MEASUREMENT_ID_AFTER).to(filter.externalMeasurementIdAfter)
+      } else if (filter.hasExternalComputationIdAfter()) {
+        conjuncts.add(
+          """
+          ((UpdateTime > @$UPDATED_AFTER)
+          OR (UpdateTime = @$UPDATED_AFTER
+          AND ExternalComputationId > @$EXTERNAL_COMPUTATION_ID_AFTER))
+        """.trimIndent()
+        )
+        bind(EXTERNAL_COMPUTATION_ID_AFTER).to(filter.externalComputationIdAfter)
+      } else {
+        error("external_measurement_id_after or external_measurement_id_after required")
+      }
       bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
-      bind(EXTERNAL_MEASUREMENT_ID_AFTER).to(filter.externalMeasurementIdAfter)
     }
 
     if (conjuncts.isEmpty()) {
@@ -88,5 +107,6 @@ class StreamMeasurements(
     const val UPDATED_AFTER = "updatedAfter"
     const val STATES_PARAM = "states"
     const val EXTERNAL_MEASUREMENT_ID_AFTER = "externalMeasurementIdAfter"
+    const val EXTERNAL_COMPUTATION_ID_AFTER = "externalComputationIdAfter"
   }
 }
