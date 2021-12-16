@@ -6,17 +6,21 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "self_issued_id_token",
-    srcs = ["SelfIssuedIdToken.kt"],
+    name = "self_issued_id_tokens",
+    srcs = ["SelfIssuedIdTokens.kt"],
     deps = [
-        "@tink_java//src/main/java/com/google/crypto/tink:key_template",
-        "@tink_java//src/main/java/com/google/crypto/tink:key_templates",
-        "@tink_java//src/main/java/com/google/crypto/tink:registry_cluster",
-        "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwk_set_converter",
-        "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwt_public_key_sign",
-        "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwt_signature_config",
-        "@tink_java//src/main/java/com/google/crypto/tink/jwt:raw_jwt",
+        "jwt_key_handle",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+    ],
+)
+
+kt_jvm_library(
+    name = "jwt_key_handle",
+    srcs = ["JwtKeyHandle.kt"],
+    deps = [
+        "@tink_java//src/main/java/com/google/crypto/tink:key_templates",
+        "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwk_set_converter",
+        "@tink_java//src/main/java/com/google/crypto/tink/jwt:jwt_signature_config",
     ],
 )

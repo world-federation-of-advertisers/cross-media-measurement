@@ -18,10 +18,9 @@ import com.google.common.primitives.Longs
 import com.google.gson.JsonParser
 import io.grpc.Status
 import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.calculateRSAThumbprint
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.getPublicKeyVerifier
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.getPublicKeysetHandle
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.validateJwt
+import org.wfanet.measurement.common.crypto.tink.JwtTinkPublicKeyHandle.Companion.createJwtPublicKeyHandle
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.calculateRSAThumbprint
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.validateJwt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -231,11 +230,14 @@ class SpannerAccountsService(
     }
 
     val jwkKey = subJwk.asJsonObject
-    val publicKeysetHandle = getPublicKeysetHandle(jwkKey)
-    val verifier = getPublicKeyVerifier(publicKeysetHandle)
+    val jwtPublicKeyHandle = createJwtPublicKeyHandle(jwkKey)
 
     val verifiedJwt =
-      validateJwt(redirectUri = REDIRECT_URI, idToken = idToken, verifier = verifier)
+      validateJwt(
+        redirectUri = REDIRECT_URI,
+        idToken = idToken,
+        verifier = jwtPublicKeyHandle.verifier
+      )
 
     if (!verifiedJwt.subject.equals(calculateRSAThumbprint(jwkKey.toString()))) {
       return null

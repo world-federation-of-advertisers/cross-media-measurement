@@ -36,7 +36,7 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdToken.Companion.generateIdToken
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
