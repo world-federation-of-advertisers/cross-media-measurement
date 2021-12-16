@@ -15,9 +15,7 @@
 package org.wfanet.panelmatch.common.storage
 
 import com.google.protobuf.ByteString
-import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.measurement.storage.read
 
@@ -26,8 +24,3 @@ suspend fun Blob.toByteString(): ByteString = read().flatten()
 
 /** Reads the blob bytes as a UTF8 [String]. */
 suspend fun Blob.toStringUtf8(): String = toByteString().toStringUtf8()
-
-/** Creates a [StorageClient.Blob] from a [ByteString]. */
-suspend fun StorageClient.createBlob(blobKey: String, content: ByteString): Blob {
-  return createBlob(blobKey, content.asBufferedFlow(this.defaultBufferSizeBytes))
-}

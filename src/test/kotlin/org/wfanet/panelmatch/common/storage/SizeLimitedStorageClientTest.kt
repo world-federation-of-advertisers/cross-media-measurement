@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest

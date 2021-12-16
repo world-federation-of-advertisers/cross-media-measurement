@@ -25,13 +25,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.privatemembership.JniQueryPreparer
 import org.wfanet.panelmatch.client.privatemembership.LookupKeyAndId
 import org.wfanet.panelmatch.client.privatemembership.LookupKeyAndIdCollection
 import org.wfanet.panelmatch.client.privatemembership.testing.joinKeyAndIdOf
-import org.wfanet.panelmatch.common.storage.createBlob
 
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 val PLAINTEXT_JOIN_KEYS =

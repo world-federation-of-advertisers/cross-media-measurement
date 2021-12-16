@@ -30,6 +30,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
@@ -37,7 +38,6 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.parseDelimitedMessages
-import org.wfanet.panelmatch.common.storage.createBlob
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
