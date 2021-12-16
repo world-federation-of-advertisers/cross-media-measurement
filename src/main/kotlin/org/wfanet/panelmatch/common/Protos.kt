@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.common
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
+import java.time.Duration
 
 /** Reads length-delimited [T] messages from a [ByteString]. */
 fun <T : MessageLite> ByteString.parseDelimitedMessages(prototype: T): Iterable<T> = Iterable {
@@ -36,4 +37,9 @@ fun MessageLite.toDelimitedByteString(): ByteString {
   val outputStream = ByteString.newOutput()
   writeDelimitedTo(outputStream)
   return outputStream.toByteString()
+}
+
+/** Converts a java.time.Duration to com.google.protobuf.Duration */
+fun Duration.toProto(): com.google.protobuf.Duration {
+  return com.google.protobuf.Duration.newBuilder().setSeconds(seconds).setNanos(nano).build()
 }

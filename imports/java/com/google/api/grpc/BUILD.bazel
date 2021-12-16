@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "proto-google-cloud-security-private-ca-v1",
+    actual = "@maven//:com_google_api_grpc_proto_google_cloud_security_private_ca_v1",
+)

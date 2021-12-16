@@ -36,10 +36,11 @@ import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 
 private val CONTEXT =
   CertificateAuthority.Context(
-    organization = "some-organization",
     commonName = "some-common-name",
+    orgName = "some-org-name",
+    domainName = "some-domain-name",
     hostname = "example.com",
-    validDays = 5
+    validDays = 5,
   )
 
 private val ROOT_X509 by lazy { readCertificate(FIXED_CA_CERT_PEM_FILE) }

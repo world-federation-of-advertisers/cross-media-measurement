@@ -97,7 +97,7 @@ private class GenerateKeyPair(
       "-keyout",
       keyFile.relativeTo(baseDir).path,
       "-subj",
-      "/O=${context.organization}/CN=${context.commonName}",
+      "/O=${context.orgName}/CN=${context.commonName}",
     )
   }
 
