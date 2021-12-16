@@ -14,9 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
-import com.google.protobuf.Timestamp
 import java.time.Duration
-import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,8 +26,6 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.common.renewedFlow
-import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -40,8 +36,10 @@ import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
+import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsContinuationToken
 
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
@@ -64,16 +62,21 @@ class ComputationsService(
   override fun streamActiveComputations(
     request: StreamActiveComputationsRequest
   ): Flow<StreamActiveComputationsResponse> {
-    var lastUpdateTime = ContinuationTokenConverter.decode(request.continuationToken)
+    var currentContinuationToken = ContinuationTokenConverter.decode(request.continuationToken)
     return renewedFlow(reconnectInterval, reconnectDelay) {
-      logger.info("Streaming active global computations since $lastUpdateTime")
-      streamMeasurements(lastUpdateTime)
-        .onEach { lastUpdateTime = maxOf(lastUpdateTime, it.updateTime.toInstant()) }
+      logger.info("Streaming active global computations since $currentContinuationToken")
+      streamMeasurements(currentContinuationToken)
+        .onEach {
+          currentContinuationToken =
+            streamActiveComputationsContinuationToken {
+              updateTimeSince = it.updateTime
+              lastSeenExternalComputationId = it.externalComputationId
+            }
+        }
         .map { measurement ->
           StreamActiveComputationsResponse.newBuilder()
             .apply {
-              continuationToken =
-                ContinuationTokenConverter.encode(measurement.updateTime.toInstant())
+              continuationToken = ContinuationTokenConverter.encode(currentContinuationToken)
               computation = measurement.toSystemComputation()
             }
             .build()
@@ -98,12 +101,15 @@ class ComputationsService(
     return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
   }
 
-  private fun streamMeasurements(lastUpdateTime: Instant): Flow<Measurement> {
+  private fun streamMeasurements(
+    continuationToken: StreamActiveComputationsContinuationToken
+  ): Flow<Measurement> {
     val request =
       StreamMeasurementsRequest.newBuilder()
         .apply {
           filterBuilder.apply {
-            updatedAfter = lastUpdateTime.toProtoTime()
+            updatedAfter = continuationToken.updateTimeSince
+            externalComputationIdAfter = continuationToken.lastSeenExternalComputationId
             addAllStates(STATES_SUBSCRIBED)
           }
           measurementView = Measurement.View.COMPUTATION
@@ -127,6 +133,8 @@ private val STATES_SUBSCRIBED =
   )
 
 private object ContinuationTokenConverter {
-  fun encode(time: Instant): String = time.toProtoTime().toByteArray().base64UrlEncode()
-  fun decode(token: String): Instant = Timestamp.parseFrom(token.base64UrlDecode()).toInstant()
+  fun encode(token: StreamActiveComputationsContinuationToken): String =
+    token.toByteArray().base64UrlEncode()
+  fun decode(token: String): StreamActiveComputationsContinuationToken =
+    StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
 }
