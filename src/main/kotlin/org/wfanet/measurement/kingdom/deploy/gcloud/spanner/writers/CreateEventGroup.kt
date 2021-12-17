@@ -22,6 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -54,33 +55,52 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
 
     return if (eventGroup.providedEventGroupId.isBlank()) {
-      createNewEventGroup(dataProviderId, measurementConsumerId, eventGroup)
+      createNewEventGroup(dataProviderId, measurementConsumerId)
     } else {
       findExistingEventGroup(dataProviderId)
-        ?: createNewEventGroup(dataProviderId, measurementConsumerId, eventGroup)
+        ?: createNewEventGroup(dataProviderId, measurementConsumerId)
     }
   }
 
-  private fun TransactionScope.createNewEventGroup(
+  private suspend fun TransactionScope.createNewEventGroup(
     dataProviderId: Long,
-    measurementConsumerId: Long,
-    eventGroup: EventGroup
+    measurementConsumerId: Long
   ): EventGroup {
     val internalEventGroupId = idGenerator.generateInternalId()
     val externalEventGroupId = idGenerator.generateExternalId()
+    val measurementConsumerCertificateId =
+      if (eventGroup.externalMeasurementConsumerCertificateId > 0L) {
+        val reader =
+          CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+            .bindWhereClause(
+              ExternalId(measurementConsumerId),
+              ExternalId(eventGroup.externalMeasurementConsumerCertificateId)
+            )
 
+        reader.execute(transactionContext).singleOrNull()?.let {
+          if (!it.isValid) {
+            throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+          } else it.certificateId
+        }
+          ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+      } else null
     transactionContext.bufferInsertMutation("EventGroups") {
       set("EventGroupId" to internalEventGroupId)
       set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
-      set("MeasurementConsumerCertificateId" to eventGroup.externalMeasurementConsumerCertificateId)
+      if (measurementConsumerCertificateId != null) {
+        set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
+      }
       set("DataProviderId" to dataProviderId)
       if (eventGroup.providedEventGroupId.isNotBlank()) {
         set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
       }
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      set("EventGroupDetails" to eventGroup.details)
-      setJson("EventGroupDetailsJson" to eventGroup.details)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      if (eventGroup.hasDetails()) {
+        set("EventGroupDetails" to eventGroup.details)
+        setJson("EventGroupDetailsJson" to eventGroup.details)
+      }
     }
 
     return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()
@@ -95,10 +115,16 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
     val eventGroup = checkNotNull(transactionResult)
-    return if (eventGroup.hasCreateTime()) {
+    return if (eventGroup.hasCreateTime() && eventGroup.hasUpdateTime()) {
       eventGroup
     } else {
-      eventGroup.toBuilder().apply { createTime = commitTimestamp.toProto() }.build()
+      eventGroup
+        .toBuilder()
+        .apply {
+          createTime = commitTimestamp.toProto()
+          updateTime = commitTimestamp.toProto()
+        }
+        .build()
     }
   }
 }

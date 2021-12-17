@@ -144,6 +144,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           .also {
             it.externalEventGroupId = createdEventGroup.externalEventGroupId
             it.createTime = createdEventGroup.createTime
+            it.updateTime = createdEventGroup.createTime
           }
           .build()
       )
@@ -203,6 +204,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         otherEventGroup.copy {
           externalEventGroupId = secondCreateEventGroupAttempt.externalEventGroupId
           createTime = secondCreateEventGroupAttempt.createTime
+          updateTime = secondCreateEventGroupAttempt.createTime
         }
       )
   }
