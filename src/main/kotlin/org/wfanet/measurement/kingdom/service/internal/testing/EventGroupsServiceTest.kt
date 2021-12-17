@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -27,10 +28,13 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -43,6 +47,17 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
 private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
+private val MEASUREMENT_CONSUMER_CERTIFICATE_ID =
+  apiIdToExternalId(
+    MeasurementConsumerCertificateKey.fromName(
+        "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAcg"
+      )!!
+      .certificateId
+  )
+private val DETAILS = details {
+  apiVersion = "v2Alpha"
+  encryptedMetadata = ByteString.copyFromUtf8("somedata")
+}
 
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
@@ -133,6 +148,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = MEASUREMENT_CONSUMER_CERTIFICATE_ID
+      details = DETAILS
     }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
@@ -143,8 +160,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           .toBuilder()
           .also {
             it.externalEventGroupId = createdEventGroup.externalEventGroupId
+            it.externalMeasurementConsumerCertificateId = MEASUREMENT_CONSUMER_CERTIFICATE_ID
             it.createTime = createdEventGroup.createTime
             it.updateTime = createdEventGroup.createTime
+            it.details = DETAILS
           }
           .build()
       )
@@ -184,6 +203,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val eventGroup = eventGroup {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalMeasurementConsumerCertificateId = MEASUREMENT_CONSUMER_CERTIFICATE_ID
+      details = DETAILS
     }
 
     eventGroupsService.createEventGroup(eventGroup)
