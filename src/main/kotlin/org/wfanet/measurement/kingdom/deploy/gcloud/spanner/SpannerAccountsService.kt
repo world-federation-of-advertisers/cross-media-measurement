@@ -17,8 +17,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import com.google.gson.JsonParser
 import io.grpc.Status
 import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.crypto.tink.JwtTinkPublicKeyHandle.Companion.createJwtPublicKeyHandle
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.calculateRSAThumbprint
+import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle.Companion.fromJwk
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.calculateRsaThumbprint
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.validateJwt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
@@ -229,17 +229,17 @@ class SpannerAccountsService(
       return null
     }
 
-    val jwkKey = subJwk.asJsonObject
-    val jwtPublicKeyHandle = createJwtPublicKeyHandle(jwkKey)
+    val jwk = subJwk.asJsonObject
+    val publicJwkHandle = fromJwk(jwk)
 
     val verifiedJwt =
       validateJwt(
         redirectUri = REDIRECT_URI,
         idToken = idToken,
-        verifier = jwtPublicKeyHandle.verifier
+        verifier = publicJwkHandle.verifier
       )
 
-    if (!verifiedJwt.subject.equals(calculateRSAThumbprint(jwkKey.toString()))) {
+    if (!verifiedJwt.subject.equals(calculateRsaThumbprint(jwk.toString()))) {
       return null
     }
 
@@ -248,9 +248,9 @@ class SpannerAccountsService(
 
     val result =
       OpenIdRequestParamsReader()
-        .readByState(client.singleUse(), ExternalId(state.asString.base64UrlDecode().toLong()))
+        .readByState(client.singleUse(), ExternalId(state.base64UrlDecode().toLong()))
     if (result != null) {
-      if (nonce.asString.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
+      if (nonce.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
         return null
       }
     } else {
