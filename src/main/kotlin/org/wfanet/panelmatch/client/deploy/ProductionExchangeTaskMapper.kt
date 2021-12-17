@@ -49,7 +49,7 @@ import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 
-class ProductionExchangeTaskMapper(
+open class ProductionExchangeTaskMapper(
   private val inputTaskThrottler: Throttler,
   private val privateStorageSelector: PrivateStorageSelector,
   private val sharedStorageSelector: SharedStorageSelector,
