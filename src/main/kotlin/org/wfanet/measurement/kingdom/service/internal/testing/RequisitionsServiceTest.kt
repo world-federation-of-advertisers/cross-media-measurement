@@ -116,59 +116,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
-  fun `streamRequisitions returns all requisitions for EDP in order`(): Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(
-        dataServices.measurementConsumersService,
-        dataServices.accountsService
-      )
-    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement1 =
-      population.createMeasurement(
-        dataServices.measurementsService,
-        measurementConsumer,
-        "measurement 1",
-        dataProvider
-      )
-    val measurement2 =
-      population.createMeasurement(
-        dataServices.measurementsService,
-        measurementConsumer,
-        "measurement 2",
-        dataProvider
-      )
-    population.createMeasurement(
-      dataServices.measurementsService,
-      measurementConsumer,
-      "measurement 3",
-      population.createDataProvider(dataServices.dataProvidersService)
-    )
-
-    val requisitions: List<Requisition> =
-      service
-        .streamRequisitions(
-          streamRequisitionsRequest {
-            filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
-          }
-        )
-        .toList()
-
-    assertThat(requisitions)
-      .comparingExpectedFieldsOnly()
-      .containsExactly(
-        requisition {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementId = measurement1.externalMeasurementId
-        },
-        requisition {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          externalMeasurementId = measurement2.externalMeasurementId
-        }
-      )
-      .inOrder()
-  }
-
-  @Test
   fun `streamRequisitions returns all requisitions for MC`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(

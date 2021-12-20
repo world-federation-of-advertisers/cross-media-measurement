@@ -30,6 +30,7 @@ kt_jvm_library(
     deps = [
         ":account_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/idtoken:request_uri",
         "//src/main/proto/wfa/measurement/api/v2alpha:account_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:accounts_service_kt_jvm_grpc",
         "//src/main/proto/wfa/measurement/api/v2alpha:accounts_service_kt_jvm_proto",

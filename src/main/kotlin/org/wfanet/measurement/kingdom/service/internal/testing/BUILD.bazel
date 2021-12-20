@@ -8,6 +8,7 @@ kt_jvm_library(
     testonly = True,
     srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_PROTOS + [
+        "//src/main/kotlin/org/wfanet/measurement/common/idtoken:request_uri",
         "//src/main/kotlin/org/wfanet/measurement/tools:self_issued_id_token",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:accounts_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",

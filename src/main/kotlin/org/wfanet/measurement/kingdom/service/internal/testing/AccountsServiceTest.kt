@@ -19,7 +19,6 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.gson.JsonParser
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.net.URLEncoder
 import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -31,8 +30,8 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.common.idtoken.createRequestUri
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -40,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
@@ -596,7 +596,14 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount throws PERMISSION_DENIED when state doesn't match`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(generateRequestUri(state = params.state + 5L, nonce = params.nonce), clock)
+      generateIdToken(
+        createRequestUri(
+          state = params.state + 5L,
+          nonce = params.nonce,
+          redirectUri = REDIRECT_URI
+        ),
+        clock
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -613,7 +620,14 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `authenticateAccount throws PERMISSION_DENIED when nonce doesn't match`() = runBlocking {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
-      generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce + 5L), clock)
+      generateIdToken(
+        createRequestUri(
+          state = params.state,
+          nonce = params.nonce + 5L,
+          redirectUri = REDIRECT_URI
+        ),
+        clock
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -691,23 +705,22 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     assertThat(params.state != 0L)
   }
 
-  private fun generateRequestUri(
-    state: Long,
-    nonce: Long,
-  ): String {
-    val uriParts = mutableListOf<String>()
-    uriParts.add("openid://?response_type=id_token")
-    uriParts.add("scope=openid")
-    uriParts.add("state=" + externalIdToApiId(state))
-    uriParts.add("nonce=" + externalIdToApiId(nonce))
-    val redirectUri = URLEncoder.encode(REDIRECT_URI, "UTF-8")
-    uriParts.add("client_id=$redirectUri")
+  @Test
+  fun `createMeasurementConsumerCreationToken returns token`() = runBlocking {
+    val createTokenResponse = runBlocking {
+      service.createMeasurementConsumerCreationToken(
+        createMeasurementConsumerCreationTokenRequest {}
+      )
+    }
 
-    return uriParts.joinToString("&")
+    assertThat(createTokenResponse.measurementConsumerCreationToken).isNotEqualTo(0L)
   }
 
   private suspend fun generateIdToken(service: T): String {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-    return generateIdToken(generateRequestUri(state = params.state, nonce = params.nonce), clock)
+    return generateIdToken(
+      createRequestUri(state = params.state, nonce = params.nonce, redirectUri = REDIRECT_URI),
+      clock
+    )
   }
 }
