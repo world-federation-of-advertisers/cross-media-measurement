@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -30,6 +31,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
@@ -37,9 +40,11 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
@@ -56,12 +61,20 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
   private val population = Population(testClock, idGenerator)
+  private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+  private val CERTIFICATE = certificate {
+    subjectKeyIdentifier = ByteString.copyFromUtf8("This is an SKID")
+    details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+  }
   private lateinit var eventGroupsService: T
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
     private set
 
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
+    private set
+
+  protected lateinit var certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
@@ -72,6 +85,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     eventGroupsService = services.eventGroupsService
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
+    certificatesService = services.certificatesService
   }
 
   @Test
@@ -127,10 +141,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `createEventGroup succeeds`() = runBlocking {
-    val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
-        .externalMeasurementConsumerId
+  fun `createEventGroup fails for not found certificate`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
 
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
@@ -139,6 +152,68 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = 123L
+      details = DETAILS
+    }
+
+    val exception =
+      assertFailsWith<KingdomInternalException> { eventGroupsService.createEventGroup(eventGroup) }
+
+    assertThat(exception.code).isEqualTo(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+  }
+
+  @Test
+  fun `createEventGroup fails for invalid certificate`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalCertificateId = measurementConsumer.certificate.externalCertificateId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      CERTIFICATE.copy {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalCertificateId = externalCertificateId
+        notValidAfter = timestamp { seconds = 0 }
+      }
+    certificatesService.createCertificate(certificate)
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = externalCertificateId
+      details = DETAILS
+    }
+
+    val exception =
+      assertFailsWith<KingdomInternalException> { eventGroupsService.createEventGroup(eventGroup) }
+
+    assertThat(exception.code).isEqualTo(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+  }
+
+  @Test
+  fun `createEventGroup succeeds`() = runBlocking {
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalCertificateId = measurementConsumer.certificate.externalCertificateId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val certificate =
+      CERTIFICATE.copy {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalCertificateId = externalCertificateId
+      }
+    certificatesService.createCertificate(certificate)
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = externalCertificateId
       details = DETAILS
     }
 
@@ -438,8 +513,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 }
 
-data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
+data class EventGroupAndHelperServices<T>(
   val eventGroupsService: T,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-  val dataProvidersService: DataProvidersCoroutineImplBase
+  val dataProvidersService: DataProvidersCoroutineImplBase,
+  val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
 )

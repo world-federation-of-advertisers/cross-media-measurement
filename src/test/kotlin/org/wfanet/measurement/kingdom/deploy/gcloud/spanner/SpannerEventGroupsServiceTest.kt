@@ -39,7 +39,8 @@ class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsS
     return EventGroupAndHelperServices<SpannerEventGroupsService>(
       spannerServices.eventGroupsService as SpannerEventGroupsService,
       spannerServices.measurementConsumersService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
+      spannerServices.certificatesService
     )
   }
 }

@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
@@ -73,7 +74,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         val reader =
           CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
             .bindWhereClause(
-              ExternalId(measurementConsumerId),
+              ExternalId(eventGroup.externalMeasurementConsumerId),
               ExternalId(eventGroup.externalMeasurementConsumerCertificateId)
             )
 
