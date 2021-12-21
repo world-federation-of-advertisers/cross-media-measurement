@@ -20,7 +20,6 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
@@ -60,8 +59,7 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
 
     return InProcessDuchy.DuchyDependencies(
       buildComputationsDb(computationsDatabase.databaseClient),
-      buildStorageClient(duchyId),
-      InMemoryKeyStore()
+      buildStorageClient(duchyId)
     )
   }
 

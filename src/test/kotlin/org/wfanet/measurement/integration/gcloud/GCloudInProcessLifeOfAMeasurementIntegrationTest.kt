@@ -15,7 +15,6 @@
 package org.wfanet.measurement.integration.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
@@ -33,5 +32,4 @@ class GCloudInProcessLifeOfAMeasurementIntegrationTest :
   override val storageClient: StorageClient by lazy {
     GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-simulator")
   }
-  override val simulatorKeyStore = InMemoryKeyStore()
 }
