@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import java.time.temporal.ChronoUnit
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
@@ -164,7 +165,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup fails for invalid certificate`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService,
+      notValidBefore = testClock.instant().minus(9L, ChronoUnit.DAYS),
+      notValidAfter = testClock.instant().minus(1L, ChronoUnit.DAYS))
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalCertificateId = measurementConsumer.certificate.externalCertificateId
 
@@ -175,7 +178,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       CERTIFICATE.copy {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalCertificateId = externalCertificateId
-        notValidAfter = timestamp { seconds = 0 }
       }
     certificatesService.createCertificate(certificate)
 
@@ -513,7 +515,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 }
 
-data class EventGroupAndHelperServices<T>(
+data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
   val eventGroupsService: T,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val dataProvidersService: DataProvidersCoroutineImplBase,
