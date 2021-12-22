@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
@@ -43,7 +44,6 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
-import java.time.temporal.ChronoUnit
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
@@ -166,9 +166,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup fails for invalid certificate`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService,
-      notValidBefore = testClock.instant().minus(9L, ChronoUnit.DAYS),
-      notValidAfter = testClock.instant().minus(1L, ChronoUnit.DAYS))
+    val measurementConsumer =
+      population.createMeasurementConsumer(
+        measurementConsumersService,
+        notValidBefore = testClock.instant().minus(9L, ChronoUnit.DAYS),
+        notValidAfter = testClock.instant().minus(1L, ChronoUnit.DAYS)
+      )
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val externalCertificateId = measurementConsumer.certificate.externalCertificateId
 
