@@ -62,8 +62,6 @@ import org.wfanet.measurement.tools.generateIdToken
 private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
-  data class AccountInfo(val account: Account, val idToken: String)
-
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
@@ -221,20 +219,25 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  /** Returns an activated [Account] and the id token. */
-  suspend fun createActivatedAccount(
+  /** Creates an [Account] and returns it. */
+  suspend fun createAccount(
     accountsService: AccountsCoroutineImplBase,
     externalCreatorAccountId: Long = 0L,
     externalOwnedMeasurementConsumerId: Long = 0L
-  ): AccountInfo {
-    val account =
-      accountsService.createAccount(
-        account {
-          this.externalCreatorAccountId = externalCreatorAccountId
-          this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
-        }
-      )
+  ): Account {
+    return accountsService.createAccount(
+      account {
+        this.externalCreatorAccountId = externalCreatorAccountId
+        this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+      }
+    )
+  }
 
+  /** Activates the [Account] and returns the id token used to activate it. */
+  suspend fun activateAccount(
+    accountsService: AccountsCoroutineImplBase,
+    account: Account,
+  ): String {
     val openIdRequestParams =
       accountsService.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
@@ -254,7 +257,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       }
     }
 
-    return AccountInfo(account, idToken)
+    return idToken
   }
 
   private fun generateRequestUri(

@@ -127,9 +127,10 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
 
-    assertThat(MEASUREMENT_CONSUMER)
+    assertThat(createdMeasurementConsumer)
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
-        createdMeasurementConsumer.copy {
+        MEASUREMENT_CONSUMER.copy {
           clearExternalMeasurementConsumerId()
           certificate =
             certificate.copy {
@@ -197,7 +198,8 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `addMeasurementConsumerOwner adds Account as new owner of MC`() = runBlocking {
-    val (account, _) = population.createActivatedAccount(accountsService)
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
         MEASUREMENT_CONSUMER.copy {
@@ -205,7 +207,8 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         }
       )
 
-    val (account2, idToken2) = population.createActivatedAccount(accountsService)
+    val account2 = population.createAccount(accountsService)
+    val idToken2 = population.activateAccount(accountsService, account2)
 
     measurementConsumersService.addMeasurementConsumerOwner(
       addMeasurementConsumerOwnerRequest {
@@ -225,7 +228,8 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `removeMeasurementConsumerOwner throws NOT_FOUND when MC doesn't exist`() = runBlocking {
-    val (account, _) = population.createActivatedAccount(accountsService)
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -282,13 +286,14 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   /**
-   * TODO(https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/404/):
-   * Remove @Ignore.
+   * TODO(world-federation-of-advertisers/cross-media-measurement#404): Remove @Ignore once PR has
+   * been merged.
    */
   @Ignore
   @Test
   fun `removeMeasurementConsumerOwner removes Account as owner of MC`() = runBlocking {
-    val (account, idToken) = population.createActivatedAccount(accountsService)
+    val account = population.createAccount(accountsService)
+    val idToken = population.activateAccount(accountsService, account)
 
     val measurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
