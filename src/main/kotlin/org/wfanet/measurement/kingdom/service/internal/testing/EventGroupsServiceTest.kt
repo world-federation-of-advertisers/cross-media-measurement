@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -44,7 +43,6 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import java.time.temporal.ChronoUnit
 
 private const val RANDOM_SEED = 1
@@ -158,9 +156,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<KingdomInternalException> { eventGroupsService.createEventGroup(eventGroup) }
+      assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.code).isEqualTo(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("NOT_FOUND: MeasurementConsumer certificate not found")
   }
 
   @Test
@@ -190,9 +191,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
     val exception =
-      assertFailsWith<KingdomInternalException> { eventGroupsService.createEventGroup(eventGroup) }
+      assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.code).isEqualTo(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("FAILED_PRECONDITION: MeasurementConsumer certificate is invalid")
   }
 
   @Test
