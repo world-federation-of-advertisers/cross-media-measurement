@@ -32,8 +32,10 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.account
@@ -104,7 +106,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND: MeasurementConsumer not found")
   }
 
   @Test
@@ -117,9 +118,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Details field of MeasurementConsumer is missing fields.")
   }
 
   @Test
@@ -128,17 +126,18 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
 
     assertThat(createdMeasurementConsumer)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        MEASUREMENT_CONSUMER.copy {
-          clearExternalMeasurementConsumerId()
-          certificate =
-            certificate.copy {
-              clearExternalMeasurementConsumerId()
-              clearExternalCertificateId()
-            }
-        }
+      .ignoringFieldDescriptors(
+        MeasurementConsumer.getDescriptor()
+          .findFieldByNumber(MeasurementConsumer.EXTERNAL_MEASUREMENT_CONSUMER_ID_FIELD_NUMBER),
+        Certificate.getDescriptor()
+          .findFieldByNumber(Certificate.EXTERNAL_MEASUREMENT_CONSUMER_ID_FIELD_NUMBER),
+        Certificate.getDescriptor()
+          .findFieldByNumber(Certificate.EXTERNAL_CERTIFICATE_ID_FIELD_NUMBER)
       )
+      .isEqualTo(MEASUREMENT_CONSUMER)
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId).isNotEqualTo(0L)
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
+      .isEqualTo(createdMeasurementConsumer.certificate.externalMeasurementConsumerId)
   }
 
   @Test
@@ -146,7 +145,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val createdMeasurementConsumer =
       measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
 
-    val measurementConsumerRead =
+    val readMeasurementConsumer =
       measurementConsumersService.getMeasurementConsumer(
         GetMeasurementConsumerRequest.newBuilder()
           .setExternalMeasurementConsumerId(
@@ -155,7 +154,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           .build()
       )
 
-    assertThat(measurementConsumerRead)
+    assertThat(readMeasurementConsumer)
       .isEqualTo(createdMeasurementConsumer.copy { clearMeasurementConsumerCreationToken() })
   }
 
@@ -174,7 +173,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
   @Test
@@ -193,7 +191,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Account not found")
   }
 
   @Test
@@ -242,7 +239,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
   @Test
@@ -261,7 +257,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Account not found")
   }
 
   @Test
@@ -282,7 +277,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("Account doesn't own MeasurementConsumer")
   }
 
   /**

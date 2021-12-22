@@ -233,7 +233,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  /** Activates the [Account] and returns the id token used to activate it. */
+  /**
+   * Generates a self-issued ID token and uses it to activate the [Account]. Returns the ID token.
+   */
   suspend fun activateAccount(
     accountsService: AccountsCoroutineImplBase,
     account: Account,
