@@ -36,3 +36,10 @@ jobs:
           workspace-path: .
           build-options: |
             --host_platform=//build/platforms:ubuntu_18_04
+            --define=container_registry=gcr.io
+            --define=image_repo_prefix=halo-cmm-dev
+            --define=gcloud_spanner_project=
+            --define=gcloud_spanner_instance=
+            --define=gcloud_storage_project=
+            --define=gcloud_storage_bucket=
+            --define=gcloud_bigquery_table=

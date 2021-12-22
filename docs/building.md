@@ -27,6 +27,13 @@ The entire suite of tests can be run using the following command:
 bazel test //src/test/...
 ```
 
+## Make Variables
+
+Some build targets rely on
+["Make" variables](https://docs.bazel.build/versions/4.2.2/be/make-variables.html)
+which can be defined on the command line or in `.bazelrc` using the `--define`
+option. These are defined in [variables.bzl](../build/variables.bzl).
+
 ## IntelliJ Setup
 
 IntelliJ IDEA is the recommended IDE for development work on this project. As of
