@@ -19,6 +19,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.loadtest.KingdomInternalApiFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import picocli.CommandLine
 
@@ -90,6 +91,10 @@ class ResourceSetupFlags {
 
   @CommandLine.Mixin
   lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var kingdomInternalApiFlags: KingdomInternalApiFlags
     private set
 
   @CommandLine.Option(
