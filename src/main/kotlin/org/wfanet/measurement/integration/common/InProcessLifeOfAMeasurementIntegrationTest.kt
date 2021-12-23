@@ -32,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as PublicRequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
