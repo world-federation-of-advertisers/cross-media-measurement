@@ -52,3 +52,21 @@ class RequisitionFulfillmentServiceFlags {
   lateinit var certHost: String
     private set
 }
+
+class KingdomInternalApiFlags {
+  @CommandLine.Option(
+    names = ["--kingdom-internal-api-target"],
+    description = ["Address and port of the Kingdom's internal APIs"],
+    required = true
+  )
+  lateinit var target: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--kingdom-internal-api-cert-host"],
+    description = ["The expected hostname in the kingdom InternalApiServer's TLS certificate."],
+    required = true
+  )
+  lateinit var certHost: String
+    private set
+}
