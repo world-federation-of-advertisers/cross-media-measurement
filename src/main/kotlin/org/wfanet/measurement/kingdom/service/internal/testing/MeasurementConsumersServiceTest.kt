@@ -24,6 +24,7 @@ import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -32,23 +33,45 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
-import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
+import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
+import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
 
-private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 123L
-private const val FIXED_GENERATED_INTERNAL_ID = 2345L
-private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
+private const val RANDOM_SEED = 1
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = 12345673L
+
+private val MEASUREMENT_CONSUMER = measurementConsumer {
+  certificate =
+    certificate {
+      notValidBefore = timestamp { seconds = 12345 }
+      notValidAfter = timestamp { seconds = 23456 }
+      details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+    }
+  details =
+    details {
+      apiVersion = "v2alpha"
+      publicKey = PUBLIC_KEY
+      publicKeySignature = PUBLIC_KEY_SIGNATURE
+    }
+  measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+}
 
 private val MEASUREMENT_CONSUMER = measurementConsumer {
   certificate =
@@ -103,14 +126,11 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementConsumersService.getMeasurementConsumer(
-          GetMeasurementConsumerRequest.newBuilder()
-            .setExternalMeasurementConsumerId(EXTERNAL_MEASUREMENT_CONSUMER_ID)
-            .build()
+          getMeasurementConsumerRequest { externalMeasurementConsumerId = 1L }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND: MeasurementConsumer not found")
   }
 
   @Test
@@ -128,9 +148,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Details field of MeasurementConsumer is missing fields.")
   }
 
   @Test
@@ -221,16 +238,18 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       )
 
     assertThat(createdMeasurementConsumer)
-      .isEqualTo(
-        MEASUREMENT_CONSUMER.copy {
-          externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-          certificate =
-            certificate.copy {
-              externalMeasurementConsumerId = FIXED_GENERATED_EXTERNAL_ID
-              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
-            }
-        }
+      .ignoringFieldDescriptors(
+        MeasurementConsumer.getDescriptor()
+          .findFieldByNumber(MeasurementConsumer.EXTERNAL_MEASUREMENT_CONSUMER_ID_FIELD_NUMBER),
+        Certificate.getDescriptor()
+          .findFieldByNumber(Certificate.EXTERNAL_MEASUREMENT_CONSUMER_ID_FIELD_NUMBER),
+        Certificate.getDescriptor()
+          .findFieldByNumber(Certificate.EXTERNAL_CERTIFICATE_ID_FIELD_NUMBER)
       )
+      .isEqualTo(MEASUREMENT_CONSUMER)
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId).isNotEqualTo(0L)
+    assertThat(createdMeasurementConsumer.externalMeasurementConsumerId)
+      .isEqualTo(createdMeasurementConsumer.certificate.externalMeasurementConsumerId)
   }
 
   @Test
@@ -248,7 +267,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         }
       )
 
-    val measurementConsumerRead =
+    val readMeasurementConsumer =
       measurementConsumersService.getMeasurementConsumer(
         GetMeasurementConsumerRequest.newBuilder()
           .setExternalMeasurementConsumerId(
@@ -257,6 +276,164 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           .build()
       )
 
-    assertThat(measurementConsumerRead).isEqualTo(createdMeasurementConsumer)
+    assertThat(readMeasurementConsumer)
+      .isEqualTo(createdMeasurementConsumer.copy { clearMeasurementConsumerCreationToken() })
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws NOT_FOUND when MC doesn't exist`() = runBlocking {
+    val account = accountsService.createAccount(account {})
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementConsumersService.addMeasurementConsumerOwner(
+          addMeasurementConsumerOwnerRequest {
+            externalAccountId = account.externalAccountId
+            externalMeasurementConsumerId = 1L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner throws NOT_FOUND when Account doesn't exist`() = runBlocking {
+    val measurementConsumer =
+      measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementConsumersService.addMeasurementConsumerOwner(
+          addMeasurementConsumerOwnerRequest {
+            externalAccountId = 1L
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `addMeasurementConsumerOwner adds Account as new owner of MC`() = runBlocking {
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
+    val measurementConsumer =
+      measurementConsumersService.createMeasurementConsumer(
+        MEASUREMENT_CONSUMER.copy {
+          measurementConsumerCreationToken = account.measurementConsumerCreationToken
+        }
+      )
+
+    val account2 = population.createAccount(accountsService)
+    val idToken2 = population.activateAccount(accountsService, account2)
+
+    measurementConsumersService.addMeasurementConsumerOwner(
+      addMeasurementConsumerOwnerRequest {
+        externalAccountId = account2.externalAccountId
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+    )
+
+    val updatedAccount =
+      withIdToken(idToken2) {
+        runBlocking { accountsService.authenticateAccount(authenticateAccountRequest {}) }
+      }
+
+    assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
+      .contains(measurementConsumer.externalMeasurementConsumerId)
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws NOT_FOUND when MC doesn't exist`() = runBlocking {
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementConsumersService.removeMeasurementConsumerOwner(
+          removeMeasurementConsumerOwnerRequest {
+            externalAccountId = account.externalAccountId
+            externalMeasurementConsumerId = 1L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws NOT_FOUND when Account doesn't exist`() = runBlocking {
+    val measurementConsumer =
+      measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementConsumersService.removeMeasurementConsumerOwner(
+          removeMeasurementConsumerOwnerRequest {
+            externalAccountId = 1L
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner throws FAILED_PRECONDITION when Account doesn't own MC`() =
+      runBlocking {
+    val account = accountsService.createAccount(account {})
+    val measurementConsumer =
+      measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementConsumersService.removeMeasurementConsumerOwner(
+          removeMeasurementConsumerOwnerRequest {
+            externalAccountId = account.externalAccountId
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `removeMeasurementConsumerOwner removes Account as owner of MC`() = runBlocking {
+    val account = population.createAccount(accountsService)
+    val idToken = population.activateAccount(accountsService, account)
+
+    val measurementConsumer =
+      measurementConsumersService.createMeasurementConsumer(
+        MEASUREMENT_CONSUMER.copy {
+          measurementConsumerCreationToken = account.measurementConsumerCreationToken
+        }
+      )
+
+    var updatedAccount =
+      withIdToken(idToken) {
+        runBlocking { accountsService.authenticateAccount(authenticateAccountRequest {}) }
+      }
+
+    assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
+      .contains(measurementConsumer.externalMeasurementConsumerId)
+
+    measurementConsumersService.removeMeasurementConsumerOwner(
+      removeMeasurementConsumerOwnerRequest {
+        externalAccountId = account.externalAccountId
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      }
+    )
+
+    updatedAccount =
+      withIdToken(idToken) {
+        runBlocking { accountsService.authenticateAccount(authenticateAccountRequest {}) }
+      }
+
+    assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
+      .doesNotContain(measurementConsumer.externalMeasurementConsumerId)
   }
 }

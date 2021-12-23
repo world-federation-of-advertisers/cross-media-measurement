@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.net.URLEncoder
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -24,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.idtoken.createRequestUri
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -230,29 +232,32 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
-  /** Returns an activated [Account]. */
-  suspend fun createActivatedAccount(
+  /** Creates an [Account] and returns it. */
+  suspend fun createAccount(
     accountsService: AccountsCoroutineImplBase,
     externalCreatorAccountId: Long = 0L,
     externalOwnedMeasurementConsumerId: Long = 0L
   ): Account {
-    val account =
-      accountsService.createAccount(
-        account {
-          this.externalCreatorAccountId = externalCreatorAccountId
-          this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
-        }
-      )
+    return accountsService.createAccount(
+      account {
+        this.externalCreatorAccountId = externalCreatorAccountId
+        this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+      }
+    )
+  }
 
+  /**
+   * Generates a self-issued ID token and uses it to activate the [Account]. Returns the ID token.
+   */
+  suspend fun activateAccount(
+    accountsService: AccountsCoroutineImplBase,
+    account: Account,
+  ): String {
     val openIdRequestParams =
       accountsService.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     val idToken =
       generateIdToken(
-        createRequestUri(
-          state = openIdRequestParams.state,
-          nonce = openIdRequestParams.nonce,
-          redirectUri = REDIRECT_URI
-        ),
+        generateRequestUri(state = openIdRequestParams.state, nonce = openIdRequestParams.nonce),
         clock
       )
 
@@ -266,8 +271,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         )
       }
     }
-
-    return account
+    
+    return idToken
   }
 
   suspend fun createMeasurementConsumerCreationToken(
@@ -279,6 +284,21 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       )
 
     return createMeasurementConsumerCreationTokenResponse.measurementConsumerCreationToken
+  }
+
+  private fun generateRequestUri(
+    state: Long,
+    nonce: Long,
+  ): String {
+    val uriParts = mutableListOf<String>()
+    uriParts.add("openid://?response_type=id_token")
+    uriParts.add("scope=openid")
+    uriParts.add("state=" + externalIdToApiId(state))
+    uriParts.add("nonce=" + externalIdToApiId(nonce))
+    val redirectUri = URLEncoder.encode("https://localhost:2048", "UTF-8")
+    uriParts.add("client_id=$redirectUri")
+
+    return uriParts.joinToString("&")
   }
 }
 
