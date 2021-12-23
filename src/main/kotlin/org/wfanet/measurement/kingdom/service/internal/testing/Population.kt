@@ -23,6 +23,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
@@ -57,7 +58,6 @@ import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
-import org.wfanet.measurement.tools.generateIdToken
 
 private const val API_VERSION = "v2alpha"
 
