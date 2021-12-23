@@ -55,7 +55,7 @@ class InProcessEdpSimulator(
   private lateinit var edpJob: Job
   private lateinit var edpName: String
 
-  fun start(edpName: String, mcName: String) {
+  fun start(edpName: String, mcName: String, apiAuthenticationKey: String) {
     this.edpName = edpName
     edpJob =
       backgroundScope.launch {
@@ -72,6 +72,7 @@ class InProcessEdpSimulator(
             eventQuery =
               RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+            apiAuthenticationKey
           )
           .process()
       }

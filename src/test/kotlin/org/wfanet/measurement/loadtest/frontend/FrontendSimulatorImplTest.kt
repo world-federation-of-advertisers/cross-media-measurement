@@ -54,6 +54,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
+private const val API_AUTHENTICATION_KEY = "authentication key"
 private const val RUN_ID = "run id"
 private const val BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val REQUISITION_ONE = "requisition_one"
@@ -159,7 +160,8 @@ class FrontendSimulatorImplTest {
         requisitionsStub,
         measurementConsumersStub,
         sketchStore,
-        RUN_ID
+        RUN_ID,
+        API_AUTHENTICATION_KEY
       )
 
     assertThat(frontendSimulator.getExpectedResult("foo", LIQUID_LEGIONS_V2_PROTOCOL_CONFIG))

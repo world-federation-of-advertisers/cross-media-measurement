@@ -67,6 +67,7 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 data class EdpData(
@@ -90,7 +91,8 @@ class EdpSimulator(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
-  private val throttler: MinimumIntervalThrottler
+  private val throttler: MinimumIntervalThrottler,
+  private val apiAuthenticationKey: String,
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -279,7 +281,11 @@ class EdpSimulator(
         }
         .build()
 
-    return requisitionsStub.listRequisitions(request).requisitionsList.firstOrNull()
+    return requisitionsStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .listRequisitions(request)
+      .requisitionsList
+      .firstOrNull()
   }
 
   companion object {

@@ -134,6 +134,7 @@ class SpannerRequisitionsService(
     } catch (e: KingdomInternalException) {
       val status: Status =
         when (e.code) {
+          KingdomInternalException.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
           KingdomInternalException.Code.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
           KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
           KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL -> Status.FAILED_PRECONDITION
@@ -141,7 +142,6 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
           KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
           KingdomInternalException.Code.API_KEY_NOT_FOUND,
-          KingdomInternalException.Code.PERMISSION_DENIED,
           KingdomInternalException.Code.DUCHY_NOT_FOUND,
           KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
           KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,

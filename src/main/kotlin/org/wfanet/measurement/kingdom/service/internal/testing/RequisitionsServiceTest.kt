@@ -786,6 +786,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val response =
       service.refuseRequisition(
         refuseRequisitionRequest {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
           externalDataProviderId = requisition.externalDataProviderId
           externalRequisitionId = requisition.externalRequisitionId
           refusal = REFUSAL
@@ -806,6 +807,52 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
       )
+  }
+
+  @Test
+  fun `refuseRequisition throws PERMISSION_DENIED when mc doesn't match`() = runBlocking {
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(dataServices.measurementConsumersService),
+        "measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+        population.createDataProvider(dataServices.dataProvidersService)
+      )
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .first()
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.refuseRequisition(
+          refuseRequisitionRequest {
+            externalDataProviderId = requisition.externalDataProviderId
+            externalRequisitionId = requisition.externalRequisitionId
+            refusal = REFUSAL
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -836,6 +883,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       assertFailsWith(StatusRuntimeException::class) {
         service.refuseRequisition(
           refuseRequisitionRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
             externalDataProviderId = requisition.externalDataProviderId
             externalRequisitionId = requisition.externalRequisitionId
             refusal = REFUSAL

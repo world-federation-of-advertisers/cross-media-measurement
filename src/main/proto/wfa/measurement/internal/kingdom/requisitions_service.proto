@@ -84,8 +84,9 @@ message FulfillRequisitionRequest {
 }
 
 message RefuseRequisitionRequest {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_requisition_id = 2;
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_data_provider_id = 2;
+  fixed64 external_requisition_id = 3;
 
-  Requisition.Refusal refusal = 3;
+  Requisition.Refusal refusal = 4;
 }

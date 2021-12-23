@@ -28,12 +28,19 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
  * * [KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL]
  * * [KingdomInternalException.Code.REQUISITION_NOT_FOUND]
+ * * [KingdomInternalException.Code.PERMISSION_DENIED]
  */
 class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, _, requisition) = readResult
+
+    if (requisition.externalMeasurementConsumerId != request.externalMeasurementConsumerId) {
+      throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED) {
+        "Caller doesn't own MeasurementConsumer"
+      }
+    }
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
