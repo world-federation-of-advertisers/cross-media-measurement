@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.common.idtoken.createRequestUri
+import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -98,7 +98,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.status.description).isEqualTo("Creator account not found")
   }
 
   @Test
@@ -115,8 +114,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Caller does not own the owned measurement consumer")
   }
 
   @Test
@@ -140,8 +137,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Caller does not own the owned measurement consumer")
   }
 
   @Test
@@ -219,7 +214,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.status.description).isEqualTo("Account to activate has not been found")
   }
 
   @Test
@@ -235,7 +229,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.activateAccount(activateAccountRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Id token is missing")
   }
 
   @Test
@@ -255,8 +248,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Activation token is not valid for this account")
   }
 
   @Test
@@ -280,7 +271,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Cannot activate an account again")
   }
 
   @Test
@@ -298,7 +288,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Id token is invalid")
   }
 
   @Test
@@ -337,7 +326,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Issuer and subject pair already exists")
   }
 
   @Test
@@ -414,7 +402,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception.status.description).isEqualTo("Account was not found")
   }
 
   @Test
@@ -435,7 +422,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.status.description).isEqualTo("Account has not been activated yet")
   }
 
   @Test
@@ -455,7 +441,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("New Id token is invalid")
   }
 
   @Test
@@ -468,7 +453,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("New Id token is missing")
   }
 
   @Test
@@ -514,7 +498,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Issuer and subject pair already exists")
   }
 
   @Test
@@ -574,7 +557,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Id token is missing")
   }
 
   @Test
@@ -589,7 +571,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Id token is invalid")
   }
 
   @Test
@@ -600,7 +581,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         createRequestUri(
           state = params.state + 5L,
           nonce = params.nonce,
-          redirectUri = REDIRECT_URI
+          redirectUri = REDIRECT_URI,
+          isSelfIssued = true
         ),
         clock
       )
@@ -613,7 +595,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Id token is invalid")
   }
 
   @Test
@@ -624,7 +605,8 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         createRequestUri(
           state = params.state,
           nonce = params.nonce + 5L,
-          redirectUri = REDIRECT_URI
+          redirectUri = REDIRECT_URI,
+          isSelfIssued = true
         ),
         clock
       )
@@ -637,7 +619,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Id token is invalid")
   }
 
   @Test
@@ -652,7 +633,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Id token is invalid")
   }
 
   @Test
@@ -667,7 +647,6 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Account not found")
   }
 
   @Test
@@ -719,7 +698,12 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   private suspend fun generateIdToken(service: T): String {
     val params = service.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
     return generateIdToken(
-      createRequestUri(state = params.state, nonce = params.nonce, redirectUri = REDIRECT_URI),
+      createRequestUri(
+        state = params.state,
+        nonce = params.nonce,
+        redirectUri = REDIRECT_URI,
+        isSelfIssued = true
+      ),
       clock
     )
   }

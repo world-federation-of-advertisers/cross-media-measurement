@@ -37,7 +37,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.idtoken.createRequestUri
+import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as InternalOpenIdConnectIdentity
@@ -139,7 +139,8 @@ class AccountsService(
         createRequestUri(
           state = openIdRequestParams.state,
           nonce = openIdRequestParams.nonce,
-          redirectUri = this.redirectUri
+          redirectUri = this.redirectUri,
+          isSelfIssued = true
         )
     }
 

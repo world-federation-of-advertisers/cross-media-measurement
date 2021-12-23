@@ -24,7 +24,6 @@ import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -33,45 +32,29 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
-import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
-import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
-import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
-import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
-import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
-import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
-import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
+import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
 
-private const val RANDOM_SEED = 1
+private const val FIXED_GENERATED_INTERNAL_ID = 2345L
+private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
-private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = 12345673L
-
-private val MEASUREMENT_CONSUMER = measurementConsumer {
-  certificate =
-    certificate {
-      notValidBefore = timestamp { seconds = 12345 }
-      notValidAfter = timestamp { seconds = 23456 }
-      details = CertificateKt.details { x509Der = CERTIFICATE_DER }
-    }
-  details =
-    details {
-      apiVersion = "v2alpha"
-      publicKey = PUBLIC_KEY
-      publicKeySignature = PUBLIC_KEY_SIGNATURE
-    }
-  measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
-}
 
 private val MEASUREMENT_CONSUMER = measurementConsumer {
   certificate =
@@ -152,7 +135,8 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `createMeasurementConsumer fails when creation token has already been used`() = runBlocking {
-    val account = population.createActivatedAccount(accountsService)
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumerCreationTokenHash =
       hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
     measurementConsumersService.createMeasurementConsumer(
@@ -175,9 +159,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Measurement Consumer creation token is not valid")
   }
 
   @Test
@@ -199,7 +180,6 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("Account has not been activated yet")
   }
 
   @Test
@@ -219,12 +199,12 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Account not found")
   }
 
   @Test
   fun `createMeasurementConsumer succeeds`() = runBlocking {
-    val account = population.createActivatedAccount(accountsService)
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumerCreationTokenHash =
       hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
@@ -254,7 +234,8 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `getMeasurementConsumer succeeds`() = runBlocking {
-    val account = population.createActivatedAccount(accountsService)
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumerCreationHash =
       hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
 
@@ -276,8 +257,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
           .build()
       )
 
-    assertThat(readMeasurementConsumer)
-      .isEqualTo(createdMeasurementConsumer.copy { clearMeasurementConsumerCreationToken() })
+    assertThat(readMeasurementConsumer).isEqualTo(createdMeasurementConsumer)
   }
 
   @Test
@@ -299,8 +279,17 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `addMeasurementConsumerOwner throws NOT_FOUND when Account doesn't exist`() = runBlocking {
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
+      measurementConsumersService.createMeasurementConsumer(
+        createMeasurementConsumerRequest {
+          measurementConsumer = MEASUREMENT_CONSUMER
+          externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+        }
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -321,11 +310,16 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
     population.activateAccount(accountsService, account)
     val measurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
-        MEASUREMENT_CONSUMER.copy {
-          measurementConsumerCreationToken = account.measurementConsumerCreationToken
+        createMeasurementConsumerRequest {
+          measurementConsumer = MEASUREMENT_CONSUMER
+          externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
         }
       )
 
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID + 1L)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID + 1L)
     val account2 = population.createAccount(accountsService)
     val idToken2 = population.activateAccount(accountsService, account2)
 
@@ -365,8 +359,17 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
   @Test
   fun `removeMeasurementConsumerOwner throws NOT_FOUND when Account doesn't exist`() = runBlocking {
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
+      measurementConsumersService.createMeasurementConsumer(
+        createMeasurementConsumerRequest {
+          measurementConsumer = MEASUREMENT_CONSUMER
+          externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+        }
+      )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -384,15 +387,28 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   @Test
   fun `removeMeasurementConsumerOwner throws FAILED_PRECONDITION when Account doesn't own MC`() =
       runBlocking {
-    val account = accountsService.createAccount(account {})
+    val account = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account)
     val measurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(MEASUREMENT_CONSUMER)
+      measurementConsumersService.createMeasurementConsumer(
+        createMeasurementConsumerRequest {
+          measurementConsumer = MEASUREMENT_CONSUMER
+          externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
+        }
+      )
+
+    idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID + 1L)
+    idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID + 1L)
+    val account2 = population.createAccount(accountsService)
+    population.activateAccount(accountsService, account2)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         measurementConsumersService.removeMeasurementConsumerOwner(
           removeMeasurementConsumerOwnerRequest {
-            externalAccountId = account.externalAccountId
+            externalAccountId = account2.externalAccountId
             externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           }
         )
@@ -408,8 +424,11 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
 
     val measurementConsumer =
       measurementConsumersService.createMeasurementConsumer(
-        MEASUREMENT_CONSUMER.copy {
-          measurementConsumerCreationToken = account.measurementConsumerCreationToken
+        createMeasurementConsumerRequest {
+          measurementConsumer = MEASUREMENT_CONSUMER
+          externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
         }
       )
 
