@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineS
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
@@ -111,7 +112,13 @@ class ResourceSetup(
     val internalAccount = internalAccountsClient.createAccount(internalAccount {})
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
-    val mcCreationToken = externalIdToApiId(internalAccount.measurementConsumerCreationToken)
+    val mcCreationToken =
+      externalIdToApiId(
+        internalAccountsClient.createMeasurementConsumerCreationToken(
+            createMeasurementConsumerCreationTokenRequest {}
+          )
+          .measurementConsumerCreationToken
+      )
 
     // Account activation and MC creation are done via the public API.
     val authenticationResponse =

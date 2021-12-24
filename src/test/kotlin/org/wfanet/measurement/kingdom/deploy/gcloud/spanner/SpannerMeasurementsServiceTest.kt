@@ -35,7 +35,8 @@ class SpannerMeasurementsServiceTest : MeasurementsServiceTest<SpannerMeasuremen
       spannerServices.measurementsService as SpannerMeasurementsService,
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
-      spannerServices.certificatesService
+      spannerServices.certificatesService,
+      spannerServices.accountsService
     )
   }
 }
