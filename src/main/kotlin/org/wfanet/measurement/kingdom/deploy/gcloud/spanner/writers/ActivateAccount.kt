@@ -90,6 +90,8 @@ class ActivateAccount(
           issuer = source.issuer
           subject = source.subject
         }
+      externalOwnedMeasurementConsumerIds +=
+        readAccountResult.account.externalOwnedMeasurementConsumerId
     }
   }
 

@@ -36,11 +36,12 @@ class SpannerMeasurementLogEntriesServiceTest :
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
-    return Services<SpannerMeasurementLogEntriesService>(
+    return Services(
       spannerServices.measurementLogEntriesService as SpannerMeasurementLogEntriesService,
       spannerServices.measurementsService,
       spannerServices.measurementConsumersService,
-      spannerServices.dataProvidersService
+      spannerServices.dataProvidersService,
+      spannerServices.accountsService
     )
   }
 }
