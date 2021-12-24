@@ -57,7 +57,6 @@ import org.wfanet.measurement.internal.kingdom.openIdRequestParams
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest as internalReplaceAccountIdentityRequest
 
 private const val ACTIVATION_TOKEN = 12345672L
-private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = 12345673L
 
 private const val EXTERNAL_ACCOUNT_ID = 12345678L
 private const val EXTERNAL_CREATOR_ACCOUNT_ID = 56781234L
@@ -338,7 +337,6 @@ private val UNACTIVATED_ACCOUNT: Account = account {
       ownedMeasurementConsumer = MEASUREMENT_CONSUMER_NAME
     }
   activationState = Account.ActivationState.UNACTIVATED
-  measurementConsumerCreationToken = externalIdToApiId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
 }
 
 private val ACTIVATED_ACCOUNT: Account = account {
@@ -361,7 +359,6 @@ private val UNACTIVATED_INTERNAL_ACCOUNT: InternalAccount = internalAccount {
     apiIdToExternalId(
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
     )
-  measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
 }
 
 private val ACTIVATED_INTERNAL_ACCOUNT: InternalAccount = internalAccount {
@@ -373,7 +370,6 @@ private val ACTIVATED_INTERNAL_ACCOUNT: InternalAccount = internalAccount {
     apiIdToExternalId(
       MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
     )
-  measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
   openIdIdentity =
     InternalAccountKt.openIdConnectIdentity {
       issuer = ISSUER

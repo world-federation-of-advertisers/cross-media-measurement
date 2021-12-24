@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -53,14 +54,14 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val measurementLogEntriesService: T,
     val measurementsService: MeasurementsCoroutineImplBase,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-    val dataProvidersService: DataProvidersCoroutineImplBase
+    val dataProvidersService: DataProvidersCoroutineImplBase,
+    val accountsService: AccountsCoroutineImplBase
   )
-  val testClock: Clock = Clock.systemUTC()
+  private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
   private val population = Population(testClock, idGenerator)
 
-  protected lateinit var measurementLogEntriesService: T
-    private set
+  private lateinit var measurementLogEntriesService: T
 
   protected lateinit var measurementsService: MeasurementsCoroutineImplBase
     private set
@@ -69,6 +70,9 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     private set
 
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
+    private set
+
+  protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -80,6 +84,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     measurementConsumersService = services.measurementConsumersService
     measurementsService = services.measurementsService
     dataProvidersService = services.dataProvidersService
+    accountsService = services.accountsService
   }
 
   @Test
@@ -107,7 +112,8 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
 
   @Test
   fun `createMeasurementLogEntry fails for missing Duchy`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -163,7 +169,8 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
 
   @Test
   fun `create transient error MeasurementLogEntry succeeds`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -218,7 +225,8 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
 
   @Test
   fun `create non-error MeasurementLogEntry succeeds`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =

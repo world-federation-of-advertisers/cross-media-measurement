@@ -36,6 +36,7 @@ class SpannerApiKeysServiceTest : ApiKeysServiceTest<SpannerApiKeysService>() {
     return Services(
       spannerServices.apiKeysService as SpannerApiKeysService,
       spannerServices.measurementConsumersService,
+      spannerServices.accountsService,
     )
   }
 }

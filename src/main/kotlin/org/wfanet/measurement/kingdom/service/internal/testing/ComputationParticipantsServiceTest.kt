@@ -32,6 +32,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -76,7 +77,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val measurementsService: MeasurementsCoroutineImplBase,
     val certificatesService: CertificatesCoroutineImplBase,
-    val requisitionsService: RequisitionsCoroutineImplBase
+    val requisitionsService: RequisitionsCoroutineImplBase,
+    val accountsService: AccountsCoroutineImplBase
   )
 
   private val clock: Clock = Clock.systemUTC()
@@ -86,7 +88,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   protected lateinit var computationParticipantsService: T
     private set
 
-  protected lateinit var duchyCertificates: Map<String, Certificate>
+  private lateinit var duchyCertificates: Map<String, Certificate>
     private set
 
   protected lateinit var measurementsService: MeasurementsCoroutineImplBase
@@ -104,6 +106,9 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   protected lateinit var requisitionsService: RequisitionsCoroutineImplBase
     private set
 
+  protected lateinit var accountsService: AccountsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -115,6 +120,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementsService = services.measurementsService
     certificatesService = services.certificatesService
     requisitionsService = services.requisitionsService
+    accountsService = services.accountsService
   }
 
   private fun createDuchyCertificates() {
@@ -127,7 +133,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `setParticipantRequisitionParams fails for wrong externalDuchyId`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -160,7 +167,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `setParticipantRequisitionParams fails for wrong externalComputationId`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     measurementConsumer.certificate.externalCertificateId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
@@ -194,7 +202,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   fun `setParticipantRequisitionParams fails for wrong certificate for computationParticipant`() =
       runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -229,7 +238,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `setParticipantRequisitionParams fails for revoked certificate`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -269,7 +279,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams fails for expired certificate`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -309,7 +320,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams fails for not yet valid certificate`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -350,7 +362,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `setParticipantRequisitionParams fails for measurement in the wrong state`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -392,7 +405,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `setParticipantRequisitionParams succeeds for non-final Duchy`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
@@ -445,7 +459,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   fun `setParticipantRequisitionParams for final Duchy updates Measurement state`() {
     runBlocking {
       createDuchyCertificates()
-      val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val dataProvider = population.createDataProvider(dataProvidersService)
       val externalComputationId =
         population.createMeasurement(
@@ -501,7 +516,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val measurement =
       population.createMeasurement(
         measurementsService,
-        population.createMeasurementConsumer(measurementConsumersService),
+        population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
         population.createDataProvider(dataProvidersService),
         population.createDataProvider(dataProvidersService)
@@ -587,7 +602,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val measurement =
       population.createMeasurement(
         measurementsService,
-        population.createMeasurementConsumer(measurementConsumersService),
+        population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
         population.createDataProvider(dataProvidersService),
         population.createDataProvider(dataProvidersService)
@@ -658,7 +673,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `failComputationParticipant fails due to illegal  measurement state`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -707,7 +723,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   @Test
   fun `failComputationParticipant succeeds`() = runBlocking {
     createDuchyCertificates()
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =

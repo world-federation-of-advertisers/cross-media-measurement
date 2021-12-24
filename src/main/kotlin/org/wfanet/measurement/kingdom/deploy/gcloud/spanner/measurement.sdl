@@ -21,6 +21,7 @@
 --   │   ├── DataProviderCertificates
 --   │   └── EventGroups
 --   ├── DuchyCertificates
+--   ├── MeasurementConsumerCreationTokens
 --   ├── MeasurementConsumers
 --   │   ├── MeasurementConsumerApiKeys
 --   │   ├── MeasurementConsumerCertificates
@@ -86,7 +87,17 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
--- TODO: add MeasurementConsumerCreationToken and a unique index on it
+CREATE TABLE MeasurementConsumerCreationTokens (
+  MeasurementConsumerCreationTokenId INT64 NOT NULL,
+
+  MeasurementConsumerCreationTokenHash BYTES(32) NOT NULL,
+
+  CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+) PRIMARY KEY (MeasurementConsumerCreationTokenId);
+
+CREATE UNIQUE INDEX MeasurementConsumerCreationTokensByHash
+  ON MeasurementConsumerCreationTokens(MeasurementConsumerCreationTokenHash);
+
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId INT64 NOT NULL,
 
@@ -405,8 +416,6 @@ CREATE TABLE Accounts (
 
   OwnedMeasurementConsumerId INT64,
   ActivationToken INT64 NOT NULL,
-
-  MeasurementConsumerCreationToken INT64 NOT NULL,
 
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
