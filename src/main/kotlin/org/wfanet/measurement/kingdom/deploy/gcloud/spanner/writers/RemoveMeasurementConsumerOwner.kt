@@ -56,7 +56,7 @@ class RemoveMeasurementConsumerOwner(
     transactionContext.buffer(
       Mutation.delete(
         "MeasurementConsumerOwners",
-        KeySet.singleKey(Key.of(accountId, measurementConsumerResult.measurementConsumerId))
+        KeySet.singleKey(Key.of(accountId.value, measurementConsumerResult.measurementConsumerId))
       )
     )
 

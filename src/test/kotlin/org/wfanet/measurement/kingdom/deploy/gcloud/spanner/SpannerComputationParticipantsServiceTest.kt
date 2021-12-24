@@ -36,13 +36,14 @@ class SpannerComputationParticipantsServiceTest :
     val spannerServices =
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
-    return Services<SpannerComputationParticipantsService>(
+    return Services(
       spannerServices.computationParticipantsService as SpannerComputationParticipantsService,
       spannerServices.measurementConsumersService,
       spannerServices.dataProvidersService,
       spannerServices.measurementsService,
       spannerServices.certificatesService,
-      spannerServices.requisitionsService
+      spannerServices.requisitionsService,
+      spannerServices.accountsService
     )
   }
 }

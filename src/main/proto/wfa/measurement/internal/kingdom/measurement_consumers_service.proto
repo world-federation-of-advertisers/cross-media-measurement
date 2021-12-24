@@ -23,7 +23,7 @@ option java_multiple_files = true;
 
 // Internal service for persistence of MeasurementConsumer entities.
 service MeasurementConsumers {
-  rpc CreateMeasurementConsumer(MeasurementConsumer)
+  rpc CreateMeasurementConsumer(CreateMeasurementConsumerRequest)
       returns (MeasurementConsumer);
 
   rpc GetMeasurementConsumer(GetMeasurementConsumerRequest)
@@ -34,6 +34,12 @@ service MeasurementConsumers {
 
   rpc RemoveMeasurementConsumerOwner(RemoveMeasurementConsumerOwnerRequest)
       returns (MeasurementConsumer) {}
+}
+
+message CreateMeasurementConsumerRequest {
+  MeasurementConsumer measurement_consumer = 1;
+  fixed64 external_account_id = 2;
+  bytes measurement_consumer_creation_token_hash = 3;
 }
 
 message GetMeasurementConsumerRequest {
