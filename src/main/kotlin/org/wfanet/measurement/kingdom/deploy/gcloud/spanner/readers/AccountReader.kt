@@ -37,7 +37,6 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
       Accounts.ActivationState,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       Accounts.ActivationToken,
-      Accounts.MeasurementConsumerCreationToken,
       OpenIdConnectIdentities.Issuer,
       OpenIdConnectIdentities.Subject,
       ARRAY(
@@ -55,7 +54,7 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
     LEFT JOIN OpenIdConnectIdentities
       ON (Accounts.AccountId = OpenIdConnectIdentities.AccountId)
     LEFT JOIN MeasurementConsumers
-      ON (Accounts.OwnedMeasurementConsumerId = MeasurementConsumers.ExternalMeasurementConsumerId)
+      ON (Accounts.OwnedMeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId)
     """.trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
@@ -72,7 +71,6 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
       externalOwnedMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
     }
     activationToken = struct.getLong("ActivationToken")
-    measurementConsumerCreationToken = struct.getLong("MeasurementConsumerCreationToken")
 
     if (!struct.isNull("Issuer")) {
       openIdIdentity =

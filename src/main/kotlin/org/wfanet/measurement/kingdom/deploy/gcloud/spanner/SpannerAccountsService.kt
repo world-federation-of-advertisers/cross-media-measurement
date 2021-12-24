@@ -29,9 +29,12 @@ import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ActivateAccountRequest
 import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenRequest
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.kingdom.deploy.common.service.getIdToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -39,6 +42,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdRequestParamsReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ActivateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumerCreationToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceAccountIdentityWithNewOpenIdConnectIdentity
 
@@ -67,7 +71,10 @@ class SpannerAccountsService(
           null
         }
 
-      return CreateAccount(externalCreatorAccountId, externalOwnedMeasurementConsumerId)
+      return CreateAccount(
+          externalCreatorAccountId = externalCreatorAccountId,
+          externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+        )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
@@ -95,6 +102,15 @@ class SpannerAccountsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
       }
+    }
+  }
+
+  override suspend fun createMeasurementConsumerCreationToken(
+    request: CreateMeasurementConsumerCreationTokenRequest
+  ): CreateMeasurementConsumerCreationTokenResponse {
+    return createMeasurementConsumerCreationTokenResponse {
+      measurementConsumerCreationToken =
+        CreateMeasurementConsumerCreationToken().execute(client, idGenerator)
     }
   }
 

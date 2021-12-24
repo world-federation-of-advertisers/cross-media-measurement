@@ -25,6 +25,10 @@ option java_multiple_files = true;
 service Accounts {
   rpc CreateAccount(Account) returns (Account);
 
+  rpc CreateMeasurementConsumerCreationToken(
+      CreateMeasurementConsumerCreationTokenRequest)
+      returns (CreateMeasurementConsumerCreationTokenResponse);
+
   // Credentials for new identity will be passed-in via call credentials.
   rpc ActivateAccount(ActivateAccountRequest) returns (Account);
 
@@ -39,6 +43,12 @@ service Accounts {
   // Generates state and nonce.
   rpc GenerateOpenIdRequestParams(GenerateOpenIdRequestParamsRequest)
       returns (OpenIdRequestParams);
+}
+
+message CreateMeasurementConsumerCreationTokenRequest {}
+
+message CreateMeasurementConsumerCreationTokenResponse {
+  fixed64 measurementConsumerCreationToken = 1;
 }
 
 message ActivateAccountRequest {

@@ -46,10 +46,6 @@ message Account {
   // Token that can be used to activate the account. Output-only.
   fixed64 activation_token = 5;
 
-  // Token that can be used to create a `MeasurementConsumer` resource.
-  // Output-only. Immutable.
-  fixed64 measurement_consumer_creation_token = 6;
-
   // OpenID Connect identity.
   message OpenIdConnectIdentity {
     fixed64 external_open_id_connect_id = 1;
@@ -66,10 +62,10 @@ message Account {
   // This must be set when `activation_state` is `ACTIVATED`. The specified
   // value is unique across all `Account` resources.
   oneof identity {
-    OpenIdConnectIdentity open_id_identity = 7;
+    OpenIdConnectIdentity open_id_identity = 6;
   }
 
   // All External IDs of the `MeasurementConsumer` that this `Account` owns.
   // Output-only.
-  repeated int64 external_owned_measurement_consumer_ids = 8;
+  repeated int64 external_owned_measurement_consumer_ids = 7;
 }
