@@ -29,6 +29,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -47,7 +48,7 @@ private const val EXTERNAL_EVENT_GROUP_ID = 123L
 private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
 private val DETAILS = details {
-  apiVersion = "v2Alpha"
+  apiVersion = Version.V2_ALPHA.string
   encryptedMetadata = ByteString.copyFromUtf8("somedata")
 }
 
@@ -148,7 +149,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND")
+    assertThat(exception).hasMessageThat().contains("certificate not found")
   }
 
   @Test
@@ -177,7 +178,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("FAILED_PRECONDITION")
+    assertThat(exception).hasMessageThat().contains("certificate is invalid")
   }
 
   @Test
@@ -200,17 +201,15 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
     assertThat(createdEventGroup)
-      .isEqualTo(
-        eventGroup
-          .toBuilder()
-          .also {
-            it.externalEventGroupId = createdEventGroup.externalEventGroupId
-            it.createTime = createdEventGroup.createTime
-            it.updateTime = createdEventGroup.createTime
-            it.details = DETAILS
-          }
-          .build()
+      .ignoringFields(
+        EventGroup.EXTERNAL_EVENT_GROUP_ID_FIELD_NUMBER,
+        EventGroup.CREATE_TIME_FIELD_NUMBER,
+        EventGroup.UPDATE_TIME_FIELD_NUMBER
       )
+      .isEqualTo(eventGroup)
+    assertThat(createdEventGroup.externalEventGroupId).isGreaterThan(0)
+    assertThat(createdEventGroup.createTime.seconds).isGreaterThan(0)
+    assertThat(createdEventGroup.updateTime).isEqualTo(createdEventGroup.createTime)
   }
 
   @Test
