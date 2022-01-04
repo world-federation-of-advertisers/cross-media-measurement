@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 import com.google.cloud.spanner.Statement
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 

@@ -30,8 +30,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
 
 class SpannerEventGroupsService(
-    private val idGenerator: IdGenerator,
-    private val client: AsyncDatabaseClient
+  private val idGenerator: IdGenerator,
+  private val client: AsyncDatabaseClient
 ) : EventGroupsCoroutineImplBase() {
 
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
@@ -40,9 +40,9 @@ class SpannerEventGroupsService(
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
-            failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
-            failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+          failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
         KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
@@ -66,9 +66,9 @@ class SpannerEventGroupsService(
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
-        .readByExternalId(client.singleUse(), request.externalEventGroupId)
-        ?.eventGroup
-        ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+      .readByExternalId(client.singleUse(), request.externalEventGroupId)
+      ?.eventGroup
+      ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {

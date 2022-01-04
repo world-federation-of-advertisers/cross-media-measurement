@@ -23,7 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.EventGroup
 
 private val BASE_SQL =
-    """
+  """
     SELECT
       EventGroups.EventGroupId,
       EventGroups.ExternalEventGroupId,
@@ -52,47 +52,49 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   fun bindWhereClause(dataProviderId: Long, providedEventGroupId: String): EventGroupReader {
     return fillStatementBuilder {
       appendClause(
-          """
+        """
         WHERE EventGroups.DataProviderId = @data_provider_id
         AND EventGroups.ProvidedEventGroupId = @provided_event_group_id
-        """.trimIndent())
+        """.trimIndent()
+      )
       bind("data_provider_id" to dataProviderId)
       bind("provided_event_group_id" to providedEventGroupId)
     }
   }
 
   suspend fun readByExternalId(
-      readContext: AsyncDatabaseClient.ReadContext,
-      externalEventGroupId: Long,
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalEventGroupId: Long,
   ): Result? {
     val externalEventGroupIdParam = "externalEventGroupId"
 
     return fillStatementBuilder {
-          appendClause(
-              """
+        appendClause(
+          """
           WHERE
             ExternalEventGroupId = @$externalEventGroupIdParam
-          """.trimIndent())
-          bind(externalEventGroupIdParam to externalEventGroupId)
-          appendClause("LIMIT 1")
-        }
-        .execute(readContext)
-        .singleOrNull()
+          """.trimIndent()
+        )
+        bind(externalEventGroupIdParam to externalEventGroupId)
+        appendClause("LIMIT 1")
+      }
+      .execute(readContext)
+      .singleOrNull()
   }
 
   override suspend fun translate(struct: Struct): Result =
-      Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
+    Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
 
   private fun buildEventGroup(struct: Struct): EventGroup =
-      EventGroup.newBuilder()
-          .apply {
-            externalEventGroupId = struct.getLong("ExternalEventGroupId")
-            externalDataProviderId = struct.getLong("ExternalDataProviderId")
-            externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-            if (!struct.isNull("ProvidedEventGroupId")) {
-              providedEventGroupId = struct.getString("ProvidedEventGroupId")
-            }
-            createTime = struct.getTimestamp("CreateTime").toProto()
-          }
-          .build()
+    EventGroup.newBuilder()
+      .apply {
+        externalEventGroupId = struct.getLong("ExternalEventGroupId")
+        externalDataProviderId = struct.getLong("ExternalDataProviderId")
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        if (!struct.isNull("ProvidedEventGroupId")) {
+          providedEventGroupId = struct.getString("ProvidedEventGroupId")
+        }
+        createTime = struct.getTimestamp("CreateTime").toProto()
+      }
+      .build()
 }
