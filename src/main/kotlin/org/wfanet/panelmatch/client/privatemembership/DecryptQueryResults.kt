@@ -38,7 +38,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.strictOneToOneJoin
 import org.wfanet.panelmatch.common.compression.CompressionParameters
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 import org.wfanet.panelmatch.common.withTime
 
 /**
@@ -62,7 +62,7 @@ fun decryptQueryResults(
   decryptedJoinKeyAndIds: PCollection<JoinKeyAndId>,
   queryIdAndIds: PCollection<QueryIdAndId>,
   compressionParameters: PCollectionView<CompressionParameters>,
-  privateMembershipKeys: PCollectionView<AsymmetricKeys>,
+  privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
   serializedParameters: ByteString,
   queryResultsDecryptor: QueryResultsDecryptor,
   hkdfPepper: ByteString
@@ -98,7 +98,7 @@ private class DecryptQueryResults(
   private val queryResultsDecryptor: QueryResultsDecryptor,
   private val hkdfPepper: ByteString,
   private val compressionParameters: PCollectionView<CompressionParameters>,
-  private val privateMembershipKeys: PCollectionView<AsymmetricKeys>
+  private val privateMembershipKeys: PCollectionView<AsymmetricKeyPair>
 ) : PTransform<PCollectionTuple, PCollection<KeyedDecryptedEventDataSet>>() {
 
   override fun expand(input: PCollectionTuple): PCollection<KeyedDecryptedEventDataSet> {
@@ -167,7 +167,7 @@ private class DecryptQueryResults(
 }
 
 private class BuildDecryptQueryResultsRequestsFn(
-  private val keysView: PCollectionView<AsymmetricKeys>,
+  private val keysView: PCollectionView<AsymmetricKeyPair>,
   private val compressionParametersView: PCollectionView<CompressionParameters>,
   private val serializedParameters: ByteString,
   private val hkdfPepper: ByteString

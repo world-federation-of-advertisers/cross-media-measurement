@@ -61,7 +61,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.parDoWithSideInput
 import org.wfanet.panelmatch.common.beam.toSingletonView
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
 interface Options : DataflowPipelineOptions {
   @get:Description("Table where results should be written (<project_id>:<dataset_id>.<table_id>)")
@@ -96,7 +96,7 @@ fun main(args: Array<String>) {
       "Create Private Membership Keys",
       Create.ofProvider(
         AsymmetricKeysValueProvider(),
-        SerializableCoder.of(AsymmetricKeys::class.java)
+        SerializableCoder.of(AsymmetricKeyPair::class.java)
       )
     )
 
@@ -172,10 +172,10 @@ fun main(args: Array<String>) {
       )
 
   results
-    .parDoWithSideInput<EncryptedQueryResult, AsymmetricKeys, TableRow>(
+    .parDoWithSideInput<EncryptedQueryResult, AsymmetricKeyPair, TableRow>(
       privateMembershipKeys.toSingletonView(),
       name = "Decrypt to TableRows"
-    ) { encryptedQueryResult: EncryptedQueryResult, keys: AsymmetricKeys ->
+    ) { encryptedQueryResult: EncryptedQueryResult, keys: AsymmetricKeyPair ->
       val response =
         JniPrivateMembership.decryptQueries(
           decryptQueriesRequest {
@@ -207,7 +207,7 @@ fun main(args: Array<String>) {
   check(pipelineResult.waitUntilFinish() == PipelineResult.State.DONE)
 }
 
-private class AsymmetricKeysValueProvider : ValueProvider<AsymmetricKeys> {
+private class AsymmetricKeysValueProvider : ValueProvider<AsymmetricKeyPair> {
   private val value by lazy {
     val generateKeysResponse =
       JniPrivateMembership.generateKeys(
@@ -215,13 +215,13 @@ private class AsymmetricKeysValueProvider : ValueProvider<AsymmetricKeys> {
       )
     val publicKey: PublicKey = generateKeysResponse.publicKey
     val privateKey: PrivateKey = generateKeysResponse.privateKey
-    AsymmetricKeys(
+    AsymmetricKeyPair(
       serializedPublicKey = publicKey.toByteString(),
       serializedPrivateKey = privateKey.toByteString()
     )
   }
 
-  override fun get(): AsymmetricKeys = value
+  override fun get(): AsymmetricKeyPair = value
 
   override fun isAccessible(): Boolean = true
 }

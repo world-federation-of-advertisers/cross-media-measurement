@@ -16,7 +16,7 @@ package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.protobuf.ByteString
 import java.io.Serializable
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
 /**
  * Provides oblivious query compression encryption and decryption for use in private information
@@ -25,11 +25,11 @@ import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 interface PrivateMembershipCryptor : Serializable {
 
   /** Generates a public and private key for query compression and expansion */
-  fun generateKeys(): AsymmetricKeys
+  fun generateKeys(): AsymmetricKeyPair
 
   /** encrypts a set of unencrypted queries */
   fun encryptQueries(
     unencryptedQueries: Iterable<UnencryptedQuery>,
-    keys: AsymmetricKeys
+    keys: AsymmetricKeyPair
   ): ByteString
 }

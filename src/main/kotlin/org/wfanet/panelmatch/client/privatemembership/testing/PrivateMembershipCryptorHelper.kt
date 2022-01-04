@@ -27,7 +27,7 @@ import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
 /** Helps test the Private Membership implementation (e.g. by reversing some operations) */
 interface PrivateMembershipCryptorHelper : Serializable {
@@ -43,7 +43,7 @@ interface PrivateMembershipCryptorHelper : Serializable {
 
   /** Constructs an [EncryptedQueryResult] from an [EncryptedEventDataSet] */
   fun makeEncryptedQueryResult(
-    keys: AsymmetricKeys,
+    keys: AsymmetricKeyPair,
     encryptedEventDataSet: EncryptedEventDataSet
   ): EncryptedQueryResult
 

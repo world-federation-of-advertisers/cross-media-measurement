@@ -41,7 +41,7 @@ import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 import org.wfanet.panelmatch.common.withTime
 
 private val FAKE_JOIN_KEY_ID = ByteString.EMPTY
@@ -52,7 +52,7 @@ private val FAKE_JOIN_KEY_ID = ByteString.EMPTY
  */
 fun createQueries(
   lookupKeyAndIds: PCollection<LookupKeyAndId>,
-  privateMembershipKeys: PCollectionView<AsymmetricKeys>,
+  privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
   parameters: CreateQueriesParameters,
   privateMembershipCryptor: PrivateMembershipCryptor
 ): CreateQueriesOutputs {
@@ -73,7 +73,7 @@ data class CreateQueriesOutputs(
 )
 
 private class CreateQueries(
-  private val privateMembershipKeys: PCollectionView<AsymmetricKeys>,
+  private val privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
   private val parameters: CreateQueriesParameters,
   private val privateMembershipCryptor: PrivateMembershipCryptor,
 ) : PTransform<PCollection<LookupKeyAndId>, PCollectionTuple>() {
@@ -175,7 +175,7 @@ private class CreateQueries(
   /** Batch gets the oblivious queries grouped by [ShardId]. */
   private fun encryptQueries(
     unencryptedQueries: PCollection<KV<ShardId, List<FullUnencryptedQuery>>>,
-    privateMembershipKeys: PCollectionView<AsymmetricKeys>
+    privateMembershipKeys: PCollectionView<AsymmetricKeyPair>
   ): PCollection<EncryptedQueryBundle> {
     return unencryptedQueries.apply(
       "Encrypt Queries per Shard",
@@ -210,7 +210,7 @@ private const val METRIC_NAMESPACE: String = "CreateQueries"
 
 private class EncryptQueriesFn(
   private val cryptor: PrivateMembershipCryptor,
-  private val keys: PCollectionView<AsymmetricKeys>
+  private val keys: PCollectionView<AsymmetricKeyPair>
 ) : DoFn<KV<ShardId, List<@JvmWildcard FullUnencryptedQuery>>, EncryptedQueryBundle>() {
   /** Time (in nanos) to encrypt each query. */
   private val encryptionTimesDistribution =

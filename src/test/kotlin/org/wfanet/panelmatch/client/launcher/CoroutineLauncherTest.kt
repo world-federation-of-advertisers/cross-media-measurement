@@ -26,7 +26,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.encryptStep
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.common.CountDownLatch
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
@@ -40,7 +40,9 @@ class CoroutineLauncherTest {
 
   @Test
   fun launches() = runBlockingTest {
-    val workflowStep = step { encryptStep = encryptStep {} }
+    val workflowStep = step {
+      this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
+    }
     val workflow = buildWorkflow(workflowStep, "some-edp", "some-mp")
 
     val startLatch = CountDownLatch(1)

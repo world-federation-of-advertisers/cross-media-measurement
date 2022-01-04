@@ -18,7 +18,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.client.privatemembership.PrivateMembershipCryptor
 import org.wfanet.panelmatch.client.privatemembership.UnencryptedQuery
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
 /**
  * Fake [PlaintextPrivateMembershipCryptor] for testing purposes.
@@ -28,8 +28,8 @@ import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
 class PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
   private val privateMembershipCryptorHelper = PlaintextPrivateMembershipCryptorHelper()
 
-  override fun generateKeys(): AsymmetricKeys {
-    return AsymmetricKeys(
+  override fun generateKeys(): AsymmetricKeyPair {
+    return AsymmetricKeyPair(
       serializedPublicKey = "some public key".toByteStringUtf8(),
       serializedPrivateKey = "some private key".toByteStringUtf8(),
     )
@@ -41,7 +41,7 @@ class PlaintextPrivateMembershipCryptor : PrivateMembershipCryptor {
    */
   override fun encryptQueries(
     unencryptedQueries: Iterable<UnencryptedQuery>,
-    keys: AsymmetricKeys,
+    keys: AsymmetricKeyPair,
   ): ByteString {
     val shardId = unencryptedQueries.first().shardId
     unencryptedQueries.forEach {
