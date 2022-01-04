@@ -143,12 +143,15 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         internalAccountsClient = kingdom.internalAccountsClient,
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         accountsClient = publicAccountsClient,
+        apiKeysClient = publicApiKeysClient,
         certificatesClient = publicCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345"
       )
     // Create the MC.
     mcResourceName = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT).name
+    // Create the api authentication key
+    apiAuthenticationKey = resourceSetup.createApiAuthenticationKey(mcResourceName)
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {

@@ -65,6 +65,7 @@ import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerReques
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest as internalCreateMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
 
 private const val MEASUREMENT_CONSUMER_ID = 123L

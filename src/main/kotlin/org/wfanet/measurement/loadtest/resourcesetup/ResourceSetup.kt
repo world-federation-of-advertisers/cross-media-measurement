@@ -21,6 +21,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -29,8 +30,10 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -54,10 +57,13 @@ class ResourceSetup(
   private val internalAccountsClient: InternalAccountsCoroutineStub,
   private val internalDataProvidersClient: InternalDataProvidersCoroutineStub,
   private val accountsClient: AccountsCoroutineStub,
+  private val apiKeysClient: ApiKeysCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String
 ) {
+
+  private lateinit var idToken: String
 
   /** Process to create resources. */
   suspend fun process(
@@ -123,8 +129,7 @@ class ResourceSetup(
     // Account activation and MC creation are done via the public API.
     val authenticationResponse =
       accountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
-    val idToken =
-      generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
+    idToken = generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
     accountsClient
       .withIdToken(idToken)
       .activateAccount(
@@ -149,6 +154,17 @@ class ResourceSetup(
     }
     return measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
   }
+
+  suspend fun createApiAuthenticationKey(measurementConsumerName: String): String =
+    apiKeysClient
+      .withIdToken(idToken)
+      .createApiKey(
+        createApiKeyRequest {
+          parent = measurementConsumerName
+          apiKey = apiKey { nickname = "test_key" }
+        }
+      )
+      .authenticationKey
 
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
     val request = createCertificateRequest {

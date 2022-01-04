@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 
 private val API_VERSION = Version.V2_ALPHA
