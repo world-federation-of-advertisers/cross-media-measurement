@@ -79,7 +79,7 @@ message ExchangeWorkflow {
 
     message GenerateCommutativeDeterministicKeyStep {}
 
-    message GenerateSerializedRlweKeysStep {
+    message GenerateSerializedRlweKeyPairStep {
       // This is a serialized instance of private_membership.batch.Parameters.
       bytes serialized_parameters = 1;
     }
@@ -113,15 +113,15 @@ message ExchangeWorkflow {
 
     // Applies deterministic, commutative encryption to the input plaintext
     // join keys.
-    message EncryptStep {}
+    message CommutativeDeterministicEncryptStep {}
 
     // Applies an additional layer of deterministic, commutative encryption to
     // already encrypted join keys.
-    message ReEncryptStep {}
+    message CommutativeDeterministicReEncryptStep {}
 
     // Removes a layer of deterministic, commutative encryption from a set of
     // encrypted join keys.
-    message DecryptStep {}
+    message CommutativeDeterministicDecryptStep {}
 
     // Represents an input to the protocol derived from some unknown process by
     // the `party`.
@@ -165,10 +165,6 @@ message ExchangeWorkflow {
     // serialization of the `Certificate` resource.
     message GenerateCertificateStep {}
 
-    // Generates a public/private key for encrypting/decrypting sensitive
-    // data in shared storage.
-    message GenerateEncryptionKeysStep {}
-
     // Preprocesses data for later use by ExecutePrivateMembershipQueriesStep
     message PreprocessEventsStep {}
 
@@ -178,17 +174,30 @@ message ExchangeWorkflow {
     // Hashes a set of decrypted join keys
     message GenerateLookupKeysStep {}
 
+    // Hybrid encrypts input given a public key
+    message HybridEncryptStep {}
+
+    // Hybrid decrypts input given a private key
+    message HybridDecryptStep {}
+
+    // Generates an decrypted blob from a source encrypted blob
+    message GenerateHybridEncryptionKeyPairStep {}
+
     oneof step {
       CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
       CopyToSharedStorageStep copy_to_shared_storage_step = 6;
       IntersectAndValidateStep intersect_and_validate_step = 7;
-      EncryptStep encrypt_step = 8;
-      ReEncryptStep reencrypt_step = 9;
-      DecryptStep decrypt_step = 10;
+      CommutativeDeterministicEncryptStep
+          commutative_deterministic_encrypt_step = 8;
+      CommutativeDeterministicReEncryptStep
+          commutative_deterministic_reencrypt_step = 9;
+      CommutativeDeterministicDecryptStep
+          commutative_deterministic_decrypt_step = 10;
       InputStep input_step = 11;
       GenerateCommutativeDeterministicKeyStep
           generate_commutative_deterministic_key_step = 12;
-      GenerateSerializedRlweKeysStep generate_serialized_rlwe_keys_step = 13;
+      GenerateSerializedRlweKeyPairStep generate_serialized_rlwe_key_pair_step =
+          13;
       ExecutePrivateMembershipQueriesStep
           execute_private_membership_queries_step = 14;
       BuildPrivateMembershipQueriesStep build_private_membership_queries_step =
@@ -196,10 +205,13 @@ message ExchangeWorkflow {
       DecryptPrivateMembershipQueryResultsStep
           decrypt_private_membership_query_results_step = 16;
       GenerateCertificateStep generate_certificate_step = 17;
-      GenerateEncryptionKeysStep generate_encryption_keys_step = 18;
-      PreprocessEventsStep preprocess_events_step = 19;
-      CopyFromPreviousExchangeStep copy_from_previous_exchange_step = 20;
-      GenerateLookupKeysStep generate_lookup_keys_step = 21;
+      PreprocessEventsStep preprocess_events_step = 18;
+      CopyFromPreviousExchangeStep copy_from_previous_exchange_step = 19;
+      GenerateLookupKeysStep generate_lookup_keys_step = 20;
+      HybridEncryptStep hybrid_encrypt_step = 21;
+      HybridDecryptStep hybrid_decrypt_step = 22;
+      GenerateHybridEncryptionKeyPairStep
+          generate_hybrid_encryption_key_pair_step = 23;
     }
   }
 
