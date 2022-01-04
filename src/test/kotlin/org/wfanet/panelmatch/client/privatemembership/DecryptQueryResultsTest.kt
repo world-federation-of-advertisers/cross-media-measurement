@@ -29,7 +29,7 @@ import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCompressionParameters
 import org.wfanet.panelmatch.common.compression.compressionParameters
-import org.wfanet.panelmatch.common.crypto.AsymmetricKeys
+import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
 private val ENCRYPTED_QUERY_RESULTS =
   listOf(
@@ -62,7 +62,7 @@ private val DECRYPTED_JOIN_KEY_AND_IDS: List<JoinKeyAndId> =
 private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
 
 private val ASYMMETRIC_KEYS =
-  AsymmetricKeys("public-key".toByteStringUtf8(), "private-key".toByteStringUtf8())
+  AsymmetricKeyPair("public-key".toByteStringUtf8(), "private-key".toByteStringUtf8())
 
 private val COMPRESSION_PARAMETERS = compressionParameters {
   brotli = brotliCompressionParameters { dictionary = "some-dictionary".toByteStringUtf8() }

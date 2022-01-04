@@ -26,6 +26,7 @@ import org.wfanet.panelmatch.common.storage.toByteString
 
 private const val INPUT_PEPPER_KEY_LABEL = "pepper"
 
+/** Hashes a list of [JoinKeyAndId] given a pepper. */
 class JoinKeyHashingExchangeTask
 internal constructor(
   private val operation: (ByteString, List<JoinKeyAndId>) -> List<LookupKeyAndId>,

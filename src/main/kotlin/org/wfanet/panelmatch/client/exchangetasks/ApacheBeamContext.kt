@@ -29,6 +29,15 @@ import org.wfanet.panelmatch.common.beam.toSingletonView
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.storage.toStringUtf8
 
+/**
+ * Necessary context for an apache beam task to execute.
+ * @param pipeline the pipeline to run the task on
+ * @param outputManifests location of manifest file which itself contains a list of sharded
+ * filenames
+ * @param inputLabels map of expected inputs
+ * @param inputBlobs map of keys to blobs
+ * @param storageFactory the kind of storage this task will read from
+ */
 class ApacheBeamContext(
   private val pipeline: Pipeline,
   private val outputManifests: Map<String, ShardedFileName>,

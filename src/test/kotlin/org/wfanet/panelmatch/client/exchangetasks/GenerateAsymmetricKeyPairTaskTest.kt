@@ -28,13 +28,13 @@ import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextPrivateMe
 private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 @RunWith(JUnit4::class)
-class GenerateAsymmetricKeysTaskTest {
+class GenerateAsymmetricKeyPairTaskTest {
   private val keyGenerator = PlaintextPrivateMembershipCryptor()::generateKeys
 
   @Test
   fun `public key is not equal to private key`() = withTestContext {
     val result =
-      GenerateAsymmetricKeysTask(generateKeys = keyGenerator).execute(emptyMap()).mapValues {
+      GenerateAsymmetricKeyPairTask(generateKeys = keyGenerator).execute(emptyMap()).mapValues {
         it.value.flatten()
       }
 

@@ -17,7 +17,7 @@ package org.wfanet.panelmatch.common.crypto
 import com.google.protobuf.ByteString
 import java.io.Serializable
 
-data class AsymmetricKeys(
+data class AsymmetricKeyPair(
   val serializedPublicKey: ByteString,
   val serializedPrivateKey: ByteString,
 ) : Serializable

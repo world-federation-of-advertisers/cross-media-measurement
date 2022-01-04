@@ -18,14 +18,17 @@ import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 
 class FakeExchangeTaskMapper : ExchangeTaskMapper() {
-  override suspend fun ExchangeContext.encrypt() = FakeExchangeTask("encrypt")
+  override suspend fun ExchangeContext.commutativeDeterministicEncrypt() =
+    FakeExchangeTask("commutative-deterministic-encrypt")
 
-  override suspend fun ExchangeContext.decrypt() = FakeExchangeTask("decrypt")
+  override suspend fun ExchangeContext.commutativeDeterministicDecrypt() =
+    FakeExchangeTask("commutative-deterministic-decrypt")
 
-  override suspend fun ExchangeContext.reEncrypt() = FakeExchangeTask("re-encrypt")
+  override suspend fun ExchangeContext.commutativeDeterministicReEncrypt() =
+    FakeExchangeTask("commutative-deterministic-re-encrypt")
 
-  override suspend fun ExchangeContext.generateEncryptionKey() =
-    FakeExchangeTask("generate-encryption-key")
+  override suspend fun ExchangeContext.generateCommutativeDeterministicEncryptionKey() =
+    FakeExchangeTask("generate-commutative-deterministic-encryption-key")
 
   override suspend fun ExchangeContext.buildPrivateMembershipQueries() =
     FakeExchangeTask("build-private-membership-queries")
@@ -36,11 +39,8 @@ class FakeExchangeTaskMapper : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.decryptMembershipResults() =
     FakeExchangeTask("decrypt-membership-results")
 
-  override suspend fun ExchangeContext.generateSymmetricKey() =
-    FakeExchangeTask("generate-symmetric-key")
-
-  override suspend fun ExchangeContext.generateSerializedRlweKeys() =
-    FakeExchangeTask("generate-serialized-rlwe-keys")
+  override suspend fun ExchangeContext.generateSerializedRlweKeyPair() =
+    FakeExchangeTask("generate-serialized-rlwe-key-pair")
 
   override suspend fun ExchangeContext.generateExchangeCertificate() =
     FakeExchangeTask("generate-exchange-certificate")
@@ -61,4 +61,11 @@ class FakeExchangeTaskMapper : ExchangeTaskMapper() {
 
   override suspend fun ExchangeContext.copyToSharedStorage() =
     FakeExchangeTask("copy-to-shared-storage")
+
+  override suspend fun ExchangeContext.hybridEncrypt() = FakeExchangeTask("hybird-encrypt")
+
+  override suspend fun ExchangeContext.hybridDecrypt() = FakeExchangeTask("hybrid-decrypt")
+
+  override suspend fun ExchangeContext.generateHybridEncryptionKeyPair() =
+    FakeExchangeTask("generate-hybrid-encryption-key-pair")
 }

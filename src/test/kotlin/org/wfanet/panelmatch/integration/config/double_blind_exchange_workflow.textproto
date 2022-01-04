@@ -24,7 +24,7 @@ steps {
   step_id: "single-blind"
   party: MODEL_PROVIDER
 
-  encrypt_step {}
+  commutative_deterministic_encrypt_step {}
 
   input_labels { key: "unencrypted-data" value: "mp-plaintext-join-keys" }
   input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
@@ -76,7 +76,7 @@ steps {
   step_id: "double-blind"
   party: DATA_PROVIDER
 
-  reencrypt_step {}
+  commutative_deterministic_reencrypt_step {}
 
   input_labels { key: "encrypted-data" value: "edp-single-blinded-join-keys" }
   input_labels { key: "encryption-key" value: "edp-commutative-deterministic-key" }
@@ -117,7 +117,7 @@ steps {
   step_id: "remove-blinding"
   party: MODEL_PROVIDER
 
-  decrypt_step {}
+  commutative_deterministic_decrypt_step {}
 
   input_labels { key: "encryption-key" value: "mp-commutative-deterministic-key" }
   input_labels { key: "encrypted-data" value: "mp-double-blinded-join-keys" }

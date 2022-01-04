@@ -17,6 +17,22 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "HybridCryptorTasksTest",
+    timeout = "short",
+    srcs = ["HybridCryptorTasksTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.HybridCryptorTasksTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/common/crypto/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "JoinKeyHashingExchangeTaskTest",
     timeout = "short",
     srcs = ["JoinKeyHashingExchangeTaskTest.kt"],
@@ -160,10 +176,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "GenerateAsymmetricKeysTaskTest",
+    name = "GenerateAsymmetricKeyPairTaskTest",
     timeout = "short",
-    srcs = ["GenerateAsymmetricKeysTaskTest.kt"],
-    test_class = "org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeysTaskTest",
+    srcs = ["GenerateAsymmetricKeyPairTaskTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTaskTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
