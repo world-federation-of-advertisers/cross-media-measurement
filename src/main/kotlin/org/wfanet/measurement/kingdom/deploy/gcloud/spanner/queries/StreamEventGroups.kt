@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
 class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: Int = 0) :
-  SimpleSpannerQuery<EventGroup>() {
+  SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
     EventGroupReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
