@@ -69,8 +69,8 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     dataProviderId: Long,
     measurementConsumerId: Long
   ): EventGroup {
-    val eventGroupInternalId = idGenerator.generateInternalId()
-    val eventGroupExternalId = idGenerator.generateExternalId()
+    val internalEventGroupId: InternalId = idGenerator.generateInternalId()
+    val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
         checkValidCertificate(
@@ -80,8 +80,8 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         )
       else null
     transactionContext.bufferInsertMutation("EventGroups") {
-      set("EventGroupId" to eventGroupInternalId)
-      set("ExternalEventGroupId" to eventGroupExternalId)
+      set("EventGroupId" to internalEventGroupId)
+      set("ExternalEventGroupId" to externalEventGroupId)
       set("MeasurementConsumerId" to measurementConsumerId)
       if (measurementConsumerCertificateId != null) {
         set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
@@ -98,7 +98,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       }
     }
 
-    return eventGroup.toBuilder().setExternalEventGroupId(eventGroupExternalId.value).build()
+    return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()
   }
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
