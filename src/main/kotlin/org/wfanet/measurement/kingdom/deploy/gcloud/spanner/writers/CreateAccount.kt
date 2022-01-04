@@ -49,8 +49,6 @@ class CreateAccount(
           set("CreatorAccountId" to readCreatorAccountResult.accountId)
 
           externalCreatorAccountId = source.externalCreatorAccountId.value
-          measurementConsumerCreationToken =
-            readCreatorAccountResult.account.measurementConsumerCreationToken
 
           if (source.externalOwnedMeasurementConsumerId != null) {
             MeasurementConsumerOwnerReader()
@@ -59,19 +57,18 @@ class CreateAccount(
                 readCreatorAccountResult.accountId,
                 source.externalOwnedMeasurementConsumerId
               )
+              ?.let {
+                externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
+                set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
+              }
               ?: throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
-
-            externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
-            set("OwnedMeasurementConsumerId" to source.externalOwnedMeasurementConsumerId)
           }
-        } else {
-          measurementConsumerCreationToken = idGenerator.generateExternalId().value
         }
+
         set("AccountId" to internalAccountId)
         set("ExternalAccountId" to externalAccountId)
         set("ActivationState" to Account.ActivationState.UNACTIVATED)
         set("ActivationToken" to activationToken)
-        set("MeasurementConsumerCreationToken" to measurementConsumerCreationToken)
         set("CreateTime" to Value.COMMIT_TIMESTAMP)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       }

@@ -14,47 +14,50 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Struct
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.bind
 
-class MeasurementConsumerOwnerReader : SpannerReader<MeasurementConsumerOwnerReader.Result>() {
-  data class Result(val accountId: InternalId, val measurementConsumerId: InternalId)
+class MeasurementConsumerCreationTokenReader :
+  SpannerReader<MeasurementConsumerCreationTokenReader.Result>() {
+  data class Result(val createTime: Timestamp, val measurementConsumerCreationTokenId: InternalId)
 
   override val baseSql: String =
     """
     SELECT
-      MeasurementConsumerOwners.AccountId,
-      MeasurementConsumerOwners.MeasurementConsumerId,
-    FROM MeasurementConsumerOwners
+      MeasurementConsumerCreationTokens.MeasurementConsumerCreationTokenId,
+      MeasurementConsumerCreationTokens.MeasurementConsumerCreationTokenHash,
+      MeasurementConsumerCreationTokens.CreateTime,
+    FROM MeasurementConsumerCreationTokens
     """.trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(
-      accountId = InternalId(struct.getLong("AccountId")),
-      measurementConsumerId = InternalId(struct.getLong("MeasurementConsumerId"))
+      struct.getTimestamp("CreateTime"),
+      InternalId(struct.getLong("MeasurementConsumerCreationTokenId"))
     )
 
-  suspend fun checkOwnershipExist(
+  suspend fun readByMeasurementConsumerCreationTokenHash(
     readContext: AsyncDatabaseClient.ReadContext,
-    internalAccountId: InternalId,
-    externalMeasurementConsumerId: ExternalId,
+    measurementConsumerCreationTokenHash: ByteString,
   ): Result? {
     return fillStatementBuilder {
         appendClause(
           """
-            JOIN MeasurementConsumers
-              USING (MeasurementConsumerId)
-            WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
-              AND AccountId = @internalAccountId
-            """
+          WHERE MeasurementConsumerCreationTokens.MeasurementConsumerCreationTokenHash
+            = @measurementConsumerCreationTokenHash
+          """.trimIndent()
         )
-        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-        bind("internalAccountId").to(internalAccountId.value)
-        appendClause("LIMIT 1")
+        bind(
+          "measurementConsumerCreationTokenHash" to
+            measurementConsumerCreationTokenHash.toGcloudByteArray()
+        )
       }
       .execute(readContext)
       .singleOrNull()

@@ -52,6 +52,10 @@ package k8s
 		"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
 		"--kingdom-public-api-cert-host=localhost",
 	]
+	_kingdom_internal_api_flags: [
+		"--kingdom-internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+		"--kingdom-internal-api-cert-host=localhost",
+	]
 
 	resource_setup_job: #Job & {
 		_name:       "resource-setup"
@@ -62,6 +66,7 @@ package k8s
 			_mc_cert_key_files_flags +
 			_tls_cert_key_files_flags +
 			_duchy_cs_cert_files_flags +
-			_kingdom_public_api_flags
+			_kingdom_public_api_flags +
+			_kingdom_internal_api_flags
 	}
 }

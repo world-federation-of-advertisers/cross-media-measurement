@@ -39,7 +39,8 @@ class SpannerCertificatesServiceTest : CertificatesServiceTest<SpannerCertificat
       spannerServices.measurementsService,
       spannerServices.dataProvidersService,
       spannerServices.modelProvidersService,
-      spannerServices.computationParticipantsService
+      spannerServices.computationParticipantsService,
+      spannerServices.accountsService
     )
   }
 }

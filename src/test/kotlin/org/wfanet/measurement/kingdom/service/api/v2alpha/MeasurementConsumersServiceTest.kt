@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.removeMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYSET
@@ -63,7 +64,7 @@ import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest as internalAddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest as internalCreateMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
 
 private const val MEASUREMENT_CONSUMER_ID = 123L
@@ -121,14 +122,19 @@ class MeasurementConsumersServiceTest {
         InternalMeasurementConsumersService::createMeasurementConsumer
       )
       .isEqualTo(
-        INTERNAL_MEASUREMENT_CONSUMER.copy {
-          clearExternalMeasurementConsumerId()
-          certificate =
-            certificate.copy {
+        internalCreateMeasurementConsumerRequest {
+          measurementConsumer =
+            INTERNAL_MEASUREMENT_CONSUMER.copy {
               clearExternalMeasurementConsumerId()
-              clearExternalCertificateId()
+              certificate =
+                certificate.copy {
+                  clearExternalMeasurementConsumerId()
+                  clearExternalCertificateId()
+                }
             }
-          measurementConsumerCreationToken = apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
+          externalAccountId = ACCOUNT_ID
+          measurementConsumerCreationTokenHash =
+            hashSha256(apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN))
         }
       )
   }
@@ -522,7 +528,6 @@ class MeasurementConsumersServiceTest {
       externalAccountId = ACCOUNT_ID
       activationState = Account.ActivationState.ACTIVATED
       externalOwnedMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-      measurementConsumerCreationToken = apiIdToExternalId(MEASUREMENT_CONSUMER_CREATION_TOKEN)
       externalOwnedMeasurementConsumerIds += MEASUREMENT_CONSUMER_ID
     }
   }

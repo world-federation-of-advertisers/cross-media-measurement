@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -38,7 +39,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumer as InternalMe
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
-import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 
 private val API_VERSION = Version.V2_ALPHA
@@ -67,20 +68,22 @@ class MeasurementConsumersService(
 
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
-        internalMeasurementConsumer {
-          certificate = parseCertificateDer(measurementConsumer.certificateDer)
-          details =
-            details {
-              apiVersion = API_VERSION.string
-              publicKey = measurementConsumer.publicKey.data
-              publicKeySignature = measurementConsumer.publicKey.signature
+        createMeasurementConsumerRequest {
+          this.measurementConsumer =
+            internalMeasurementConsumer {
+              certificate = parseCertificateDer(measurementConsumer.certificateDer)
+              details =
+                details {
+                  apiVersion = API_VERSION.string
+                  publicKey = measurementConsumer.publicKey.data
+                  publicKeySignature = measurementConsumer.publicKey.signature
+                }
             }
-          measurementConsumerCreationToken =
-            apiIdToExternalId(request.measurementConsumerCreationToken)
+          externalAccountId = account.externalAccountId
+          measurementConsumerCreationTokenHash =
+            hashSha256(apiIdToExternalId(request.measurementConsumerCreationToken))
         }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
-        // as owner.
-        )
+      )
     return internalResponse.toMeasurementConsumer()
   }
 

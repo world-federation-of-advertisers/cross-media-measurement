@@ -16,8 +16,8 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
@@ -26,6 +26,8 @@ import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -46,9 +48,17 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       clientCerts,
       flags.kingdomPublicApiFlags.certHost
     )
-  val dataProvidersStub = DataProvidersCoroutineStub(v2alphaPublicApiChannel)
+  val kingdomInternalApiChannel: ManagedChannel =
+    buildMutualTlsChannel(
+      flags.kingdomInternalApiFlags.target,
+      clientCerts,
+      flags.kingdomInternalApiFlags.certHost
+    )
+  val internalDataProvidersStub = InternalDataProvidersCoroutineStub(kingdomInternalApiChannel)
+  val internalAccountsStub = InternalAccountsCoroutineStub(kingdomInternalApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
   val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
+  val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
 
   // Makes sure the three maps contain the same set of EDPs.
   require(
@@ -78,8 +88,15 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
 
   runBlocking {
     // Runs the resource setup job.
-    ResourceSetup(dataProvidersStub, certificatesStub, measurementConsumersStub, flags.runId)
-      .process(dataProviderContents, measurementConsumerContent, duchyCerts, "MTIzNDU2NzM", "token")
+    ResourceSetup(
+        internalAccountsStub,
+        internalDataProvidersStub,
+        accountsStub,
+        certificatesStub,
+        measurementConsumersStub,
+        flags.runId
+      )
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }
 }
 

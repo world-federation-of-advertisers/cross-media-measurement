@@ -144,6 +144,7 @@ import ("strings")
 			_sourceMatchLabels: [
 				"v2alpha-public-api-server-app",
 				"system-api-server-app",
+				"resource-setup-app",
 			]
 			_destinationMatchLabels: [] // Need to send external traffic to spanner.
 		}

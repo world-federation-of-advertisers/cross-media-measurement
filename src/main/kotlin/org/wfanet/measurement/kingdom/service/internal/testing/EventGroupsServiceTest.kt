@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -58,6 +59,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
 
+  protected lateinit var accountsService: AccountsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
 
   @Before
@@ -66,6 +70,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     eventGroupsService = services.eventGroupsService
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
+    accountsService = services.accountsService
   }
 
   @Test
@@ -84,7 +89,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `createEventGroup fails for missing data provider`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val eventGroup = eventGroup {
@@ -123,7 +128,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `createEventGroup succeeds`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -153,7 +158,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   fun `createEventGroup returns already created eventGroup for the same ProvidedEventGroupId`() =
       runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -174,7 +179,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   fun `createEventGroup creates new eventGroup when called without providedEventGroupId`(): Unit =
       runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -188,7 +193,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     eventGroupsService.createEventGroup(eventGroup)
 
     val otherExternalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val otherEventGroup =
@@ -210,7 +215,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `getEventGroup succeeds`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -246,7 +251,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population.createMeasurementConsumer(measurementConsumersService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup1"
         }
@@ -257,7 +262,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population.createMeasurementConsumer(measurementConsumersService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup2"
         }
@@ -295,7 +300,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population.createMeasurementConsumer(measurementConsumersService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup1"
         }
@@ -306,7 +311,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population.createMeasurementConsumer(measurementConsumersService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup2"
         }
@@ -355,7 +360,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroup {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId =
-          population.createMeasurementConsumer(measurementConsumersService)
+          population.createMeasurementConsumer(measurementConsumersService, accountsService)
             .externalMeasurementConsumerId
         providedEventGroupId = "eventGroup1"
       }
@@ -365,7 +370,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroup {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId =
-          population.createMeasurementConsumer(measurementConsumersService)
+          population.createMeasurementConsumer(measurementConsumersService, accountsService)
             .externalMeasurementConsumerId
         providedEventGroupId = "eventGroup2"
       }
@@ -393,7 +398,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroup {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId =
-          population.createMeasurementConsumer(measurementConsumersService)
+          population.createMeasurementConsumer(measurementConsumersService, accountsService)
             .externalMeasurementConsumerId
         providedEventGroupId = "eventGroup1"
       }
@@ -404,7 +409,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population.createMeasurementConsumer(measurementConsumersService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup2"
         }
@@ -430,5 +435,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
   val eventGroupsService: T,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
-  val dataProvidersService: DataProvidersCoroutineImplBase
+  val dataProvidersService: DataProvidersCoroutineImplBase,
+  val accountsService: AccountsCoroutineImplBase
 )

@@ -29,6 +29,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.apiKey
@@ -43,16 +44,19 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   protected data class Services<T>(
     val apiKeysService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    val accountsService: AccountsCoroutineImplBase,
   )
 
   private val clock: Clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
 
-  protected lateinit var apiKeysService: T
-    private set
+  private lateinit var apiKeysService: T
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
+    private set
+
+  protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
@@ -62,12 +66,13 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
     val services = newServices(idGenerator)
     apiKeysService = services.apiKeysService
     measurementConsumersService = services.measurementConsumersService
+    accountsService = services.accountsService
   }
 
   @Test
   fun `createApiKey with no description returns an api key`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer((measurementConsumersService))
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey = apiKey {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -83,7 +88,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `createApiKey with description returns an api key()`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer((measurementConsumersService))
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey = apiKey {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -116,7 +121,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `revokeApiKey returns the api key`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer((measurementConsumersService))
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey =
       apiKeysService.createApiKey(
@@ -142,7 +147,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `revokeApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
     val externalMeasurementConsumerId =
-      population.createMeasurementConsumer((measurementConsumersService))
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey =
       apiKeysService.createApiKey(
@@ -177,7 +182,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
         apiKeysService.revokeApiKey(
           revokeApiKeyRequest {
             externalMeasurementConsumerId =
-              population.createMeasurementConsumer((measurementConsumersService))
+              population.createMeasurementConsumer(measurementConsumersService, accountsService)
                 .externalMeasurementConsumerId
             externalApiKeyId = 1L
           }
@@ -190,7 +195,8 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
 
   @Test
   fun `authenticateApiKey returns a measurement consumer`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer((measurementConsumersService))
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val apiKey =
       apiKeysService.createApiKey(
         apiKey {
@@ -235,7 +241,8 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
 
   @Test
   fun `authenticateApiKey throws UNAUTHENTICATED when api key has been revoked`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer((measurementConsumersService))
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val apiKey =
       apiKeysService.createApiKey(
         apiKey {
