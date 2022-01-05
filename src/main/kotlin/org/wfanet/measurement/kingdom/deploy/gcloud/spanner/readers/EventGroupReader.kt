@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroup
 
 private val BASE_SQL =
@@ -28,9 +29,12 @@ private val BASE_SQL =
       EventGroups.EventGroupId,
       EventGroups.ExternalEventGroupId,
       EventGroups.MeasurementConsumerId,
+      EventGroups.MeasurementConsumerCertificateId,
       EventGroups.DataProviderId,
       EventGroups.ProvidedEventGroupId,
       EventGroups.CreateTime,
+      EventGroups.UpdateTime,
+      EventGroups.EventGroupDetails,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       DataProviders.ExternalDataProviderId
     FROM EventGroups
@@ -88,10 +92,18 @@ class EventGroupReader : BaseSpannerReader<EventGroup>() {
         externalEventGroupId = struct.getLong("ExternalEventGroupId")
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        if (!struct.isNull("MeasurementConsumerCertificateId")) {
+          externalMeasurementConsumerCertificateId =
+            struct.getLong("MeasurementConsumerCertificateId")
+        }
         if (!struct.isNull("ProvidedEventGroupId")) {
           providedEventGroupId = struct.getString("ProvidedEventGroupId")
         }
         createTime = struct.getTimestamp("CreateTime").toProto()
+        updateTime = struct.getTimestamp("UpdateTime").toProto()
+        if (!struct.isNull("EventGroupDetails")) {
+          details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
+        }
       }
       .build()
 }
