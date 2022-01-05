@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.common.primitives.Longs
 import com.google.gson.JsonParser
 import io.grpc.Status
 import java.math.BigInteger
@@ -26,14 +25,18 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toLong
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ActivateAccountRequest
 import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenRequest
+import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.kingdom.deploy.common.service.getIdToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -41,6 +44,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdRequestParamsReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ActivateAccount
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccount
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumerCreationToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceAccountIdentityWithNewOpenIdConnectIdentity
 import org.wfanet.measurement.tools.calculateRSAThumbprint
@@ -70,7 +74,10 @@ class SpannerAccountsService(
           null
         }
 
-      return CreateAccount(externalCreatorAccountId, externalOwnedMeasurementConsumerId)
+      return CreateAccount(
+          externalCreatorAccountId = externalCreatorAccountId,
+          externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+        )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
@@ -98,6 +105,15 @@ class SpannerAccountsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
       }
+    }
+  }
+
+  override suspend fun createMeasurementConsumerCreationToken(
+    request: CreateMeasurementConsumerCreationTokenRequest
+  ): CreateMeasurementConsumerCreationTokenResponse {
+    return createMeasurementConsumerCreationTokenResponse {
+      measurementConsumerCreationToken =
+        CreateMeasurementConsumerCreationToken().execute(client, idGenerator)
     }
   }
 
@@ -253,14 +269,9 @@ class SpannerAccountsService(
 
     val result =
       OpenIdRequestParamsReader()
-        .readByState(
-          client.singleUse(),
-          ExternalId(Longs.fromByteArray(state.asString.base64UrlDecode()))
-        )
+        .readByState(client.singleUse(), ExternalId(state.asString.base64UrlDecode().toLong()))
     if (result != null) {
-      if (Longs.fromByteArray(nonce.asString.base64UrlDecode()) != result.nonce.value ||
-          result.isExpired
-      ) {
+      if (nonce.asString.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
         return null
       }
     } else {
@@ -293,8 +304,8 @@ class SpannerAccountsService(
 
     val publicKeySpec =
       RSAPublicKeySpec(
-        BigInteger(modulus.asString.base64UrlDecode()),
-        BigInteger(exponent.asString.base64UrlDecode())
+        BigInteger(modulus.asString.base64UrlDecode().toByteArray()),
+        BigInteger(exponent.asString.base64UrlDecode().toByteArray())
       )
     val keyFactory = KeyFactory.getInstance("RSA")
     val publicKey = keyFactory.generatePublic(publicKeySpec)
@@ -302,7 +313,7 @@ class SpannerAccountsService(
     verifier.initVerify(publicKey)
     verifier.update((tokenParts[0] + "." + tokenParts[1]).toByteArray(Charsets.US_ASCII))
     try {
-      if (!verifier.verify(tokenParts[2].base64UrlDecode())) {
+      if (!verifier.verify(tokenParts[2].base64UrlDecode().toByteArray())) {
         return null
       }
     } catch (e: SignatureException) {

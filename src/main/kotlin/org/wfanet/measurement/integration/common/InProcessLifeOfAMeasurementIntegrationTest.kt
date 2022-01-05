@@ -15,7 +15,6 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
-import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -23,7 +22,6 @@ import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
-import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
@@ -32,32 +30,23 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as PublicRequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.activateAccountRequest
-import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.pollFor
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
-import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
 import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
+import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import org.wfanet.measurement.loadtest.resourcesetup.ResourceSetup
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.tools.generateIdToken
 
-private const val MC_CONSENT_SIGNALING_PRIVATE_KEY_ID = "mc-cs-private-key"
-private const val MC_ENCRYPTION_PRIVATE_KEY_ID = "mc-enc-private-key"
 private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
   epsilon = 1.0
   delta = 1.0
@@ -76,12 +65,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
   abstract val duchyDependenciesRule: ProviderRule<(String) -> InProcessDuchy.DuchyDependencies>
-
-  /**
-   * The keyStore used in the test. The kingdom, duchies and EDP simulators use their own keyStore
-   * in case of key collision.
-   */
-  abstract val simulatorKeyStore: KeyStore
 
   abstract val storageClient: StorageClient
 
@@ -110,7 +93,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     ALL_EDP_DISPLAY_NAMES.map {
       InProcessEdpSimulator(
         displayName = it,
-        keyStore = InMemoryKeyStore(),
         storageClient = storageClient,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel
@@ -155,43 +137,20 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private suspend fun createAllResources() {
     val resourceSetup =
       ResourceSetup(
-        keyStore = simulatorKeyStore,
-        dataProvidersClient = publicDataProvidersClient,
+        internalAccountsClient = kingdom.internalAccountsClient,
+        internalDataProvidersClient = kingdom.internalDataProvidersClient,
+        accountsClient = publicAccountsClient,
         certificatesClient = publicCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345"
       )
     // Create the MC.
-    val mc = createEntityContent(MC_DISPLAY_NAME)
-    simulatorKeyStore.storePrivateKeyDer(mc.displayName, mc.consentSignalPrivateKeyDer)
-
-    val account = kingdom.internalAccountsClient.createAccount(account {})
-    val authenticationResponse =
-      publicAccountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
-    val idToken =
-      generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
-    publicAccountsClient
-      .withIdToken(idToken)
-      .activateAccount(
-        activateAccountRequest {
-          name = AccountKey(externalIdToApiId(account.externalAccountId)).toName()
-          activationToken = externalIdToApiId(account.activationToken)
-        }
-      )
-
-    mcResourceName =
-      resourceSetup.createMeasurementConsumer(
-          mc,
-          externalIdToApiId(account.measurementConsumerCreationToken),
-          idToken
-        )
-        .name
+    mcResourceName = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT).name
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
         val edp = createEntityContent(it)
-        simulatorKeyStore.storePrivateKeyDer(edp.displayName, edp.consentSignalPrivateKeyDer)
-        resourceSetup.createDataProvider(edp).name
+        resourceSetup.createInternalDataProvider(edp)
       }
     // Create all duchy certificates.
     duchyCertMap =
@@ -201,15 +160,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
           )
           .name
       }
-    // Store two keys required when creating a measurement.
-    simulatorKeyStore.storePrivateKeyDer(
-      MC_CONSENT_SIGNALING_PRIVATE_KEY_ID,
-      loadTestCertDerFile("${MC_DISPLAY_NAME}_cs_private.der")
-    )
-    simulatorKeyStore.storePrivateKeyDer(
-      MC_ENCRYPTION_PRIVATE_KEY_ID,
-      loadTestCertDerFile("${MC_DISPLAY_NAME}_enc_private.der")
-    )
   }
 
   @Before
@@ -251,11 +201,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     FrontendSimulator(
         MeasurementConsumerData(
           mcResourceName,
-          MC_CONSENT_SIGNALING_PRIVATE_KEY_ID,
-          MC_ENCRYPTION_PRIVATE_KEY_ID
+          MC_ENTITY_CONTENT.signingKey,
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
         ),
         OUTPUT_DP_PARAMS,
-        simulatorKeyStore,
         publicDataProvidersClient,
         publicEventGroupsClient,
         publicMeasurementsClient,
@@ -268,6 +217,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   }
 
   companion object {
+    private val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
+
     @BeforeClass
     @JvmStatic
     fun initConfig() {

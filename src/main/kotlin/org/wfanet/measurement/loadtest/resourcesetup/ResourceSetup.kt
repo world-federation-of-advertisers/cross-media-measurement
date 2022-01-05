@@ -15,36 +15,45 @@
 package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
-import java.security.cert.X509Certificate
+import com.google.protobuf.kotlin.toByteString
+import java.time.Clock
 import java.util.logging.Logger
+import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
-import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.dataProvider
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
-import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.sign
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
-import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.account as internalAccount
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
+import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
+import org.wfanet.measurement.tools.generateIdToken
+
+private val API_VERSION = Version.V2_ALPHA
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
-  private val keyStore: KeyStore,
-  private val dataProvidersClient: DataProvidersCoroutineStub,
+  private val internalAccountsClient: InternalAccountsCoroutineStub,
+  private val internalDataProvidersClient: InternalDataProvidersCoroutineStub,
+  private val accountsClient: AccountsCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String
@@ -55,31 +64,18 @@ class ResourceSetup(
     dataProviderContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
-    measurementConsumerCreationToken: String,
-    idToken: String,
   ) {
     logger.info("Starting with RunID: $runId ...")
 
-    // Step 1: Create the EDPs via the public API.
+    // Step 1: Create the EDPs.
     dataProviderContents.forEach {
-      val dataProvider = createDataProvider(it)
-      logger.info(
-        "Successfully created data provider: ${dataProvider.name} " +
-          "with certificate ${dataProvider.certificate}"
-      )
+      val dataProviderName = createInternalDataProvider(it)
+      logger.info("Successfully created data provider: $dataProviderName")
     }
 
-    // Step 2: Create the MC via the public API.
-    val measurementConsumer =
-      createMeasurementConsumer(
-        measurementConsumerContent,
-        measurementConsumerCreationToken,
-        idToken
-      )
-    logger.info(
-      "Successfully created measurement consumer: ${measurementConsumer.name} " +
-        "with certificate ${measurementConsumer.certificate} ..."
-    )
+    // Step 2: Create the MC.
+    val measurementConsumer = createMeasurementConsumer(measurementConsumerContent)
+    logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
 
     // Step 3: Create certificate for each duchy.
     duchyCerts.forEach {
@@ -88,52 +84,68 @@ class ResourceSetup(
     }
   }
 
-  suspend fun createDataProvider(dataProviderContent: EntityContent): DataProvider {
-    val encryptionPublicKey = encryptionPublicKey {
-      format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = dataProviderContent.encryptionPublicKeyDer
-      // TODO: get the data in the right format: a Tink Keyset instead of a DER public key info
-    }
-
-    val privateKeyHandle = PrivateKeyHandle(dataProviderContent.displayName, keyStore)
-    val request = createDataProviderRequest {
-      dataProvider =
-        dataProvider {
-          certificateDer = dataProviderContent.consentSignalCertificateDer
-          publicKey =
-            privateKeyHandle.signEncryptionPublicKey(
-              readCertificate(dataProviderContent.consentSignalCertificateDer),
-              encryptionPublicKey
-            )
-          displayName = dataProviderContent.displayName
+  /** Create an internal dataProvider, and return its corresponding public API resource name. */
+  suspend fun createInternalDataProvider(dataProviderContent: EntityContent): String {
+    val encryptionPublicKey = dataProviderContent.encryptionPublicKey
+    val signedPublicKey =
+      signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
+    val internalDataProvider =
+      internalDataProvidersClient.createDataProvider(
+        internalDataProvider {
+          certificate =
+            parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
+          details =
+            InternalDataProviderKt.details {
+              apiVersion = API_VERSION.string
+              publicKey = signedPublicKey.data
+              publicKeySignature = signedPublicKey.signature
+            }
         }
-    }
-    return dataProvidersClient.createDataProvider(request)
+      )
+    return DataProviderKey(externalIdToApiId(internalDataProvider.externalDataProviderId)).toName()
   }
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
-    measurementConsumerCreationToken: String,
-    idToken: String,
   ): MeasurementConsumer {
-    val encryptionPublicKey = encryptionPublicKey {
-      format = EncryptionPublicKey.Format.TINK_KEYSET
-      data = measurementConsumerContent.encryptionPublicKeyDer
-    }
-    val privateKeyHandle = PrivateKeyHandle(measurementConsumerContent.displayName, keyStore)
+    // The initial account is created via the Kingdom Internal API by the Kingdom operator.
+    val internalAccount = internalAccountsClient.createAccount(internalAccount {})
+    val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
+    val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
+    val mcCreationToken =
+      externalIdToApiId(
+        internalAccountsClient.createMeasurementConsumerCreationToken(
+            createMeasurementConsumerCreationTokenRequest {}
+          )
+          .measurementConsumerCreationToken
+      )
+
+    // Account activation and MC creation are done via the public API.
+    val authenticationResponse =
+      accountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
+    val idToken =
+      generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
+    accountsClient
+      .withIdToken(idToken)
+      .activateAccount(
+        activateAccountRequest {
+          name = accountName
+          activationToken = accountActivationToken
+        }
+      )
+
     val request = createMeasurementConsumerRequest {
       measurementConsumer =
         measurementConsumer {
-          certificateDer = measurementConsumerContent.consentSignalCertificateDer
+          certificateDer = measurementConsumerContent.signingKey.certificate.encoded.toByteString()
           publicKey =
             signEncryptionPublicKey(
-              encryptionPublicKey,
-              privateKeyHandle,
-              readCertificate(measurementConsumerContent.consentSignalCertificateDer)
+              measurementConsumerContent.encryptionPublicKey,
+              measurementConsumerContent.signingKey
             )
           displayName = measurementConsumerContent.displayName
         }
-      this.measurementConsumerCreationToken = measurementConsumerCreationToken
+      measurementConsumerCreationToken = mcCreationToken
     }
     return measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
   }
@@ -155,12 +167,10 @@ class ResourceSetup(
 data class EntityContent(
   /** The display name of the entity. */
   val displayName: String,
-  /** The private key mapping the consent signaling certificate in DER format. */
-  val consentSignalPrivateKeyDer: ByteString,
-  /** The consent signaling certificate in DER format. */
-  val consentSignalCertificateDer: ByteString,
-  /** The ASN.1 SubjectPublicKeyInfo in DER format */
-  val encryptionPublicKeyDer: ByteString
+  /** The consent signaling encryption key. */
+  val encryptionPublicKey: EncryptionPublicKey,
+  /** The consent signaling signing key. */
+  val signingKey: SigningKeyHandle
 )
 
 data class DuchyCert(
@@ -169,20 +179,3 @@ data class DuchyCert(
   /** The consent signaling certificate in DER format. */
   val consentSignalCertificateDer: ByteString
 )
-
-/**
- * Signs an [EncryptionPublicKey] using this private key and the corresponding [certificate].
- *
- * TODO(@wangyaopw): Switch this to use SigningKeyHandle.
- */
-private suspend fun PrivateKeyHandle.signEncryptionPublicKey(
-  certificate: X509Certificate,
-  publicKey: EncryptionPublicKey
-): SignedData {
-  val serialized = publicKey.toByteString()
-  val signature = checkNotNull(toJavaPrivateKey(certificate)).sign(certificate, serialized)
-  return signedData {
-    data = serialized
-    this.signature = signature
-  }
-}

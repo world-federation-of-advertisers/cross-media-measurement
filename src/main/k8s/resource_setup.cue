@@ -30,13 +30,13 @@ package k8s
 			},
 		] + [
 			for d in _edp_display_names {
-				"--edp-encryption-public-key-der-files=\(d)=/var/run/secrets/files/\(d)_enc_public.der"
+				"--edp-encryption-public-keysets=\(d)=/var/run/secrets/files/\(d)_enc_public.tink"
 			},
 		]
 	_mc_cert_key_files_flags: [
-		"--mc-consent-signaling-cert-der-files=/var/run/secrets/files/mc_cs_cert.der",
+		"--mc-consent-signaling-cert-der-file=/var/run/secrets/files/mc_cs_cert.der",
 		"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
-		"--mc-encryption-public-key-der-file=/var/run/secrets/files/mc_enc_public.der",
+		"--mc-encryption-public-keyset=/var/run/secrets/files/mc_enc_public.tink",
 	]
 	_tls_cert_key_files_flags: [
 		"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
@@ -52,6 +52,10 @@ package k8s
 		"--kingdom-public-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target,
 		"--kingdom-public-api-cert-host=localhost",
 	]
+	_kingdom_internal_api_flags: [
+		"--kingdom-internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
+		"--kingdom-internal-api-cert-host=localhost",
+	]
 
 	resource_setup_job: #Job & {
 		_name:       "resource-setup"
@@ -62,6 +66,7 @@ package k8s
 			_mc_cert_key_files_flags +
 			_tls_cert_key_files_flags +
 			_duchy_cs_cert_files_flags +
-			_kingdom_public_api_flags
+			_kingdom_public_api_flags +
+			_kingdom_internal_api_flags
 	}
 }

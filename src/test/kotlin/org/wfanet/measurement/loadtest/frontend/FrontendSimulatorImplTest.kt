@@ -45,8 +45,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PRIVATE_KEYSET
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -83,7 +87,6 @@ private val SKETCH_CONFIG =
       }
     }
     .build()
-private val MEASUREMENT_CONSUMER_DATA = MeasurementConsumerData("name", "key1", "key2")
 private val OUTPUT_DP_PARAMS = DifferentialPrivacyParams.getDefaultInstance()
 private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
   sketchParams =
@@ -142,7 +145,6 @@ class FrontendSimulatorImplTest {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private val keystore = InMemoryKeyStore()
   private lateinit var frontendSimulator: FrontendSimulator
 
   @Test
@@ -151,7 +153,6 @@ class FrontendSimulatorImplTest {
       FrontendSimulator(
         MEASUREMENT_CONSUMER_DATA,
         OUTPUT_DP_PARAMS,
-        keystore,
         dataProvidersStub,
         eventGroupsStub,
         measurementsStub,
@@ -176,6 +177,13 @@ class FrontendSimulatorImplTest {
   }
 
   companion object {
+    private val MEASUREMENT_CONSUMER_DATA =
+      MeasurementConsumerData(
+        "name",
+        loadSigningKey(FIXED_SERVER_CERT_DER_FILE, FIXED_SERVER_KEY_DER_FILE),
+        loadPrivateKey(FIXED_ENCRYPTION_PRIVATE_KEYSET)
+      )
+
     @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
 
     lateinit var sketchStore: SketchStore

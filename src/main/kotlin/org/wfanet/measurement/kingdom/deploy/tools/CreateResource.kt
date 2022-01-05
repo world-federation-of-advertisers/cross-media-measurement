@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.tools
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
 import java.util.concurrent.Callable
@@ -31,7 +32,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub

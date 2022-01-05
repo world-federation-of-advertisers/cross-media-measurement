@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import java.net.URLEncoder
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
@@ -38,6 +37,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as InternalOpenIdConnectIdentity
@@ -101,10 +101,7 @@ class AccountsService(
       internalAccountsStub.withIdToken(idToken).activateAccount(internalActivateAccountRequest)
 
     // method only returns the basic account view so some fields are cleared
-    return result.toAccount().copy {
-      clearActivationParams()
-      clearMeasurementConsumerCreationToken()
-    }
+    return result.toAccount().copy { clearActivationParams() }
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
@@ -127,10 +124,7 @@ class AccountsService(
         .replaceAccountIdentity(internalReplaceAccountIdentityRequest)
 
     // method only returns the basic account view so some fields are cleared
-    return result.toAccount().copy {
-      clearActivationParams()
-      clearMeasurementConsumerCreationToken()
-    }
+    return result.toAccount().copy { clearActivationParams() }
   }
 
   override suspend fun authenticate(request: AuthenticateRequest): AuthenticateResponse {
@@ -139,22 +133,16 @@ class AccountsService(
     val openIdRequestParams =
       internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
 
-    val uriParts = mutableListOf<String>()
-    uriParts.add("openid://?response_type=id_token")
-    uriParts.add("scope=openid")
-    uriParts.add("state=${externalIdToApiId(openIdRequestParams.state)}")
-    uriParts.add("nonce=${externalIdToApiId(openIdRequestParams.nonce)}")
-    val redirectUri = URLEncoder.encode(this.redirectUri, "UTF-8")
-    uriParts.add(
-      if (request.issuer.equals(SELF_ISSUED_ISSUER)) {
-        "client_id=$redirectUri"
-        // TODO: validate issuer to make sure it is a third party provider
-      } else {
-        "redirect_uri=$redirectUri"
-      }
-    )
-
-    val uriString = uriParts.joinToString("&")
+    var uriString = ""
+    if (request.issuer == SELF_ISSUED_ISSUER) {
+      uriString =
+        createRequestUri(
+          state = openIdRequestParams.state,
+          nonce = openIdRequestParams.nonce,
+          redirectUri = this.redirectUri,
+          isSelfIssued = true
+        )
+    }
 
     return authenticateResponse { authenticationRequestUri = uriString }
   }
@@ -180,8 +168,6 @@ class AccountsService(
                 .toName()
           }
         }
-
-      measurementConsumerCreationToken = externalIdToApiId(source.measurementConsumerCreationToken)
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.identityCase) {

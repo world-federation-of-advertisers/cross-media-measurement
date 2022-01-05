@@ -16,14 +16,18 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.toByteString
-import org.wfanet.measurement.consent.crypto.keystore.testing.InMemoryKeyStore
+import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -33,7 +37,7 @@ import picocli.CommandLine
 )
 private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val clientCerts =
-    SigningCerts.fromPemFiles(
+    SigningCertsTesting.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
       trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
@@ -44,58 +48,55 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       clientCerts,
       flags.kingdomPublicApiFlags.certHost
     )
-  val dataProvidersStub = DataProvidersCoroutineStub(v2alphaPublicApiChannel)
+  val kingdomInternalApiChannel: ManagedChannel =
+    buildMutualTlsChannel(
+      flags.kingdomInternalApiFlags.target,
+      clientCerts,
+      flags.kingdomInternalApiFlags.certHost
+    )
+  val internalDataProvidersStub = InternalDataProvidersCoroutineStub(kingdomInternalApiChannel)
+  val internalAccountsStub = InternalAccountsCoroutineStub(kingdomInternalApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
   val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
-
-  val inMemoryKeyStore = InMemoryKeyStore()
+  val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
 
   // Makes sure the three maps contain the same set of EDPs.
   require(
     flags.edpCsCertDerFiles.keys == flags.edpCsKeyDerFiles.keys &&
-      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeyDerFiles.keys
+      flags.edpCsCertDerFiles.keys == flags.edpEncryptionPublicKeysets.keys
   )
   val dataProviderContents =
     flags.edpCsCertDerFiles.map {
       EntityContent(
         displayName = it.key,
-        consentSignalPrivateKeyDer = flags.edpCsKeyDerFiles[it.key]!!.readBytes().toByteString(),
-        consentSignalCertificateDer = it.value.readBytes().toByteString(),
-        encryptionPublicKeyDer =
-          flags.edpEncryptionPublicKeyDerFiles[it.key]!!.readBytes().toByteString()
+        signingKey = loadSigningKey(it.value, flags.edpCsKeyDerFiles.getValue(it.key)),
+        encryptionPublicKey =
+          loadPublicKey(flags.edpEncryptionPublicKeysets.getValue(it.key)).toEncryptionPublicKey()
       )
     }
   val measurementConsumerContent =
     EntityContent(
       displayName = "mc_001",
-      consentSignalPrivateKeyDer = flags.mcCsKeyDerFiles.readBytes().toByteString(),
-      consentSignalCertificateDer = flags.mcCsCertDerFile.readBytes().toByteString(),
-      encryptionPublicKeyDer = flags.mcEncryptionPublicKeyDerFile.readBytes().toByteString(),
+      signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
+      encryptionPublicKey =
+        loadPublicKey(flags.mcEncryptionPublicKeyDerFile).toEncryptionPublicKey()
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {
-      DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readBytes().toByteString())
+      DuchyCert(duchyId = it.key, consentSignalCertificateDer = it.value.readByteString())
     }
 
   runBlocking {
-    // Populates data to the inMemoryKeyStore.
-    dataProviderContents.forEach {
-      inMemoryKeyStore.storePrivateKeyDer(it.displayName, it.consentSignalPrivateKeyDer)
-    }
-    inMemoryKeyStore.storePrivateKeyDer(
-      measurementConsumerContent.displayName,
-      measurementConsumerContent.consentSignalPrivateKeyDer
-    )
-
     // Runs the resource setup job.
     ResourceSetup(
-        inMemoryKeyStore,
-        dataProvidersStub,
+        internalAccountsStub,
+        internalDataProvidersStub,
+        accountsStub,
         certificatesStub,
         measurementConsumersStub,
         flags.runId
       )
-      .process(dataProviderContents, measurementConsumerContent, duchyCerts, "MTIzNDU2NzM", "token")
+      .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }
 }
 

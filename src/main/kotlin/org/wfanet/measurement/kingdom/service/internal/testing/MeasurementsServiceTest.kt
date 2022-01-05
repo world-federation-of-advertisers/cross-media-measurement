@@ -33,6 +33,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -91,7 +92,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurementsService: T,
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
-    val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
+    val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase,
+    val accountsService: AccountsCoroutineImplBase
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -110,6 +112,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected lateinit var certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
     private set
 
+  protected lateinit var accountsService: AccountsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -119,6 +124,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     measurementsService = services.measurementsService
     dataProvidersService = services.dataProvidersService
     certificatesService = services.certificatesService
+    accountsService = services.accountsService
   }
 
   @Test
@@ -137,7 +143,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement fails for missing data provider`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -157,7 +164,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for missing measurement consumer`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val exception =
@@ -178,7 +186,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for revoked Measurement Consumer Certificate`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     certificatesService.revokeCertificate(
       revokeCertificateRequest {
@@ -209,6 +218,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         measurementConsumersService,
+        accountsService,
         notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
         notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
       )
@@ -233,6 +243,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurementConsumer =
       population.createMeasurementConsumer(
         measurementConsumersService,
+        accountsService,
         notValidBefore = clock.instant().minus(10L, ChronoUnit.DAYS),
         notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS)
       )
@@ -254,7 +265,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails for revoked Data Provider Certificate`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     certificatesService.revokeCertificate(
@@ -284,7 +296,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement fails when current time is before edp certificate is valid`() =
       runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider =
       population.createDataProvider(
         dataProvidersService,
@@ -311,7 +324,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement fails when current time is after edp certificate is valid`() =
       runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider =
       population.createDataProvider(
         dataProvidersService,
@@ -337,7 +351,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement succeeds`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
@@ -367,7 +382,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
       runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val createdMeasurement =
       measurementsService.createMeasurement(
@@ -394,7 +410,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement returns new measurement when called without providedMeasurementId`() =
       runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurement =
       measurementsService.createMeasurement(
@@ -422,7 +439,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
         MEASUREMENT.copy {
@@ -449,7 +467,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `getMeasurement succeeds`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
         MEASUREMENT.copy {
@@ -472,7 +491,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `getMeasurementByComputationId succeeds`() =
     runBlocking<Unit> {
-      val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val dataProvider = population.createDataProvider(dataProvidersService)
       val dataProviderValue = dataProvider.toDataProviderValue()
       val createdMeasurement =
@@ -575,7 +595,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult succeeds`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val createdMeasurement =
       measurementsService.createMeasurement(
         MEASUREMENT.copy {
@@ -614,7 +635,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `cancelMeasurement transitions Measurement state`() = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement =
       measurementsService.createMeasurement(
         MEASUREMENT.copy {
@@ -648,7 +670,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `cancelMeasurement throws FAILED_PRECONDITION when Measurement in illegal state`() =
       runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val measurement =
       measurementsService.createMeasurement(
         MEASUREMENT.copy {
@@ -681,7 +704,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `streamMeasurements returns all measurements in update time order`(): Unit = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurement1 =
       measurementsService.createMeasurement(
@@ -731,7 +755,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `streamMeasurements returns all measurements in id order`(): Unit = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurement1 =
       measurementsService.createMeasurement(
@@ -773,7 +798,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `streamMeasurements can get one page at a time`(): Unit = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurement1 =
       measurementsService.createMeasurement(
@@ -805,7 +831,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
     assertThat(measurements).hasSize(1)
-    assertThat(measurements).containsAnyOf(measurement1, measurement2)
+    assertThat(measurements).contains(measurement1)
 
     val measurements2: List<Measurement> =
       measurementsService
@@ -821,14 +847,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements2).hasSize(1)
-    assertThat(measurements2).containsAnyOf(measurement1, measurement2)
-    assertThat(measurements2[0].externalMeasurementId)
-      .isGreaterThan(measurements[0].externalMeasurementId)
+    assertThat(measurements2).contains(measurement2)
   }
 
   @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {
-    val measurementConsumer = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurement1 =
       measurementsService.createMeasurement(
@@ -857,8 +882,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `streamMeasurements respects externalMeasurementConsumerId`(): Unit = runBlocking {
-    val measurementConsumer1 = population.createMeasurementConsumer(measurementConsumersService)
-    val measurementConsumer2 = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer1 =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurementConsumer2 =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     measurementsService.createMeasurement(
       MEASUREMENT.copy {
@@ -896,8 +923,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `streamMeasurements respects states`(): Unit = runBlocking {
-    val measurementConsumer1 = population.createMeasurementConsumer(measurementConsumersService)
-    val measurementConsumer2 = population.createMeasurementConsumer(measurementConsumersService)
+    val measurementConsumer1 =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurementConsumer2 =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     measurementsService.createMeasurement(
       MEASUREMENT.copy {

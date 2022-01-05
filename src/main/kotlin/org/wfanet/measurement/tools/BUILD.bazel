@@ -3,9 +3,8 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 package(default_visibility = [
-    "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
-    "//src/test/kotlin/org/wfanet/measurement/tools:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
 ])
 
 kt_jvm_library(
@@ -162,11 +161,6 @@ java_image(
 kt_jvm_library(
     name = "self_issued_id_token",
     srcs = ["SelfIssuedIdToken.kt"],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:__subpackages__",
-    ],
     deps = [
         "@wfa_common_jvm//imports/java/com/google/code/gson",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

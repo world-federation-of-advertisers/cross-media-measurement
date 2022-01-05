@@ -45,11 +45,11 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--data-provider-encryption-private-key-der-file"],
-    description = ["The EDP's Encryption private key (DER format) file."],
+    names = ["--data-provider-encryption-private-keyset"],
+    description = ["The EDP's encryption private Tink Keyset."],
     required = true
   )
-  lateinit var edpEncryptionPrivateKeyDerFile: File
+  lateinit var edpEncryptionPrivateKeyset: File
     private set
 
   @CommandLine.Option(

@@ -63,6 +63,8 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
@@ -72,9 +74,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
-import org.wfanet.measurement.consent.crypto.hybridencryption.testing.ReversingHybridCryptor
-import org.wfanet.measurement.consent.crypto.keystore.KeyStore
-import org.wfanet.measurement.consent.crypto.keystore.PrivateKeyHandle
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
@@ -83,17 +82,16 @@ private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 data class MeasurementConsumerData(
   // The MC's public API resource name
   val name: String,
-  // The id of the MC's consent signaling private key in keyStore
-  val consentSignalingPrivateKeyId: String,
-  // The id of the MC's encryption private key in keyStore
-  val encryptionPrivateKeyId: String
+  /** The MC's consent signaling signing key. */
+  val signingKey: SigningKeyHandle,
+  /** The MC's encryption public key. */
+  val encryptionKey: PrivateKeyHandle
 )
 
 /** A simulator performing frontend operations. */
 class FrontendSimulator(
   private val measurementConsumerData: MeasurementConsumerData,
   private val outputDpParams: DifferentialPrivacyParams,
-  private val keyStore: KeyStore,
   private val dataProvidersClient: DataProvidersCoroutineStub,
   private val eventGroupsClient: EventGroupsCoroutineStub,
   private val measurementsClient: MeasurementsCoroutineStub,
@@ -164,8 +162,7 @@ class FrontendSimulator(
           measurementSpec =
             signMeasurementSpec(
               newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
-              PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
-              readCertificate(measurementConsumer.certificateDer)
+              measurementConsumerData.signingKey
             )
           dataProviders += dataProviderEntries
           this.measurementReferenceId = runId
@@ -180,11 +177,8 @@ class FrontendSimulator(
       measurementsClient.getMeasurement(getMeasurementRequest { name = measurementName })
     return if (measurement.state == Measurement.State.SUCCEEDED) {
       val signedResult =
-        decryptResult(
-          measurement.encryptedResult,
-          PrivateKeyHandle(measurementConsumerData.encryptionPrivateKeyId, keyStore),
-          ::ReversingHybridCryptor
-        )
+        decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
+      @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
       val result = Result.parseFrom(signedResult.data)
       val aggregatorCertificate = readCertificate(measurement.aggregatorCertificate)
       if (!verifyResult(signedResult.signature, result, aggregatorCertificate)) {
@@ -312,11 +306,7 @@ class FrontendSimulator(
       this.nonce = nonce
     }
     val signedRequisitionSpec =
-      signRequisitionSpec(
-        requisitionSpec,
-        PrivateKeyHandle(measurementConsumerData.consentSignalingPrivateKeyId, keyStore),
-        readCertificate(measurementConsumer.certificateDer)
-      )
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
     return dataProvider.toDataProviderEntry(signedRequisitionSpec, hashSha256(nonce))
   }
 
@@ -335,7 +325,6 @@ class FrontendSimulator(
             encryptRequisitionSpec(
               signedRequisitionSpec,
               EncryptionPublicKey.parseFrom(source.publicKey.data),
-              ::ReversingHybridCryptor // TODO: use the real HybridCryptor.
             )
           this.nonceHash = nonceHash
         }

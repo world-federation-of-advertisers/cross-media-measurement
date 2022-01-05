@@ -20,9 +20,13 @@ import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
@@ -41,15 +45,23 @@ import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.account
+import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
+import org.wfanet.measurement.tools.generateIdToken
 
 private const val API_VERSION = "v2alpha"
+private const val REDIRECT_URI = "https://localhost:2048"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   private fun buildRequestCertificate(
@@ -73,24 +85,34 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   suspend fun createMeasurementConsumer(
     measurementConsumersService: MeasurementConsumersCoroutineImplBase,
+    accountsService: AccountsCoroutineImplBase,
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
   ): MeasurementConsumer {
+    val account = createAccount(accountsService)
+    activateAccount(accountsService, account)
+    val measurementConsumerCreationTokenHash =
+      hashSha256(createMeasurementConsumerCreationToken(accountsService))
     return measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer {
-        certificate =
-          buildRequestCertificate(
-            "MC cert",
-            "MC SKID " + idGenerator.generateExternalId().value,
-            notValidBefore,
-            notValidAfter
-          )
-        details =
-          MeasurementConsumerKt.details {
-            apiVersion = API_VERSION
-            publicKey = ByteString.copyFromUtf8("MC public key")
-            publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
+      createMeasurementConsumerRequest {
+        measurementConsumer =
+          measurementConsumer {
+            certificate =
+              buildRequestCertificate(
+                "MC cert",
+                "MC SKID " + idGenerator.generateExternalId().value,
+                notValidBefore,
+                notValidAfter
+              )
+            details =
+              MeasurementConsumerKt.details {
+                apiVersion = API_VERSION
+                publicKey = ByteString.copyFromUtf8("MC public key")
+                publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
+              }
           }
+        externalAccountId = account.externalAccountId
+        this.measurementConsumerCreationTokenHash = measurementConsumerCreationTokenHash
       }
     )
   }
@@ -207,6 +229,67 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         )
       }
     )
+  }
+
+  /** Creates an [Account] and returns it. */
+  suspend fun createAccount(
+    accountsService: AccountsCoroutineImplBase,
+    externalCreatorAccountId: Long = 0L,
+    externalOwnedMeasurementConsumerId: Long = 0L
+  ): Account {
+    return accountsService.createAccount(
+      account {
+        this.externalCreatorAccountId = externalCreatorAccountId
+        this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
+      }
+    )
+  }
+
+  /**
+   * Generates a self-issued ID token and uses it to activate the [Account].
+   *
+   * @return generated self-issued ID token used for activation
+   */
+  suspend fun activateAccount(
+    accountsService: AccountsCoroutineImplBase,
+    account: Account,
+  ): String {
+    val openIdRequestParams =
+      accountsService.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+    val idToken =
+      generateIdToken(
+        createRequestUri(
+          state = openIdRequestParams.state,
+          nonce = openIdRequestParams.nonce,
+          redirectUri = REDIRECT_URI,
+          isSelfIssued = true
+        ),
+        clock
+      )
+
+    withIdToken(idToken) {
+      runBlocking {
+        accountsService.activateAccount(
+          activateAccountRequest {
+            externalAccountId = account.externalAccountId
+            activationToken = account.activationToken
+          }
+        )
+      }
+    }
+
+    return idToken
+  }
+
+  suspend fun createMeasurementConsumerCreationToken(
+    accountsService: AccountsCoroutineImplBase
+  ): Long {
+    val createMeasurementConsumerCreationTokenResponse =
+      accountsService.createMeasurementConsumerCreationToken(
+        createMeasurementConsumerCreationTokenRequest {}
+      )
+
+    return createMeasurementConsumerCreationTokenResponse.measurementConsumerCreationToken
   }
 }
 

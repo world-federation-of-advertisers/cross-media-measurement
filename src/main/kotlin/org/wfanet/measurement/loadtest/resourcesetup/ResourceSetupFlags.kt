@@ -19,6 +19,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import org.wfanet.measurement.common.grpc.TlsFlags
+import org.wfanet.measurement.loadtest.KingdomInternalApiFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import picocli.CommandLine
 
@@ -57,15 +58,15 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--edp-encryption-public-key-der-files"],
-    description = ["The map from EDP display name to its encryption public key (DER format) file."],
+    names = ["--edp-encryption-public-keysets"],
+    description = ["The map from EDP display name to its encryption public key Tink Keyset file."],
     required = true
   )
-  lateinit var edpEncryptionPublicKeyDerFiles: Map<String, File>
+  lateinit var edpEncryptionPublicKeysets: Map<String, File>
     private set
 
   @CommandLine.Option(
-    names = ["--mc-consent-signaling-cert-der-files"],
+    names = ["--mc-consent-signaling-cert-der-file"],
     description = ["The MC's consent signaling cert (DER format) file."],
     required = true
   )
@@ -77,7 +78,7 @@ class ResourceSetupFlags {
     description = ["The MC's consent signaling private key (DER format) file."],
     required = true
   )
-  lateinit var mcCsKeyDerFiles: File
+  lateinit var mcCsKeyDerFile: File
     private set
 
   @CommandLine.Option(
@@ -90,6 +91,10 @@ class ResourceSetupFlags {
 
   @CommandLine.Mixin
   lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
+    private set
+
+  @CommandLine.Mixin
+  lateinit var kingdomInternalApiFlags: KingdomInternalApiFlags
     private set
 
   @CommandLine.Option(

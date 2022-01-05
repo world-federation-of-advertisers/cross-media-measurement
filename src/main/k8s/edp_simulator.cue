@@ -50,7 +50,7 @@ package k8s
 			"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 			"--data-provider-resource-name=\(_edp_resource_name)",
 			"--data-provider-display-name=\(_edp_display_name)",
-			"--data-provider-encryption-private-key-der-file=/var/run/secrets/files/\(_edp_display_name)_enc_private.der",
+			"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(_edp_display_name)_enc_private.tink",
 			"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_private.der",
 			"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_cert.der",
 			"--mc-resource-name=\(_mc_resource_name)",

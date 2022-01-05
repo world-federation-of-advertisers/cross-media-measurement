@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.system.v1alpha;
 
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/system/v1alpha/computation.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -89,4 +90,10 @@ message SetComputationResultRequest {
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`. Required.
   bytes encrypted_result = 4;
+}
+
+// Continuation token for the streaming active computations
+message StreamActiveComputationsContinuationToken {
+  google.protobuf.Timestamp update_time_since = 1;
+  fixed64 last_seen_external_computation_id = 2;
 }

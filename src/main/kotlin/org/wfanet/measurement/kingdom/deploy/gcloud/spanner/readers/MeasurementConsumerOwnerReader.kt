@@ -21,7 +21,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 
-class MeasurementConsumerOwnerReader() : SpannerReader<MeasurementConsumerOwnerReader.Result>() {
+class MeasurementConsumerOwnerReader : SpannerReader<MeasurementConsumerOwnerReader.Result>() {
   data class Result(val accountId: InternalId, val measurementConsumerId: InternalId)
 
   override val baseSql: String =
