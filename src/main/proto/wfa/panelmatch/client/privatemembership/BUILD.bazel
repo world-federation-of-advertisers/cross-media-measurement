@@ -9,7 +9,7 @@ proto_library(
     name = "database_proto",
     srcs = ["database.proto"],
     strip_import_prefix = "/src/main/proto",
-    deps = [":query_proto"],
+    deps = [":prepare_query_proto"],
 )
 
 cc_proto_library(

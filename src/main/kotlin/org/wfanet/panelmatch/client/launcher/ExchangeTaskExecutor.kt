@@ -52,10 +52,14 @@ class ExchangeTaskExecutor(
   private val exchangeTaskMapper: ExchangeTaskMapper
 ) : ExchangeStepExecutor {
 
-  override suspend fun execute(step: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey) {
-    val name = "${step.step.stepId}@${attemptKey.toName()}"
+  override suspend fun execute(
+    validatedStep: ValidatedExchangeStep,
+    attemptKey: ExchangeStepAttemptKey
+  ) {
+    val name = "${validatedStep.step.stepId}@${attemptKey.toName()}"
     withContext(TaskLog(name)) {
-      val context = ExchangeContext(attemptKey, step.date, step.workflow, step.step)
+      val context =
+        ExchangeContext(attemptKey, validatedStep.date, validatedStep.workflow, validatedStep.step)
       try {
         context.tryExecute()
       } catch (e: Exception) {

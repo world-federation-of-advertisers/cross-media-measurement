@@ -1,0 +1,17 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "testing",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:combined_events_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_kt_jvm_proto",
+    ],
+)

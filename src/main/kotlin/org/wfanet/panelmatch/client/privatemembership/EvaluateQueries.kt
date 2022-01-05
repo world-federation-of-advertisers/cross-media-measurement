@@ -60,8 +60,8 @@ private class EvaluateQueries(
     val bucketing = Bucketing(parameters.numShards, parameters.numBucketsPerShard)
     val databaseByShard: PCollection<KV<ShardId, Bucket>> =
       database.map("Form Database Buckets by Shard") { databaseEntry ->
-        val (shardId, bucketId) = bucketing.apply(databaseEntry.databaseKey.id)
-        kvOf(shardId, bucketOf(bucketId, listOf(databaseEntry.plaintext.payload)))
+        val (shardId, bucketId) = bucketing.apply(databaseEntry.lookupKey.key)
+        kvOf(shardId, bucketOf(bucketId, listOf(databaseEntry.encryptedEntry.data)))
       }
 
     val queryBundlesByShard = queryBundles.keyBy("Key Queries by Shard") { it.shardId }

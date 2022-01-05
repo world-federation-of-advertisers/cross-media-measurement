@@ -4,7 +4,7 @@ package(
     default_testonly = True,
     default_visibility = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/testing:__subpackages__",
-        "//src/test/kotlin/org/wfanet/panelmatch/client/eventpreprocessing:__subpackages__",
+        "//src/test/kotlin/org/wfanet/panelmatch/client:__subpackages__",
     ],
 )
 

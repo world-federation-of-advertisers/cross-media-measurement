@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "TaskParametersTest",
+    timeout = "short",
+    srcs = ["TaskParametersTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.common.TaskParametersTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

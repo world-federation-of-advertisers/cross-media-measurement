@@ -16,18 +16,19 @@ syntax = "proto3";
 
 package wfa.panelmatch.client.privatemembership;
 
-import "wfa/panelmatch/client/privatemembership/query.proto";
+import "wfa/panelmatch/client/privatemembership/prepare_query.proto";
 
 option java_package = "org.wfanet.panelmatch.client.privatemembership";
 option java_multiple_files = true;
 
-message DatabaseKey {
-  fixed64 id = 1;
+message EncryptedEntry {
+  bytes data = 1;
 }
 
+// An encrypted database entry with its lookup key
 message DatabaseEntry {
-  DatabaseKey database_key = 1;
-  Plaintext plaintext = 2;
+  LookupKey lookup_key = 1;
+  EncryptedEntry encrypted_entry = 2;
 }
 
 message DatabaseEntries {

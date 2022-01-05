@@ -35,6 +35,7 @@ abstract class ExchangeTaskMapper {
         StepCase.GENERATE_SERIALIZED_RLWE_KEY_PAIR_STEP -> generateSerializedRlweKeyPair()
         StepCase.GENERATE_CERTIFICATE_STEP -> generateExchangeCertificate()
         StepCase.INTERSECT_AND_VALIDATE_STEP -> intersectAndValidate()
+        StepCase.PREPROCESS_EVENTS_STEP -> preprocessEvents()
         StepCase.EXECUTE_PRIVATE_MEMBERSHIP_QUERIES_STEP -> executePrivateMembershipQueries()
         StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP -> buildPrivateMembershipQueries()
         StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP -> decryptMembershipResults()
@@ -59,6 +60,9 @@ abstract class ExchangeTaskMapper {
 
   /** Returns the task that generates a commutative encryption key. */
   abstract suspend fun ExchangeContext.generateCommutativeDeterministicEncryptionKey(): ExchangeTask
+
+  /** Returns the task that preprocesses events. */
+  abstract suspend fun ExchangeContext.preprocessEvents(): ExchangeTask
 
   /** Returns the task that builds private membership queries. */
   abstract suspend fun ExchangeContext.buildPrivateMembershipQueries(): ExchangeTask

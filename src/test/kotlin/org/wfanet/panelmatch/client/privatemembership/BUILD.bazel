@@ -107,7 +107,6 @@ kt_jvm_test(
     deps = [
         "//imports/java/org/apache/beam:core",
         "//imports/java/org/apache/beam/extensions:protobuf",
-        "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",

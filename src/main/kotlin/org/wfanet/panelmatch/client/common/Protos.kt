@@ -15,6 +15,8 @@
 package org.wfanet.panelmatch.client.common
 
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.eventpreprocessing.UnprocessedEvent
+import org.wfanet.panelmatch.client.eventpreprocessing.unprocessedEvent
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
@@ -24,9 +26,9 @@ import org.wfanet.panelmatch.client.exchangetasks.joinKeyIdentifier
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
-import org.wfanet.panelmatch.client.privatemembership.DatabaseKey
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.DecryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.EncryptedEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.LookupKey
@@ -39,9 +41,9 @@ import org.wfanet.panelmatch.client.privatemembership.bucket
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
 import org.wfanet.panelmatch.client.privatemembership.bucketId
 import org.wfanet.panelmatch.client.privatemembership.databaseEntry
-import org.wfanet.panelmatch.client.privatemembership.databaseKey
 import org.wfanet.panelmatch.client.privatemembership.databaseShard
 import org.wfanet.panelmatch.client.privatemembership.decryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.encryptedEntry
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.lookupKey
@@ -105,9 +107,6 @@ fun queryBundleOf(
   this.serializedEncryptedQueries = serializedEncryptedQueries
 }
 
-/** Constructs a [DatabaseKey]. */
-fun databaseKeyOf(id: Long): DatabaseKey = databaseKey { this.id = id }
-
 /** Constructs a [Plaintext]. */
 fun plaintextOf(payload: ByteString): Plaintext = plaintext { this.payload = payload }
 
@@ -123,10 +122,21 @@ fun joinKeyAndIdOf(key: ByteString, id: ByteString): JoinKeyAndId = joinKeyAndId
   joinKeyIdentifier = joinKeyIdentifierOf(id)
 }
 
+/** Constructs a [EncryptedEntry]. */
+fun encryptedEntryOf(data: ByteString): EncryptedEntry = encryptedEntry { this.data = data }
+
 /** Constructs a [DatabaseEntry]. */
-fun databaseEntryOf(databaseKey: DatabaseKey, plaintext: Plaintext): DatabaseEntry = databaseEntry {
-  this.databaseKey = databaseKey
-  this.plaintext = plaintext
+fun databaseEntryOf(lookupKey: LookupKey, encryptedEntry: EncryptedEntry): DatabaseEntry =
+    databaseEntry {
+  this.lookupKey = lookupKey
+  this.encryptedEntry = encryptedEntry
+}
+
+/** Constructs a [UnprocessedEvent]. */
+fun unprocessedEventOf(eventId: ByteString, eventData: ByteString): UnprocessedEvent =
+    unprocessedEvent {
+  id = eventId
+  data = eventData
 }
 
 /** Constructs a [LookupKey]. */

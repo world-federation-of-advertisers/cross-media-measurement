@@ -21,9 +21,6 @@ import org.apache.beam.sdk.metrics.Metrics
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollectionView
-import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
-import org.wfanet.panelmatch.client.PreprocessEventsResponse
-import org.wfanet.panelmatch.client.preprocessEventsRequest
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.compression.CompressionParameters
 
