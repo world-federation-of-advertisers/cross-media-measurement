@@ -23,8 +23,8 @@ import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.wfanet.panelmatch.client.common.databaseEntryOf
-import org.wfanet.panelmatch.client.common.databaseKeyOf
-import org.wfanet.panelmatch.client.common.plaintextOf
+import org.wfanet.panelmatch.client.common.encryptedEntryOf
+import org.wfanet.panelmatch.client.common.lookupKeyOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.Bucketing
@@ -74,7 +74,7 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
       keys.associateWith { "<this is the payload for $it>".toByteStringUtf8() }
 
     val database: List<DatabaseEntry> =
-      rawDatabase.map { databaseEntryOf(databaseKeyOf(it.key), plaintextOf(it.value)) }
+      rawDatabase.map { databaseEntryOf(lookupKeyOf(it.key), encryptedEntryOf(it.value)) }
     val databasePCollection: PCollection<DatabaseEntry> =
       pipeline.apply("Create Database", Create.of(database))
 

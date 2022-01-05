@@ -18,16 +18,18 @@ package wfa.panelmatch.client;
 
 import "wfa/panelmatch/common/compression/compression.proto";
 
-option java_package = "org.wfanet.panelmatch.client";
+option java_package = "org.wfanet.panelmatch.client.eventpreprocessing";
 option java_multiple_files = true;
+
+// An Unprocessed Event
+message UnprocessedEvent {
+  bytes id = 1;
+  bytes data = 2;
+}
 
 // Request to preprocess event data
 message PreprocessEventsRequest {
   repeated UnprocessedEvent unprocessed_events = 1;
-  message UnprocessedEvent {
-    bytes id = 1;
-    bytes data = 2;
-  }
   bytes crypto_key = 2;
   bytes identifier_hash_pepper = 3;
   bytes hkdf_pepper = 4;

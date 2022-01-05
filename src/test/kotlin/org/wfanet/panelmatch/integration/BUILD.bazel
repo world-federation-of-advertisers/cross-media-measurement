@@ -3,7 +3,7 @@ load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tes
 spanner_emulator_test(
     name = "MiniWorkflowTest",
     size = "small",
-    srcs = glob(["*.kt"]),
+    srcs = ["MiniWorkflowTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     test_class = "org.wfanet.panelmatch.integration.MiniWorkflowTest",
     deps = [
@@ -17,7 +17,7 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "DoubleBlindWorkflowTest",
     size = "small",
-    srcs = glob(["*.kt"]),
+    srcs = ["DoubleBlindWorkflowTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     test_class = "org.wfanet.panelmatch.integration.DoubleBlindWorkflowTest",
     deps = [
@@ -32,13 +32,35 @@ spanner_emulator_test(
 spanner_emulator_test(
     name = "FullWorkflowTest",
     size = "medium",
-    srcs = glob(["*.kt"]),
+    srcs = ["FullWorkflowTest.kt"],
     resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
     test_class = "org.wfanet.panelmatch.integration.FullWorkflowTest",
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/integration",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/testing",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:database_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+spanner_emulator_test(
+    name = "FullWithPreprocessingTest",
+    size = "medium",
+    srcs = ["FullWithPreprocessingTest.kt"],
+    resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    test_class = "org.wfanet.panelmatch.integration.FullWithPreprocessingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/testing",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:database_kt_jvm_proto",

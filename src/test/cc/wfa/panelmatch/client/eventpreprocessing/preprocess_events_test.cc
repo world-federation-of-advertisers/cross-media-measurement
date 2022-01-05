@@ -29,7 +29,7 @@
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
 #include "wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
 
-namespace wfa::panelmatch::client {
+namespace wfa::panelmatch::client::eventpreprocessing {
 namespace {
 using ::testing::ContainerEq;
 using ::testing::Eq;
@@ -38,7 +38,6 @@ using ::testing::Not;
 using ::testing::Pointwise;
 using ::wfa::panelmatch::protocol::crypto::EventDataPreprocessor;
 using ::wfa::panelmatch::protocol::crypto::ProcessedData;
-using UnprocessedEvent = PreprocessEventsRequest::UnprocessedEvent;
 
 PreprocessEventsRequest MakeTestRequest() {
   PreprocessEventsRequest request;
@@ -159,4 +158,4 @@ TEST(PreprocessEventsTest, MultipleUnprocessedEvents) {
   EXPECT_NE(processed.processed_events(2).encrypted_data(), "some-data-3");
 }
 }  // namespace
-}  // namespace wfa::panelmatch::client
+}  // namespace wfa::panelmatch::client::eventpreprocessing

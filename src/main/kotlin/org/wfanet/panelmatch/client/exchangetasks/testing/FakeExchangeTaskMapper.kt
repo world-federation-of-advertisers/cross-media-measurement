@@ -30,6 +30,8 @@ class FakeExchangeTaskMapper : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.generateCommutativeDeterministicEncryptionKey() =
     FakeExchangeTask("generate-commutative-deterministic-encryption-key")
 
+  override suspend fun ExchangeContext.preprocessEvents() = FakeExchangeTask("preprocess-events")
+
   override suspend fun ExchangeContext.buildPrivateMembershipQueries() =
     FakeExchangeTask("build-private-membership-queries")
 

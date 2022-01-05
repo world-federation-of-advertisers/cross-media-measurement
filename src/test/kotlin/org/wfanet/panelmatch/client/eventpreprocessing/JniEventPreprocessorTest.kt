@@ -20,10 +20,7 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
-import org.wfanet.panelmatch.client.copy
 import org.wfanet.panelmatch.client.eventpreprocessing.testing.AbstractEventPreprocessorTest
-import org.wfanet.panelmatch.client.preprocessEventsRequest
 import org.wfanet.panelmatch.common.JniException
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.noCompression
 import org.wfanet.panelmatch.common.compression.compressionParameters

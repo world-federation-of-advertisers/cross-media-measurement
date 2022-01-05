@@ -70,6 +70,7 @@ kt_jvm_test(
     srcs = ["ExchangeTaskMapperTest.kt"],
     test_class = "org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapperTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",

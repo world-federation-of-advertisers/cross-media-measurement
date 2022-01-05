@@ -15,8 +15,6 @@
 package org.wfanet.panelmatch.client.eventpreprocessing
 
 import java.io.Serializable
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
-import org.wfanet.panelmatch.client.PreprocessEventsResponse
 
 /**
  * Implements several encryption schemes to encrypt event data and an identifier. A deterministic

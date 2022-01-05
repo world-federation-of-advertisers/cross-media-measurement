@@ -27,6 +27,8 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
+import org.wfanet.panelmatch.client.common.TaskParameters
+import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ApiClient
 import org.wfanet.panelmatch.client.launcher.GrpcApiClient
@@ -89,13 +91,22 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   }
 
+  private val preprocessingParameters =
+    PreprocessingParameters(
+      maxByteSize = flags.preprocessingStepContext.maxByteSize.toLong(),
+      fileCount = flags.preprocessingStepContext.fileCount.toInt(),
+    )
+
+  private val taskContext: TaskParameters = TaskParameters(setOf(preprocessingParameters))
+
   override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(
       inputTaskThrottler = throttler,
       privateStorageSelector = privateStorageSelector,
       sharedStorageSelector = sharedStorageSelector,
       certificateManager = certificateManager,
-      pipelineOptions = pipelineOptions
+      pipelineOptions = pipelineOptions,
+      taskContext = taskContext,
     )
   }
 

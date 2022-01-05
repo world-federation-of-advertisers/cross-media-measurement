@@ -27,11 +27,11 @@ import org.joda.time.Instant
  * [maxByteSize].
  */
 class BatchingDoFn<T>(
-  private val maxByteSize: Int,
+  private val maxByteSize: Long,
   private val getElementByteSize: SerializableFunction<T, Int>
 ) : DoFn<T, MutableList<T>>() {
   private var buffer = mutableListOf<T>()
-  var size: Int = 0
+  private var size: Long = 0L
   private val batchSizeDistribution = Metrics.distribution(BatchingDoFn::class.java, "batch-sizes")
 
   @ProcessElement
@@ -42,7 +42,7 @@ class BatchingDoFn<T>(
       return
     }
     if (size + currElementSize > maxByteSize) {
-      batchSizeDistribution.update(size.toLong())
+      batchSizeDistribution.update(size)
       c.output(buffer)
       buffer = mutableListOf()
       size = 0
@@ -56,7 +56,7 @@ class BatchingDoFn<T>(
   @Throws(Exception::class)
   fun FinishBundle(context: FinishBundleContext) {
     if (buffer.isNotEmpty()) {
-      batchSizeDistribution.update(size.toLong())
+      batchSizeDistribution.update(size)
       context.output(buffer, Instant.now(), GlobalWindow.INSTANCE)
       buffer = mutableListOf()
       size = 0

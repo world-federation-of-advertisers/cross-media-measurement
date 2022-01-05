@@ -14,7 +14,6 @@ kt_jvm_library(
         "//imports/java/org/apache/beam/runners:direct_runner",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/client/common/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",

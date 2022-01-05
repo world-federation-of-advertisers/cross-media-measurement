@@ -12,14 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.launcher
+package org.wfanet.panelmatch.client.common
 
-import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
-import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
+import kotlin.reflect.KClass
 
-/** Executes [ExchangeWorkflow.Step]s. */
-interface ExchangeStepExecutor {
-  /** Executes [step]. */
-  suspend fun execute(validatedStep: ValidatedExchangeStep, attemptKey: ExchangeStepAttemptKey)
+/** Provides a map to access a task-specific context. */
+class TaskParameters(parameters: Set<Any>) {
+  private val underlyingMap: Map<KClass<*>, Any> =
+    parameters.associateBy {
+      require(it::class.isData) { "Task Parameters only store data classes" }
+      it::class
+    }
+
+  fun <T : Any> get(key: KClass<T>): T? {
+    require(key.isData) { "Task Parameters only store data classes" }
+    @Suppress("UNCHECKED_CAST") return underlyingMap[key] as T?
+  }
 }

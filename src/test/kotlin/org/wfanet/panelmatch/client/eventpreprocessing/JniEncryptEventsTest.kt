@@ -18,8 +18,6 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
-import org.wfanet.panelmatch.client.preprocessEventsRequest
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.noCompression
 import org.wfanet.panelmatch.common.compression.compressionParameters
 

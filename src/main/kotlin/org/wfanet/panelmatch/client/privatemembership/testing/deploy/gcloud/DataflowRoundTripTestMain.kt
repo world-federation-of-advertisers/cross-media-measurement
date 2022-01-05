@@ -40,9 +40,9 @@ import org.apache.beam.sdk.options.ValueProvider
 import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.common.databaseEntryOf
-import org.wfanet.panelmatch.client.common.databaseKeyOf
+import org.wfanet.panelmatch.client.common.encryptedEntryOf
 import org.wfanet.panelmatch.client.common.lookupKeyAndIdOf
-import org.wfanet.panelmatch.client.common.plaintextOf
+import org.wfanet.panelmatch.client.common.lookupKeyOf
 import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
@@ -138,8 +138,8 @@ fun main(args: Array<String>) {
       (0 until BUCKETS_PER_SHARD_COUNT / 2).map { j ->
         val uniqueQueryId = i + j * SHARD_COUNT
         databaseEntryOf(
-          databaseKeyOf(Random.nextLong()),
-          plaintextOf(makeFakeUserDataPayload(uniqueQueryId.toString()))
+          lookupKeyOf(Random.nextLong()),
+          encryptedEntryOf(makeFakeUserDataPayload(uniqueQueryId.toString()))
         )
       }
     }

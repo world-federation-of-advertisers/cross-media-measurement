@@ -14,8 +14,6 @@
 
 package org.wfanet.panelmatch.client.eventpreprocessing
 
-import org.wfanet.panelmatch.client.PreprocessEventsRequest
-import org.wfanet.panelmatch.client.PreprocessEventsResponse
 import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.eventpreprocessing.EventPreprocessingSwig

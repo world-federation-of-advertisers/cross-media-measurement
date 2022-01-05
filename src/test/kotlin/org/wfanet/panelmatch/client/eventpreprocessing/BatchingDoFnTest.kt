@@ -70,7 +70,7 @@ class BatchingDoFnTest : BeamTestBase() {
         .addElements("2222", "2", "22", "2")
         .addElements("33", "3", "3", "3")
         .advanceWatermarkToInfinity()
-    val result = pipeline.apply(testStream).apply(makeParDo(2))
+    val result = pipeline.apply(testStream).apply(makeParDo(2L))
     assertThat(result)
       .containsInAnyOrder(
         mutableListOf("1", "1"),
@@ -84,14 +84,14 @@ class BatchingDoFnTest : BeamTestBase() {
         mutableListOf("3")
       )
   }
-  private fun makeParDo(maxByteSize: Int): ParDo.SingleOutput<String, MutableList<String>>? {
+  private fun makeParDo(maxByteSize: Long): ParDo.SingleOutput<String, MutableList<String>>? {
     return ParDo.of(BatchingDoFn(maxByteSize, StringLengthSize))
   }
   private fun makeTestStream(): TestStream.Builder<String> {
     return TestStream.create(StringUtf8Coder.of())
   }
   private fun batchSingleBundle(
-    batchSize: Int,
+    batchSize: Long,
     item: String,
     vararg items: String
   ): PCollection<MutableList<String>> {

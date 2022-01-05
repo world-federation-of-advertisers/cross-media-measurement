@@ -20,6 +20,12 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.common.TaskParameters
+import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedDeterministicCommutativeCipherKeyProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedHkdfPepperProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.HardCodedIdentifierHashPepperProvider
+import org.wfanet.panelmatch.client.eventpreprocessing.JniEventPreprocessor
+import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamContext
 import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
@@ -40,6 +46,7 @@ import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
+import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
 import org.wfanet.panelmatch.client.privatemembership.CreateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
 import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembershipCryptor
@@ -57,7 +64,8 @@ open class ProductionExchangeTaskMapper(
   private val privateStorageSelector: PrivateStorageSelector,
   private val sharedStorageSelector: SharedStorageSelector,
   private val certificateManager: CertificateManager,
-  private val pipelineOptions: PipelineOptions
+  private val pipelineOptions: PipelineOptions,
+  private val taskContext: TaskParameters,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
     return CryptorExchangeTask.forEncryption(JniDeterministicCommutativeCipher())
@@ -74,6 +82,29 @@ open class ProductionExchangeTaskMapper(
   override suspend fun ExchangeContext.generateCommutativeDeterministicEncryptionKey():
     ExchangeTask {
     return GenerateSymmetricKeyTask(JniDeterministicCommutativeCipher()::generateKey)
+  }
+
+  override suspend fun ExchangeContext.preprocessEvents(): ExchangeTask {
+    check(step.stepCase == ExchangeWorkflow.Step.StepCase.PREPROCESS_EVENTS_STEP)
+    val eventPreprocessor = JniEventPreprocessor()
+    val deterministicCommutativeCipherKeyProvider =
+      ::HardCodedDeterministicCommutativeCipherKeyProvider
+    val hkdfPepperProvider = ::HardCodedHkdfPepperProvider
+    val identifierHashPepperProvider = ::HardCodedIdentifierHashPepperProvider
+    val preprocessingParameters: PreprocessingParameters =
+      requireNotNull(taskContext.get(PreprocessingParameters::class)) {
+        "PreprocessingParameters must be set in taskContext"
+      }
+    val outputsManifests = mapOf("preprocessed-event-data" to preprocessingParameters.fileCount)
+    return apacheBeamTaskFor(outputsManifests) {
+      preprocessEvents(
+        eventPreprocessor = eventPreprocessor,
+        deterministicCommutativeCipherKeyProvider = deterministicCommutativeCipherKeyProvider,
+        identifierPepperProvider = identifierHashPepperProvider,
+        hkdfPepperProvider = hkdfPepperProvider,
+        maxByteSize = preprocessingParameters.maxByteSize,
+      )
+    }
   }
 
   override suspend fun ExchangeContext.buildPrivateMembershipQueries(): ExchangeTask {

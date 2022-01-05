@@ -17,9 +17,9 @@ package org.wfanet.panelmatch.client.eventpreprocessing.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.Test
-import org.wfanet.panelmatch.client.PreprocessEventsRequestKt.unprocessedEvent
 import org.wfanet.panelmatch.client.eventpreprocessing.EventPreprocessor
-import org.wfanet.panelmatch.client.preprocessEventsRequest
+import org.wfanet.panelmatch.client.eventpreprocessing.preprocessEventsRequest
+import org.wfanet.panelmatch.client.eventpreprocessing.unprocessedEvent
 import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCompressionParameters
 import org.wfanet.panelmatch.common.compression.compressionParameters
 
