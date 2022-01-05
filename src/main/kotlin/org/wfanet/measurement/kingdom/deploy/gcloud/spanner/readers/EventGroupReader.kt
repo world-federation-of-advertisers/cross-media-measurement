@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -39,7 +40,7 @@ private val BASE_SQL =
     """.trimIndent()
 
 class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
-  data class Result(val eventGroup: EventGroup, val internalEventGroupId: Long)
+  data class Result(val eventGroup: EventGroup, val internalEventGroupId: InternalId)
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
 
@@ -83,7 +84,7 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   }
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildEventGroup(struct), struct.getLong("EventGroupId"))
+    Result(buildEventGroup(struct), InternalId(struct.getLong("EventGroupId")))
 
   private fun buildEventGroup(struct: Struct): EventGroup =
     EventGroup.newBuilder()
