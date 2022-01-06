@@ -1,0 +1,111 @@
+// Copyright 2020 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
+
+import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+
+class UpdateEventGroup(private val eventGroup: EventGroup) :
+  SpannerWriter<EventGroup, EventGroup>() {
+  override suspend fun TransactionScope.runTransaction(): EventGroup {
+    val internalEventGroup =
+      EventGroupReader()
+        .readByExternalId(transactionContext, eventGroup.externalEventGroupId)
+        ?.eventGroup
+        ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+    if (internalEventGroup.externalDataProviderId != eventGroup.externalDataProviderId) {
+      throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+    }
+    if (internalEventGroup.externalMeasurementConsumerId != eventGroup.externalMeasurementConsumerId
+    ) {
+      throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND)
+    }
+
+    val dataProviderId =
+      DataProviderReader()
+        .readByExternalDataProviderId(
+          transactionContext,
+          ExternalId(eventGroup.externalDataProviderId)
+        )
+        ?.dataProviderId
+        ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+    val measurementConsumerCertificateId =
+      if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
+        checkValidCertificate(
+          eventGroup.externalMeasurementConsumerCertificateId,
+          eventGroup.externalMeasurementConsumerId,
+          transactionContext
+        )
+      else null
+    val internalEventGroupId =
+      EventGroupReader()
+        .readByExternalId(transactionContext, eventGroup.externalEventGroupId)
+        ?.internalEventGroupId
+        ?.value
+
+    transactionContext.bufferUpdateMutation("EventGroups") {
+      set("DataProviderId" to dataProviderId)
+      set("EventGroupId" to internalEventGroupId)
+      if (measurementConsumerCertificateId != null) {
+        set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
+      }
+      if (eventGroup.providedEventGroupId.isNotBlank()) {
+        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      }
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      if (eventGroup.hasDetails()) {
+        set("EventGroupDetails" to eventGroup.details)
+        setJson("EventGroupDetailsJson" to eventGroup.details)
+      }
+    }
+
+    return eventGroup
+  }
+
+  override fun ResultScope<EventGroup>.buildResult(): EventGroup {
+    return eventGroup.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
+  }
+
+  private suspend fun checkValidCertificate(
+    measurementConsumerCertificateId: Long,
+    measurementConsumerId: Long,
+    transactionContext: AsyncDatabaseClient.TransactionContext
+  ): InternalId? {
+    val reader =
+      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+        .bindWhereClause(
+          ExternalId(measurementConsumerId),
+          ExternalId(measurementConsumerCertificateId)
+        )
+
+    return reader.execute(transactionContext).singleOrNull()?.let {
+      if (!it.isValid) {
+        throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+      } else it.certificateId
+    }
+      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+  }
+}
