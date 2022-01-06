@@ -22,8 +22,8 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.BucketType
-import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.storage.StorageFactory
 
 class GcsStorageFactory(
   private val storageDetails: StorageDetails,

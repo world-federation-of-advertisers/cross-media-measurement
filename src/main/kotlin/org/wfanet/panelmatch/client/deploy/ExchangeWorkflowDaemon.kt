@@ -32,11 +32,11 @@ import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
-import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
+import org.wfanet.panelmatch.common.storage.StorageFactory
 
 /** Runs ExchangeWorkflows. */
 abstract class ExchangeWorkflowDaemon : Runnable {

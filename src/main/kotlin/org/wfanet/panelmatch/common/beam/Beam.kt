@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.beam
 
 import org.apache.beam.sdk.coders.KvCoder
+import org.apache.beam.sdk.coders.ListCoder
 import org.apache.beam.sdk.coders.NullableCoder
 import org.apache.beam.sdk.transforms.Combine
 import org.apache.beam.sdk.transforms.Count
@@ -238,4 +239,19 @@ inline fun <KeyT, reified ValueT> PCollection<KV<KeyT, ValueT>>.groupByKey(
 
 fun <T> PCollection<T>.toSingletonView(name: String = "ToView"): PCollectionView<T> {
   return apply(name, View.asSingleton())
+}
+
+fun <K, V> PCollection<KV<K, V>>.toMapView(name: String = "ToMapView"): PCollectionView<Map<K, V>> {
+  return apply(name, View.asMap())
+}
+
+/**
+ * Kotlin convenience helper for combining a PCollection of items into a PCollection with a single
+ * list of all items.
+ */
+fun <T> PCollection<T>.combineIntoList(name: String = "CombineIntoList"): PCollection<List<T>> {
+  return map("$name/SingletonLists") { listOf(it) }
+    .setCoder(ListCoder.of(coder))
+    .apply("$name/Combine", Combine.globally { elements: Iterable<List<T>> -> elements.flatten() })
+    .setCoder(ListCoder.of(coder))
 }

@@ -25,9 +25,7 @@ class StorageDetailsProvider(private val secretMap: SecretMap) {
   suspend fun get(recurringExchangeId: String): StorageDetails {
     val serializedStorageDetails =
       secretMap.get(recurringExchangeId)
-        ?: throw StorageNotFoundException(
-          "Private storage for RecurringExchange $recurringExchangeId"
-        )
+        ?: throw BlobNotFoundException("Private storage for RecurringExchange $recurringExchangeId")
 
     @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
     return StorageDetails.parseFrom(serializedStorageDetails)

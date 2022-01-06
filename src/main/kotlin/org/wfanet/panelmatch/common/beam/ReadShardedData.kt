@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership
+package org.wfanet.panelmatch.common.beam
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
@@ -27,13 +27,9 @@ import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.values.PBegin
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
-import org.wfanet.panelmatch.common.beam.flatMap
-import org.wfanet.panelmatch.common.beam.groupByKey
-import org.wfanet.panelmatch.common.beam.keyBy
-import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.parseDelimitedMessages
+import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.toByteString
 
 /** Reads each file mentioned in [fileSpec] as a [ByteString]. */

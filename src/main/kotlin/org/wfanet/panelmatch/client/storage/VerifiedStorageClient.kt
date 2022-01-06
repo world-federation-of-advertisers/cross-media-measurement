@@ -48,9 +48,9 @@ class VerifiedStorageClient(
    * - The validation happens is non-blocking, but will throw a terminal error if it fails.
    * - The final validation does not happen until the Flow the underlying Blob reads is collected.
    */
-  @Throws(StorageNotFoundException::class)
+  @Throws(BlobNotFoundException::class)
   suspend fun getBlob(blobKey: String): VerifiedBlob {
-    val sourceBlob: Blob = storageClient.getBlob(blobKey) ?: throw StorageNotFoundException(blobKey)
+    val sourceBlob: Blob = storageClient.getBlob(blobKey) ?: throw BlobNotFoundException(blobKey)
     val namedSignature = parseSignature(blobKey)
 
     return VerifiedBlob(
@@ -66,7 +66,7 @@ class VerifiedStorageClient(
   private suspend fun parseSignature(blobKey: String): NamedSignature {
     val signatureBlob: Blob =
       storageClient.getBlob(signatureBlobKeyFor(blobKey))
-        ?: throw StorageNotFoundException(signatureBlobKeyFor(blobKey))
+        ?: throw BlobNotFoundException(signatureBlobKeyFor(blobKey))
     val serializedSignature = signatureBlob.toByteString()
 
     @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.

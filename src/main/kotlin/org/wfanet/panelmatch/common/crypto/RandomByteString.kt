@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.common.crypto
 
-import java.io.Serializable
-import org.wfanet.measurement.storage.StorageClient
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
+import java.security.SecureRandom
 
-interface StorageFactory : Serializable {
-  fun build(): StorageClient
+/** Generates a [ByteString] of [sizeBytes] random bytes. */
+fun generateSecureRandomByteString(sizeBytes: Int): ByteString {
+  val bytes = ByteArray(sizeBytes)
+  SecureRandom.getInstanceStrong().nextBytes(bytes)
+  return bytes.toByteString()
 }

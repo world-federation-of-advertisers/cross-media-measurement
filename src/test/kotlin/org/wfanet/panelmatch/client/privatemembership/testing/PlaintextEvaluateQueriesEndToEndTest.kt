@@ -19,7 +19,7 @@ import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 
 class PlaintextEvaluateQueriesEndToEndTest : AbstractEvaluateQueriesEndToEndTest() {
   override fun makeQueryEvaluator(parameters: EvaluateQueriesParameters): QueryEvaluator {
-    return PlaintextQueryEvaluator
+    return PlaintextQueryEvaluator(parameters.numBucketsPerShard)
   }
 
   override fun makeHelper(parameters: EvaluateQueriesParameters): QueryEvaluatorTestHelper {

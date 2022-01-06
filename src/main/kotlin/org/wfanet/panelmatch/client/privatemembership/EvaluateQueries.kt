@@ -39,18 +39,23 @@ fun evaluateQueries(
   database: PCollection<DatabaseEntry>,
   queryBundles: PCollection<EncryptedQueryBundle>,
   serializedPublicKey: PCollectionView<ByteString>,
+  paddingNonces: PCollectionView<Map<QueryId, PaddingNonce>>,
   parameters: EvaluateQueriesParameters,
   queryEvaluator: QueryEvaluator
 ): PCollection<EncryptedQueryResult> {
   return PCollectionTuple.of(EvaluateQueries.databaseTag, database)
     .and(EvaluateQueries.queryBundlesTag, queryBundles)
-    .apply("Evaluate Queries", EvaluateQueries(parameters, queryEvaluator, serializedPublicKey))
+    .apply(
+      "Evaluate Queries",
+      EvaluateQueries(parameters, queryEvaluator, serializedPublicKey, paddingNonces)
+    )
 }
 
 private class EvaluateQueries(
   private val parameters: EvaluateQueriesParameters,
   private val queryEvaluator: QueryEvaluator,
-  private val serializedPublicKey: PCollectionView<ByteString>
+  private val serializedPublicKey: PCollectionView<ByteString>,
+  private val paddingNonces: PCollectionView<Map<QueryId, PaddingNonce>>,
 ) : PTransform<PCollectionTuple, PCollection<EncryptedQueryResult>>() {
 
   override fun expand(input: PCollectionTuple): PCollection<EncryptedQueryResult> {
@@ -58,6 +63,7 @@ private class EvaluateQueries(
     val queryBundles = input[queryBundlesTag]
 
     val bucketing = Bucketing(parameters.numShards, parameters.numBucketsPerShard)
+
     val databaseByShard: PCollection<KV<ShardId, Bucket>> =
       database.map("Form Database Buckets by Shard") { databaseEntry ->
         val (shardId, bucketId) = bucketing.apply(databaseEntry.lookupKey.key)
@@ -75,10 +81,11 @@ private class EvaluateQueries(
             EvaluateQueriesForShardFn(
               parameters.maxQueriesPerShard,
               queryEvaluator,
-              serializedPublicKey
+              serializedPublicKey,
+              paddingNonces,
             )
           )
-          .withSideInputs(serializedPublicKey)
+          .withSideInputs(serializedPublicKey, paddingNonces)
       )
   }
 
@@ -91,7 +98,8 @@ private class EvaluateQueries(
 private class EvaluateQueriesForShardFn(
   private val maxQueriesPerShard: Int,
   private val queryEvaluator: QueryEvaluator,
-  private val serializedPublicKey: PCollectionView<ByteString>
+  private val serializedPublicKey: PCollectionView<ByteString>,
+  private val paddingNonces: PCollectionView<Map<QueryId, PaddingNonce>>
 ) : DoFn<KV<ShardId, CoGbkResult>, EncryptedQueryResult>() {
   private val metricsNamespace = "EvaluateQueries"
 
@@ -147,9 +155,10 @@ private class EvaluateQueriesForShardFn(
     val shard = databaseShardOf(context.element().key, combinedBuckets)
 
     val publicKey = context.sideInput(serializedPublicKey)
+    val nonces = context.sideInput(paddingNonces)
 
     val (results, time) =
-      withTime { queryEvaluator.executeQueries(listOf(shard), queries, publicKey) }
+      withTime { queryEvaluator.executeQueries(listOf(shard), queries, nonces, publicKey) }
     queryEvaluatorTimes.update(time.toNanos())
 
     for (result in results) {

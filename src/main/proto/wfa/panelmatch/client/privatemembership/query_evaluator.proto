@@ -33,3 +33,11 @@ message Bucket {
   BucketId bucket_id = 1;
   BucketContents contents = 2;
 }
+
+message PaddingNonce {
+  bytes nonce = 1;
+}
+
+message PaddingNonces {
+  repeated PaddingNonce nonces = 1;
+}

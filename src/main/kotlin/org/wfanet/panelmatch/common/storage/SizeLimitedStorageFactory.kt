@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage.aws.s3
+package org.wfanet.panelmatch.common.storage
 
-import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.storage.StorageDetails
-import org.wfanet.panelmatch.common.ExchangeDateKey
-import org.wfanet.panelmatch.common.storage.StorageFactory
-import software.amazon.awssdk.services.s3.S3Client
 
-/** [StorageFactory] for [S3StorageClient]. */
-class S3StorageFactory(
-  private val storageDetails: StorageDetails,
-  private val exchangeDateKey: ExchangeDateKey
+/** [StorageFactory] for [SizeLimitedStorageClient]. */
+private class SizeLimitedStorageFactory(
+  private val sizeLimitBytes: Long,
+  private val delegate: StorageFactory
 ) : StorageFactory {
-
   override fun build(): StorageClient {
-    return S3StorageClient(S3Client.create(), storageDetails.aws.bucket)
+    return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())
   }
+}
+
+/** Wraps a [StorageFactory] to limit blob sizes. */
+fun StorageFactory.withBlobSizeLimit(sizeLimitBytes: Long): StorageFactory {
+  return SizeLimitedStorageFactory(sizeLimitBytes, this)
 }

@@ -23,16 +23,23 @@ import com.google.privatemembership.batch.server.Server.RawDatabaseShard
 import com.google.privatemembership.batch.server.applyQueriesRequest
 import com.google.privatemembership.batch.server.rawDatabaseShard
 import com.google.protobuf.ByteString
+import org.wfanet.panelmatch.client.common.encryptedQueryResultOf
 import org.wfanet.panelmatch.client.common.queryIdOf
-import org.wfanet.panelmatch.client.common.resultOf
 
 /** [QueryEvaluator] that calls into C++ via JNI. */
 class JniQueryEvaluator(serializedParameters: ByteString) : QueryEvaluator {
   private val privateMembershipParameters: Parameters = Parameters.parseFrom(serializedParameters)
 
+  init {
+    check(privateMembershipParameters.shardParameters.enablePaddingNonces) {
+      "Padding Nonces are required"
+    }
+  }
+
   override fun executeQueries(
     shards: List<DatabaseShard>,
     queryBundles: List<EncryptedQueryBundle>,
+    paddingNonces: Map<QueryId, PaddingNonce>,
     serializedPublicKey: ByteString
   ): List<EncryptedQueryResult> {
     val presentDatabaseShards = shards.map { it.shardId.id }.toSet()
@@ -45,11 +52,16 @@ class JniQueryEvaluator(serializedParameters: ByteString) : QueryEvaluator {
       parameters = privateMembershipParameters
       publicKey = PublicKey.parseFrom(serializedPublicKey)
       finalizeResults = true
-      queries += queryBundles.map(EncryptedQueryBundle::encryptedQueries)
-      rawDatabase =
-        rawDatabase {
-          this.shards += shards.map(DatabaseShard::toPrivateMembershipRawDatabaseShard)
+
+      for (bundle in queryBundles) {
+        queries += bundle.encryptedQueries
+        for (queryId in bundle.queryIdsList) {
+          this.paddingNonces[queryId.id] = paddingNonces.getValue(queryId).nonce
         }
+      }
+
+      rawDatabase =
+        rawDatabase { this.shards += shards.map { it.toPrivateMembershipRawDatabaseShard() } }
     }
 
     check(request.queriesList.all { !it.prngSeed.isEmpty })
@@ -63,7 +75,7 @@ class JniQueryEvaluator(serializedParameters: ByteString) : QueryEvaluator {
     }
 
     return response.queryResultsList.map { encryptedQueryResult ->
-      resultOf(
+      encryptedQueryResultOf(
         queryIdOf(encryptedQueryResult.queryMetadata.queryId),
         encryptedQueryResult.toByteString()
       )

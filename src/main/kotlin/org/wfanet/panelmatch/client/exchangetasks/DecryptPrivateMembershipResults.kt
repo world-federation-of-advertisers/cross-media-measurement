@@ -75,5 +75,5 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       hkdfPepper,
     )
 
-  keyedDecryptedEventDataSet.write("decrypted-event-data")
+  keyedDecryptedEventDataSet.writeShardedFiles("decrypted-event-data")
 }

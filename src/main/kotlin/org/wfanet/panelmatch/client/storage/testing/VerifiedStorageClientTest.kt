@@ -18,7 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.panelmatch.client.storage.StorageNotFoundException
+import org.wfanet.panelmatch.client.storage.BlobNotFoundException
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -36,7 +36,7 @@ abstract class VerifiedStorageClientTest {
 
   @Test
   fun readMissingKeyFails() = runBlockingTest {
-    assertFailsWith<StorageNotFoundException> { storage.getBlob(KEY) }
+    assertFailsWith<BlobNotFoundException> { storage.getBlob(KEY) }
   }
 
   @Test

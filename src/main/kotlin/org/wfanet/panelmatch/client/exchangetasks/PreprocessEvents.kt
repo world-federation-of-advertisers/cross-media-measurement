@@ -61,5 +61,5 @@ suspend fun ApacheBeamContext.preprocessEvents(
       compressionParameters,
     )
 
-  preprocessedEvents.write("preprocessed-event-data")
+  preprocessedEvents.writeShardedFiles("preprocessed-event-data")
 }

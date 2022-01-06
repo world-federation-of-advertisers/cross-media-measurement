@@ -21,13 +21,16 @@ import org.junit.Test
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.bucketOf
 import org.wfanet.panelmatch.client.common.databaseShardOf
+import org.wfanet.panelmatch.client.common.paddingNonceOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.DatabaseShard
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
+import org.wfanet.panelmatch.client.privatemembership.PaddingNonce
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
+import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
 import org.wfanet.panelmatch.client.privatemembership.testing.QueryEvaluatorTestHelper.DecodedResult
 
@@ -58,7 +61,11 @@ abstract class AbstractQueryEvaluatorTest {
           queries = listOf(504 to 0, 505 to 1, 506 to 2, 507 to 3)
         )
       )
-    val results = evaluator.executeQueries(database, queryBundles, helper.serializedPublicKey)
+    val paddingNonces = makePaddingNonces(500..507)
+
+    val results =
+      evaluator.executeQueries(database, queryBundles, paddingNonces, helper.serializedPublicKey)
+
     assertThat(results.map { it.queryId to helper.decodeResultData(it) })
       .containsExactly(
         queryIdOf(500) to makeFakeBucketData(bucket = 0, shard = 100),
@@ -85,8 +92,10 @@ abstract class AbstractQueryEvaluatorTest {
         encryptedQueryBundleOf(shard = 100, queries = listOf(500 to 1)),
         encryptedQueryBundleOf(shard = 101, queries = listOf(501 to 1))
       )
+    val paddingNonces = makePaddingNonces(listOf(500, 501))
 
-    val results = evaluator.executeQueries(database, queryBundles, helper.serializedPublicKey)
+    val results =
+      evaluator.executeQueries(database, queryBundles, paddingNonces, helper.serializedPublicKey)
     assertThat(results.map { helper.decodeResult(it) })
       .containsExactly(
         DecodedResult(500, makeFakeBucketData(bucket = 1, shard = 100)),
@@ -118,4 +127,10 @@ private fun databaseShardOf(shard: Int, buckets: List<Int>): DatabaseShard {
 
 private fun makeFakeBucketData(bucket: Int, shard: Int): BucketContents {
   return bucketContents { items += "bucket:$bucket-shard:$shard".toByteStringUtf8() }
+}
+
+private fun makePaddingNonces(queryIds: Iterable<Int>): Map<QueryId, PaddingNonce> {
+  return queryIds.associate {
+    queryIdOf(it) to paddingNonceOf("padding-nonce-$it".toByteStringUtf8())
+  }
 }

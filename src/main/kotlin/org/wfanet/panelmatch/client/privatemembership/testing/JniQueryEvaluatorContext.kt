@@ -28,7 +28,8 @@ class JniQueryEvaluatorContext(shardCount: Int, bucketsPerShardCount: Int) : Ser
     shardParameters =
       shardParameters {
         numberOfShards = shardCount
-        numberOfBucketsPerShard = bucketsPerShardCount
+        numberOfBucketsPerShard = bucketsPerShardCount + 1 // To account for padding queries
+        enablePaddingNonces = true
       }
     cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
   }

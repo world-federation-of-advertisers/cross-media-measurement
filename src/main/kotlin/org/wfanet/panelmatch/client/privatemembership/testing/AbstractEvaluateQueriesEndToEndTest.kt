@@ -25,6 +25,7 @@ import org.junit.Test
 import org.wfanet.panelmatch.client.common.databaseEntryOf
 import org.wfanet.panelmatch.client.common.encryptedEntryOf
 import org.wfanet.panelmatch.client.common.lookupKeyOf
+import org.wfanet.panelmatch.client.common.paddingNonceOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.Bucketing
@@ -32,10 +33,12 @@ import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
+import org.wfanet.panelmatch.client.privatemembership.PaddingNonce
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
+import org.wfanet.panelmatch.client.privatemembership.paddingNonceMapCoder
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
 import org.wfanet.panelmatch.common.beam.testing.assertThat
 
@@ -101,11 +104,17 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
 
     val queryBundlesPCollection = pipeline.apply("Create QueryBundles", Create.of(queryBundles))
 
+    val paddingNonces: Map<QueryId, PaddingNonce> =
+      rawQueries.associate {
+        it.second to paddingNonceOf("padding-nonce-for-${it.second.id}".toByteStringUtf8())
+      }
+
     val results: PCollection<EncryptedQueryResult> =
       evaluateQueries(
         databasePCollection,
         queryBundlesPCollection,
         pcollectionViewOf("Create SerializedPublicKey", helper.serializedPublicKey),
+        pcollectionViewOf("Create Padding Nonces", paddingNonces, coder = paddingNonceMapCoder),
         parameters,
         queryEvaluator
       )
