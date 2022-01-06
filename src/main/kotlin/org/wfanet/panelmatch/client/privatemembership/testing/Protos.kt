@@ -17,7 +17,7 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.client.common.bucketIdOf
-import org.wfanet.panelmatch.client.common.decryptedQueryOf
+import org.wfanet.panelmatch.client.common.decryptedQueryResultOf
 import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
 import org.wfanet.panelmatch.client.common.joinKeyOf
 import org.wfanet.panelmatch.client.common.plaintextOf
@@ -58,7 +58,7 @@ fun encryptedEventDataSetOf(ciphertexts: List<String>, query: Int): EncryptedEve
 
 /** Constructs a [DecryptedQueryResult]. */
 fun decryptedQueryOf(query: Int, queryResult: ByteString): DecryptedQueryResult =
-  decryptedQueryOf(queryIdOf(query), listOf(queryResult))
+  decryptedQueryResultOf(queryIdOf(query), listOf(queryResult))
 
 fun plaintextOf(payload: String): Plaintext = plaintextOf(payload.toByteStringUtf8())
 

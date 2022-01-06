@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership
+package org.wfanet.panelmatch.common.beam
 
 import com.google.protobuf.Message
 import kotlinx.coroutines.Dispatchers
@@ -30,9 +30,8 @@ import org.apache.beam.sdk.values.PInput
 import org.apache.beam.sdk.values.POutput
 import org.apache.beam.sdk.values.PValue
 import org.apache.beam.sdk.values.TupleTag
-import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
-import org.wfanet.panelmatch.common.beam.keyBy
+import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 import org.wfanet.panelmatch.common.toDelimitedByteString
 

@@ -349,8 +349,9 @@ steps {
     # unserialized_parameters:
     # shard_parameters {
     #   number_of_shards: 1
-    #   number_of_buckets_per_shard: 10
+    #   number_of_buckets_per_shard: 11
     #   required_queries_per_shard: 1
+    #   enable_padding_nonces: 1
     # }
     # crypto_parameters {
     #   request_modulus: 18446744073708380161
@@ -363,7 +364,7 @@ steps {
     #   log_compression_factor: 4
     #   log_decomposition_modulus: 10
     # }
-    serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
+    serialized_parameters: "\n\b\b\001\020\v\030\001(\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
   }
 
   output_labels { key: "private-key" value: "mp-serialized-rlwe-private-key" }
@@ -376,7 +377,7 @@ steps {
   party: MODEL_PROVIDER
 
   build_private_membership_queries_step {
-    serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
+    serialized_parameters: "\n\b\b\001\020\v\030\001(\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
     encrypted_query_bundle_file_count: 1
     query_id_to_ids_file_count: 1
     num_shards: 1
@@ -475,7 +476,7 @@ steps {
   party: DATA_PROVIDER
 
   execute_private_membership_queries_step {
-    serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
+    serialized_parameters: "\n\b\b\001\020\v\030\001(\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
     encrypted_query_result_file_count: 1
     num_shards: 1
     num_buckets_per_shard: 10
@@ -487,6 +488,7 @@ steps {
   input_labels { key: "serialized-rlwe-public-key" value: "edp-serialized-rlwe-public-key" }
 
   output_labels { key: "encrypted-results" value: "edp-encrypted-query-results" }
+  output_labels { key: "padding-nonces" value: "edp-padding-nonces" }
 }
 
 # EDP exports its encrypted query results.
@@ -517,7 +519,7 @@ steps {
   party: MODEL_PROVIDER
 
   decrypt_private_membership_query_results_step {
-    serialized_parameters: "\n\006\b\001\020\n\030\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
+    serialized_parameters: "\n\b\b\001\020\v\030\001(\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
     decrypt_event_data_set_file_count: 1
   }
 

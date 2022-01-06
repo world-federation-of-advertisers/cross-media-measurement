@@ -18,8 +18,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.listValue
 import com.google.protobuf.value
-import org.wfanet.panelmatch.client.common.queryBundleOf
-import org.wfanet.panelmatch.client.common.resultOf
+import org.wfanet.panelmatch.client.common.encryptedQueryBundleOf
+import org.wfanet.panelmatch.client.common.encryptedQueryResultOf
 import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryBundle
@@ -42,7 +42,7 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
     shard: ShardId,
     queries: List<Pair<QueryId, BucketId>>
   ): EncryptedQueryBundle {
-    return queryBundleOf(
+    return encryptedQueryBundleOf(
       shard,
       queries.map { it.first },
       listValue {
@@ -55,7 +55,7 @@ object PlaintextQueryEvaluatorTestHelper : QueryEvaluatorTestHelper {
   }
 
   override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {
-    return resultOf(query, rawPayload)
+    return encryptedQueryResultOf(query, rawPayload)
   }
 
   override fun makeEmptyResult(query: QueryId): EncryptedQueryResult {

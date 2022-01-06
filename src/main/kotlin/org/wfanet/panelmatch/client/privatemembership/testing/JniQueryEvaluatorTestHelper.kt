@@ -24,7 +24,7 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.bucketOf
 import org.wfanet.panelmatch.client.common.databaseShardOf
-import org.wfanet.panelmatch.client.common.queryBundleOf
+import org.wfanet.panelmatch.client.common.encryptedQueryBundleOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.BucketContents
 import org.wfanet.panelmatch.client.privatemembership.BucketId
@@ -35,6 +35,7 @@ import org.wfanet.panelmatch.client.privatemembership.JniQueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.bucketContents
+import org.wfanet.panelmatch.client.privatemembership.paddingNonce
 
 class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext) :
   QueryEvaluatorTestHelper {
@@ -76,7 +77,11 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
         }
     }
     val response = JniPrivateMembership.encryptQueries(request)
-    return queryBundleOf(shard, queries.map { it.first }, response.encryptedQueries.toByteString())
+    return encryptedQueryBundleOf(
+      shard,
+      queries.map { it.first },
+      response.encryptedQueries.toByteString()
+    )
   }
 
   override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {
@@ -85,6 +90,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
       .executeQueries(
         listOf(databaseShardOf(shardIdOf(0), listOf(bucketOf(bucketIdOf(0), listOf(rawPayload))))),
         listOf(makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))),
+        mapOf(query to paddingNonce {}),
         serializedPublicKey
       )
       .single()
@@ -98,9 +104,15 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
         listOf(bucketOf(bucketIdOf(1), listOf("some-unused-payload".toByteStringUtf8())))
       )
     val queryBundle = makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))
+    val paddingNonces = mapOf(query to paddingNonce {})
 
     return JniQueryEvaluator(context.privateMembershipParameters.toByteString())
-      .executeQueries(listOf(databaseShard), listOf(queryBundle), serializedPublicKey)
+      .executeQueries(
+        listOf(databaseShard),
+        listOf(queryBundle),
+        paddingNonces,
+        serializedPublicKey
+      )
       .single()
   }
 

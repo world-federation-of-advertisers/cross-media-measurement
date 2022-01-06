@@ -16,9 +16,9 @@ package org.wfanet.panelmatch.client.deploy
 
 import kotlin.properties.Delegates
 import org.wfanet.panelmatch.client.storage.StorageDetails
-import org.wfanet.panelmatch.client.storage.StorageFactory
-import org.wfanet.panelmatch.client.storage.withBlobSizeLimit
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.withBlobSizeLimit
 import picocli.CommandLine
 
 class BlobSizeFlags {

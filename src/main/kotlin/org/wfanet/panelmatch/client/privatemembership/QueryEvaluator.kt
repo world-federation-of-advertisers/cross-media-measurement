@@ -23,6 +23,7 @@ interface QueryEvaluator : Serializable {
   fun executeQueries(
     shards: List<DatabaseShard>,
     queryBundles: List<EncryptedQueryBundle>,
+    paddingNonces: Map<QueryId, PaddingNonce>,
     serializedPublicKey: ByteString
   ): List<EncryptedQueryResult>
 }

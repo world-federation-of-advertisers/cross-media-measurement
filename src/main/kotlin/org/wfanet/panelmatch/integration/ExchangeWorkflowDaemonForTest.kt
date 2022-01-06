@@ -44,7 +44,6 @@ import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt.fileStorage
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
-import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.Timeout
@@ -53,6 +52,7 @@ import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
+import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.toByteString
 
 /** Executes ExchangeWorkflows for InProcess Integration testing. */

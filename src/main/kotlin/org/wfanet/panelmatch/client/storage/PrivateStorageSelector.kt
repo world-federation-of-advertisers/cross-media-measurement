@@ -18,6 +18,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.client.storage.StorageDetails.Visibility.PRIVATE
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.storage.StorageFactory
 
 /**
  * Builds storage clients for the panel exchange workflow.

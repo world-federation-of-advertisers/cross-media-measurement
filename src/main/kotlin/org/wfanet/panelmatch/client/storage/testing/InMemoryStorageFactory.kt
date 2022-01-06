@@ -16,7 +16,7 @@ package org.wfanet.panelmatch.client.storage.testing
 
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.StorageFactory
 
 class InMemoryStorageFactory(
   private val underylingStorage: InMemoryStorageClient = InMemoryStorageClient()

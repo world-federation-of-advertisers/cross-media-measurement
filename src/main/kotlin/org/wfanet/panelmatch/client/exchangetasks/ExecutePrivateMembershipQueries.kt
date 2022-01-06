@@ -15,12 +15,21 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.panelmatch.client.common.paddingNonceOf
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.EvaluateQueriesParameters
+import org.wfanet.panelmatch.client.privatemembership.PaddingNonce
 import org.wfanet.panelmatch.client.privatemembership.QueryEvaluator
 import org.wfanet.panelmatch.client.privatemembership.databaseEntry
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryBundle
 import org.wfanet.panelmatch.client.privatemembership.evaluateQueries
+import org.wfanet.panelmatch.client.privatemembership.paddingNonces
+import org.wfanet.panelmatch.common.beam.combineIntoList
+import org.wfanet.panelmatch.common.beam.flatMap
+import org.wfanet.panelmatch.common.beam.kvOf
+import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.toMapView
+import org.wfanet.panelmatch.common.crypto.generateSecureRandomByteString
 
 /** Evaluates Private Membership queries. */
 suspend fun ApacheBeamContext.executePrivateMembershipQueries(
@@ -31,14 +40,32 @@ suspend fun ApacheBeamContext.executePrivateMembershipQueries(
   val queries = readShardedPCollection("encrypted-queries", encryptedQueryBundle {})
   val privateMembershipPublicKey = readBlobAsView("serialized-rlwe-public-key")
 
+  val paddingNonces =
+    queries.flatMap("Build Padding Nonces") { bundle ->
+      bundle.queryIdsList.map { kvOf(it, generatePaddingNonce()) }
+    }
+
   val results: PCollection<EncryptedQueryResult> =
     evaluateQueries(
       database,
       queries,
       privateMembershipPublicKey,
+      paddingNonces.toMapView("Padding Nonces View"),
       evaluateQueriesParameters,
       queryEvaluator
     )
 
-  results.write("encrypted-results")
+  results.writeShardedFiles("encrypted-results")
+
+  paddingNonces
+    .map("Extract Nonces") { it.value }
+    .combineIntoList("Aggregate Padding Nonces")
+    .map("Build PaddingNonces proto") { paddingNonces { nonces += it } }
+    .writeSingleBlob("padding-nonces")
+}
+
+private const val PADDING_NONCE_SIZE_BYTES = 16
+
+private fun generatePaddingNonce(): PaddingNonce {
+  return paddingNonceOf(generateSecureRandomByteString(PADDING_NONCE_SIZE_BYTES))
 }

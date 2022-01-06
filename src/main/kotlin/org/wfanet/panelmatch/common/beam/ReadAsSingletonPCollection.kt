@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.privatemembership
+package org.wfanet.panelmatch.common.beam
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +23,7 @@ import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.values.PBegin
 import org.apache.beam.sdk.values.PCollection
-import org.wfanet.panelmatch.client.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.toByteString
 
 /** Reads a blob into a PCollection. */

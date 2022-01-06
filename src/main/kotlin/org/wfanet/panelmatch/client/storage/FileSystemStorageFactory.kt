@@ -19,6 +19,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.loggerFor
+import org.wfanet.panelmatch.common.storage.StorageFactory
 
 class FileSystemStorageFactory(
   private val storageDetails: StorageDetails,

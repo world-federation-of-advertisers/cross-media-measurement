@@ -17,8 +17,8 @@ package org.wfanet.panelmatch.client.privatemembership.testing
 import com.google.protobuf.ListValue
 import com.google.protobuf.listValue
 import com.google.protobuf.value
-import org.wfanet.panelmatch.client.common.queryBundleOf
-import org.wfanet.panelmatch.client.common.resultOf
+import org.wfanet.panelmatch.client.common.encryptedQueryBundleOf
+import org.wfanet.panelmatch.client.common.encryptedQueryResultOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.privatemembership.BucketId
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
@@ -44,7 +44,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
     shard: ShardId,
     queries: List<Pair<QueryId, BucketId>>
   ): EncryptedQueryBundle {
-    return queryBundleOf(
+    return encryptedQueryBundleOf(
       shard,
       queries.map { it.first },
       listValue {
@@ -73,7 +73,7 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
     keys: AsymmetricKeyPair,
     encryptedEventDataSet: EncryptedEventDataSet
   ): EncryptedQueryResult {
-    return resultOf(
+    return encryptedQueryResultOf(
       encryptedEventDataSet.queryId,
       encryptedEventDataSet.encryptedEventData.toByteString()
     )

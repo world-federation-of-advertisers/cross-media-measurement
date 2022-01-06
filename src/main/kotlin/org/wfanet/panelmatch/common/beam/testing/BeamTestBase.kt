@@ -69,8 +69,13 @@ open class BeamTestBase {
     return pipeline.apply(name, Create.of(values))
   }
 
-  inline fun <reified T : Any> pcollectionViewOf(name: String, value: T): PCollectionView<T> {
-    return pcollectionOf("$name:Create", value).apply("$name:View", View.asSingleton())
+  inline fun <reified T : Any> pcollectionViewOf(
+    name: String,
+    value: T,
+    coder: Coder<T>? = null
+  ): PCollectionView<T> {
+    return pcollectionOf("$name:Create", value, coder = coder)
+      .apply("$name:View", View.asSingleton())
   }
 }
 

@@ -27,6 +27,7 @@ import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.databaseEntryOf
 import org.wfanet.panelmatch.client.common.encryptedEntryOf
 import org.wfanet.panelmatch.client.common.lookupKeyOf
+import org.wfanet.panelmatch.client.common.paddingNonceOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.privatemembership.testing.PlaintextQueryEvaluator
@@ -42,6 +43,7 @@ class EvaluateQueriesTest : BeamTestBase() {
 
   private fun runWorkflow(
     queryBundles: List<EncryptedQueryBundle>,
+    paddingNonces: Map<QueryId, PaddingNonce>,
     parameters: EvaluateQueriesParameters
   ): PCollection<EncryptedQueryResult> {
     return evaluateQueries(
@@ -51,8 +53,9 @@ class EvaluateQueriesTest : BeamTestBase() {
         "Create SerializedPublicKey",
         PlaintextQueryEvaluatorTestHelper.serializedPublicKey
       ),
+      pcollectionViewOf("Create Padding Nonces", paddingNonces, coder = paddingNonceMapCoder),
       parameters,
-      PlaintextQueryEvaluator
+      PlaintextQueryEvaluator(parameters.numBucketsPerShard)
     )
   }
 
@@ -67,8 +70,32 @@ class EvaluateQueriesTest : BeamTestBase() {
     val queryBundles =
       listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
 
-    assertThat(runWorkflow(queryBundles, parameters))
-      .containsInAnyOrder(resultOf(100, "ghi"), resultOf(101, "ghi"), resultOf(102, "abc"))
+    val paddingNonces = makePaddingNonces(100..102)
+
+    assertThat(runWorkflow(queryBundles, paddingNonces, parameters))
+      .containsInAnyOrder(
+        encryptedQueryResultOf(100, "ghi"),
+        encryptedQueryResultOf(101, "ghi"),
+        encryptedQueryResultOf(102, "abc"),
+      )
+  }
+
+  @Test
+  fun `padding nonce`() {
+    val parameters =
+      EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
+
+    val queryBundles = listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 5)))
+
+    val paddingNonces = makePaddingNonces(listOf(100))
+
+    assertThat(runWorkflow(queryBundles, paddingNonces, parameters))
+      .containsInAnyOrder(
+        PlaintextQueryEvaluatorTestHelper.makeResult(
+          paddingNonces.keys.single(),
+          paddingNonces.values.single().nonce
+        )
+      )
   }
 
   @Test
@@ -85,12 +112,14 @@ class EvaluateQueriesTest : BeamTestBase() {
         encryptedQueryBundleOf(shard = 1, listOf(101 to 0, 102 to 0, 103 to 1))
       )
 
-    assertThat(runWorkflow(queryBundles, parameters))
+    val paddingNonces = makePaddingNonces(100..103)
+
+    assertThat(runWorkflow(queryBundles, paddingNonces, parameters))
       .containsInAnyOrder(
-        resultOf(100, "def"),
-        resultOf(101, "ghi"),
-        resultOf(102, "ghi"),
-        resultOf(103, "abc")
+        encryptedQueryResultOf(100, "def"),
+        encryptedQueryResultOf(101, "ghi"),
+        encryptedQueryResultOf(102, "ghi"),
+        encryptedQueryResultOf(103, "abc")
       )
   }
 
@@ -109,13 +138,15 @@ class EvaluateQueriesTest : BeamTestBase() {
         encryptedQueryBundleOf(shard = 1, listOf(104 to 1)),
       )
 
-    assertThat(runWorkflow(queryBundles, parameters))
+    val paddingNonces = makePaddingNonces(100..104)
+
+    assertThat(runWorkflow(queryBundles, paddingNonces, parameters))
       .containsInAnyOrder(
-        resultOf(100, "ghi"),
-        resultOf(101, "abc"),
-        resultOf(102, "jkl"),
-        resultOf(103, "ghi"),
-        resultOf(104, "abc")
+        encryptedQueryResultOf(100, "ghi"),
+        encryptedQueryResultOf(101, "abc"),
+        encryptedQueryResultOf(102, "jkl"),
+        encryptedQueryResultOf(103, "ghi"),
+        encryptedQueryResultOf(104, "abc")
       )
   }
 
@@ -126,7 +157,9 @@ class EvaluateQueriesTest : BeamTestBase() {
 
     val queryBundles = listOf(encryptedQueryBundleOf(shard = 0, listOf(17 to 0)))
 
-    assertThat(runWorkflow(queryBundles, parameters)).satisfies {
+    val paddingNonces = makePaddingNonces(listOf(17))
+
+    assertThat(runWorkflow(queryBundles, paddingNonces, parameters)).satisfies {
       val list = it.toList()
       assertThat(list).hasSize(1)
       assertThat(list[0].queryId).isEqualTo(queryIdOf(17))
@@ -148,7 +181,27 @@ class EvaluateQueriesTest : BeamTestBase() {
     val queryBundles =
       listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
 
-    runWorkflow(queryBundles, parameters)
+    val paddingNonces = makePaddingNonces(100..102)
+
+    runWorkflow(queryBundles, paddingNonces, parameters)
+
+    assertFails { pipeline.run() }
+  }
+
+  @Test
+  fun `missing padding nonce`() {
+    // With `parameters`, we expect database to have:
+    //  - Shard 0: bucket 4 with "def" in it
+    //  - Shard 1: buckets 0 with "ghi", 1 with "abc", and 2 with "jkl"
+    val parameters =
+      EvaluateQueriesParameters(numShards = 2, numBucketsPerShard = 5, maxQueriesPerShard = 5)
+
+    val queryBundles =
+      listOf(encryptedQueryBundleOf(shard = 1, listOf(100 to 0, 101 to 0, 102 to 1)))
+
+    val paddingNonces = makePaddingNonces(listOf(100, 102)) // 101 is missing
+
+    runWorkflow(queryBundles, paddingNonces, parameters)
 
     assertFails { pipeline.run() }
   }
@@ -163,7 +216,7 @@ class EvaluateQueriesTest : BeamTestBase() {
   }
 }
 
-private fun resultOf(query: Int, rawPayload: String): EncryptedQueryResult {
+private fun encryptedQueryResultOf(query: Int, rawPayload: String): EncryptedQueryResult {
   return PlaintextQueryEvaluatorTestHelper.makeResult(
     queryIdOf(query),
     bucketContents { items += rawPayload.toByteStringUtf8() }.toByteString()
@@ -178,4 +231,10 @@ private fun encryptedQueryBundleOf(
     shardIdOf(shard),
     queries.map { queryIdOf(it.first) to bucketIdOf(it.second) }
   )
+}
+
+private fun makePaddingNonces(queryIds: Iterable<Int>): Map<QueryId, PaddingNonce> {
+  return queryIds.associate {
+    queryIdOf(it) to paddingNonceOf("padding-nonce-for-$it".toByteStringUtf8())
+  }
 }

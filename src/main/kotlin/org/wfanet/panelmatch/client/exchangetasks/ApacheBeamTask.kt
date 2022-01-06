@@ -21,19 +21,21 @@ import kotlinx.coroutines.flow.flowOf
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.PipelineResult
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.panelmatch.client.storage.StorageFactory
 import org.wfanet.panelmatch.common.ShardedFileName
+import org.wfanet.panelmatch.common.storage.StorageFactory
 
 /** Executes Exchange Steps that rely on Apache Beam. */
 class ApacheBeamTask(
   private val pipeline: Pipeline,
   private val storageFactory: StorageFactory,
   private val inputLabels: Map<String, String>,
+  private val outputLabels: Map<String, String>,
   private val outputManifests: Map<String, ShardedFileName>,
   private val executeOnPipeline: suspend ApacheBeamContext.() -> Unit
 ) : ExchangeTask {
   override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
-    val context = ApacheBeamContext(pipeline, outputManifests, inputLabels, input, storageFactory)
+    val context =
+      ApacheBeamContext(pipeline, outputManifests, outputLabels, inputLabels, input, storageFactory)
     context.executeOnPipeline()
 
     val finalState = pipeline.run().waitUntilFinish()

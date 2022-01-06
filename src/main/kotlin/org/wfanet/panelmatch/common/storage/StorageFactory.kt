@@ -12,22 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage
+package org.wfanet.panelmatch.common.storage
 
+import java.io.Serializable
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.common.storage.SizeLimitedStorageClient
 
-/** [StorageFactory] for [SizeLimitedStorageClient]. */
-private class SizeLimitedStorageFactory(
-  private val sizeLimitBytes: Long,
-  private val delegate: StorageFactory
-) : StorageFactory {
-  override fun build(): StorageClient {
-    return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())
-  }
-}
-
-/** Wraps a [StorageFactory] to limit blob sizes. */
-fun StorageFactory.withBlobSizeLimit(sizeLimitBytes: Long): StorageFactory {
-  return SizeLimitedStorageFactory(sizeLimitBytes, this)
+interface StorageFactory : Serializable {
+  fun build(): StorageClient
 }
