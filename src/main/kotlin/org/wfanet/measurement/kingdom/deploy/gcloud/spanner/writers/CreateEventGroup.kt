@@ -86,6 +86,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
       .execute(transactionContext)
       .singleOrNull()
+      ?.eventGroup
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
