@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -42,7 +43,9 @@ private val BASE_SQL =
     JOIN DataProviders USING (DataProviderId)
     """.trimIndent()
 
-class EventGroupReader : BaseSpannerReader<EventGroup>() {
+class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
+  data class Result(val eventGroup: EventGroup, val internalEventGroupId: InternalId)
+
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
 
   /** Fills [builder], returning this [RequisitionReader] for chaining. */
@@ -67,7 +70,7 @@ class EventGroupReader : BaseSpannerReader<EventGroup>() {
   suspend fun readByExternalId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalEventGroupId: Long,
-  ): EventGroup? {
+  ): Result? {
     val externalEventGroupIdParam = "externalEventGroupId"
 
     return fillStatementBuilder {
@@ -84,7 +87,8 @@ class EventGroupReader : BaseSpannerReader<EventGroup>() {
       .singleOrNull()
   }
 
-  override suspend fun translate(struct: Struct): EventGroup = buildEventGroup(struct)
+  override suspend fun translate(struct: Struct): Result =
+    Result(buildEventGroup(struct), InternalId(struct.getLong("EventGroupId")))
 
   private fun buildEventGroup(struct: Struct): EventGroup =
     EventGroup.newBuilder()

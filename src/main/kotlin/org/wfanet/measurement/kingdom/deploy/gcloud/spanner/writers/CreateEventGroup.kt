@@ -106,6 +106,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
       .execute(transactionContext)
       .singleOrNull()
+      ?.eventGroup
   }
 
   private suspend fun checkValidCertificate(
