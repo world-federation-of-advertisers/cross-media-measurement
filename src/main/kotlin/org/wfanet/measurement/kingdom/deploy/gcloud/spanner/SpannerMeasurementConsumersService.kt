@@ -75,7 +75,9 @@ class SpannerMeasurementConsumersService(
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND -> throw e
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -123,7 +125,9 @@ class SpannerMeasurementConsumersService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -160,7 +164,9 @@ class SpannerMeasurementConsumersService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }

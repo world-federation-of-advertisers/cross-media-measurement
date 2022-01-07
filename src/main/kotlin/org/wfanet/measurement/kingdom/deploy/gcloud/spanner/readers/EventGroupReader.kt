@@ -66,17 +66,21 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   suspend fun readByExternalId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalEventGroupId: Long,
+    externalDataProviderId: Long,
   ): Result? {
     val externalEventGroupIdParam = "externalEventGroupId"
+    val externalDataProviderIdParam = "externalDataProviderId"
 
     return fillStatementBuilder {
         appendClause(
           """
           WHERE
             ExternalEventGroupId = @$externalEventGroupIdParam
+            AND ExternalDataProviderId = @$externalDataProviderIdParam
           """.trimIndent()
         )
         bind(externalEventGroupIdParam to externalEventGroupId)
+        bind(externalDataProviderIdParam to externalDataProviderId)
         appendClause("LIMIT 1")
       }
       .execute(readContext)

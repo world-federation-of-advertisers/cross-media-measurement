@@ -31,17 +31,18 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 class UpdateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
-    val internalEventGroup =
+    val internalEventGroupResult =
       EventGroupReader()
-        .readByExternalId(transactionContext, eventGroup.externalEventGroupId)
-        ?.eventGroup
-        ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
-    if (internalEventGroup.externalDataProviderId != eventGroup.externalDataProviderId) {
-      throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
-    }
-    if (internalEventGroup.externalMeasurementConsumerId != eventGroup.externalMeasurementConsumerId
+        .readByExternalId(
+          transactionContext,
+          eventGroup.externalEventGroupId,
+          eventGroup.externalDataProviderId
+        )
+        ?: throw KingdomInternalException(KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND)
+    if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
+        eventGroup.externalMeasurementConsumerId
     ) {
-      throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND)
+      throw KingdomInternalException(KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID)
     }
 
     val dataProviderId =
@@ -60,11 +61,7 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           transactionContext
         )
       else null
-    val internalEventGroupId =
-      EventGroupReader()
-        .readByExternalId(transactionContext, eventGroup.externalEventGroupId)
-        ?.internalEventGroupId
-        ?.value
+    val internalEventGroupId = internalEventGroupResult.internalEventGroupId.value
 
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to dataProviderId)

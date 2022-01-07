@@ -61,7 +61,9 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -71,14 +73,16 @@ class SpannerEventGroupsService(
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID ->
+          failGrpc(Status.INVALID_ARGUMENT) { "EventGroup modification param is invalid" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
         KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
         KingdomInternalException.Code.API_KEY_NOT_FOUND,
         KingdomInternalException.Code.PERMISSION_DENIED,
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
@@ -92,14 +96,18 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL, -> throw e
       }
     }
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
-      .readByExternalId(client.singleUse(), request.externalEventGroupId)
+      .readByExternalId(
+        client.singleUse(),
+        request.externalEventGroupId,
+        request.externalDataProviderId
+      )
       ?.eventGroup
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }

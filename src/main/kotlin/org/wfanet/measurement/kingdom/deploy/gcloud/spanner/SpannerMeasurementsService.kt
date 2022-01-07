@@ -70,7 +70,9 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -150,7 +152,9 @@ class SpannerMeasurementsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -190,7 +194,9 @@ class SpannerMeasurementsService(
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
           KingdomInternalException.Code.REQUISITION_NOT_FOUND,
           KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-          KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+          KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+          KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+          KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
         }
       throw status.withCause(e).asRuntimeException()
     }

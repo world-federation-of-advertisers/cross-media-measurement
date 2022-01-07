@@ -82,5 +82,11 @@ class KingdomInternalException : Exception {
 
     /** Api Key resource queried could not be found. */
     API_KEY_NOT_FOUND,
+
+    /** EventGroup could not be found. */
+    EVENT_GROUP_NOT_FOUND,
+
+    /** EventGroup modification param is invalid. */
+    EVENT_GROUP_MODIFICATION_INVALID,
   }
 }
