@@ -40,7 +40,11 @@ private val BASE_SQL =
     """.trimIndent()
 
 class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
-  data class Result(val eventGroup: EventGroup, val internalEventGroupId: InternalId)
+  data class Result(
+    val eventGroup: EventGroup,
+    val internalEventGroupId: InternalId,
+    val internalDataProviderId: InternalId
+  )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
 
@@ -88,7 +92,11 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   }
 
   override suspend fun translate(struct: Struct): Result =
-    Result(buildEventGroup(struct), InternalId(struct.getLong("EventGroupId")))
+    Result(
+      buildEventGroup(struct),
+      InternalId(struct.getLong("EventGroupId")),
+      InternalId(struct.getLong("DataProviderId"))
+    )
 
   private fun buildEventGroup(struct: Struct): EventGroup =
     EventGroup.newBuilder()

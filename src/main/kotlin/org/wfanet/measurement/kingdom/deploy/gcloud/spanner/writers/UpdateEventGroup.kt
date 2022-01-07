@@ -44,15 +44,6 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     ) {
       throw KingdomInternalException(KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID)
     }
-
-    val dataProviderId =
-      DataProviderReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          ExternalId(eventGroup.externalDataProviderId)
-        )
-        ?.dataProviderId
-        ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
         checkValidCertificate(
@@ -61,11 +52,10 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           transactionContext
         )
       else null
-    val internalEventGroupId = internalEventGroupResult.internalEventGroupId.value
 
     transactionContext.bufferUpdateMutation("EventGroups") {
-      set("DataProviderId" to dataProviderId)
-      set("EventGroupId" to internalEventGroupId)
+      set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
+      set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
       if (measurementConsumerCertificateId != null) {
         set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
       }
