@@ -16,6 +16,8 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.gson.JsonParser
 import io.grpc.Status
+import java.io.IOException
+import java.security.GeneralSecurityException
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle.Companion.fromJwk
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.calculateRsaThumbprint
@@ -118,7 +120,19 @@ class SpannerAccountsService(
     val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is missing" }
 
     val parsedValidatedIdToken =
-      validateIdToken(idToken) ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is invalid" }
+      try {
+        validateIdToken(idToken)
+      } catch (ex: GeneralSecurityException) {
+        throw Status.INVALID_ARGUMENT
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      } catch (ex: Exception) {
+        throw Status.UNKNOWN
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      }
 
     try {
       return ActivateAccount(
@@ -161,7 +175,19 @@ class SpannerAccountsService(
     val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is missing" }
 
     val parsedValidatedIdToken =
-      validateIdToken(idToken) ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is invalid" }
+      try {
+        validateIdToken(idToken)
+      } catch (ex: GeneralSecurityException) {
+        throw Status.INVALID_ARGUMENT
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      } catch (ex: Exception) {
+        throw Status.UNKNOWN
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      }
 
     try {
       return ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
@@ -199,13 +225,21 @@ class SpannerAccountsService(
   }
 
   override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {
-    val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is missing" }
+    val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "ID token is missing" }
 
     val parsedValidatedIdToken =
       try {
-        validateIdToken(idToken) ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+        validateIdToken(idToken)
+      } catch (ex: GeneralSecurityException) {
+        throw Status.PERMISSION_DENIED
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
       } catch (ex: Exception) {
-        failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+        throw Status.UNKNOWN
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
       }
 
     val identityResult =
@@ -229,12 +263,16 @@ class SpannerAccountsService(
     return GenerateOpenIdRequestParams(VALID_SECONDS).execute(client, idGenerator)
   }
 
-  /** Returns the issuer and subject if the idToken is valid and null otherwise. */
-  private suspend fun validateIdToken(idToken: String): IdToken? {
+  /**
+   * Returns the issuer and subject if the ID token is valid.
+   *
+   * @throws GeneralSecurityException if the ID token validation fails
+   */
+  private suspend fun validateIdToken(idToken: String): IdToken {
     val tokenParts = idToken.split(".")
 
     if (tokenParts.size != 3) {
-      return null
+      throw GeneralSecurityException()
     }
 
     val claims =
@@ -242,37 +280,46 @@ class SpannerAccountsService(
 
     val subJwk = claims.get("sub_jwk")
     if (subJwk.isJsonNull || !subJwk.isJsonObject) {
-      return null
+      throw GeneralSecurityException()
     }
 
     val jwk = subJwk.asJsonObject
-    val publicJwkHandle = fromJwk(jwk)
+    val publicJwkHandle =
+      try {
+        fromJwk(jwk)
+      } catch (ex: IOException) {
+        throw GeneralSecurityException()
+      }
 
     val verifiedJwt =
-      validateJwt(
-        redirectUri = REDIRECT_URI,
-        idToken = idToken,
-        verifier = publicJwkHandle.verifier
-      )
+      validateJwt(redirectUri = REDIRECT_URI, idToken = idToken, publicJwkHandle = publicJwkHandle)
 
     if (!verifiedJwt.subject.equals(calculateRsaThumbprint(jwk.toString()))) {
-      return null
+      throw GeneralSecurityException()
     }
 
     val state = verifiedJwt.getStringClaim("state")
     val nonce = verifiedJwt.getStringClaim("nonce")
+
+    if (state == null || nonce == null) {
+      throw GeneralSecurityException()
+    }
 
     val result =
       OpenIdRequestParamsReader()
         .readByState(client.singleUse(), ExternalId(state.base64UrlDecode().toLong()))
     if (result != null) {
       if (nonce.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
-        return null
+        throw GeneralSecurityException()
       }
     } else {
-      return null
+      throw GeneralSecurityException()
     }
 
-    return IdToken(issuer = verifiedJwt.issuer, subject = verifiedJwt.subject)
+    if (verifiedJwt.issuer == null || verifiedJwt.subject == null) {
+      throw GeneralSecurityException()
+    } else {
+      return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
+    }
   }
 }
