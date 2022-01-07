@@ -31,6 +31,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
@@ -62,6 +63,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   protected lateinit var dataProvidersService: DataProvidersCoroutineImplBase
     private set
 
+  protected lateinit var certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
+    private set
+
   protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
@@ -74,6 +78,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     measurementConsumersService = services.measurementConsumersService
     dataProvidersService = services.dataProvidersService
     accountsService = services.accountsService
+    certificatesService = services.certificatesService
   }
 
   @Test
@@ -260,6 +265,79 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `updateEventGroup fails for not found certificate`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val createdEventGroup =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        }
+      )
+    val modifyEventGroup =
+      createdEventGroup.copy { this.externalMeasurementConsumerCertificateId = 1L }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.updateEventGroup(
+          updateEventGroupRequest { eventGroup = modifyEventGroup }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("certificate not found")
+  }
+
+  /*@Test
+  fun `updateEventGroup fails for invalid certificate`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalCertificateId = measurementConsumer.certificate.externalCertificateId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val createdEventGroup =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        }
+      )
+    val invalidCertificateId = 1234L
+    val invalidCertificate = certificate {
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.externalCertificateId = invalidCertificateId
+      notValidBefore = testClock.instant().minus(2L, ChronoUnit.DAYS).toProtoTime()
+      notValidAfter = testClock.instant().minus(1L, ChronoUnit.DAYS).toProtoTime()
+    }
+    certificatesService.createCertificate(invalidCertificate)
+    val modifyEventGroup =
+      createdEventGroup.copy {
+        this.externalMeasurementConsumerCertificateId = invalidCertificateId
+      }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.updateEventGroup(
+          updateEventGroupRequest { eventGroup = modifyEventGroup }
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("certificate is invalid")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }*/
+
+  @Test
   fun `updateEventGroup fails for missing measurement consumer`() = runBlocking {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -323,6 +401,47 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
           .also {
             it.updateTime = updatedEventGroup.updateTime
             it.details = updatedEventGroup.details
+          }
+          .build()
+      )
+  }
+
+  @Test
+  fun `updateEventGroup succeeds when clearing non-required fields`(): Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val createdEventGroup =
+      eventGroupsService.createEventGroup(
+        eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          this.externalMeasurementConsumerCertificateId = 5L
+          providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        }
+      )
+
+    val modifyEventGroup =
+      createdEventGroup.copy {
+        externalMeasurementConsumerCertificateId = 0L
+        providedEventGroupId = ""
+      }
+
+    val updatedEventGroup =
+      eventGroupsService.updateEventGroup(updateEventGroupRequest { eventGroup = modifyEventGroup })
+
+    assertThat(updatedEventGroup)
+      .isEqualTo(
+        createdEventGroup
+          .toBuilder()
+          .also {
+            it.updateTime = updatedEventGroup.updateTime
+            it.externalMeasurementConsumerCertificateId = 0L
+            it.providedEventGroupId = ""
           }
           .build()
       )
@@ -552,5 +671,6 @@ data class EventGroupAndHelperServices<T : EventGroupsCoroutineImplBase>(
   val eventGroupsService: T,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val dataProvidersService: DataProvidersCoroutineImplBase,
-  val accountsService: AccountsCoroutineImplBase
+  val accountsService: AccountsCoroutineImplBase,
+  val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase
 )
