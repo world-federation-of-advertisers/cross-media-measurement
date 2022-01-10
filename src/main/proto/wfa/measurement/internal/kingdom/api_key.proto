@@ -33,12 +33,4 @@ message ApiKey {
 
   // The actual API key for authentication. Output-only.
   fixed64 authentication_key = 5;
-
-  enum RevocationState {
-    REVOCATION_STATE_UNSPECIFIED = 0;
-
-    // ApiKey has been revoked. Terminal state.
-    REVOKED = 1;
-  }
-  RevocationState revocation_state = 6;
 }

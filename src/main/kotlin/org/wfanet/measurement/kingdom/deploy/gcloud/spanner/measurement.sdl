@@ -125,11 +125,6 @@ CREATE TABLE MeasurementConsumerApiKeys (
   Description STRING(MAX),
 
   AuthenticationKeyHash BYTES(32) NOT NULL,
-
-  -- org.wfanet.measurement.internal.kingdom.ApiKey.RevocationState
-  -- protobuf enum encoded as an integer.
-  RevocationState INT64 NOT NULL,
-
 ) PRIMARY KEY (MeasurementConsumerId, ApiKeyId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 

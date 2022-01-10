@@ -31,7 +31,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ApiKey as InternalApiKey
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.apiKey as internalApiKey
-import org.wfanet.measurement.internal.kingdom.revokeApiKeyRequest
+import org.wfanet.measurement.internal.kingdom.deleteApiKeyRequest
 
 class ApiKeysService(
   private val internalApiKeysStub: ApiKeysCoroutineStub,
@@ -81,12 +81,12 @@ class ApiKeysService(
       failGrpc(Status.PERMISSION_DENIED) { "Account doesn't own Measurement Consumer" }
     }
 
-    val revokeApiKeyRequest = revokeApiKeyRequest {
+    val deleteApiKeyRequest = deleteApiKeyRequest {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       externalApiKeyId = apiIdToExternalId(key.apiKeyId)
     }
 
-    val result = internalApiKeysStub.revokeApiKey(revokeApiKeyRequest)
+    val result = internalApiKeysStub.deleteApiKey(deleteApiKeyRequest)
 
     return result.toApiKey()
   }

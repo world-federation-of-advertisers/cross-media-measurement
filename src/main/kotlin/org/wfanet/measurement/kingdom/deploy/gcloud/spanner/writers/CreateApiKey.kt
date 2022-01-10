@@ -49,7 +49,6 @@ class CreateApiKey(
       set("ExternalMeasurementConsumerApiKeyId" to externalApiKeyId)
       set("Nickname" to apiKey.nickname)
       set("Description" to apiKey.description)
-      set("RevocationState" to ApiKey.RevocationState.REVOCATION_STATE_UNSPECIFIED)
       set("AuthenticationKeyHash" to authenticationKeyHash.toGcloudByteArray())
     }
 
