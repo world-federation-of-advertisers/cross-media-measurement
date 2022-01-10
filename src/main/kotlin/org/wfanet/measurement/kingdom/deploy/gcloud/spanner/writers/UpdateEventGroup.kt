@@ -41,10 +41,11 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
         EventGroups.checkValidCertificate(
-          eventGroup.externalMeasurementConsumerCertificateId,
-          eventGroup.externalMeasurementConsumerId,
-          transactionContext
-        )?.value
+            eventGroup.externalMeasurementConsumerCertificateId,
+            eventGroup.externalMeasurementConsumerId,
+            transactionContext
+          )
+          ?.value
       else null
 
     transactionContext.bufferUpdateMutation("EventGroups") {
