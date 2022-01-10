@@ -15,16 +15,11 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
 class UpdateEventGroup(private val eventGroup: EventGroup) :
@@ -45,27 +40,21 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     }
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
-        checkValidCertificate(
+        EventGroups.checkValidCertificate(
           eventGroup.externalMeasurementConsumerCertificateId,
           eventGroup.externalMeasurementConsumerId,
           transactionContext
-        )
+        )?.value
       else null
 
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
-      if (measurementConsumerCertificateId != null) {
-        set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
-      }
-      if (eventGroup.providedEventGroupId.isNotBlank()) {
-        set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
-      }
+      set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
+      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      if (eventGroup.hasDetails()) {
-        set("EventGroupDetails" to eventGroup.details)
-        setJson("EventGroupDetailsJson" to eventGroup.details)
-      }
+      set("EventGroupDetails" to eventGroup.details)
+      setJson("EventGroupDetailsJson" to eventGroup.details)
     }
 
     return eventGroup
@@ -73,25 +62,5 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
     return eventGroup.toBuilder().apply { updateTime = commitTimestamp.toProto() }.build()
-  }
-
-  private suspend fun checkValidCertificate(
-    measurementConsumerCertificateId: Long,
-    measurementConsumerId: Long,
-    transactionContext: AsyncDatabaseClient.TransactionContext
-  ): InternalId? {
-    val reader =
-      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-        .bindWhereClause(
-          ExternalId(measurementConsumerId),
-          ExternalId(measurementConsumerCertificateId)
-        )
-
-    return reader.execute(transactionContext).singleOrNull()?.let {
-      if (!it.isValid) {
-        throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
-      } else it.certificateId
-    }
-      ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
   }
 }
