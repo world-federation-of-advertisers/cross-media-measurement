@@ -31,14 +31,14 @@ steps {
   output_labels { key: "blob-encryption-public-key-for-mp" value: "edp-blob-encryption-public-key-for-mp" }
 }
 
-# EDP provides a previously generated pepper used in generating AES keys.
+# EDP generates a pepper used in generating AES keys.
 steps {
-  step_id: "input-hkdf-pepper"
+  step_id: "generate-hkdf-pepper"
   party: DATA_PROVIDER
 
-  input_step {}
+  generate_random_bytes_step { num_bytes: 32 }
 
-  output_labels { key: "input" value: "edp-hkdf-pepper" }
+  output_labels { key: "random-bytes" value: "edp-hkdf-pepper" }
 }
 
 # EDP encrypts its hkdf pepper using MP's public key.
@@ -87,14 +87,14 @@ steps {
   output_labels { key: "decrypted-data" value: "mp-hkdf-pepper" }
 }
 
-# EDP provides a previously generated identifier hash pepper used in hashing encrypted identifiers.
+# EDP generates a pepper used in hashing encrypted identifiers.
 steps {
-  step_id: "input-identifier-hash-pepper"
+  step_id: "generate-identifier-hash-pepper"
   party: DATA_PROVIDER
 
-  input_step {}
+  generate_random_bytes_step { num_bytes: 32 }
 
-  output_labels { key: "input" value: "edp-identifier-hash-pepper" }
+  output_labels { key: "random-bytes" value: "edp-identifier-hash-pepper" }
 }
 
 # EDP encrypts its identifier hash pepper using MP's public key.
@@ -436,16 +436,6 @@ steps {
 
   input_labels { key: "encrypted-queries" value: "encrypted-queries" }
   output_labels { key: "encrypted-queries" value: "edp-encrypted-queries" }
-}
-
-# EDP provides symmetrically encrypted compressed event data as input.
-steps {
-  step_id: "input-encrypted-event-data"
-  party: DATA_PROVIDER
-
-  input_step {}
-
-  output_labels { key: "input" value: "edp-encrypted-event-data" }
 }
 
 # EDP exports its event data dictionary.

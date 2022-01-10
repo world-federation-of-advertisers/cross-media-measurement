@@ -39,8 +39,6 @@ private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
     joinKeyAndIdOf("join-key-2".toByteStringUtf8(), "join-key-id-2".toByteStringUtf8())
 }
 
-private val EDP_IDENTIFIER_HASH_PEPPER = "edp-identifier-hash-pepper".toByteStringUtf8()
-private val EDP_HKDF_PEPPER = "edp-hkdf-pepper".toByteStringUtf8()
 private val EDP_COMPRESSION_PARAMETERS = compressionParameters {
   brotli = brotliCompressionParameters { dictionary = ByteString.EMPTY }
 }
@@ -70,8 +68,6 @@ class FullWithPreprocessingTest : AbstractInProcessPanelMatchIntegrationTest() {
     mapOf(
       "edp-event-data" to EDP_EVENT_DATA_MANIFEST,
       "edp-event-data-0-of-1" to EDP_EVENT_DATA_BLOB,
-      "edp-identifier-hash-pepper" to EDP_IDENTIFIER_HASH_PEPPER,
-      "edp-hkdf-pepper" to EDP_HKDF_PEPPER,
       "edp-compression-parameters" to EDP_COMPRESSION_PARAMETERS.toByteString(),
       "edp-previous-single-blinded-join-keys" to ByteString.EMPTY,
     )

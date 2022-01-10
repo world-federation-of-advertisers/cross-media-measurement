@@ -267,3 +267,18 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_test(
+    name = "GenerateRandomBytesTaskTest",
+    timeout = "short",
+    srcs = ["GenerateRandomBytesTaskTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.GenerateRandomBytesTaskTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
