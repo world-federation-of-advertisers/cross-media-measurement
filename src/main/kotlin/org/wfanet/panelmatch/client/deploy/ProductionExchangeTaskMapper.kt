@@ -37,6 +37,7 @@ import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTask
 import org.wfanet.panelmatch.client.exchangetasks.GenerateExchangeCertificateTask
 import org.wfanet.panelmatch.client.exchangetasks.GenerateHybridEncryptionKeyPairTask
+import org.wfanet.panelmatch.client.exchangetasks.GenerateRandomBytesTask
 import org.wfanet.panelmatch.client.exchangetasks.GenerateSymmetricKeyTask
 import org.wfanet.panelmatch.client.exchangetasks.HybridDecryptTask
 import org.wfanet.panelmatch.client.exchangetasks.HybridEncryptTask
@@ -262,6 +263,11 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.generateHybridEncryptionKeyPair(): ExchangeTask {
     return GenerateHybridEncryptionKeyPairTask()
+  }
+
+  override suspend fun ExchangeContext.generateRandomBytes(): ExchangeTask {
+    val numBytes = step.generateRandomBytesStep.numBytes
+    return GenerateRandomBytesTask(numBytes)
   }
 
   private suspend fun ExchangeContext.apacheBeamTaskFor(

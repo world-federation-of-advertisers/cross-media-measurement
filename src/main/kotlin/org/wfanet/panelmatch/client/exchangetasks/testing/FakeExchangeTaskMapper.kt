@@ -70,4 +70,7 @@ class FakeExchangeTaskMapper : ExchangeTaskMapper() {
 
   override suspend fun ExchangeContext.generateHybridEncryptionKeyPair() =
     FakeExchangeTask("generate-hybrid-encryption-key-pair")
+
+  override suspend fun ExchangeContext.generateRandomBytes() =
+    FakeExchangeTask("generate-random-bytes")
 }
