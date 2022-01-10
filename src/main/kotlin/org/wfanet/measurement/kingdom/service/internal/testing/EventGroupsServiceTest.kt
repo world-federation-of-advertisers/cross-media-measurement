@@ -29,6 +29,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -48,6 +49,10 @@ private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
 private const val FIXED_EXTERNAL_ID = 6789L
 private const val PROVIDED_EVENT_GROUP_ID = "ProvidedEventGroupId"
+private val DETAILS = details {
+  apiVersion = Version.V2_ALPHA.string
+  encryptedMetadata = ByteString.copyFromUtf8("somedata")
+}
 
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
@@ -55,6 +60,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
   private val population = Population(testClock, idGenerator)
+
   private lateinit var eventGroupsService: T
 
   protected lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
@@ -130,10 +136,10 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `createEventGroup succeeds`() = runBlocking {
-    val externalMeasurementConsumerId =
+  fun `createEventGroup fails for not found certificate`() = runBlocking {
+    val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-        .externalMeasurementConsumerId
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
 
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
@@ -142,20 +148,77 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
       providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = 123L
+      details = DETAILS
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("certificate not found")
+  }
+
+  @Test
+  fun `createEventGroup fails for invalid certificate`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(
+        measurementConsumersService,
+        accountsService,
+        notValidBefore = testClock.instant().minus(9L, ChronoUnit.DAYS),
+        notValidAfter = testClock.instant().minus(1L, ChronoUnit.DAYS)
+      )
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalCertificateId = measurementConsumer.certificate.externalCertificateId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = externalCertificateId
+      details = DETAILS
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("certificate is invalid")
+  }
+
+  @Test
+  fun `createEventGroup succeeds`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+    val externalCertificateId = measurementConsumer.certificate.externalCertificateId
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+      externalMeasurementConsumerCertificateId = externalCertificateId
+      details = DETAILS
     }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
 
     assertThat(createdEventGroup)
-      .isEqualTo(
-        eventGroup
-          .toBuilder()
-          .also {
-            it.externalEventGroupId = createdEventGroup.externalEventGroupId
-            it.createTime = createdEventGroup.createTime
-          }
-          .build()
+      .ignoringFields(
+        EventGroup.EXTERNAL_EVENT_GROUP_ID_FIELD_NUMBER,
+        EventGroup.CREATE_TIME_FIELD_NUMBER,
+        EventGroup.UPDATE_TIME_FIELD_NUMBER
       )
+      .isEqualTo(eventGroup)
+    assertThat(createdEventGroup.externalEventGroupId).isGreaterThan(0)
+    assertThat(createdEventGroup.createTime.seconds).isGreaterThan(0)
+    assertThat(createdEventGroup.updateTime).isEqualTo(createdEventGroup.createTime)
   }
 
   @Test
@@ -192,6 +255,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val eventGroup = eventGroup {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      details = DETAILS
     }
 
     eventGroupsService.createEventGroup(eventGroup)
@@ -212,6 +276,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         otherEventGroup.copy {
           externalEventGroupId = secondCreateEventGroupAttempt.externalEventGroupId
           createTime = secondCreateEventGroupAttempt.createTime
+          updateTime = secondCreateEventGroupAttempt.createTime
         }
       )
   }

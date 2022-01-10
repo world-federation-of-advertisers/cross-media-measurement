@@ -45,6 +45,10 @@ class SpannerEventGroupsService(
           failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
         KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID ->
+          failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
         KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
@@ -53,8 +57,6 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         KingdomInternalException.Code.DUCHY_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
         KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
