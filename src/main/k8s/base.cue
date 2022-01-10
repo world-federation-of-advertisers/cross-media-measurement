@@ -187,35 +187,38 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		name: _name + "-job"
 		labels: "app.kubernetes.io/name": #AppName
 	}
-	spec: template: spec: {
-		containers: [{
-			name:  _name + "-container"
-			image: _image
-			resources: requests: {
-				memory: _resourceRequestMemory
-				cpu:    _resourceRequestCpu
-			}
-			resources: limits: {
-				memory: _resourceLimitMemory
-				cpu:    _resourceLimitCpu
-			}
-			imagePullPolicy: _imagePullPolicy
-			args:            _args
-			volumeMounts: [{
-				name:      _name + "-files"
-				mountPath: "/var/run/secrets/files"
-				readOnly:  true
-			}]
-		}]
-		volumes: [
-			{
-				name: _name + "-files"
-				secret: {
-					secretName: _secretName
+	spec: template: {
+		metadata: labels: app: _name + "-app"
+		spec: {
+			containers: [{
+				name:  _name + "-container"
+				image: _image
+				resources: requests: {
+					memory: _resourceRequestMemory
+					cpu:    _resourceRequestCpu
 				}
-			},
-		]
-		restartPolicy: "OnFailure"
+				resources: limits: {
+					memory: _resourceLimitMemory
+					cpu:    _resourceLimitCpu
+				}
+				imagePullPolicy: _imagePullPolicy
+				args:            _args
+				volumeMounts: [{
+					name:      _name + "-files"
+					mountPath: "/var/run/secrets/files"
+					readOnly:  true
+				}]
+			}]
+			volumes: [
+				{
+					name: _name + "-files"
+					secret: {
+						secretName: _secretName
+					}
+				},
+			]
+			restartPolicy: "OnFailure"
+		}
 	}
 }
 

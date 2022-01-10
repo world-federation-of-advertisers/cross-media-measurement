@@ -82,11 +82,11 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--mc-encryption-public-key-der-file"],
-    description = ["The MC's encryption public key (DER format) file."],
+    names = ["--mc-encryption-public-keyset"],
+    description = ["The MC's encryption public key Tink Keyset file."],
     required = true
   )
-  lateinit var mcEncryptionPublicKeyDerFile: File
+  lateinit var mcEncryptionPublicKeyset: File
     private set
 
   @CommandLine.Mixin
