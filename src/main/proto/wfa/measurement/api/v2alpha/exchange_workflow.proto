@@ -183,6 +183,11 @@ message ExchangeWorkflow {
     // Generates an decrypted blob from a source encrypted blob
     message GenerateHybridEncryptionKeyPairStep {}
 
+    // Generates random bytes
+    message GenerateRandomBytesStep {
+      int32 num_bytes = 1;
+    }
+
     oneof step {
       CopyFromSharedStorageStep copy_from_shared_storage_step = 5;
       CopyToSharedStorageStep copy_to_shared_storage_step = 6;
@@ -212,6 +217,7 @@ message ExchangeWorkflow {
       HybridDecryptStep hybrid_decrypt_step = 22;
       GenerateHybridEncryptionKeyPairStep
           generate_hybrid_encryption_key_pair_step = 23;
+      GenerateRandomBytesStep generate_random_bytes_step = 24;
     }
   }
 
