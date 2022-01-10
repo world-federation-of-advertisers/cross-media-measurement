@@ -27,6 +27,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
 /**
  * @throws KingdomInternalException if the MeasurementConsumer or DataProvider for this EventGroup
@@ -71,7 +72,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
     val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
-        EventGroups.checkValidCertificate(
+        checkValidCertificate(
           eventGroup.externalMeasurementConsumerCertificateId,
           eventGroup.externalMeasurementConsumerId,
           transactionContext

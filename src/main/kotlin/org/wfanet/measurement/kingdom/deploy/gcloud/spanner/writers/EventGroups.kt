@@ -21,26 +21,22 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
-class EventGroups {
-  companion object {
-    suspend fun checkValidCertificate(
-      measurementConsumerCertificateId: Long,
-      measurementConsumerId: Long,
-      transactionContext: AsyncDatabaseClient.TransactionContext
-    ): InternalId? {
-      val reader =
-        CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-          .bindWhereClause(
-            ExternalId(measurementConsumerId),
-            ExternalId(measurementConsumerCertificateId)
-          )
+suspend fun checkValidCertificate(
+  measurementConsumerCertificateId: Long,
+  measurementConsumerId: Long,
+  transactionContext: AsyncDatabaseClient.TransactionContext
+): InternalId? {
+  val reader =
+    CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+      .bindWhereClause(
+        ExternalId(measurementConsumerId),
+        ExternalId(measurementConsumerCertificateId)
+      )
 
-      return reader.execute(transactionContext).singleOrNull()?.let {
-        if (!it.isValid) {
-          throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
-        } else it.certificateId
-      }
-        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
-    }
+  return reader.execute(transactionContext).singleOrNull()?.let {
+    if (!it.isValid) {
+      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    } else it.certificateId
   }
+    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
 }

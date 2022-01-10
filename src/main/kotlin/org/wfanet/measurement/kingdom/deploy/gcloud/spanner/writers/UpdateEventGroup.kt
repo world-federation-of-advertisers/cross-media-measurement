@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
 class UpdateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
@@ -40,19 +41,22 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     }
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
-        EventGroups.checkValidCertificate(
+        checkValidCertificate(
             eventGroup.externalMeasurementConsumerCertificateId,
             eventGroup.externalMeasurementConsumerId,
             transactionContext
           )
           ?.value
       else null
+    val providedEventGroupId = eventGroup.providedEventGroupId ?: null
 
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
       set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
-      set("ProvidedEventGroupId" to eventGroup.providedEventGroupId)
+      if (eventGroup.providedEventGroupId != null) {
+        set("ProvidedEventGroupId" to providedEventGroupId)
+      }
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("EventGroupDetails" to eventGroup.details)
       setJson("EventGroupDetailsJson" to eventGroup.details)
