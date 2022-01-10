@@ -30,9 +30,6 @@ namespace {
 
 using ::crypto::tink::util::SecretData;
 using ::crypto::tink::util::SecretDataFromStringView;
-using ::google::protobuf::RepeatedPtrField;
-using ::testing::Eq;
-using ::testing::Pointwise;
 using ::wfa::EqualsProto;
 using ::wfa::panelmatch::client::exchangetasks::JoinKey;
 using ::wfa::panelmatch::common::crypto::Aes;
