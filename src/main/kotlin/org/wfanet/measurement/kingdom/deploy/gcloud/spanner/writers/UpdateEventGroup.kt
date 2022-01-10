@@ -32,10 +32,10 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
   override suspend fun TransactionScope.runTransaction(): EventGroup {
     val internalEventGroupResult =
       EventGroupReader()
-        .readByExternalId(
+        .readByExternalIds(
           transactionContext,
-          eventGroup.externalEventGroupId,
-          eventGroup.externalDataProviderId
+          eventGroup.externalDataProviderId,
+          eventGroup.externalEventGroupId
         )
         ?: throw KingdomInternalException(KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND)
     if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=

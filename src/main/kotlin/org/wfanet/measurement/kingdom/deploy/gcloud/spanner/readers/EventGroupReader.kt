@@ -67,10 +67,10 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     }
   }
 
-  suspend fun readByExternalId(
+  suspend fun readByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
-    externalEventGroupId: Long,
     externalDataProviderId: Long,
+    externalEventGroupId: Long,
   ): Result? {
     val externalEventGroupIdParam = "externalEventGroupId"
     val externalDataProviderIdParam = "externalDataProviderId"

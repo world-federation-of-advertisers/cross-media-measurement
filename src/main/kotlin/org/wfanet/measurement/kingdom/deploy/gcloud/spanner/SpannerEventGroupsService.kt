@@ -75,8 +75,6 @@ class SpannerEventGroupsService(
       when (e.code) {
         KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID ->
           failGrpc(Status.INVALID_ARGUMENT) { "EventGroup modification param is invalid" }
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID ->
           failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
@@ -84,6 +82,7 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
         KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
         KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
@@ -105,10 +104,10 @@ class SpannerEventGroupsService(
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
-      .readByExternalId(
+      .readByExternalIds(
         client.singleUse(),
-        request.externalEventGroupId,
-        request.externalDataProviderId
+        request.externalDataProviderId,
+        request.externalEventGroupId
       )
       ?.eventGroup
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
