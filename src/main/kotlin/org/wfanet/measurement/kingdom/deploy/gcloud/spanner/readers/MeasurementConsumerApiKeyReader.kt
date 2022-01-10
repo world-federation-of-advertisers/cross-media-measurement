@@ -22,7 +22,6 @@ import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.internal.kingdom.apiKey
 
@@ -36,7 +35,6 @@ class MeasurementConsumerApiKeyReader : SpannerReader<MeasurementConsumerApiKeyR
       MeasurementConsumerApiKeys.ExternalMeasurementConsumerApiKeyId,
       MeasurementConsumerApiKeys.Nickname,
       MeasurementConsumerApiKeys.Description,
-      MeasurementConsumerApiKeys.RevocationState,
       MeasurementConsumers.ExternalMeasurementConsumerId,
     FROM MeasurementConsumerApiKeys
     LEFT JOIN MeasurementConsumers
@@ -53,7 +51,6 @@ class MeasurementConsumerApiKeyReader : SpannerReader<MeasurementConsumerApiKeyR
     if (!struct.isNull("Description")) {
       description = struct.getString("Description")
     }
-    revocationState = struct.getProtoEnum("RevocationState", ApiKey.RevocationState::forNumber)
   }
 
   suspend fun readByExternalId(
