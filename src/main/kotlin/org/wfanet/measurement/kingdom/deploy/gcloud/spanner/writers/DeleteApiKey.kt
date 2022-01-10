@@ -14,23 +14,23 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
+import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ApiKey
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerApiKeyReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
 /**
- * Revokes an [ApiKey] in the database.
+ * Deletes an [ApiKey] from the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.API_KEY_NOT_FOUND]
  * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
-class RevokeApiKey(
+class DeleteApiKey(
   private val externalMeasurementConsumerId: ExternalId,
   private val externalApiKeyId: ExternalId,
 ) : SimpleSpannerWriter<ApiKey>() {
@@ -38,15 +38,19 @@ class RevokeApiKey(
   override suspend fun TransactionScope.runTransaction(): ApiKey {
     val apiKeyResult = readApiKey(externalApiKeyId)
 
-    transactionContext.bufferUpdateMutation("MeasurementConsumerApiKeys") {
-      set(
-        "MeasurementConsumerId" to readInternalMeasurementConsumerId(externalMeasurementConsumerId)
+    transactionContext.buffer(
+      Mutation.delete(
+        "MeasurementConsumerApiKeys",
+        KeySet.singleKey(
+          Key.of(
+            readInternalMeasurementConsumerId(externalMeasurementConsumerId),
+            apiKeyResult.apiKeyId
+          )
+        )
       )
-      set("ApiKeyId" to apiKeyResult.apiKeyId)
-      set("RevocationState" to ApiKey.RevocationState.REVOKED)
-    }
+    )
 
-    return apiKeyResult.apiKey.copy { revocationState = ApiKey.RevocationState.REVOKED }
+    return apiKeyResult.apiKey
   }
 
   private suspend fun TransactionScope.readInternalMeasurementConsumerId(

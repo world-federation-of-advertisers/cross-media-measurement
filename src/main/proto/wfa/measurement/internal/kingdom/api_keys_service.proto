@@ -26,13 +26,13 @@ option java_multiple_files = true;
 service ApiKeys {
   rpc CreateApiKey(ApiKey) returns (ApiKey);
 
-  rpc RevokeApiKey(RevokeApiKeyRequest) returns (ApiKey);
+  rpc DeleteApiKey(DeleteApiKeyRequest) returns (ApiKey);
 
   rpc AuthenticateApiKey(AuthenticateApiKeyRequest)
       returns (MeasurementConsumer);
 }
 
-message RevokeApiKeyRequest {
+message DeleteApiKeyRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_api_key_id = 2;
 }
