@@ -30,6 +30,7 @@ cue_dump(
         "spanner_instance": TEST_GOOGLE_CLOUD_SETTINGS.spanner_instance,
         "spanner_project": TEST_GOOGLE_CLOUD_SETTINGS.spanner_project,
     },
+    tags = ["manual"],
 )
 
 ALL_LOCAL_IMAGE_ARCHIVES = [

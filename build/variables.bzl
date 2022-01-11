@@ -13,25 +13,26 @@
 # limitations under the License.
 
 """
-This file contains local settings for building and deploying the codebase.
-It is in .gitignore; please don't commit your local changes.
+Make variable strings used by build targets in project.
 """
 
-# Settings for the repository where Docker images are stored.
-# The image path is the container_registry, the prefix, and an
-# image-specific suffix joined with slashes.
+# Settings for the repositories where container images are stored.
 IMAGE_REPOSITORY_SETTINGS = struct(
-    # URL of the container registry.
-    container_registry = "gcr.io",
-    # Common prefix of all images.
-    repository_prefix = "halo-cmm-dev",
+    # The container registry for targets which push or pull container images.
+    #
+    # For example, `gcr.io` for Google Cloud Container Registry or `docker.io`
+    # for DockerHub.
+    container_registry = "$(container_registry)",
+
+    # Common prefix of container image repositories.
+    repository_prefix = "$(image_repo_prefix)",
 )
 
 # Settings for deploying tests to Google Cloud.
 TEST_GOOGLE_CLOUD_SETTINGS = struct(
-    spanner_project = "",
-    spanner_instance = "",
-    cloud_storage_project = "",
-    cloud_storage_bucket = "",
-    bigquery_table = "",
+    spanner_project = "$(gcloud_spanner_project)",
+    spanner_instance = "$(gcloud_spanner_instance)",
+    cloud_storage_project = "$(gcloud_storage_project)",
+    cloud_storage_bucket = "$(gcloud_storage_bucket)",
+    bigquery_table = "$(gcloud_bigquery_table)",
 )

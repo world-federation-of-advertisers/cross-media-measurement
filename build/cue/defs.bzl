@@ -93,7 +93,10 @@ def _cue_export_impl(ctx):
 
     tags = ctx.attr.cue_tags or {}
     for k, v in tags.items():
-        args.add("-t", "%s=%s" % (k, v))
+        args.add(
+            "-t",
+            "%s=%s" % (k, ctx.expand_make_variables("cue_tags", v, {})),
+        )
 
     ctx.actions.run(
         outputs = [outfile],
@@ -119,7 +122,9 @@ cue_export = rule(
             mandatory = True,
         ),
         "expression": attr.string(),
-        "cue_tags": attr.string_dict(),
+        "cue_tags": attr.string_dict(
+            doc = "Dict of CUE tags to values. Values may contain Make variables.",
+        ),
         "_cue_cli": attr.label(
             default = "@cue_binaries//:cue_cli",
             executable = True,
