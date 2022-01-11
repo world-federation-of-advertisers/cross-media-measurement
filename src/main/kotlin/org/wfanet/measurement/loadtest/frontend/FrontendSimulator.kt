@@ -86,7 +86,9 @@ data class MeasurementConsumerData(
   /** The MC's consent signaling signing key. */
   val signingKey: SigningKeyHandle,
   /** The MC's encryption public key. */
-  val encryptionKey: PrivateKeyHandle
+  val encryptionKey: PrivateKeyHandle,
+  /** An API key for the MC. */
+  val apiAuthenticationKey: String
 )
 
 /** A simulator performing frontend operations. */
@@ -99,8 +101,7 @@ class FrontendSimulator(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val sketchStore: SketchStore,
-  private val runId: String,
-  private val apiAuthenticationKey: String,
+  private val runId: String
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -170,14 +171,16 @@ class FrontendSimulator(
           this.measurementReferenceId = runId
         }
     }
-    return measurementsClient.withAuthenticationKey(apiAuthenticationKey).createMeasurement(request)
+    return measurementsClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .createMeasurement(request)
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
-        .withAuthenticationKey(apiAuthenticationKey)
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
         .getMeasurement(getMeasurementRequest { name = measurementName })
     return if (measurement.state == Measurement.State.SUCCEEDED) {
       val signedResult =
@@ -251,7 +254,7 @@ class FrontendSimulator(
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
     return measurementConsumersClient
-      .withAuthenticationKey(apiAuthenticationKey)
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
       .getMeasurementConsumer(request)
   }
 
@@ -284,7 +287,7 @@ class FrontendSimulator(
       filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
     }
     return requisitionsClient
-      .withAuthenticationKey(apiAuthenticationKey)
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
       .listRequisitions(request)
       .requisitionsList
   }

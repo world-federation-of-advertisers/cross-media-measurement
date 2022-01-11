@@ -62,8 +62,10 @@ class ResourceSetup(
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String
 ) {
-
-  private lateinit var idToken: String
+  data class MeasurementConsumerAndKey(
+    val measurementConsumer: MeasurementConsumer,
+    val apiAuthenticationKey: String
+  )
 
   /** Process to create resources. */
   suspend fun process(
@@ -80,7 +82,7 @@ class ResourceSetup(
     }
 
     // Step 2: Create the MC.
-    val measurementConsumer = createMeasurementConsumer(measurementConsumerContent)
+    val (measurementConsumer, _) = createMeasurementConsumer(measurementConsumerContent)
     logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
 
     // Step 3: Create certificate for each duchy.
@@ -113,7 +115,7 @@ class ResourceSetup(
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
-  ): MeasurementConsumer {
+  ): MeasurementConsumerAndKey {
     // The initial account is created via the Kingdom Internal API by the Kingdom operator.
     val internalAccount = internalAccountsClient.createAccount(internalAccount {})
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
@@ -129,7 +131,8 @@ class ResourceSetup(
     // Account activation and MC creation are done via the public API.
     val authenticationResponse =
       accountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
-    idToken = generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
+    val idToken =
+      generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
     accountsClient
       .withIdToken(idToken)
       .activateAccount(
@@ -152,19 +155,23 @@ class ResourceSetup(
         }
       measurementConsumerCreationToken = mcCreationToken
     }
-    return measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
-  }
+    val measurementConsumer =
+      measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
 
-  suspend fun createApiAuthenticationKey(measurementConsumerName: String): String =
-    apiKeysClient
-      .withIdToken(idToken)
-      .createApiKey(
-        createApiKeyRequest {
-          parent = measurementConsumerName
-          apiKey = apiKey { nickname = "test_key" }
-        }
-      )
-      .authenticationKey
+    // API key for MC is created to act as MC caller
+    val apiAuthenticationKey =
+      apiKeysClient
+        .withIdToken(idToken)
+        .createApiKey(
+          createApiKeyRequest {
+            parent = measurementConsumer.name
+            apiKey = apiKey { nickname = "test_key" }
+          }
+        )
+        .authenticationKey
+
+    return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
+  }
 
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
     val request = createCertificateRequest {

@@ -149,9 +149,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         runId = "12345"
       )
     // Create the MC.
-    mcResourceName = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT).name
-    // Create the api authentication key
-    apiAuthenticationKey = resourceSetup.createApiAuthenticationKey(mcResourceName)
+    val (measurementConsumer, apiAuthenticationKey) =
+      resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT)
+    mcResourceName = measurementConsumer.name
+    this.apiAuthenticationKey = apiAuthenticationKey
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
@@ -208,7 +209,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         MeasurementConsumerData(
           mcResourceName,
           MC_ENTITY_CONTENT.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,
@@ -217,8 +219,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicRequisitionsClient,
         publicMeasurementConsumersClient,
         SketchStore(storageClient),
-        "1234",
-        apiAuthenticationKey
+        "1234"
       )
       .process()
   }
