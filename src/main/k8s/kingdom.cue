@@ -42,6 +42,8 @@ import ("strings")
 	_internal_api_target_flag:    "--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target
 	_internal_api_cert_host_flag: "--internal-api-cert-host=localhost"
 
+	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
+
 	kingdom_service: [Name=_]: #GrpcService & {
 		_name:   Name
 		_system: "kingdom"
@@ -128,6 +130,7 @@ import ("strings")
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
 				_akid_to_principal_map_file_flag,
+				_open_id_redirect_uri_flag,
 				"--port=8443",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
@@ -157,6 +160,14 @@ import ("strings")
 			_app_label: "system-api-server-app"
 			_sourceMatchLabels: [] // External API, allow all ingress traffic.
 			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
+		}
+		"resource-setup-job": #NetworkPolicy & {
+			_app_label: "resource-setup-app"
+			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
+			_destinationMatchLabels: [
+				"gcp-kingdom-data-server-app",
+				"v2alpha-public-api-server-app",
+			]
 		}
 		"push-spanner-schema-job": #NetworkPolicy & {
 			_app_label: "kingdom-push-spanner-schema-job"
