@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import io.grpc.Status
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2.alpha.ListRequisitionsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListRequisitionsPageTokenKt.previousPageEnd
@@ -45,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -59,7 +56,6 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisit
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
@@ -76,33 +72,11 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
-    val measurementConsumer =
-      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
-
     val listRequisitionsPageToken = request.toListRequisitionsPageToken()
-
-    if (listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
-        listRequisitionsPageToken.externalMeasurementConsumerId !=
-          measurementConsumer.externalMeasurementConsumerId
-    ) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "Cannot list Requisitions belonging to other MeasurementConsumers"
-      }
-    }
 
     val results: List<InternalRequisition> =
       internalRequisitionStub
-        .streamRequisitions(
-          listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
-            filter =
-              filter.copy {
-                if (externalMeasurementConsumerId == 0L) {
-                  externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-                }
-              }
-          }
-        )
+        .streamRequisitions(listRequisitionsPageToken.toStreamRequisitionsRequest())
         .toList()
 
     if (results.isEmpty()) {
@@ -133,7 +107,6 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
       grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
-
     grpcRequire(request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED) {
       "Refusal details must be present"
     }

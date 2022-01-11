@@ -108,8 +108,7 @@ private fun run(
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }

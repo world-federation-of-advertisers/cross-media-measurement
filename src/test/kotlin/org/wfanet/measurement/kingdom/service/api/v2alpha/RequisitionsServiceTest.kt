@@ -39,7 +39,6 @@ import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
@@ -82,7 +81,6 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
@@ -96,8 +94,7 @@ private const val WILDCARD_NAME = "dataProviders/-"
 
 private const val DUCHIES_MAP_KEY = "1"
 private const val REQUISITION_NAME = "dataProviders/AAAAAAAAAHs/requisitions/AAAAAAAAAHs"
-private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
+private const val MEASUREMENT_NAME = "measurementConsumers/AAAAAAAAAHs/measurements/AAAAAAAAAHs"
 
 private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 
@@ -108,9 +105,7 @@ private val EXTERNAL_DATA_PROVIDER_ID =
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
-  apiIdToExternalId(
-    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-  )
+  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
 
 private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
   setOf(
@@ -122,24 +117,100 @@ private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
     InternalMeasurement.State.CANCELLED
   )
 
+private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
+  externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+  externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+  externalRequisitionId = EXTERNAL_REQUISITION_ID
+  externalComputationId = 4L
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  updateTime = UPDATE_TIME
+  state = InternalState.FULFILLED
+  externalFulfillingDuchyId = "9"
+  duchies[DUCHIES_MAP_KEY] =
+    duchyValue {
+      externalDuchyCertificateId = 6L
+      liquidLegionsV2 =
+        liquidLegionsV2Details {
+          elGamalPublicKey = UPDATE_TIME.toByteString()
+          elGamalPublicKeySignature = UPDATE_TIME.toByteString()
+        }
+    }
+  dataProviderCertificate =
+    internalCertificate {
+      externalDataProviderId = this@internalRequisition.externalDataProviderId
+      externalCertificateId = 7L
+    }
+  parentMeasurement =
+    parentMeasurement {
+      apiVersion = Version.V2_ALPHA.string
+      externalMeasurementConsumerCertificateId = 8L
+      protocolConfig =
+        internalProtocolConfig {
+          externalProtocolConfigId = "llv2"
+          liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+    }
+}
+
+private val REQUISITION: Requisition = requisition {
+  name = REQUISITION_NAME
+  measurement = MEASUREMENT_NAME
+  measurementConsumerCertificate =
+    MeasurementConsumerCertificateKey(
+        externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
+        externalIdToApiId(
+          INTERNAL_REQUISITION.parentMeasurement.externalMeasurementConsumerCertificateId
+        )
+      )
+      .toName()
+  measurementSpec =
+    signedData {
+      data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
+      signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
+    }
+  protocolConfig =
+    protocolConfig {
+      name = "protocolConfigs/llv2"
+      liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+  dataProviderCertificate =
+    DataProviderCertificateKey(
+        externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
+        externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
+      )
+      .toName()
+  dataProviderPublicKey =
+    signedData {
+      data = INTERNAL_REQUISITION.details.dataProviderPublicKey
+      signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
+    }
+
+  val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]!!
+
+  duchies +=
+    duchyEntry {
+      key = DUCHIES_MAP_KEY
+      value =
+        value {
+          duchyCertificate = externalIdToApiId(entry.externalDuchyCertificateId)
+          liquidLegionsV2 =
+            liquidLegionsV2 {
+              elGamalPublicKey =
+                signedData {
+                  data = entry.liquidLegionsV2.elGamalPublicKey
+                  signature = entry.liquidLegionsV2.elGamalPublicKeySignature
+                }
+            }
+        }
+    }
+
+  state = State.FULFILLED
+}
+
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
-      onBlocking { refuseRequisition(any()) }
-        .thenReturn(
-          INTERNAL_REQUISITION.copy {
-            state = InternalState.REFUSED
-            details =
-              details {
-                refusal =
-                  InternalRequisitionKt.refusal {
-                    justification = InternalRefusal.Justification.UNFULFILLABLE
-                  }
-              }
-          }
-        )
-    }
+    mock(useConstructor = UseConstructor.parameterless())
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalRequisitionMock) }
 
@@ -151,16 +222,13 @@ class RequisitionsServiceTest {
   }
 
   @Test
-  fun `listRequisitions with parent uses filter with parent`() {
+  fun `listRequisitions with parent uses filter with parent`() = runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
     val request = listRequisitionsRequest { parent = DATA_PROVIDER_NAME }
 
-    val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-        runBlocking { service.listRequisitions(request) }
-      }
+    val result = service.listRequisitions(request)
 
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
@@ -179,7 +247,6 @@ class RequisitionsServiceTest {
           limit = DEFAULT_LIMIT + 1
           filter =
             StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
             }
@@ -211,10 +278,7 @@ class RequisitionsServiceTest {
       filter = filter { states += State.UNFULFILLED }
     }
 
-    val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-        runBlocking { service.listRequisitions(request) }
-      }
+    val result = service.listRequisitions(request)
 
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
@@ -244,7 +308,6 @@ class RequisitionsServiceTest {
           limit = 3
           filter =
             StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               states += InternalState.UNFULFILLED
               measurementStates += VISIBLE_MEASUREMENT_STATES
@@ -268,10 +331,7 @@ class RequisitionsServiceTest {
       pageSize = 1
     }
 
-    val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-        runBlocking { service.listRequisitions(request) }
-      }
+    val result = service.listRequisitions(request)
 
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
@@ -299,7 +359,6 @@ class RequisitionsServiceTest {
           limit = 2
           filter =
             StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
             }
@@ -310,7 +369,8 @@ class RequisitionsServiceTest {
   }
 
   @Test
-  fun `listRequisitions with parent and filter containing measurement uses filter with both`() {
+  fun `listRequisitions with parent and filter containing measurement uses filter with both`() =
+      runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION))
 
@@ -319,10 +379,7 @@ class RequisitionsServiceTest {
       filter = filter { measurement = MEASUREMENT_NAME }
     }
 
-    val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-        runBlocking { service.listRequisitions(request) }
-      }
+    val result = service.listRequisitions(request)
 
     val expected = listRequisitionsResponse { requisitions += REQUISITION }
 
@@ -372,11 +429,7 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.listRequisitions(request) }
-        }
-      }
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")
@@ -405,11 +458,7 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.listRequisitions(request) }
-        }
-      }
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")
@@ -435,11 +484,7 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.listRequisitions(request) }
-        }
-      }
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")
@@ -467,53 +512,17 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.listRequisitions(request) }
-        }
-      }
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listRequisitions(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
-  fun `listRequisitions throws PERMISSION_DENIED when authenticated MC doesn't match`() {
-    val request = listRequisitionsRequest {
-      parent = DATA_PROVIDER_NAME
-      filter = filter { measurement = MEASUREMENT_NAME }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(
-          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
-        ) { runBlocking { service.listRequisitions(request) } }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot list Requisitions belonging to other MeasurementConsumers")
-  }
-
-  @Test
-  fun `listRequisitions throws UNAUTHENTICATED when MeasurementConsumer principal is not found`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME }) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
-  }
-
-  @Test
   fun `listRequisitions throws INVALID_ARGUMENT when only wildcard parent`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking {
-            service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME })
-          }
-        }
+        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
@@ -524,9 +533,7 @@ class RequisitionsServiceTest {
   fun `listRequisitions throws INVALID_ARGUMENT when parent is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.listRequisitions(listRequisitionsRequest { parent = "adsfasdf" }) }
-        }
+        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = "adsfasdf" }) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid")
@@ -595,115 +602,5 @@ class RequisitionsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-  }
-
-  companion object {
-    private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
-      externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-      externalMeasurementId = EXTERNAL_MEASUREMENT_ID
-      externalRequisitionId = EXTERNAL_REQUISITION_ID
-      externalComputationId = 4L
-      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-      updateTime = UPDATE_TIME
-      state = InternalState.FULFILLED
-      externalFulfillingDuchyId = "9"
-      duchies[DUCHIES_MAP_KEY] =
-        duchyValue {
-          externalDuchyCertificateId = 6L
-          liquidLegionsV2 =
-            liquidLegionsV2Details {
-              elGamalPublicKey = UPDATE_TIME.toByteString()
-              elGamalPublicKeySignature = UPDATE_TIME.toByteString()
-            }
-        }
-      dataProviderCertificate =
-        internalCertificate {
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          externalCertificateId = 7L
-        }
-      parentMeasurement =
-        parentMeasurement {
-          apiVersion = Version.V2_ALPHA.string
-          externalMeasurementConsumerCertificateId = 8L
-          protocolConfig =
-            internalProtocolConfig {
-              externalProtocolConfigId = "llv2"
-              liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-            }
-        }
-    }
-
-    private val REQUISITION: Requisition = requisition {
-      name =
-        RequisitionKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-            externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
-          )
-          .toName()
-
-      measurement =
-        MeasurementKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
-          )
-          .toName()
-      measurementConsumerCertificate =
-        MeasurementConsumerCertificateKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
-            externalIdToApiId(
-              INTERNAL_REQUISITION.parentMeasurement.externalMeasurementConsumerCertificateId
-            )
-          )
-          .toName()
-      measurementSpec =
-        signedData {
-          data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
-          signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
-        }
-      protocolConfig =
-        protocolConfig {
-          name = "protocolConfigs/llv2"
-          liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-        }
-      dataProviderCertificate =
-        DataProviderCertificateKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-            externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
-          )
-          .toName()
-      dataProviderPublicKey =
-        signedData {
-          data = INTERNAL_REQUISITION.details.dataProviderPublicKey
-          signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
-        }
-
-      val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]!!
-
-      duchies +=
-        duchyEntry {
-          key = DUCHIES_MAP_KEY
-          value =
-            value {
-              duchyCertificate = externalIdToApiId(entry.externalDuchyCertificateId)
-              liquidLegionsV2 =
-                liquidLegionsV2 {
-                  elGamalPublicKey =
-                    signedData {
-                      data = entry.liquidLegionsV2.elGamalPublicKey
-                      signature = entry.liquidLegionsV2.elGamalPublicKeySignature
-                    }
-                }
-            }
-        }
-
-      state = State.FULFILLED
-    }
-
-    private val INTERNAL_MEASUREMENT_CONSUMER = measurementConsumer {
-      externalMeasurementConsumerId =
-        apiIdToExternalId(
-          MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-        )
-    }
   }
 }
