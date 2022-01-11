@@ -272,7 +272,7 @@ class SpannerAccountsService(
     val tokenParts = idToken.split(".")
 
     if (tokenParts.size != 3) {
-      throw GeneralSecurityException()
+      throw GeneralSecurityException("Id token does not have 3 components")
     }
 
     val claims =
