@@ -19,9 +19,11 @@ import org.wfanet.panelmatch.client.eventpreprocessing.UnprocessedEvent
 import org.wfanet.panelmatch.client.eventpreprocessing.unprocessedEvent
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.client.exchangetasks.joinKey
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyIdentifier
 import org.wfanet.panelmatch.client.privatemembership.Bucket
 import org.wfanet.panelmatch.client.privatemembership.BucketId
@@ -126,6 +128,12 @@ fun joinKeyIdentifierOf(id: ByteString): JoinKeyIdentifier = joinKeyIdentifier {
 fun joinKeyAndIdOf(key: ByteString, id: ByteString): JoinKeyAndId = joinKeyAndId {
   joinKey = joinKeyOf(key)
   joinKeyIdentifier = joinKeyIdentifierOf(id)
+}
+
+/** Constructs a [JoinKeyAndIdCollection]. */
+fun joinKeyAndIdCollectionOf(items: List<JoinKeyAndId>): JoinKeyAndIdCollection =
+    joinKeyAndIdCollection {
+  joinKeyAndIds += items
 }
 
 /** Constructs a [EncryptedEntry]. */

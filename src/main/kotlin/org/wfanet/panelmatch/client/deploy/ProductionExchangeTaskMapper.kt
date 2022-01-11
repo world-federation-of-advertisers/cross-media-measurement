@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import com.google.protobuf.kotlin.toByteStringUtf8
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -31,19 +32,17 @@ import org.wfanet.panelmatch.client.exchangetasks.ApacheBeamTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromPreviousExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyFromSharedStorageTask
 import org.wfanet.panelmatch.client.exchangetasks.CopyToSharedStorageTask
-import org.wfanet.panelmatch.client.exchangetasks.CryptorExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.DeterministicCommutativeCipherTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.GenerateAsymmetricKeyPairTask
-import org.wfanet.panelmatch.client.exchangetasks.GenerateExchangeCertificateTask
 import org.wfanet.panelmatch.client.exchangetasks.GenerateHybridEncryptionKeyPairTask
-import org.wfanet.panelmatch.client.exchangetasks.GenerateRandomBytesTask
-import org.wfanet.panelmatch.client.exchangetasks.GenerateSymmetricKeyTask
 import org.wfanet.panelmatch.client.exchangetasks.HybridDecryptTask
 import org.wfanet.panelmatch.client.exchangetasks.HybridEncryptTask
 import org.wfanet.panelmatch.client.exchangetasks.InputTask
 import org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTask
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
@@ -59,6 +58,7 @@ import org.wfanet.panelmatch.client.storage.SharedStorageSelector
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
+import org.wfanet.panelmatch.common.crypto.generateSecureRandomByteString
 
 open class ProductionExchangeTaskMapper(
   private val inputTaskThrottler: Throttler,
@@ -69,20 +69,21 @@ open class ProductionExchangeTaskMapper(
   private val taskContext: TaskParameters,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
-    return CryptorExchangeTask.forEncryption(JniDeterministicCommutativeCipher())
+    return DeterministicCommutativeCipherTask.forEncryption(JniDeterministicCommutativeCipher())
   }
 
   override suspend fun ExchangeContext.commutativeDeterministicDecrypt(): ExchangeTask {
-    return CryptorExchangeTask.forDecryption(JniDeterministicCommutativeCipher())
+    return DeterministicCommutativeCipherTask.forDecryption(JniDeterministicCommutativeCipher())
   }
 
   override suspend fun ExchangeContext.commutativeDeterministicReEncrypt(): ExchangeTask {
-    return CryptorExchangeTask.forReEncryption(JniDeterministicCommutativeCipher())
+    return DeterministicCommutativeCipherTask.forReEncryption(JniDeterministicCommutativeCipher())
   }
 
   override suspend fun ExchangeContext.generateCommutativeDeterministicEncryptionKey():
     ExchangeTask {
-    return GenerateSymmetricKeyTask(JniDeterministicCommutativeCipher()::generateKey)
+    val cipher = JniDeterministicCommutativeCipher()
+    return ProducerTask("symmetric-key") { cipher.generateKey() }
   }
 
   override suspend fun ExchangeContext.preprocessEvents(): ExchangeTask {
@@ -174,7 +175,9 @@ open class ProductionExchangeTaskMapper(
   }
 
   override suspend fun ExchangeContext.generateExchangeCertificate(): ExchangeTask {
-    return GenerateExchangeCertificateTask(certificateManager, exchangeDateKey)
+    return ProducerTask("certificate-resource-name") {
+      certificateManager.createForExchange(exchangeDateKey).toByteStringUtf8()
+    }
   }
 
   override suspend fun ExchangeContext.generateLookupKeys(): ExchangeTask {
@@ -267,7 +270,7 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.generateRandomBytes(): ExchangeTask {
     val numBytes = step.generateRandomBytesStep.numBytes
-    return GenerateRandomBytesTask(numBytes)
+    return ProducerTask("random-bytes") { generateSecureRandomByteString(numBytes) }
   }
 
   private suspend fun ExchangeContext.apacheBeamTaskFor(

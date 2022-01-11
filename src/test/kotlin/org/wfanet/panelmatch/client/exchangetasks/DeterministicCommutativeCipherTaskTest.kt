@@ -19,20 +19,13 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.createBlob
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.common.joinKeyAndIdCollectionOf
 import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
-import org.wfanet.panelmatch.client.logger.TaskLog
+import org.wfanet.panelmatch.client.exchangetasks.testing.executeToByteStrings
 import org.wfanet.panelmatch.common.crypto.testing.FakeDeterministicCommutativeCipher
-
-private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
 
 private val KEY1: ByteString = FakeDeterministicCommutativeCipher.generateKey()
 private val KEY2: ByteString = FakeDeterministicCommutativeCipher.generateKey()
@@ -60,37 +53,19 @@ private val DOUBLE_ENCRYPTED_CIPHERTEXT_COLLECTION =
   )
 
 @RunWith(JUnit4::class)
-class DeterministicCommutativeCryptorExchangeTaskTest {
-  private val storage = InMemoryStorageClient()
-
-  private fun createBlob(blobKey: String, contents: ByteString): Blob = runBlocking {
-    storage.createBlob(blobKey, contents)
-  }
-
-  private fun writeInputs(vararg inputs: Pair<String, ByteString>): Map<String, Blob> {
-    return inputs.toMap().mapValues { createBlob("underlying-key-for-${it.key}", it.value) }
-  }
-
-  private fun ExchangeTask.executeToByteStrings(
-    vararg inputs: Pair<String, ByteString>
-  ): Map<String, ByteString> {
-    return runBlocking(TaskLog(ATTEMPT_KEY) + Dispatchers.Default) {
-      execute(writeInputs(*inputs)).mapValues { it.value.flatten() }
-    }
-  }
-
+class DeterministicCommutativeCipherTaskTest {
   private fun decrypt(vararg inputs: Pair<String, ByteString>): Map<String, ByteString> {
-    return CryptorExchangeTask.forDecryption(FakeDeterministicCommutativeCipher)
+    return DeterministicCommutativeCipherTask.forDecryption(FakeDeterministicCommutativeCipher)
       .executeToByteStrings(*inputs)
   }
 
   private fun encrypt(vararg inputs: Pair<String, ByteString>): Map<String, ByteString> {
-    return CryptorExchangeTask.forEncryption(FakeDeterministicCommutativeCipher)
+    return DeterministicCommutativeCipherTask.forEncryption(FakeDeterministicCommutativeCipher)
       .executeToByteStrings(*inputs)
   }
 
   private fun reEncrypt(vararg inputs: Pair<String, ByteString>): Map<String, ByteString> {
-    return CryptorExchangeTask.forReEncryption(FakeDeterministicCommutativeCipher)
+    return DeterministicCommutativeCipherTask.forReEncryption(FakeDeterministicCommutativeCipher)
       .executeToByteStrings(*inputs)
   }
 
@@ -220,8 +195,4 @@ class DeterministicCommutativeCryptorExchangeTaskTest {
     }
     assertFailsWith<NoSuchElementException> { reEncrypt("encryption-key" to KEY1) }
   }
-}
-
-private fun joinKeyAndIdCollectionOf(items: List<JoinKeyAndId>): JoinKeyAndIdCollection {
-  return joinKeyAndIdCollection { joinKeyAndIds += items }
 }

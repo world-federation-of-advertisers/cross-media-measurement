@@ -18,9 +18,7 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.common.crypto.DeterministicCommutativeCipher
-import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.storage.toByteString
 
 private const val INPUT_CRYPTO_KEY_LABEL = "encryption-key"
@@ -30,7 +28,7 @@ private const val INPUT_CRYPTO_KEY_LABEL = "encryption-key"
  *
  * The [operation] should output items in the same order that they are input.
  */
-class CryptorExchangeTask
+class DeterministicCommutativeCipherTask
 internal constructor(
   private val operation: (ByteString, List<ByteString>) -> List<ByteString>,
   private val inputDataLabel: String,
@@ -40,8 +38,6 @@ internal constructor(
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
-    logger.addToTaskLog("Executing crypto operation")
-
     // TODO See if it is worth updating this to not collect the inputs entirely at this step.
     //  It should be possible to process batches of them to balance memory usage and execution
     //  efficiency. If the inputs turn out to be small enough this shouldn't be an issue.
@@ -68,15 +64,11 @@ internal constructor(
   }
 
   companion object {
-    private val logger by loggerFor()
-
     /** Returns an [ExchangeTask] that removes encryption from data. */
     @JvmStatic
-    fun forDecryption(
-      DeterministicCommutativeCipher: DeterministicCommutativeCipher
-    ): ExchangeTask {
-      return CryptorExchangeTask(
-        operation = DeterministicCommutativeCipher::decrypt,
+    fun forDecryption(cipher: DeterministicCommutativeCipher): ExchangeTask {
+      return DeterministicCommutativeCipherTask(
+        operation = cipher::decrypt,
         inputDataLabel = "encrypted-data",
         outputDataLabel = "decrypted-data"
       )
@@ -84,11 +76,9 @@ internal constructor(
 
     /** Returns an [ExchangeTask] that adds encryption to plaintext. */
     @JvmStatic
-    fun forEncryption(
-      DeterministicCommutativeCipher: DeterministicCommutativeCipher
-    ): ExchangeTask {
-      return CryptorExchangeTask(
-        operation = DeterministicCommutativeCipher::encrypt,
+    fun forEncryption(cipher: DeterministicCommutativeCipher): ExchangeTask {
+      return DeterministicCommutativeCipherTask(
+        operation = cipher::encrypt,
         inputDataLabel = "unencrypted-data",
         outputDataLabel = "encrypted-data"
       )
@@ -96,11 +86,9 @@ internal constructor(
 
     /** Returns an [ExchangeTask] that adds another layer of encryption to data. */
     @JvmStatic
-    fun forReEncryption(
-      DeterministicCommutativeCipher: DeterministicCommutativeCipher
-    ): ExchangeTask {
-      return CryptorExchangeTask(
-        operation = DeterministicCommutativeCipher::reEncrypt,
+    fun forReEncryption(cipher: DeterministicCommutativeCipher): ExchangeTask {
+      return DeterministicCommutativeCipherTask(
+        operation = cipher::reEncrypt,
         inputDataLabel = "encrypted-data",
         outputDataLabel = "reencrypted-data"
       )

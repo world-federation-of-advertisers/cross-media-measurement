@@ -18,9 +18,7 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.logger.addToTaskLog
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
-import org.wfanet.panelmatch.common.loggerFor
 
 private const val PRIVATE_KEY_LABEL = "private-key"
 private const val PUBLIC_KEY_LABEL = "public-key"
@@ -32,16 +30,10 @@ class GenerateAsymmetricKeyPairTask(private val generateKeys: () -> AsymmetricKe
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
-    logger.addToTaskLog("Executing generate asymmetric keys")
-
     val key = generateKeys()
     return mapOf(
       PUBLIC_KEY_LABEL to flowOf(key.serializedPublicKey),
       PRIVATE_KEY_LABEL to flowOf(key.serializedPrivateKey)
     )
-  }
-
-  companion object {
-    private val logger by loggerFor()
   }
 }
