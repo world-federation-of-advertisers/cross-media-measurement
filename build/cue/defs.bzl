@@ -79,8 +79,38 @@ def cue_string_field(name, src, identifier, package = None, **kwargs):
         **kwargs
     )
 
+CueInfo = provider("CUE library info.", fields = ["transitive_sources"])
+
+def _get_transitive_sources(srcs, deps):
+    return depset(
+        srcs,
+        transitive = [dep[CueInfo].transitive_sources for dep in deps],
+    )
+
+def _cue_library_impl(ctx):
+    return [CueInfo(transitive_sources = _get_transitive_sources(
+        ctx.files.srcs,
+        ctx.attr.deps,
+    ))]
+
+cue_library = rule(
+    implementation = _cue_library_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            doc = "Source CUE files.",
+            allow_files = [".cue"],
+            allow_empty = False,
+        ),
+        "deps": attr.label_list(
+            doc = "cue_library dependencies.",
+            providers = [CueInfo],
+        ),
+    },
+)
+
 def _cue_export_impl(ctx):
     outfile = ctx.outputs.outfile
+    transitive_sources = _get_transitive_sources(ctx.files.srcs, ctx.attr.deps)
 
     args = ctx.actions.args()
     args.add("export")
@@ -89,7 +119,7 @@ def _cue_export_impl(ctx):
         args.add("--out", ctx.attr.filetype)
     if ctx.attr.expression:
         args.add("--expression", ctx.attr.expression)
-    args.add_all(ctx.files.srcs)
+    args.add_all(transitive_sources)
 
     tags = ctx.attr.cue_tags or {}
     for k, v in tags.items():
@@ -100,7 +130,7 @@ def _cue_export_impl(ctx):
 
     ctx.actions.run(
         outputs = [outfile],
-        inputs = ctx.files.srcs,
+        inputs = transitive_sources.to_list(),
         executable = ctx.executable._cue_cli,
         mnemonic = "CueExport",
         arguments = [args],
@@ -112,10 +142,14 @@ cue_export = rule(
         "srcs": attr.label_list(
             doc = "Source CUE files.",
             allow_files = [".cue"],
-            allow_empty = False,
+        ),
+        "deps": attr.label_list(
+            doc = "cue_library dependencies.",
+            providers = [CueInfo],
         ),
         "filetype": attr.string(
             doc = "Output filetype.",
+            default = "yaml",
         ),
         "outfile": attr.output(
             doc = "Output file.",

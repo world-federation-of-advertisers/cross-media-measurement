@@ -1,27 +1,64 @@
 load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
+load("//build/cue:defs.bzl", "cue_library")
 load(":macros.bzl", "cue_dump")
 
 package(default_visibility = ["//src/main/k8s:__subpackages__"])
 
+cue_library(
+    name = "base",
+    srcs = ["base.cue"],
+)
+
+cue_library(
+    name = "resource_setup",
+    srcs = ["resource_setup.cue"],
+    deps = [":base"],
+)
+
+cue_library(
+    name = "kingdom",
+    srcs = ["kingdom.cue"],
+    deps = [":base"],
+)
+
+cue_library(
+    name = "duchy",
+    srcs = ["duchy.cue"],
+    deps = [":base"],
+)
+
+cue_library(
+    name = "frontend_simulator",
+    srcs = ["frontend_simulator.cue"],
+    deps = [":base"],
+)
+
+cue_library(
+    name = "edp_simulator",
+    srcs = ["edp_simulator.cue"],
+    deps = [":base"],
+)
+
 CUE_LIBRARIES = [
-    "base.cue",
-    "duchy.cue",
-    "kingdom.cue",
-    "frontend_simulator.cue",
-    "edp_simulator.cue",
-    "resource_setup.cue",
+    ":base",
+    ":duchy",
+    ":edp_simulator",
+    ":frontend_simulator",
+    ":kingdom",
+    ":resource_setup",
 ]
 
 cue_dump(
     name = "kingdom_and_three_duchies_from_cue_local",
-    srcs = CUE_LIBRARIES + ["kingdom_and_three_duchies_local.cue"],
+    srcs = ["kingdom_and_three_duchies_local.cue"],
+    deps = CUE_LIBRARIES,
 )
 
 cue_dump(
     name = "kingdom_and_three_duchies_from_cue_gke",
-    srcs = CUE_LIBRARIES + ["kingdom_and_three_duchies_gke.cue"],
+    srcs = ["kingdom_and_three_duchies_gke.cue"],
     cue_tags = {
         "cloud_storage_bucket": TEST_GOOGLE_CLOUD_SETTINGS.cloud_storage_bucket,
         "cloud_storage_project": TEST_GOOGLE_CLOUD_SETTINGS.cloud_storage_project,
@@ -31,6 +68,7 @@ cue_dump(
         "spanner_project": TEST_GOOGLE_CLOUD_SETTINGS.spanner_project,
     },
     tags = ["manual"],
+    deps = CUE_LIBRARIES,
 )
 
 ALL_LOCAL_IMAGE_ARCHIVES = [
