@@ -80,8 +80,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
     EntityContent(
       displayName = "mc_001",
       signingKey = loadSigningKey(flags.mcCsCertDerFile, flags.mcCsKeyDerFile),
-      encryptionPublicKey =
-        loadPublicKey(flags.mcEncryptionPublicKeyDerFile).toEncryptionPublicKey()
+      encryptionPublicKey = loadPublicKey(flags.mcEncryptionPublicKeyset).toEncryptionPublicKey()
     )
   val duchyCerts =
     flags.duchyCsCertDerFiles.map {
