@@ -90,7 +90,8 @@ class EdpSimulator(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
-  private val throttler: MinimumIntervalThrottler
+  private val throttler: MinimumIntervalThrottler,
+  private val apiAuthenticationKey: String,
 ) {
 
   /** A sequence of operations done in the simulator. */

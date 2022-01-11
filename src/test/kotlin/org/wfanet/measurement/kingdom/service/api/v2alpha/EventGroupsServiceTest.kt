@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -115,6 +116,13 @@ private val INTERNAL_EVENT_TEMPLATES =
   EVENT_TEMPLATE_TYPES.map { type ->
     internalEventGroupKt.eventTemplate { fullyQualifiedType = type }
   }
+
+private val INTERNAL_MEASUREMENT_CONSUMER = measurementConsumer {
+  externalMeasurementConsumerId =
+    apiIdToExternalId(
+      MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+    )
+}
 
 private val EVENT_GROUP: EventGroup = eventGroup {
   name = EVENT_GROUP_NAME
@@ -302,7 +310,10 @@ class EventGroupsServiceTest {
   fun `listEventGroups with parent uses filter with parent`() {
     val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
-    val result = runBlocking { service.listEventGroups(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.listEventGroups(request) }
+      }
 
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
@@ -345,7 +356,10 @@ class EventGroupsServiceTest {
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
-    val result = runBlocking { service.listEventGroups(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.listEventGroups(request) }
+      }
 
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
@@ -401,7 +415,9 @@ class EventGroupsServiceTest {
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
-    runBlocking { service.listEventGroups(request) }
+    withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      runBlocking { service.listEventGroups(request) }
+    }
 
     val streamEventGroupsRequest =
       captureFirst<StreamEventGroupsRequest> {
@@ -429,7 +445,9 @@ class EventGroupsServiceTest {
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
-    runBlocking { service.listEventGroups(request) }
+    withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      runBlocking { service.listEventGroups(request) }
+    }
 
     val streamEventGroupsRequest =
       captureFirst<StreamEventGroupsRequest> {
@@ -452,7 +470,10 @@ class EventGroupsServiceTest {
         }
     }
 
-    val result = runBlocking { service.listEventGroups(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.listEventGroups(request) }
+      }
 
     val expected = listEventGroupsResponse {
       eventGroups += EVENT_GROUP
@@ -483,10 +504,47 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups throws UNAUTHENTICATED when MC is missing`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listEventGroups(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
+  }
+
+  @Test
+  fun `listEventGroups throws PERMISSION_DENIED when MC doesn't match filter MC`() {
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter =
+        filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_NAME
+          measurementConsumers += "measurementConsumers/BBBAAAAAAHt"
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot list Event Groups belonging to other MeasurementConsumers")
+  }
+
+  @Test
   fun `listEventGroups throws INVALID_ARGUMENT when only wildcard parent`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listEventGroups(listEventGroupsRequest { parent = WILDCARD_NAME }) }
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listEventGroups(listEventGroupsRequest { parent = WILDCARD_NAME }) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
@@ -497,7 +555,9 @@ class EventGroupsServiceTest {
   fun `listRequisitions throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listEventGroups(ListEventGroupsRequest.getDefaultInstance()) }
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listEventGroups(ListEventGroupsRequest.getDefaultInstance()) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid")
@@ -507,13 +567,15 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when measurement consumer in filter is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listEventGroups(
-            listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
-              filter = filter { measurementConsumers += "asdf" }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                filter = filter { measurementConsumers += "asdf" }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -525,13 +587,15 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws INVALID_ARGUMENT when page size is less than 0`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listEventGroups(
-            listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
-              pageSize = -1
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                pageSize = -1
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -556,7 +620,11 @@ class EventGroupsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.listEventGroups(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")
@@ -581,7 +649,11 @@ class EventGroupsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.listEventGroups(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("Arguments must be kept the same when using a page token")

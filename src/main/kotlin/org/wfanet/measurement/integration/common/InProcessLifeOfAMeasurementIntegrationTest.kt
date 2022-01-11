@@ -40,6 +40,7 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -176,7 +177,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     // Start all Mills and all EDPs, which can only be started after the resources are created.
     duchies.forEach { it.startLiquidLegionsV2mill(duchyCertMap) }
     edpSimulators.forEach {
-      it.start(edpDisplayNameToResourceNameMap.getValue(it.displayName), mcResourceName)
+      it.start(
+        edpDisplayNameToResourceNameMap.getValue(it.displayName),
+        mcResourceName,
+        apiAuthenticationKey
+      )
     }
   }
 
@@ -188,7 +193,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     val eventGroupList =
       pollFor(timeoutMillis = 10_000) {
         val eventGroups =
-          publicEventGroupsClient.listEventGroups(
+          publicEventGroupsClient
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listEventGroups(
               listEventGroupsRequest {
                 parent = "dataProviders/-"
                 filter = ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }

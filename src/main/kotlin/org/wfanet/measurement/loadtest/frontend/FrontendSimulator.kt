@@ -275,7 +275,10 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
     }
-    return eventGroupsClient.listEventGroups(request).eventGroupsList
+    return eventGroupsClient
+      .withAuthenticationKey(apiAuthenticationKey)
+      .listEventGroups(request)
+      .eventGroupsList
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
