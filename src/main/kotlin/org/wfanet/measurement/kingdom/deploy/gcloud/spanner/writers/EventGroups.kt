@@ -21,6 +21,10 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
+/**
+ * Checks that a given Measurement Consumer certificate is valid and returns its ID. @throws
+ * KingdomInternalException if not found or invalid.
+ */
 suspend fun checkValidCertificate(
   measurementConsumerCertificateId: Long,
   measurementConsumerId: Long,

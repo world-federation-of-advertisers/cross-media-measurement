@@ -48,15 +48,16 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           )
           ?.value
       else null
-    val providedEventGroupId = eventGroup.providedEventGroupId ?: null
+    val providedEventGroupId =
+      if (eventGroup.providedEventGroupId.isNotBlank()) {
+        eventGroup.providedEventGroupId
+      } else null
 
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)
       set("EventGroupId" to internalEventGroupResult.internalEventGroupId.value)
       set("MeasurementConsumerCertificateId" to measurementConsumerCertificateId)
-      if (eventGroup.providedEventGroupId != null) {
-        set("ProvidedEventGroupId" to providedEventGroupId)
-      }
+      set("ProvidedEventGroupId" to providedEventGroupId)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("EventGroupDetails" to eventGroup.details)
       setJson("EventGroupDetailsJson" to eventGroup.details)
