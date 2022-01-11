@@ -23,8 +23,6 @@ import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.logger.addToTaskLog
-import org.wfanet.panelmatch.common.loggerFor
 
 private const val PRIVATE_KEY_LABEL = "private-key-handle"
 private const val PUBLIC_KEY_LABEL = "public-key-handle"
@@ -35,8 +33,6 @@ class GenerateHybridEncryptionKeyPairTask : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
-    logger.addToTaskLog("Executing generate blob encryption keys")
-
     val privateKeysetHandle = KeysetHandle.generateNew(ECIES_KEY_TEMPLATE)
     // TODO: Require the storage layer to be a KMS
     val cleartextPrivateKeysetHandle =
@@ -55,8 +51,6 @@ class GenerateHybridEncryptionKeyPairTask : ExchangeTask {
     init {
       HybridConfig.register()
     }
-
-    private val logger by loggerFor()
 
     private val ECIES_KEY_TEMPLATE = KeyTemplates.get("ECIES_P256_HKDF_HMAC_SHA256_AES128_GCM")
 

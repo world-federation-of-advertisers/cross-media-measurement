@@ -14,19 +14,15 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
-import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.createBlob
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.panelmatch.client.common.joinKeyAndIdCollectionOf
+import org.wfanet.panelmatch.client.exchangetasks.testing.executeToByteStrings
 
 private val JOIN_KEYS: List<JoinKeyAndId> =
   (1..10).map {
@@ -41,30 +37,25 @@ private const val MAXIMUM_NEW_ITEMS_ALLOWED = 2
 
 @RunWith(JUnit4::class)
 class IntersectValidateTaskTest {
-
-  private suspend fun createBlob(items: List<JoinKeyAndId>): Blob {
-    val collection = joinKeyAndIdCollection { joinKeyAndIds += items }
-    val storageClient = InMemoryStorageClient()
-    return storageClient.createBlob("irrelevant-blob-key", collection.toByteString())
-  }
-
   private fun runIntersectAndValidate(
     previousData: List<JoinKeyAndId>? = JOIN_KEYS,
     currentData: List<JoinKeyAndId>? = JOIN_KEYS,
     maxSize: Int = DEFAULT_MAX_SIZE,
     isFirstExchange: Boolean = false
-  ): Map<String, Flow<ByteString>> = runBlocking {
-    val inputs = mutableMapOf<String, Blob>()
+  ): Map<String, ByteString> {
+    val inputs = mutableListOf<Pair<String, ByteString>>()
 
-    if (previousData != null) inputs["previous-data"] = createBlob(previousData)
-    if (currentData != null) inputs["current-data"] = createBlob(currentData)
+    if (previousData != null)
+      inputs.add("previous-data" to joinKeyAndIdCollectionOf(previousData).toByteString())
+    if (currentData != null)
+      inputs.add("current-data" to joinKeyAndIdCollectionOf(currentData).toByteString())
 
-    IntersectValidateTask(
+    return IntersectValidateTask(
         maxSize = maxSize,
         maximumNewItemsAllowed = MAXIMUM_NEW_ITEMS_ALLOWED,
         isFirstExchange = isFirstExchange
       )
-      .execute(inputs)
+      .executeToByteStrings(*inputs.toTypedArray())
   }
 
   private fun assertIntersectAndValidateHasCorrectOutput(
@@ -72,10 +63,10 @@ class IntersectValidateTaskTest {
     currentData: List<JoinKeyAndId>? = JOIN_KEYS,
     maxSize: Int = DEFAULT_MAX_SIZE,
     isFirstExchange: Boolean = false
-  ) = runBlocking {
+  ) {
     val outputs = runIntersectAndValidate(previousData, currentData, maxSize, isFirstExchange)
     val outputJoinKeys =
-      JoinKeyAndIdCollection.parseFrom(outputs.getValue("current-data").flatten()).joinKeyAndIdsList
+      JoinKeyAndIdCollection.parseFrom(outputs.getValue("current-data")).joinKeyAndIdsList
     assertThat(outputJoinKeys).containsExactlyElementsIn(currentData)
   }
 

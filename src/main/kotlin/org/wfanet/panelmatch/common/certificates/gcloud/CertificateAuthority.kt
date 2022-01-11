@@ -34,7 +34,6 @@ import java.time.Duration
 import org.wfanet.measurement.common.crypto.generateKeyPair
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
-import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.toProto
 
 /**
@@ -116,9 +115,5 @@ class CertificateAuthority(
     val response: Certificate = client.createCertificate(certificateRequest)
 
     return readCertificate(response.pemCertificate.byteInputStream()) to privateKey
-  }
-
-  companion object {
-    private val logger by loggerFor()
   }
 }

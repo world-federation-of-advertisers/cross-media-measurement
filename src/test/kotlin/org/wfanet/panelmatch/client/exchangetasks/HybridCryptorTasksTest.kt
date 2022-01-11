@@ -15,43 +15,16 @@
 package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.createBlob
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.logger.TaskLog
-
-private const val ATTEMPT_KEY = "some-arbitrary-attempt-key"
+import org.wfanet.panelmatch.client.exchangetasks.testing.executeToByteStrings
 
 @RunWith(JUnit4::class)
 class HybridCryptorTasksTest {
-  private val storage = InMemoryStorageClient()
-
-  private fun createBlob(blobKey: String, contents: ByteString): Blob = runBlocking {
-    storage.createBlob(blobKey, contents)
-  }
-
-  private fun writeInputs(vararg inputs: Pair<String, ByteString>): Map<String, Blob> {
-    return inputs.toMap().mapValues { createBlob("underlying-key-for-${it.key}", it.value) }
-  }
-
-  private fun ExchangeTask.executeToByteStrings(
-    vararg inputs: Pair<String, ByteString>
-  ): Map<String, ByteString> {
-    return runBlocking(TaskLog(ATTEMPT_KEY) + Dispatchers.Default) {
-      execute(writeInputs(*inputs)).mapValues { it.value.flatten() }
-    }
-  }
-
   private fun createKeys(vararg inputs: Pair<String, ByteString>): Map<String, ByteString> {
     return GenerateHybridEncryptionKeyPairTask().executeToByteStrings(*inputs)
   }
