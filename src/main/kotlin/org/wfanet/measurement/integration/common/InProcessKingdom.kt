@@ -135,11 +135,11 @@ class InProcessKingdom(
           .withAccountAuthenticationServerInterceptor(internalAccountsClient),
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
-        EventGroupsService(internalEventGroupsClient)
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient)
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        RequisitionsService(internalRequisitionsClient),
+        RequisitionsService(internalRequisitionsClient)
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         AccountsService(internalAccountsClient, redirectUri)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient),
         MeasurementConsumersService(internalMeasurementConsumersClient)

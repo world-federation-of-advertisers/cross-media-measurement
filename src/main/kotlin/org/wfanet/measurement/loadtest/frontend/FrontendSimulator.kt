@@ -275,10 +275,7 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
     }
-    return eventGroupsClient
-      .withAuthenticationKey(apiAuthenticationKey)
-      .listEventGroups(request)
-      .eventGroupsList
+    return eventGroupsClient.listEventGroups(request).eventGroupsList
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
@@ -286,7 +283,10 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
     }
-    return requisitionsClient.listRequisitions(request).requisitionsList
+    return requisitionsClient
+      .withAuthenticationKey(apiAuthenticationKey)
+      .listRequisitions(request)
+      .requisitionsList
   }
 
   private fun extractDataProviderName(eventGroupName: String): String {

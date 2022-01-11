@@ -95,8 +95,7 @@ private fun run(
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
       CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
-      EventGroupsService(InternalEventGroupsCoroutineStub(channel))
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+      EventGroupsService(InternalEventGroupsCoroutineStub(channel)).bindService(),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),
           internalExchangeStepsCoroutineStub
@@ -109,7 +108,8 @@ private fun run(
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
