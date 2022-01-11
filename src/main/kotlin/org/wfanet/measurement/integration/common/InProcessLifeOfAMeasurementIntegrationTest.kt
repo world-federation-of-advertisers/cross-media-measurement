@@ -177,11 +177,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     // Start all Mills and all EDPs, which can only be started after the resources are created.
     duchies.forEach { it.startLiquidLegionsV2mill(duchyCertMap) }
     edpSimulators.forEach {
-      it.start(
-        edpDisplayNameToResourceNameMap.getValue(it.displayName),
-        mcResourceName,
-        apiAuthenticationKey
-      )
+      it.start(edpDisplayNameToResourceNameMap.getValue(it.displayName), mcResourceName)
     }
   }
 

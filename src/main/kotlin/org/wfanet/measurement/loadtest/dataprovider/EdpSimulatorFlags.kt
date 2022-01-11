@@ -91,12 +91,4 @@ class EdpSimulatorFlags {
   @CommandLine.Mixin
   lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
     private set
-
-  @CommandLine.Option(
-    names = ["--api-authentication-key"],
-    description = ["Api authentication key for measurement consumer authentication."],
-    required = true
-  )
-  lateinit var apiAuthenticationKey: String
-    private set
 }

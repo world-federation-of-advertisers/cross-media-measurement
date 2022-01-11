@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import io.grpc.Status
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListEventGroupsPageTokenKt.previousPageEnd
@@ -39,14 +37,13 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
-import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
+import org.wfanet.measurement.internal.kingdom.EventGroupKt.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
@@ -96,20 +93,6 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val listEventGroupsPageToken = request.toListEventGroupPageToken()
-
-    if (listEventGroupsPageToken.externalMeasurementConsumerIdsList.isNotEmpty()) {
-      val measurementConsumer =
-        ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-          ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
-
-      listEventGroupsPageToken.externalMeasurementConsumerIdsList.forEach {
-        if (it != measurementConsumer.externalMeasurementConsumerId) {
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list Event Groups belonging to other MeasurementConsumers"
-          }
-        }
-      }
-    }
 
     val results: List<InternalEventGroup> =
       internalEventGroupsStub
@@ -206,7 +189,7 @@ private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEve
         vidModelLines += this@toInternal.vidModelLinesList
         eventTemplates.addAll(
           this@toInternal.eventTemplatesList.map { event ->
-            EventGroupKt.eventTemplate { fullyQualifiedType = event.type }
+            internalEventTemplate { fullyQualifiedType = event.type }
           }
         )
         encryptedMetadata = this@toInternal.encryptedMetadata
