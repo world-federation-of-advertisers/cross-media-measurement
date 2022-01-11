@@ -112,7 +112,7 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-          KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+          KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
           KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
         }
       throw status.withCause(e).asRuntimeException()
@@ -155,7 +155,7 @@ class SpannerRequisitionsService(
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
           KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-          KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+          KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
           KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
         }
       throw status.withCause(e).asRuntimeException()

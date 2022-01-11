@@ -104,7 +104,7 @@ class SpannerAccountsService(
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
         KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
@@ -158,7 +158,7 @@ class SpannerAccountsService(
         KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
         KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
@@ -201,7 +201,7 @@ class SpannerAccountsService(
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
         KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }

@@ -64,7 +64,7 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
         KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
@@ -75,7 +75,7 @@ class SpannerEventGroupsService(
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID ->
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS ->
           failGrpc(Status.INVALID_ARGUMENT) { "EventGroup modification param is invalid" }
         KingdomInternalException.Code.CERTIFICATE_IS_INVALID ->
           failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }

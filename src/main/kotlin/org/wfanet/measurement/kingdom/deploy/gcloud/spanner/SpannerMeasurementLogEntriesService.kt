@@ -66,7 +66,7 @@ class SpannerMeasurementLogEntriesService(
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
         KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }

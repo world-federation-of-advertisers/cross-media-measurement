@@ -86,7 +86,7 @@ class KingdomInternalException : Exception {
     /** EventGroup could not be found. */
     EVENT_GROUP_NOT_FOUND,
 
-    /** EventGroup modification param is invalid. */
-    EVENT_GROUP_MODIFICATION_INVALID,
+    /** EventGroup modification args are invalid. */
+    EVENT_GROUP_INVALID_ARGS,
   }
 }

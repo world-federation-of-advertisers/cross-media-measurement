@@ -37,7 +37,7 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
     if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
         eventGroup.externalMeasurementConsumerId
     ) {
-      throw KingdomInternalException(KingdomInternalException.Code.EVENT_GROUP_MODIFICATION_INVALID)
+      throw KingdomInternalException(KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS)
     }
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
