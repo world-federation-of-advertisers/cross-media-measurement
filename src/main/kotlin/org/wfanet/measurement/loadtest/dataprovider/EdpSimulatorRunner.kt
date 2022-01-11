@@ -80,8 +80,7 @@ abstract class EdpSimulatorRunner : Runnable {
           requisitionFulfillmentStub,
           SketchStore(storageClient),
           eventQuery,
-          MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
-          flags.apiAuthenticationKey
+          MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
         )
         .process()
     }

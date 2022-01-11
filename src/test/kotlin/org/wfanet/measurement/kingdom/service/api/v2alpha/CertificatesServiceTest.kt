@@ -36,7 +36,6 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
@@ -63,7 +62,6 @@ import org.wfanet.measurement.internal.kingdom.GetCertificateRequest as Internal
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest as internalGetCertificateRequest
-import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest as internalReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as internalRevokeCertificateRequest
 
@@ -72,11 +70,8 @@ private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/A
 private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
 private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
   "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
-private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2 =
-  "$MEASUREMENT_CONSUMER_NAME_2/certificates/AAAAAAAAAcg"
 private const val DUCHY_NAME = "duchies/AAAAAAAAAHs"
 private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg"
 
@@ -146,26 +141,15 @@ class CertificatesServiceTest {
 
   @Test
   fun `getCertificate succeeds for MeasurementConsumer`() {
-    val request = getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
-    val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-        runBlocking { service.getCertificate(request) }
+    assertGetCertificateRequestSucceeds(
+      MEASUREMENT_CONSUMER_CERTIFICATE_NAME,
+      internalGetCertificateRequest {
+        val key =
+          MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+        externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+        externalCertificateId = apiIdToExternalId(key.certificateId)
       }
-
-    verifyProtoArgument(internalCertificatesMock, CertificatesCoroutineImplBase::getCertificate)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        internalGetCertificateRequest {
-          val key =
-            MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
-          externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-          externalCertificateId = apiIdToExternalId(key.certificateId)
-        }
-      )
-
-    assertThat(result)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME })
+    )
   }
 
   @Test
@@ -190,30 +174,6 @@ class CertificatesServiceTest {
         externalCertificateId = apiIdToExternalId(key.certificateId)
       }
     )
-  }
-
-  @Test
-  fun `getCertificate throws UNAUTHENTICATED when mc missing for certificate with mc parent`() {
-    val request = getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.getCertificate(request) } }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
-  }
-  @Test
-  fun `getCertificate throws PERMISSION_DENIED when authenticated mc doesn't match mc parent`() {
-    val request = getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2 }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.getCertificate(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request")
   }
 
   @Test
@@ -266,36 +226,6 @@ class CertificatesServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
-  }
-
-  @Test
-  fun `createCertificate throws UNAUTHENTICATED when mc missing for certificate with mc parent`() {
-    val request = createCertificateRequest {
-      parent = MEASUREMENT_CONSUMER_NAME
-      certificate = CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.createCertificate(request) } }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
-  }
-  @Test
-  fun `createCertificate throws PERMISSION_DENIED when authenticated mc doesn't match mc parent`() {
-    val request = createCertificateRequest {
-      parent = MEASUREMENT_CONSUMER_NAME_2
-      certificate = CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.createCertificate(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request")
   }
 
   @Test
@@ -357,37 +287,6 @@ class CertificatesServiceTest {
   }
 
   @Test
-  fun `revokeCertificate throws UNAUTHENTICATED when mc missing for certificate with mc parent`() {
-    val request = revokeCertificateRequest {
-      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-      revocationState = Certificate.RevocationState.REVOKED
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.revokeCertificate(request) } }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
-  }
-
-  @Test
-  fun `revokeCertificate throws PERMISSION_DENIED when authenticated mc doesn't match mc parent`() {
-    val request = revokeCertificateRequest {
-      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2
-      revocationState = Certificate.RevocationState.REVOKED
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.revokeCertificate(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request")
-  }
-
-  @Test
   fun `releaseCertificateHold returns certificate with hold released`() {
 
     val request = releaseCertificateHoldRequest { name = DATA_PROVIDER_CERTIFICATE_NAME }
@@ -423,33 +322,6 @@ class CertificatesServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
-
-  @Test
-  fun `releaseCertificate throws UNAUTHENTICATED when mc missing for certificate with mc parent`() {
-    val request = releaseCertificateHoldRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.releaseCertificateHold(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
-  }
-
-  @Test
-  fun `releaseCertificate throws PERMISSION_DENIED when authenticated mc doesn't match parent`() {
-    val request = releaseCertificateHoldRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2 }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
-          runBlocking { service.releaseCertificateHold(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request")
-  }
 }
 
 private val SERVER_CERTIFICATE: X509Certificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
@@ -468,11 +340,4 @@ private val INTERNAL_CERTIFICATE = internalCertificate {
   notValidBefore = SERVER_CERTIFICATE.notBefore.toInstant().toProtoTime()
   notValidAfter = SERVER_CERTIFICATE.notAfter.toInstant().toProtoTime()
   details = details { x509Der = SERVER_CERTIFICATE_DER }
-}
-
-private val INTERNAL_MEASUREMENT_CONSUMER = measurementConsumer {
-  externalMeasurementConsumerId =
-    apiIdToExternalId(
-      MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-    )
 }

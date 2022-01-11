@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.Certificate.RevocationState
 import org.wfanet.measurement.api.v2alpha.CertificateParentKey
@@ -63,19 +62,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         is DataProviderCertificateKey ->
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         is DuchyCertificateKey -> externalDuchyId = key.duchyId
-        is MeasurementConsumerCertificateKey -> {
+        is MeasurementConsumerCertificateKey ->
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-
-          val measurementConsumer =
-            ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-              ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
-
-          if (externalMeasurementConsumerId != measurementConsumer.externalMeasurementConsumerId) {
-            failGrpc(Status.PERMISSION_DENIED) {
-              "Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request"
-            }
-          }
-        }
         is ModelProviderCertificateKey ->
           externalModelProviderId = apiIdToExternalId(key.modelProviderId)
         else -> failGrpc(Status.INTERNAL) { "Unsupported parent: ${key.toName()}" }
@@ -96,20 +84,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         dataProviderKey != null ->
           externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
         duchyKey != null -> externalDuchyId = duchyKey.duchyId
-        measurementConsumerKey != null -> {
+        measurementConsumerKey != null ->
           externalMeasurementConsumerId =
             apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
-
-          val measurementConsumer =
-            ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-              ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
-
-          if (externalMeasurementConsumerId != measurementConsumer.externalMeasurementConsumerId) {
-            failGrpc(Status.PERMISSION_DENIED) {
-              "Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request"
-            }
-          }
-        }
         else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
       }
     }
@@ -138,16 +115,6 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         is MeasurementConsumerCertificateKey -> {
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
-
-          val measurementConsumer =
-            ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-              ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
-
-          if (externalMeasurementConsumerId != measurementConsumer.externalMeasurementConsumerId) {
-            failGrpc(Status.PERMISSION_DENIED) {
-              "Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request"
-            }
-          }
         }
       }
       revocationState = request.revocationState.toInternal()
@@ -168,19 +135,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         is DataProviderCertificateKey ->
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
         is DuchyCertificateKey -> externalDuchyId = key.duchyId
-        is MeasurementConsumerCertificateKey -> {
+        is MeasurementConsumerCertificateKey ->
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-
-          val measurementConsumer =
-            ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-              ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
-
-          if (externalMeasurementConsumerId != measurementConsumer.externalMeasurementConsumerId) {
-            failGrpc(Status.PERMISSION_DENIED) {
-              "Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request"
-            }
-          }
-        }
         is ModelProviderCertificateKey ->
           externalModelProviderId = apiIdToExternalId(key.modelProviderId)
       }

@@ -93,8 +93,7 @@ private fun run(
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
       ApiKeysService(InternalApiKeysCoroutineStub(channel))
         .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
-      CertificatesService(InternalCertificatesCoroutineStub(channel))
-        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+      CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel)).bindService(),
       ExchangeStepAttemptsService(

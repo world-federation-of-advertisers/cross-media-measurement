@@ -133,8 +133,7 @@ class InProcessKingdom(
       listOf(
         ApiKeysService(internalApiKeysClient)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient),
-        CertificatesService(internalCertificatesClient)
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient)
