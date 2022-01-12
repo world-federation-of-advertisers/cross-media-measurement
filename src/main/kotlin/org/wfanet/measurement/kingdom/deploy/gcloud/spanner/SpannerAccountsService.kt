@@ -16,12 +16,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.gson.JsonParser
 import io.grpc.Status
-import java.math.BigInteger
-import java.security.KeyFactory
-import java.security.Signature
-import java.security.SignatureException
-import java.security.spec.RSAPublicKeySpec
+import java.io.IOException
+import java.security.GeneralSecurityException
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle.Companion.fromJwk
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.calculateRsaThumbprint
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.validateJwt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -47,7 +47,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateAccoun
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumerCreationToken
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceAccountIdentityWithNewOpenIdConnectIdentity
-import org.wfanet.measurement.tools.calculateRSAThumbprint
 
 private const val REDIRECT_URI = "https://localhost:2048"
 private const val VALID_SECONDS = 3600L
@@ -123,7 +122,19 @@ class SpannerAccountsService(
     val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is missing" }
 
     val parsedValidatedIdToken =
-      validateIdToken(idToken) ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is invalid" }
+      try {
+        validateIdToken(idToken)
+      } catch (ex: GeneralSecurityException) {
+        throw Status.INVALID_ARGUMENT
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      } catch (ex: Exception) {
+        throw Status.UNKNOWN
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      }
 
     try {
       return ActivateAccount(
@@ -168,7 +179,19 @@ class SpannerAccountsService(
     val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is missing" }
 
     val parsedValidatedIdToken =
-      validateIdToken(idToken) ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is invalid" }
+      try {
+        validateIdToken(idToken)
+      } catch (ex: GeneralSecurityException) {
+        throw Status.INVALID_ARGUMENT
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      } catch (ex: Exception) {
+        throw Status.UNKNOWN
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      }
 
     try {
       return ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
@@ -208,10 +231,22 @@ class SpannerAccountsService(
   }
 
   override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {
-    val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is missing" }
+    val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "ID token is missing" }
 
     val parsedValidatedIdToken =
-      validateIdToken(idToken) ?: failGrpc(Status.PERMISSION_DENIED) { "Id token is invalid" }
+      try {
+        validateIdToken(idToken)
+      } catch (ex: GeneralSecurityException) {
+        throw Status.PERMISSION_DENIED
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      } catch (ex: Exception) {
+        throw Status.UNKNOWN
+          .withCause(ex)
+          .withDescription("ID token is invalid")
+          .asRuntimeException()
+      }
 
     val identityResult =
       OpenIdConnectIdentityReader()
@@ -235,97 +270,63 @@ class SpannerAccountsService(
   }
 
   /**
-   * Returns the issuer and subject if the idToken is valid and null otherwise.
-   * TODO(https://github.com/google/tink/issues/541): Replace with Tink Java JWT
+   * Returns the issuer and subject if the ID token is valid. TODO(@tristanvuong2021): Move
+   * validation to public accounts service
+   *
+   * @throws GeneralSecurityException if the ID token validation fails
    */
-  private suspend fun validateIdToken(idToken: String): IdToken? {
+  private suspend fun validateIdToken(idToken: String): IdToken {
     val tokenParts = idToken.split(".")
 
     if (tokenParts.size != 3) {
-      return null
-    }
-
-    val header =
-      JsonParser.parseString(tokenParts[0].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
-
-    val alg = header.get("alg")
-    if (alg.isJsonNull || !alg.isJsonPrimitive || alg.asString != "RS256") {
-      return null
+      throw GeneralSecurityException("Id token does not have 3 components")
     }
 
     val claims =
       JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
 
-    val iss = claims.get("iss")
-    if (iss.isJsonNull || !iss.isJsonPrimitive || iss.asString != "https://self-issued.me") {
-      return null
+    val subJwk = claims.get("sub_jwk")
+    if (subJwk.isJsonNull || !subJwk.isJsonObject) {
+      throw GeneralSecurityException()
     }
 
-    val aud = claims.get("aud")
-    if (aud.isJsonNull || !aud.isJsonPrimitive || aud.asString != REDIRECT_URI) {
-      return null
+    val jwk = subJwk.asJsonObject
+    val publicJwkHandle =
+      try {
+        fromJwk(jwk)
+      } catch (ex: IOException) {
+        throw GeneralSecurityException()
+      }
+
+    val verifiedJwt =
+      validateJwt(redirectUri = REDIRECT_URI, idToken = idToken, publicJwkHandle = publicJwkHandle)
+
+    if (!verifiedJwt.subject.equals(calculateRsaThumbprint(jwk.toString()))) {
+      throw GeneralSecurityException()
     }
 
-    val state = claims.get("state")
-    val nonce = claims.get("nonce")
+    val state = verifiedJwt.getStringClaim("state")
+    val nonce = verifiedJwt.getStringClaim("nonce")
 
-    if (state.isJsonNull || !state.isJsonPrimitive || nonce.isJsonNull || !nonce.isJsonPrimitive) {
-      return null
+    if (state == null || nonce == null) {
+      throw GeneralSecurityException()
     }
 
     val result =
       OpenIdRequestParamsReader()
-        .readByState(client.singleUse(), ExternalId(state.asString.base64UrlDecode().toLong()))
+        .readByState(client.singleUse(), ExternalId(state.base64UrlDecode().toLong()))
     if (result != null) {
-      if (nonce.asString.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
-        return null
+      if (nonce.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
+        throw GeneralSecurityException()
       }
     } else {
-      return null
+      throw GeneralSecurityException()
     }
 
-    val subJwk = claims.get("sub_jwk")
-    if (subJwk.isJsonNull || !subJwk.isJsonObject) {
-      return null
+    if (verifiedJwt.issuer == null || verifiedJwt.subject == null) {
+      throw GeneralSecurityException()
+    } else {
+      return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
     }
-
-    val modulus = subJwk.asJsonObject.get("n")
-    val exponent = subJwk.asJsonObject.get("e")
-
-    if (modulus.isJsonNull ||
-        !modulus.isJsonPrimitive ||
-        exponent.isJsonNull ||
-        !modulus.isJsonPrimitive
-    ) {
-      return null
-    }
-
-    val sub = claims.get("sub")
-    if (sub.isJsonNull ||
-        !sub.isJsonPrimitive ||
-        !sub.asString.equals(calculateRSAThumbprint(modulus.asString, exponent.asString))
-    ) {
-      return null
-    }
-
-    val publicKeySpec =
-      RSAPublicKeySpec(
-        BigInteger(modulus.asString.base64UrlDecode().toByteArray()),
-        BigInteger(exponent.asString.base64UrlDecode().toByteArray())
-      )
-    val keyFactory = KeyFactory.getInstance("RSA")
-    val publicKey = keyFactory.generatePublic(publicKeySpec)
-    val verifier = Signature.getInstance("SHA256withRSA")
-    verifier.initVerify(publicKey)
-    verifier.update((tokenParts[0] + "." + tokenParts[1]).toByteArray(Charsets.US_ASCII))
-    try {
-      if (!verifier.verify(tokenParts[2].base64UrlDecode().toByteArray())) {
-        return null
-      }
-    } catch (e: SignatureException) {
-      return null
-    }
-
-    return IdToken(issuer = iss.asString, subject = sub.asString)
   }
 }

@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
@@ -43,7 +44,6 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreation
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
-import org.wfanet.measurement.tools.generateIdToken
 
 private const val FIXED_GENERATED_INTERNAL_ID_A = 1234L
 private const val FIXED_GENERATED_EXTERNAL_ID_A = 5678L
