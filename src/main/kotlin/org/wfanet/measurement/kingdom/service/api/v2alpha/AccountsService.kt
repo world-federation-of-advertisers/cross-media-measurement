@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.gson.JsonParser
 import io.grpc.Status
+import java.io.IOException
+import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
@@ -32,12 +35,16 @@ import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.openid.createRequestUri
+import org.wfanet.measurement.common.toLong
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as InternalOpenIdConnectIdentity
@@ -45,6 +52,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineS
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.generateOpenIdRequestParamsRequest
+import org.wfanet.measurement.internal.kingdom.getOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest
 
 private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
@@ -53,6 +61,7 @@ class AccountsService(
   private val internalAccountsStub: AccountsCoroutineStub,
   private val redirectUri: String
 ) : AccountsCoroutineImplBase() {
+  data class IdToken(val issuer: String, val subject: String)
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
     val account =
@@ -89,16 +98,30 @@ class AccountsService(
 
     grpcRequire(request.activationToken.isNotBlank()) { "Activation token is missing" }
 
-    val internalActivateAccountRequest = activateAccountRequest {
-      externalAccountId = apiIdToExternalId(key.accountId)
-      activationToken = apiIdToExternalId(request.activationToken)
-    }
-
     val idToken =
       grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "Id token is missing" }
 
-    val result =
-      internalAccountsStub.withIdToken(idToken).activateAccount(internalActivateAccountRequest)
+    val validatedIdToken =
+      try {
+        validateIdToken(
+          idToken = idToken,
+          redirectUri = redirectUri,
+          internalAccountsStub = internalAccountsStub
+        )
+      } catch (ex: GeneralSecurityException) {
+        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "Id token is invalid" }
+      } catch (ex: Exception) {
+        failGrpc(Status.UNKNOWN.withCause(ex)) { "Id token is invalid" }
+      }
+
+    val internalActivateAccountRequest = activateAccountRequest {
+      externalAccountId = apiIdToExternalId(key.accountId)
+      activationToken = apiIdToExternalId(request.activationToken)
+      issuer = validatedIdToken.issuer
+      subject = validatedIdToken.subject
+    }
+
+    val result = internalAccountsStub.activateAccount(internalActivateAccountRequest)
 
     // method only returns the basic account view so some fields are cleared
     return result.toAccount().copy { clearActivationParams() }
@@ -114,14 +137,26 @@ class AccountsService(
     val newIdToken = request.openId.identityBearerToken
     grpcRequire(newIdToken.isNotBlank()) { "New id token is missing" }
 
+    val validatedIdToken =
+      try {
+        validateIdToken(
+          idToken = newIdToken,
+          redirectUri = redirectUri,
+          internalAccountsStub = internalAccountsStub
+        )
+      } catch (ex: GeneralSecurityException) {
+        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "New Id token is invalid" }
+      } catch (ex: Exception) {
+        failGrpc(Status.UNKNOWN.withCause(ex)) { "ID token is invalid" }
+      }
+
     val internalReplaceAccountIdentityRequest = replaceAccountIdentityRequest {
       externalAccountId = account.externalAccountId
+      issuer = validatedIdToken.issuer
+      subject = validatedIdToken.subject
     }
 
-    val result =
-      internalAccountsStub
-        .withIdToken(newIdToken)
-        .replaceAccountIdentity(internalReplaceAccountIdentityRequest)
+    val result = internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
 
     // method only returns the basic account view so some fields are cleared
     return result.toAccount().copy { clearActivationParams() }
@@ -192,5 +227,76 @@ class AccountsService(
       openIdConnectIdentity {
     subject = this@toOpenIdConnectIdentity.subject
     issuer = this@toOpenIdConnectIdentity.issuer
+  }
+
+  companion object {
+    /**
+     * Returns the issuer and subject if the ID token is valid.
+     *
+     * @throws GeneralSecurityException if the ID token validation fails
+     */
+    suspend fun validateIdToken(
+      idToken: String,
+      redirectUri: String,
+      internalAccountsStub: AccountsCoroutineStub
+    ): IdToken {
+      val tokenParts = idToken.split(".")
+
+      if (tokenParts.size != 3) {
+        throw GeneralSecurityException("Id token does not have 3 components")
+      }
+
+      val claims =
+        JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8))
+          .asJsonObject
+
+      val subJwk = claims.get("sub_jwk")
+      if (subJwk.isJsonNull || !subJwk.isJsonObject) {
+        throw GeneralSecurityException()
+      }
+
+      val jwk = subJwk.asJsonObject
+      val publicJwkHandle =
+        try {
+          PublicJwkHandle.fromJwk(jwk)
+        } catch (ex: IOException) {
+          throw GeneralSecurityException()
+        }
+
+      val verifiedJwt =
+        SelfIssuedIdTokens.validateJwt(
+          redirectUri = redirectUri,
+          idToken = idToken,
+          publicJwkHandle = publicJwkHandle
+        )
+
+      if (!verifiedJwt.subject.equals(SelfIssuedIdTokens.calculateRsaThumbprint(jwk.toString()))) {
+        throw GeneralSecurityException()
+      }
+
+      val state = verifiedJwt.getStringClaim("state")
+      val nonce = verifiedJwt.getStringClaim("nonce")
+
+      if (state == null || nonce == null) {
+        throw GeneralSecurityException()
+      }
+
+      val openIdRequestParams =
+        internalAccountsStub.getOpenIdRequestParams(
+          getOpenIdRequestParamsRequest { this.state = state.base64UrlDecode().toLong() }
+        )
+
+      if (nonce.base64UrlDecode().toLong() != openIdRequestParams.nonce ||
+          openIdRequestParams.isExpired
+      ) {
+        throw GeneralSecurityException()
+      }
+
+      if (verifiedJwt.issuer == null || verifiedJwt.subject == null) {
+        throw GeneralSecurityException()
+      } else {
+        return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
+      }
+    }
   }
 }

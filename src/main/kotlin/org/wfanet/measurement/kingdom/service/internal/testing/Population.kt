@@ -14,14 +14,17 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.gson.JsonParser
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
-import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.openid.createRequestUri
@@ -58,12 +61,12 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.protocolConfig
-import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
 
 private const val API_VERSION = "v2alpha"
-private const val REDIRECT_URI = "https://localhost:2048"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
+  data class IdToken(val issuer: String, val subject: String)
+
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
@@ -261,24 +264,43 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         createRequestUri(
           state = openIdRequestParams.state,
           nonce = openIdRequestParams.nonce,
-          redirectUri = REDIRECT_URI,
+          redirectUri = "",
           isSelfIssued = true
         ),
         clock
       )
+    val (issuer, subject) = parseIdToken(idToken)
 
-    withIdToken(idToken) {
-      runBlocking {
-        accountsService.activateAccount(
-          activateAccountRequest {
-            externalAccountId = account.externalAccountId
-            activationToken = account.activationToken
-          }
-        )
+    accountsService.activateAccount(
+      activateAccountRequest {
+        externalAccountId = account.externalAccountId
+        activationToken = account.activationToken
+        this.issuer = issuer
+        this.subject = subject
       }
-    }
+    )
 
     return idToken
+  }
+
+  fun parseIdToken(
+    idToken: String,
+  ): IdToken {
+    val tokenParts = idToken.split(".")
+    val claims =
+      JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
+    val subJwk = claims.get("sub_jwk")
+    val jwk = subJwk.asJsonObject
+    val publicJwkHandle = PublicJwkHandle.fromJwk(jwk)
+
+    val verifiedJwt =
+      SelfIssuedIdTokens.validateJwt(
+        redirectUri = "",
+        idToken = idToken,
+        publicJwkHandle = publicJwkHandle
+      )
+
+    return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
   }
 
   suspend fun createMeasurementConsumerCreationToken(

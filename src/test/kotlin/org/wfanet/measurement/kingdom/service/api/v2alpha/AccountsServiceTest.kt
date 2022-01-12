@@ -20,6 +20,8 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.net.URI
+import java.security.GeneralSecurityException
+import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -42,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.createAccountRequest
 import org.wfanet.measurement.api.v2alpha.replaceAccountIdentityRequest
+import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -49,10 +52,11 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.AccountKt as InternalAccountKt
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest as internalActivateAccountRequest
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.openIdRequestParams
 import org.wfanet.measurement.internal.kingdom.replaceAccountIdentityRequest as internalReplaceAccountIdentityRequest
 
@@ -65,8 +69,6 @@ private const val ACCOUNT_NAME = "accounts/AAAAAAC8YU4"
 private const val CREATOR_ACCOUNT_NAME = "accounts/AAAAAANiabI"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 
-private const val ID_TOKEN = "id_token"
-private const val ID_TOKEN_2 = "id_token_2"
 private const val ISSUER = "issuer"
 private const val SUBJECT = "subject"
 
@@ -82,19 +84,23 @@ class AccountsServiceTest {
       onBlocking { replaceAccountIdentity(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
       onBlocking { authenticateAccount(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
       onBlocking { generateOpenIdRequestParams(any()) }.thenReturn(OPEN_ID_REQUEST_PARAMS)
+      onBlocking { getOpenIdRequestParams(any()) }.thenReturn(OPEN_ID_REQUEST_PARAMS)
     }
 
   @get:Rule val internalGrpcTestServerRule = GrpcTestServerRule { addService(internalAccountsMock) }
 
+  private lateinit var internalClient: InternalAccountsCoroutineStub
+
   @get:Rule
   var publicGrpcTestServerRule = GrpcTestServerRule {
-    val internalAccountsCoroutineStub =
-      AccountsGrpcKt.AccountsCoroutineStub(internalGrpcTestServerRule.channel)
-    val service = AccountsService(internalAccountsCoroutineStub, REDIRECT_URI)
-    addService(service.withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub))
+    internalClient = InternalAccountsCoroutineStub(internalGrpcTestServerRule.channel)
+    val service = AccountsService(internalClient, REDIRECT_URI)
+    addService(service.withAccountAuthenticationServerInterceptor(internalClient, REDIRECT_URI))
   }
 
   private lateinit var client: AccountsCoroutineStub
+
+  private val clock: Clock = Clock.systemUTC()
 
   @Before
   fun initClient() {
@@ -111,7 +117,7 @@ class AccountsServiceTest {
         }
     }
 
-    val result = runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
+    val result = runBlocking { client.withIdToken(generateIdToken()).createAccount(request) }
 
     assertThat(result).isEqualTo(UNACTIVATED_ACCOUNT)
 
@@ -136,11 +142,9 @@ class AccountsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
+        runBlocking { client.withIdToken(generateIdToken()).createAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Owned Measurement Consumer Resource name invalid")
   }
 
   @Test
@@ -150,7 +154,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.createAccount(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -161,27 +164,37 @@ class AccountsServiceTest {
     val request = createAccountRequest {}
 
     val exception =
-      assertFailsWith<StatusException> { client.withIdToken(ID_TOKEN).createAccount(request) }
+      assertFailsWith<StatusException> {
+        client.withIdToken(generateIdToken()).createAccount(request)
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
-  fun `activateAccount returns activated account`() {
+  fun `activateAccount returns activated account`() = runBlocking {
     val request = activateAccountRequest {
       name = ACCOUNT_NAME
       activationToken = externalIdToApiId(ACTIVATION_TOKEN)
     }
 
-    val result = runBlocking { client.withIdToken(ID_TOKEN).activateAccount(request) }
+    val idToken = generateIdToken()
+    val result = client.withIdToken(idToken).activateAccount(request)
 
     assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
 
+    val (issuer, subject) =
+      AccountsService.validateIdToken(
+        idToken = idToken,
+        redirectUri = REDIRECT_URI,
+        internalAccountsStub = internalClient
+      )
     verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::activateAccount)
       .isEqualTo(
         internalActivateAccountRequest {
           externalAccountId = EXTERNAL_ACCOUNT_ID
           activationToken = ACTIVATION_TOKEN
+          this.issuer = issuer
+          this.subject = subject
         }
       )
   }
@@ -192,10 +205,9 @@ class AccountsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).activateAccount(request) }
+        runBlocking { client.withIdToken(generateIdToken()).activateAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -204,10 +216,9 @@ class AccountsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).activateAccount(request) }
+        runBlocking { client.withIdToken(generateIdToken()).activateAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Activation token is missing")
   }
 
   @Test
@@ -220,25 +231,38 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.activateAccount(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Id token is missing")
   }
 
   @Test
-  fun `replaceAccountIdentity with openIdConnectidentity type returns account with same type`() {
+  fun `replaceAccountIdentity with openIdConnectidentity type returns account with same type`() =
+      runBlocking {
+    val newIdToken = generateIdToken()
     val request = replaceAccountIdentityRequest {
       name = ACCOUNT_NAME
       openId =
         ReplaceAccountIdentityRequestKt.openIdConnectCredentials {
-          identityBearerToken = ID_TOKEN_2
+          identityBearerToken = newIdToken
         }
     }
 
-    val result = runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
+    val result = client.withIdToken(generateIdToken()).replaceAccountIdentity(request)
 
     assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
 
+    val (issuer, subject) =
+      AccountsService.validateIdToken(
+        idToken = newIdToken,
+        redirectUri = REDIRECT_URI,
+        internalAccountsStub = internalClient
+      )
     verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::replaceAccountIdentity)
-      .isEqualTo(internalReplaceAccountIdentityRequest { externalAccountId = EXTERNAL_ACCOUNT_ID })
+      .isEqualTo(
+        internalReplaceAccountIdentityRequest {
+          externalAccountId = EXTERNAL_ACCOUNT_ID
+          this.issuer = issuer
+          this.subject = subject
+        }
+      )
   }
 
   @Test
@@ -246,16 +270,15 @@ class AccountsServiceTest {
     val request = replaceAccountIdentityRequest {
       openId =
         ReplaceAccountIdentityRequestKt.openIdConnectCredentials {
-          identityBearerToken = ID_TOKEN_2
+          identityBearerToken = runBlocking { generateIdToken() }
         }
     }
 
     val exception =
       assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
+        runBlocking { client.withIdToken(generateIdToken()).replaceAccountIdentity(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -265,7 +288,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.replaceAccountIdentity(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -277,10 +299,9 @@ class AccountsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        client.withIdToken(ID_TOKEN).replaceAccountIdentity(request)
+        client.withIdToken(generateIdToken()).replaceAccountIdentity(request)
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -289,10 +310,9 @@ class AccountsServiceTest {
 
     val exception =
       assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
+        runBlocking { client.withIdToken(generateIdToken()).replaceAccountIdentity(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("New id token is missing")
   }
 
   @Test
@@ -324,7 +344,61 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.authenticate(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Issuer unspecified")
+  }
+
+  @Test
+  fun `validateIdToken throws GeneralSecurityException when nonce doesn't match`() {
+    runBlocking {
+      val idToken = generateIdToken()
+
+      whenever(internalAccountsMock.getOpenIdRequestParams(any()))
+        .thenReturn(OPEN_ID_REQUEST_PARAMS.copy { nonce += 5L })
+
+      assertFailsWith<GeneralSecurityException> {
+        AccountsService.validateIdToken(
+          idToken = idToken,
+          internalAccountsStub = internalClient,
+          redirectUri = REDIRECT_URI
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `validateIdToken throws GeneralSecurityException when format is incorrect`() {
+    runBlocking {
+      val idToken = generateIdToken() + ".152345"
+
+      assertFailsWith<GeneralSecurityException> {
+        AccountsService.validateIdToken(
+          idToken = idToken,
+          internalAccountsStub = internalClient,
+          redirectUri = REDIRECT_URI
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `validateIdToken throws GeneralSecurityException when signature doesn't match`() {
+    runBlocking {
+      val idToken = generateIdToken() + "5"
+
+      assertFailsWith<GeneralSecurityException> {
+        AccountsService.validateIdToken(
+          idToken = idToken,
+          internalAccountsStub = internalClient,
+          redirectUri = REDIRECT_URI
+        )
+      }
+    }
+  }
+
+  private suspend fun generateIdToken(): String {
+    val uriString =
+      client.authenticate(authenticateRequest { issuer = SELF_ISSUED_ISSUER })
+        .authenticationRequestUri
+    return SelfIssuedIdTokens.generateIdToken(uriString, clock)
   }
 }
 
@@ -380,4 +454,5 @@ private val ACTIVATED_INTERNAL_ACCOUNT: InternalAccount = internalAccount {
 private val OPEN_ID_REQUEST_PARAMS = openIdRequestParams {
   state = 1234L
   nonce = 4321L
+  isExpired = false
 }

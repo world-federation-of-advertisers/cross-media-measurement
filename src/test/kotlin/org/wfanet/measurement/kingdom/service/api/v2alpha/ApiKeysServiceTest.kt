@@ -17,7 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
-import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -31,7 +31,6 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeyKey
-import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.deleteApiKeyRequest
@@ -40,8 +39,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase as InternalAccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ApiKey as InternalApiKey
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineImplBase as InternalApiKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
@@ -55,7 +52,6 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/AAAAAAAAAJs"
 private const val API_KEY_NAME = "$MEASUREMENT_CONSUMER_NAME/apiKeys/AAAAAAAAAMs"
 private const val API_KEY_NAME_2 = "$MEASUREMENT_CONSUMER_NAME_2/apiKeys/AAAAAAAAANs"
-private const val ID_TOKEN = "id_token"
 private const val AUTHENTICATION_KEY = 12345672L
 
 @RunWith(JUnit4::class)
@@ -66,32 +62,13 @@ class ApiKeysServiceTest {
       onBlocking { deleteApiKey(any()) }.thenReturn(INTERNAL_API_KEY)
     }
 
-  private val internalAccountsMock: InternalAccountsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
-      onBlocking { authenticateAccount(any()) }.thenReturn(INTERNAL_ACCOUNT)
-    }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalApiKeysMock) }
 
-  @get:Rule
-  val internalGrpcTestServerRule = GrpcTestServerRule {
-    addService(internalApiKeysMock)
-    addService(internalAccountsMock)
-  }
-
-  @get:Rule
-  var publicGrpcTestServerRule = GrpcTestServerRule {
-    val internalApiKeysCoroutineStub =
-      InternalApiKeysCoroutineStub(internalGrpcTestServerRule.channel)
-    val internalAccountsCoroutineStub =
-      AccountsGrpcKt.AccountsCoroutineStub(internalGrpcTestServerRule.channel)
-    val service = ApiKeysService(internalApiKeysCoroutineStub)
-    addService(service.withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub))
-  }
-
-  private lateinit var client: ApiKeysCoroutineStub
+  private lateinit var service: ApiKeysService
 
   @Before
   fun initClient() {
-    client = ApiKeysCoroutineStub(publicGrpcTestServerRule.channel)
+    service = ApiKeysService(InternalApiKeysCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test
@@ -101,7 +78,7 @@ class ApiKeysServiceTest {
       apiKey = PUBLIC_API_KEY
     }
 
-    val result = runBlocking { client.withIdToken(ID_TOKEN).createApiKey(request) }
+    val result = withAccount(INTERNAL_ACCOUNT) { runBlocking { service.createApiKey(request) } }
 
     assertThat(result).isEqualTo(PUBLIC_API_KEY)
 
@@ -122,12 +99,10 @@ class ApiKeysServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).createApiKey(request) }
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(INTERNAL_ACCOUNT) { runBlocking { service.createApiKey(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement Consumer resource name unspecified or invalid")
   }
 
   @Test
@@ -135,9 +110,8 @@ class ApiKeysServiceTest {
     val request = createApiKeyRequest {}
 
     val exception =
-      assertFailsWith<StatusException> { runBlocking { client.createApiKey(request) } }
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createApiKey(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -148,18 +122,17 @@ class ApiKeysServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).createApiKey(request) }
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(INTERNAL_ACCOUNT) { runBlocking { service.createApiKey(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Account doesn't own Measurement Consumer")
   }
 
   @Test
   fun `deleteApiKey returns api key`() = runBlocking {
     val request = deleteApiKeyRequest { name = API_KEY_NAME }
 
-    val result = client.withIdToken(ID_TOKEN).deleteApiKey(request)
+    val result = withAccount(INTERNAL_ACCOUNT) { runBlocking { service.deleteApiKey(request) } }
 
     assertThat(result).isEqualTo(PUBLIC_API_KEY)
 
@@ -178,11 +151,10 @@ class ApiKeysServiceTest {
     val request = deleteApiKeyRequest { name = "asdfa" }
 
     val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).deleteApiKey(request) }
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(INTERNAL_ACCOUNT) { runBlocking { service.deleteApiKey(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -190,9 +162,8 @@ class ApiKeysServiceTest {
     val request = deleteApiKeyRequest {}
 
     val exception =
-      assertFailsWith<StatusException> { runBlocking { client.deleteApiKey(request) } }
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.deleteApiKey(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -200,11 +171,10 @@ class ApiKeysServiceTest {
     val request = deleteApiKeyRequest { name = API_KEY_NAME_2 }
 
     val exception =
-      assertFailsWith<StatusException> {
-        runBlocking { client.withIdToken(ID_TOKEN).deleteApiKey(request) }
+      assertFailsWith<StatusRuntimeException> {
+        withAccount(INTERNAL_ACCOUNT) { runBlocking { service.deleteApiKey(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Account doesn't own Measurement Consumer")
   }
 }
 

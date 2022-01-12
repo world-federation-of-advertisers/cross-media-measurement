@@ -26,7 +26,6 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
@@ -41,7 +40,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
-import org.wfanet.measurement.kingdom.deploy.common.service.withAccountsServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
@@ -102,11 +100,7 @@ class InProcessKingdom(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal Data services")
       kingdomDataServices.buildDataServices().toList().forEach {
-        when (it) {
-          is AccountsGrpcKt.AccountsCoroutineImplBase ->
-            addService(it.withAccountsServerInterceptor().withVerboseLogging(verboseGrpcLogging))
-          else -> addService(it.withVerboseLogging(verboseGrpcLogging))
-        }
+        addService(it.withVerboseLogging(verboseGrpcLogging))
       }
     }
   private val systemApiServer =
@@ -133,9 +127,9 @@ class InProcessKingdom(
         MeasurementsService(internalMeasurementsClient),
         RequisitionsService(internalRequisitionsClient),
         AccountsService(internalAccountsClient, redirectUri)
-          .withAccountAuthenticationServerInterceptor(internalAccountsClient),
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
         MeasurementConsumersService(internalMeasurementConsumersClient)
-          .withAccountAuthenticationServerInterceptor(internalAccountsClient)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use the appropriate principal

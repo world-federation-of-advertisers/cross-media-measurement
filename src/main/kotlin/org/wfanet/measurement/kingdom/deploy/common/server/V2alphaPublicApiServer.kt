@@ -88,9 +88,15 @@ private fun run(
   val services: List<ServerServiceDefinition> =
     listOf(
       AccountsService(internalAccountsCoroutineStub, v2alphaFlags.redirectUri)
-        .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
+        .withAccountAuthenticationServerInterceptor(
+          internalAccountsCoroutineStub,
+          v2alphaFlags.redirectUri
+        ),
       ApiKeysService(InternalApiKeysCoroutineStub(channel))
-        .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
+        .withAccountAuthenticationServerInterceptor(
+          internalAccountsCoroutineStub,
+          v2alphaFlags.redirectUri
+        ),
       CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
       DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel)).bindService(),
@@ -103,7 +109,10 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       MeasurementsService(InternalMeasurementsCoroutineStub(channel)).bindService(),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
-        .withAccountAuthenticationServerInterceptor(internalAccountsCoroutineStub),
+        .withAccountAuthenticationServerInterceptor(
+          internalAccountsCoroutineStub,
+          v2alphaFlags.redirectUri
+        ),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
