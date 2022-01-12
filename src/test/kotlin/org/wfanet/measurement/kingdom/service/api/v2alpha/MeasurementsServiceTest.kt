@@ -103,14 +103,10 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AA
 private const val MEASUREMENT_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAJs"
 private const val MEASUREMENT_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
-  "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDERS_NAME = makeDataProvider(123L)
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
-private val EXTERNAL_MEASUREMENT_ID_2 =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
-private val EXTERNAL_MEASUREMENT_ID_3 =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
@@ -129,8 +125,14 @@ class MeasurementsServiceTest {
         .thenReturn(
           flowOf(
             INTERNAL_MEASUREMENT,
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 },
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 }
+            INTERNAL_MEASUREMENT.copy {
+              externalMeasurementId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+            },
+            INTERNAL_MEASUREMENT.copy {
+              externalMeasurementId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
+            }
           )
         )
       onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
@@ -180,8 +182,28 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
+  }
+
+  @Test
+  fun `getMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(
+          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
+        ) { runBlocking { service.getMeasurement(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.getMeasurement(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -250,8 +272,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement Consumer Certificate resource name is either unspecified or invalid")
   }
 
   @Test
@@ -267,8 +287,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot create a Measurement for another MeasurementConsumer")
   }
 
   @Test
@@ -280,7 +298,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -296,7 +313,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement spec is unspecified")
   }
 
   @Test
@@ -321,7 +337,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement public key is unspecified")
   }
 
   @Test
@@ -359,7 +374,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Reach privacy params are unspecified")
   }
 
   @Test
@@ -397,7 +411,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Frequency privacy params are unspecified")
   }
 
   @Test
@@ -422,7 +435,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement type is unspecified")
   }
 
   @Test
@@ -438,7 +450,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Providers list is empty")
   }
 
   @Test
@@ -460,8 +471,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider resource name is either unspecified or invalid")
   }
 
   @Test
@@ -483,8 +492,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider certificate resource name is either unspecified or invalid")
   }
 
   @Test
@@ -510,7 +517,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Provider public key is unspecified")
   }
 
   @Test
@@ -544,7 +550,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("spec")
   }
 
   @Test
@@ -566,7 +571,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("hash")
   }
 
   @Test
@@ -650,7 +654,11 @@ class MeasurementsServiceTest {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
-        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
+        lastMeasurement =
+          previousPageEnd {
+            externalMeasurementId =
+              apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+          }
       }
       nextPageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -764,8 +772,6 @@ class MeasurementsServiceTest {
         ) { runBlocking { service.listMeasurements(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot list Measurements for other MeasurementConsumers")
   }
 
   @Test
@@ -775,7 +781,6 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -799,8 +804,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -824,8 +827,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -837,8 +838,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
@@ -857,7 +856,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
   }
 
   @Test
@@ -896,8 +894,6 @@ class MeasurementsServiceTest {
         ) { runBlocking { service.cancelMeasurement(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot cancel a Measurement for another MeasurementConsumer")
   }
 
   @Test
@@ -907,7 +903,6 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.cancelMeasurement(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -919,8 +914,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
@@ -938,7 +931,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("Duplicated keys")
   }
 
   companion object {

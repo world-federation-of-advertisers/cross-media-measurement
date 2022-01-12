@@ -147,7 +147,6 @@ class MeasurementConsumersServiceTest {
         runBlocking { service.createMeasurementConsumer(createMeasurementConsumerRequest {}) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -164,7 +163,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
   }
 
   @Test
@@ -184,8 +182,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement Consumer creation token is unspecified")
   }
 
   @Test
@@ -202,7 +198,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("public_key.data is missing")
   }
 
   @Test
@@ -236,7 +231,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -250,7 +244,36 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
+  }
+
+  @Test
+  fun `get throws PERMISSION_DENIED when authenticated MeasurementConsumer doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(
+          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
+        ) {
+          runBlocking {
+            service.getMeasurementConsumer(
+              getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `get throws UNAUTHENTICATED when MeasurementConsumer principal is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.getMeasurementConsumer(
+            getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -293,7 +316,6 @@ class MeasurementConsumersServiceTest {
         runBlocking { service.addMeasurementConsumerOwner(addMeasurementConsumerOwnerRequest {}) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -312,7 +334,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -333,7 +354,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Account doesn't own MeasurementConsumer")
   }
 
   @Test
@@ -352,7 +372,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Account unspecified or invalid")
   }
 
   @Test
@@ -391,7 +410,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -410,7 +428,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -431,7 +448,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description).isEqualTo("Account doesn't own MeasurementConsumer")
   }
 
   @Test
@@ -450,7 +466,6 @@ class MeasurementConsumersServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Account unspecified or invalid")
   }
 
   @Test

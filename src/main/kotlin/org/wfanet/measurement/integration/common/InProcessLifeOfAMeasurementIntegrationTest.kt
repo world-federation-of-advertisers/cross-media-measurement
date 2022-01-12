@@ -216,7 +216,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         MeasurementConsumerData(
           mcResourceName,
           MC_ENTITY_CONTENT.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,
