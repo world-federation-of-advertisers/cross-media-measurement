@@ -103,14 +103,10 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AA
 private const val MEASUREMENT_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAJs"
 private const val MEASUREMENT_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
-  "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDERS_NAME = makeDataProvider(123L)
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
-private val EXTERNAL_MEASUREMENT_ID_2 =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
-private val EXTERNAL_MEASUREMENT_ID_3 =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
@@ -129,8 +125,14 @@ class MeasurementsServiceTest {
         .thenReturn(
           flowOf(
             INTERNAL_MEASUREMENT,
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 },
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 }
+            INTERNAL_MEASUREMENT.copy {
+              externalMeasurementId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+            },
+            INTERNAL_MEASUREMENT.copy {
+              externalMeasurementId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
+            }
           )
         )
       onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
@@ -627,7 +629,11 @@ class MeasurementsServiceTest {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
-        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
+        lastMeasurement =
+          previousPageEnd {
+            externalMeasurementId =
+              apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+          }
       }
       nextPageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
