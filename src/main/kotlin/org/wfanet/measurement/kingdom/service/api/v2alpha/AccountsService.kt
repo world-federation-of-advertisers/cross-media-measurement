@@ -23,8 +23,8 @@ import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
 import org.wfanet.measurement.api.v2alpha.Account.OpenIdConnectIdentity
 import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.AccountKt
 import org.wfanet.measurement.api.v2alpha.AccountKt.activationParams
-import org.wfanet.measurement.api.v2alpha.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ActivateAccountRequest
 import org.wfanet.measurement.api.v2alpha.AuthenticateRequest
@@ -48,6 +48,7 @@ import org.wfanet.measurement.common.toLong
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.Account.ActivationState as InternalActivationState
 import org.wfanet.measurement.internal.kingdom.Account.OpenIdConnectIdentity as InternalOpenIdConnectIdentity
+import org.wfanet.measurement.internal.kingdom.AccountKt as InternalAccountKt
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
@@ -61,8 +62,6 @@ class AccountsService(
   private val internalAccountsStub: AccountsCoroutineStub,
   private val redirectUri: String
 ) : AccountsCoroutineImplBase() {
-  data class IdToken(val issuer: String, val subject: String)
-
   override suspend fun createAccount(request: CreateAccountRequest): Account {
     val account =
       AccountConstants.CONTEXT_ACCOUNT_KEY.get()
@@ -101,7 +100,7 @@ class AccountsService(
     val idToken =
       grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "Id token is missing" }
 
-    val validatedIdToken =
+    val openIdConnectIdentity =
       try {
         validateIdToken(
           idToken = idToken,
@@ -117,8 +116,7 @@ class AccountsService(
     val internalActivateAccountRequest = activateAccountRequest {
       externalAccountId = apiIdToExternalId(key.accountId)
       activationToken = apiIdToExternalId(request.activationToken)
-      issuer = validatedIdToken.issuer
-      subject = validatedIdToken.subject
+      identity = openIdConnectIdentity
     }
 
     val result = internalAccountsStub.activateAccount(internalActivateAccountRequest)
@@ -137,7 +135,7 @@ class AccountsService(
     val newIdToken = request.openId.identityBearerToken
     grpcRequire(newIdToken.isNotBlank()) { "New id token is missing" }
 
-    val validatedIdToken =
+    val openIdConnectIdentity =
       try {
         validateIdToken(
           idToken = newIdToken,
@@ -152,8 +150,7 @@ class AccountsService(
 
     val internalReplaceAccountIdentityRequest = replaceAccountIdentityRequest {
       externalAccountId = account.externalAccountId
-      issuer = validatedIdToken.issuer
-      subject = validatedIdToken.subject
+      identity = openIdConnectIdentity
     }
 
     val result = internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
@@ -224,14 +221,14 @@ class AccountsService(
 
   /** Converts an internal [InternalOpenIdConnectIdentity] to a public [OpenIdConnectIdentity]. */
   private fun InternalOpenIdConnectIdentity.toOpenIdConnectIdentity(): OpenIdConnectIdentity =
-      openIdConnectIdentity {
-    subject = this@toOpenIdConnectIdentity.subject
-    issuer = this@toOpenIdConnectIdentity.issuer
-  }
+    AccountKt.openIdConnectIdentity {
+      subject = this@toOpenIdConnectIdentity.subject
+      issuer = this@toOpenIdConnectIdentity.issuer
+    }
 
   companion object {
     /**
-     * Returns the issuer and subject if the ID token is valid.
+     * Returns the identity if the ID token is valid.
      *
      * @throws GeneralSecurityException if the ID token validation fails
      */
@@ -239,7 +236,7 @@ class AccountsService(
       idToken: String,
       redirectUri: String,
       internalAccountsStub: AccountsCoroutineStub
-    ): IdToken {
+    ): InternalOpenIdConnectIdentity {
       val tokenParts = idToken.split(".")
 
       if (tokenParts.size != 3) {
@@ -295,7 +292,10 @@ class AccountsService(
       if (verifiedJwt.issuer == null || verifiedJwt.subject == null) {
         throw GeneralSecurityException()
       } else {
-        return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
+        return InternalAccountKt.openIdConnectIdentity {
+          issuer = verifiedJwt.issuer!!
+          subject = verifiedJwt.subject!!
+        }
       }
     }
   }

@@ -329,13 +329,10 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
     )
 
-    val (issuer, subject) = population.parseIdToken(idToken = idToken2)
+    val openIdConnectIdentity = population.parseIdToken(idToken = idToken2)
     val updatedAccount =
       accountsService.authenticateAccount(
-        authenticateAccountRequest {
-          this.issuer = issuer
-          this.subject = subject
-        }
+        authenticateAccountRequest { identity = openIdConnectIdentity }
       )
 
     assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
@@ -435,11 +432,8 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         }
       )
 
-    val (issuer, subject) = population.parseIdToken(idToken = idToken)
-    val authenticateAccountRequest = authenticateAccountRequest {
-      this.issuer = issuer
-      this.subject = subject
-    }
+    val openIdConnectIdentity = population.parseIdToken(idToken = idToken)
+    val authenticateAccountRequest = authenticateAccountRequest { identity = openIdConnectIdentity }
     var updatedAccount = accountsService.authenticateAccount(authenticateAccountRequest)
 
     assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)

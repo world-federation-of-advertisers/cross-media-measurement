@@ -28,6 +28,7 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.internal.kingdom.Account
@@ -50,7 +51,7 @@ class AccountAuthenticationServerInterceptor(
     if (idToken != null) {
       context = Context.current().withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
       try {
-        val account = authenticateAccountCredentials(idToken)
+        val account = runBlocking(Dispatchers.IO) { authenticateAccountCredentials(idToken) }
         context = context.withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
       } catch (e: Exception) {
         when (e) {
@@ -64,18 +65,16 @@ class AccountAuthenticationServerInterceptor(
     return Contexts.interceptCall(context, call, headers, next)
   }
 
-  private fun authenticateAccountCredentials(idToken: String): Account = runBlocking {
-    val validatedIdToken =
+  private suspend fun authenticateAccountCredentials(idToken: String): Account {
+    val openIdConnectIdentity =
       AccountsService.validateIdToken(
         idToken = idToken,
         redirectUri = redirectUri,
         internalAccountsStub = internalAccountsClient
       )
-    internalAccountsClient.authenticateAccount(
-      authenticateAccountRequest {
-        issuer = validatedIdToken.issuer
-        subject = validatedIdToken.subject
-      }
+
+    return internalAccountsClient.authenticateAccount(
+      authenticateAccountRequest { identity = openIdConnectIdentity }
     )
   }
 }

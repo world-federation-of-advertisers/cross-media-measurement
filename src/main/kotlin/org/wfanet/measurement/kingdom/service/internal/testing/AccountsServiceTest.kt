@@ -200,13 +200,12 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `activateAccount throws NOT_FOUND when account not found`() = runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = 1L
       activationToken = 1L
-      this.issuer = issuer
-      this.subject = subject
+      identity = openIdConnectIdentity
     }
 
     val exception =
@@ -219,15 +218,14 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `activateAccount throws PERMISSION_DENIED when activation token doesn't match database`() =
       runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     service.createAccount(account {})
 
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
       activationToken = 1L
-      this.issuer = issuer
-      this.subject = subject
+      identity = openIdConnectIdentity
     }
 
     val exception =
@@ -240,13 +238,12 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `activateAccount throws PERMISSION_DENIED when account has already been activated`() =
       runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
     service.createAccount(account {})
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
       activationToken = FIXED_GENERATED_EXTERNAL_ID_A
-      this.issuer = issuer
-      this.subject = subject
+      identity = openIdConnectIdentity
     }
 
     service.activateAccount(activateAccountRequest)
@@ -254,15 +251,10 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
     idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
     val idToken2 = generateIdToken(service)
-    val (issuer2, subject2) = population.parseIdToken(idToken2)
+    val openIdConnectIdentity2 = population.parseIdToken(idToken2)
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.activateAccount(
-          activateAccountRequest.copy {
-            this.issuer = issuer2
-            this.subject = subject2
-          }
-        )
+        service.activateAccount(activateAccountRequest.copy { identity = openIdConnectIdentity2 })
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
@@ -272,7 +264,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `activateAccount throws INVALID_ARGUMENT when issuer and subject pair already exists`() =
       runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     service.createAccount(account {})
 
@@ -280,8 +272,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
       activateAccountRequest {
         externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
         activationToken = FIXED_GENERATED_EXTERNAL_ID_A
-        this.issuer = issuer
-        this.subject = subject
+        identity = openIdConnectIdentity
       }
     )
 
@@ -294,8 +285,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           activateAccountRequest {
             externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
             activationToken = FIXED_GENERATED_EXTERNAL_ID_B
-            this.issuer = issuer
-            this.subject = subject
+            identity = openIdConnectIdentity
           }
         )
       }
@@ -307,15 +297,14 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `activateAccount returns account when account is activated with open id connect identity`() =
       runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     service.createAccount(account {})
 
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
       activationToken = FIXED_GENERATED_EXTERNAL_ID_A
-      this.issuer = issuer
-      this.subject = subject
+      identity = openIdConnectIdentity
     }
 
     val account = service.activateAccount(activateAccountRequest)
@@ -345,12 +334,11 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
     )
 
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
     val activateAccountRequest = activateAccountRequest {
       externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
       activationToken = FIXED_GENERATED_EXTERNAL_ID_B
-      this.issuer = issuer
-      this.subject = subject
+      identity = openIdConnectIdentity
     }
 
     val account = service.activateAccount(activateAccountRequest)
@@ -370,15 +358,14 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `replaceAccountIdentity throws NOT_FOUND when account not found`() = runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.replaceAccountIdentity(
           replaceAccountIdentityRequest {
             externalAccountId = 1L
-            this.issuer = issuer
-            this.subject = subject
+            identity = openIdConnectIdentity
           }
         )
       }
@@ -390,7 +377,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `replaceAccountIdentity throws FAILED_PRECONDITION when account is unactivated`() =
       runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     service.createAccount(account {})
 
@@ -399,8 +386,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         service.replaceAccountIdentity(
           replaceAccountIdentityRequest {
             externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-            this.issuer = issuer
-            this.subject = subject
+            identity = openIdConnectIdentity
           }
         )
       }
@@ -412,29 +398,27 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   fun `replaceAccountIdentity throws INVALID_ARGUMENT when passed-in id token already exists`() =
       runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     service.createAccount(account {})
     service.activateAccount(
       activateAccountRequest {
         externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
         activationToken = FIXED_GENERATED_EXTERNAL_ID_A
-        this.issuer = issuer
-        this.subject = subject
+        identity = openIdConnectIdentity
       }
     )
 
     idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
     idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
     val idToken2 = generateIdToken(service)
-    val (issuer2, subject2) = population.parseIdToken(idToken2)
+    val openIdConnectIdentity2 = population.parseIdToken(idToken2)
     service.createAccount(account {})
     service.activateAccount(
       activateAccountRequest {
         externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
         activationToken = FIXED_GENERATED_EXTERNAL_ID_B
-        this.issuer = issuer2
-        this.subject = subject2
+        identity = openIdConnectIdentity2
       }
     )
 
@@ -443,8 +427,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         service.replaceAccountIdentity(
           replaceAccountIdentityRequest {
             externalAccountId = FIXED_GENERATED_EXTERNAL_ID_B
-            this.issuer = issuer
-            this.subject = subject
+            identity = openIdConnectIdentity
           }
         )
       }
@@ -455,29 +438,27 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `replaceAccountIdentity returns account with new open id connect identity`() = runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
 
     service.createAccount(account {})
     service.activateAccount(
       activateAccountRequest {
         externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
         activationToken = FIXED_GENERATED_EXTERNAL_ID_A
-        this.issuer = issuer
-        this.subject = subject
+        identity = openIdConnectIdentity
       }
     )
 
     idGenerator.externalId = ExternalId(FIXED_GENERATED_EXTERNAL_ID_B)
     idGenerator.internalId = InternalId(FIXED_GENERATED_INTERNAL_ID_B)
     val idToken2 = generateIdToken(service)
-    val (issuer2, subject2) = population.parseIdToken(idToken2)
+    val openIdConnectIdentity2 = population.parseIdToken(idToken2)
 
     val account =
       service.replaceAccountIdentity(
         replaceAccountIdentityRequest {
           externalAccountId = FIXED_GENERATED_EXTERNAL_ID_A
-          this.issuer = issuer2
-          this.subject = subject2
+          identity = openIdConnectIdentity2
         }
       )
 
@@ -515,7 +496,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   @Test
   fun `authenticateAccount returns the account when the account has been found`() = runBlocking {
     val idToken = generateIdToken(service)
-    val (issuer, subject) = population.parseIdToken(idToken)
+    val openIdConnectIdentity = population.parseIdToken(idToken)
     val createdAccount = service.createAccount(account {})
 
     val activatedAccount =
@@ -523,18 +504,12 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
         activateAccountRequest {
           externalAccountId = createdAccount.externalAccountId
           activationToken = createdAccount.activationToken
-          this.issuer = issuer
-          this.subject = subject
+          identity = openIdConnectIdentity
         }
       )
 
     val authenticatedAccount =
-      service.authenticateAccount(
-        authenticateAccountRequest {
-          this.issuer = issuer
-          this.subject = subject
-        }
-      )
+      service.authenticateAccount(authenticateAccountRequest { identity = openIdConnectIdentity })
 
     assertThat(authenticatedAccount.openIdIdentity).isEqualTo(activatedAccount.openIdIdentity)
   }

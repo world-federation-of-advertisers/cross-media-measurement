@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificateKt
@@ -65,8 +66,6 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig
 private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
-  data class IdToken(val issuer: String, val subject: String)
-
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
@@ -269,14 +268,13 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         ),
         clock
       )
-    val (issuer, subject) = parseIdToken(idToken)
+    val openIdConnectIdentity = parseIdToken(idToken)
 
     accountsService.activateAccount(
       activateAccountRequest {
         externalAccountId = account.externalAccountId
         activationToken = account.activationToken
-        this.issuer = issuer
-        this.subject = subject
+        identity = openIdConnectIdentity
       }
     )
 
@@ -285,7 +283,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
   fun parseIdToken(
     idToken: String,
-  ): IdToken {
+  ): Account.OpenIdConnectIdentity {
     val tokenParts = idToken.split(".")
     val claims =
       JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
@@ -300,7 +298,10 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         publicJwkHandle = publicJwkHandle
       )
 
-    return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
+    return openIdConnectIdentity {
+      issuer = verifiedJwt.issuer!!
+      subject = verifiedJwt.subject!!
+    }
   }
 
   suspend fun createMeasurementConsumerCreationToken(

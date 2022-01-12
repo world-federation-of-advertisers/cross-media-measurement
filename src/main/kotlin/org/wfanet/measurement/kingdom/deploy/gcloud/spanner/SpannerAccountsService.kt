@@ -113,8 +113,8 @@ class SpannerAccountsService(
       return ActivateAccount(
           externalAccountId = ExternalId(request.externalAccountId),
           activationToken = ExternalId(request.activationToken),
-          issuer = request.issuer,
-          subject = request.subject
+          issuer = request.identity.issuer,
+          subject = request.identity.subject
         )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
@@ -152,8 +152,8 @@ class SpannerAccountsService(
     try {
       return ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
           externalAccountId = ExternalId(request.externalAccountId),
-          issuer = request.issuer,
-          subject = request.subject
+          issuer = request.identity.issuer,
+          subject = request.identity.subject
         )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
@@ -189,7 +189,11 @@ class SpannerAccountsService(
   override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {
     val identityResult =
       OpenIdConnectIdentityReader()
-        .readByIssuerAndSubject(client.singleUse(), request.issuer, request.subject)
+        .readByIssuerAndSubject(
+          client.singleUse(),
+          request.identity.issuer,
+          request.identity.subject
+        )
         ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
 
     return AccountReader()

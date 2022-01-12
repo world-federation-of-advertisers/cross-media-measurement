@@ -182,7 +182,7 @@ class AccountsServiceTest {
 
     assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
 
-    val (issuer, subject) =
+    val openIdConnectIdentity =
       AccountsService.validateIdToken(
         idToken = idToken,
         redirectUri = REDIRECT_URI,
@@ -193,8 +193,7 @@ class AccountsServiceTest {
         internalActivateAccountRequest {
           externalAccountId = EXTERNAL_ACCOUNT_ID
           activationToken = ACTIVATION_TOKEN
-          this.issuer = issuer
-          this.subject = subject
+          identity = openIdConnectIdentity
         }
       )
   }
@@ -249,7 +248,7 @@ class AccountsServiceTest {
 
     assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
 
-    val (issuer, subject) =
+    val openIdConnectIdentity =
       AccountsService.validateIdToken(
         idToken = newIdToken,
         redirectUri = REDIRECT_URI,
@@ -259,8 +258,7 @@ class AccountsServiceTest {
       .isEqualTo(
         internalReplaceAccountIdentityRequest {
           externalAccountId = EXTERNAL_ACCOUNT_ID
-          this.issuer = issuer
-          this.subject = subject
+          identity = openIdConnectIdentity
         }
       )
   }
