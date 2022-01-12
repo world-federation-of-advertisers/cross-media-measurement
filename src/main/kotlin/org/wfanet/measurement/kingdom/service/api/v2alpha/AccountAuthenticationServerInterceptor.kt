@@ -31,12 +31,12 @@ import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 
 /** gRPC [ServerInterceptor] to check [Account] credentials coming in from a request. */
 class AccountAuthenticationServerInterceptor(
-  private val internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  private val internalAccountsClient: AccountsCoroutineStub
 ) : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
@@ -64,7 +64,7 @@ class AccountAuthenticationServerInterceptor(
   }
 
   private fun authenticateAccountCredentials(idToken: String): Account = runBlocking {
-    internalAccountsStub.withIdToken(idToken).authenticateAccount(authenticateAccountRequest {})
+    internalAccountsClient.withIdToken(idToken).authenticateAccount(authenticateAccountRequest {})
   }
 }
 
@@ -75,7 +75,7 @@ fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
 }
 
 fun BindableService.withAccountAuthenticationServerInterceptor(
-  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  internalAccountsStub: AccountsCoroutineStub
 ): ServerServiceDefinition =
   ServerInterceptors.interceptForward(
     this,
@@ -83,7 +83,7 @@ fun BindableService.withAccountAuthenticationServerInterceptor(
   )
 
 fun ServerServiceDefinition.withAccountAuthenticationServerInterceptor(
-  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  internalAccountsStub: AccountsCoroutineStub
 ): ServerServiceDefinition =
   ServerInterceptors.interceptForward(
     this,

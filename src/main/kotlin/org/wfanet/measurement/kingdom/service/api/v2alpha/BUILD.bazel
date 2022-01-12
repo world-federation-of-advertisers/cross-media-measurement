@@ -44,6 +44,25 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "api_key_authentication_server_interceptor",
+    srcs = ["ApiKeyAuthenticationServerInterceptor.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:__pkg__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/internal/kingdom:api_keys_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/kingdom:api_keys_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
     name = "api_keys_service",
     srcs = ["ApiKeysService.kt"],
     deps = [
@@ -75,6 +94,7 @@ kt_jvm_library(
     name = "certificates_service",
     srcs = ["CertificatesService.kt"],
     deps = [
+        ":api_key_authentication_server_interceptor",
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
@@ -114,6 +134,7 @@ kt_jvm_library(
     name = "event_groups_service",
     srcs = ["EventGroupsService.kt"],
     deps = [
+        ":api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
@@ -223,6 +244,7 @@ kt_jvm_library(
     name = "measurements_service",
     srcs = ["MeasurementsService.kt"],
     deps = [
+        ":api_key_authentication_server_interceptor",
         ":proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -249,6 +271,7 @@ kt_jvm_library(
     srcs = ["MeasurementConsumersService.kt"],
     deps = [
         ":account_authentication_server_interceptor",
+        ":api_key_authentication_server_interceptor",
         ":certificates",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -289,6 +312,7 @@ kt_jvm_library(
     name = "requisitions_service",
     srcs = ["RequisitionsService.kt"],
     deps = [
+        ":api_key_authentication_server_interceptor",
         ":proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",

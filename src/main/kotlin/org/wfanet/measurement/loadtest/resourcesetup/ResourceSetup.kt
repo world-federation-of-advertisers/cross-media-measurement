@@ -21,6 +21,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -29,8 +30,10 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -54,10 +57,15 @@ class ResourceSetup(
   private val internalAccountsClient: InternalAccountsCoroutineStub,
   private val internalDataProvidersClient: InternalDataProvidersCoroutineStub,
   private val accountsClient: AccountsCoroutineStub,
+  private val apiKeysClient: ApiKeysCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String
 ) {
+  data class MeasurementConsumerAndKey(
+    val measurementConsumer: MeasurementConsumer,
+    val apiAuthenticationKey: String
+  )
 
   /** Process to create resources. */
   suspend fun process(
@@ -74,8 +82,12 @@ class ResourceSetup(
     }
 
     // Step 2: Create the MC.
-    val measurementConsumer = createMeasurementConsumer(measurementConsumerContent)
+    val (measurementConsumer, api_authentication_key) =
+      createMeasurementConsumer(measurementConsumerContent)
     logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
+    logger.info(
+      "API key for measurement consumer ${measurementConsumer.name}: $api_authentication_key"
+    )
 
     // Step 3: Create certificate for each duchy.
     duchyCerts.forEach {
@@ -107,7 +119,7 @@ class ResourceSetup(
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
-  ): MeasurementConsumer {
+  ): MeasurementConsumerAndKey {
     // The initial account is created via the Kingdom Internal API by the Kingdom operator.
     val internalAccount = internalAccountsClient.createAccount(internalAccount {})
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
@@ -147,7 +159,22 @@ class ResourceSetup(
         }
       measurementConsumerCreationToken = mcCreationToken
     }
-    return measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
+    val measurementConsumer =
+      measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
+
+    // API key for MC is created to act as MC caller
+    val apiAuthenticationKey =
+      apiKeysClient
+        .withIdToken(idToken)
+        .createApiKey(
+          createApiKeyRequest {
+            parent = measurementConsumer.name
+            apiKey = apiKey { nickname = "test_key" }
+          }
+        )
+        .authenticationKey
+
+    return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
   }
 
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {

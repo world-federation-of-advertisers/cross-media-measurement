@@ -82,7 +82,8 @@ abstract class FrontendSimulatorRunner : Runnable {
           requisitionsStub,
           measurementConsumersStub,
           SketchStore(storageClient),
-          flags.runId
+          flags.runId,
+          flags.apiAuthenticationKey
         )
         .process()
     }
