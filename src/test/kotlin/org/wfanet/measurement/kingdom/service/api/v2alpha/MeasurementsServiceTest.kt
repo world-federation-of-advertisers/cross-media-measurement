@@ -180,8 +180,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
@@ -195,8 +193,6 @@ class MeasurementsServiceTest {
         ) { runBlocking { service.getMeasurement(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot get a Measurement from another MeasurementConsumer")
   }
 
   @Test
@@ -206,7 +202,6 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.getMeasurement(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -250,8 +245,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement Consumer Certificate resource name is either unspecified or invalid")
   }
 
   @Test
@@ -267,8 +260,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot create a Measurement for another MeasurementConsumer")
   }
 
   @Test
@@ -280,7 +271,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -296,7 +286,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement spec is unspecified")
   }
 
   @Test
@@ -321,7 +310,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement public key is unspecified")
   }
 
   @Test
@@ -359,7 +347,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Reach privacy params are unspecified")
   }
 
   @Test
@@ -397,7 +384,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Frequency privacy params are unspecified")
   }
 
   @Test
@@ -422,7 +408,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement type is unspecified")
   }
 
   @Test
@@ -438,7 +423,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Providers list is empty")
   }
 
   @Test
@@ -460,8 +444,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider resource name is either unspecified or invalid")
   }
 
   @Test
@@ -483,8 +465,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider certificate resource name is either unspecified or invalid")
   }
 
   @Test
@@ -510,7 +490,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Provider public key is unspecified")
   }
 
   @Test
@@ -544,7 +523,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("spec")
   }
 
   @Test
@@ -566,7 +544,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("hash")
   }
 
   @Test
@@ -764,8 +741,6 @@ class MeasurementsServiceTest {
         ) { runBlocking { service.listMeasurements(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot list Measurements for other MeasurementConsumers")
   }
 
   @Test
@@ -775,7 +750,6 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -799,8 +773,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -824,8 +796,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -837,8 +807,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
@@ -857,7 +825,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
   }
 
   @Test
@@ -896,8 +863,6 @@ class MeasurementsServiceTest {
         ) { runBlocking { service.cancelMeasurement(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Cannot cancel a Measurement for another MeasurementConsumer")
   }
 
   @Test
@@ -907,7 +872,6 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.cancelMeasurement(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Api Key credentials are invalid or missing")
   }
 
   @Test
@@ -919,8 +883,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
@@ -938,7 +900,6 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("Duplicated keys")
   }
 
   companion object {

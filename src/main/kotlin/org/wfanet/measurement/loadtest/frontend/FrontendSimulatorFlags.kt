@@ -95,7 +95,7 @@ class FrontendSimulatorFlags {
 
   @CommandLine.Option(
     names = ["--api-authentication-key"],
-    description = ["Api authentication key for measurement consumer authentication."],
+    description = ["API authentication key for measurement consumer authentication."],
     required = true
   )
   lateinit var apiAuthenticationKey: String
