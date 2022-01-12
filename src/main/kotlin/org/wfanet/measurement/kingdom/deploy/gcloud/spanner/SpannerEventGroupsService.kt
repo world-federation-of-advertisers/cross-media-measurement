@@ -24,10 +24,12 @@ import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
 
 class SpannerEventGroupsService(
   private val idGenerator: IdGenerator,
@@ -61,14 +63,54 @@ class SpannerEventGroupsService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+      }
+    }
+  }
+
+  override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
+    try {
+      return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS ->
+          failGrpc(Status.INVALID_ARGUMENT) { "EventGroup modification param is invalid" }
+        KingdomInternalException.Code.CERTIFICATE_IS_INVALID ->
+          failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
+        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
+        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
+        KingdomInternalException.Code.API_KEY_NOT_FOUND,
+        KingdomInternalException.Code.PERMISSION_DENIED,
+        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
+        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        KingdomInternalException.Code.DUCHY_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
+        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
+        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL, -> throw e
       }
     }
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
     return EventGroupReader()
-      .readByExternalId(client.singleUse(), request.externalEventGroupId)
+      .readByExternalIds(
+        client.singleUse(),
+        request.externalDataProviderId,
+        request.externalEventGroupId
+      )
       ?.eventGroup
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }

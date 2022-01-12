@@ -75,7 +75,9 @@ class SpannerCertificatesService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -148,7 +150,9 @@ class SpannerCertificatesService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
         KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
@@ -184,7 +188,9 @@ class SpannerCertificatesService(
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
         KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL -> throw e
+        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
+        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
+        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
       }
     }
   }
