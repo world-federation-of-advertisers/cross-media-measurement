@@ -82,11 +82,11 @@ class ResourceSetup(
     }
 
     // Step 2: Create the MC.
-    val (measurementConsumer, api_authentication_key) =
+    val (measurementConsumer, apiAuthenticationKey) =
       createMeasurementConsumer(measurementConsumerContent)
     logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
     logger.info(
-      "API key for measurement consumer ${measurementConsumer.name}: $api_authentication_key"
+      "API key for measurement consumer ${measurementConsumer.name}: $apiAuthenticationKey"
     )
 
     // Step 3: Create certificate for each duchy.

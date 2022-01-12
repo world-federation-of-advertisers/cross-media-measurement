@@ -149,10 +149,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         runId = "12345"
       )
     // Create the MC.
-    val (measurementConsumer, apiAuthenticationKey) =
-      resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT)
+    val (measurementConsumer, apiKey) = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT)
     mcResourceName = measurementConsumer.name
-    this.apiAuthenticationKey = apiAuthenticationKey
+    apiAuthenticationKey = apiKey
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
