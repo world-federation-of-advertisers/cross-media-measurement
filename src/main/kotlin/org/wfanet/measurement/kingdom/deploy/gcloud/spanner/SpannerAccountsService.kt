@@ -270,7 +270,8 @@ class SpannerAccountsService(
   }
 
   /**
-   * Returns the issuer and subject if the ID token is valid.
+   * Returns the issuer and subject if the ID token is valid. TODO(@tristanvuong2021): Move
+   * validation to public accounts service
    *
    * @throws GeneralSecurityException if the ID token validation fails
    */
