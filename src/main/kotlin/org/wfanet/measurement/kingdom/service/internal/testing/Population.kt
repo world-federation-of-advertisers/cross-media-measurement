@@ -281,9 +281,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return idToken
   }
 
-  fun parseIdToken(
-    idToken: String,
-  ): Account.OpenIdConnectIdentity {
+  fun parseIdToken(idToken: String, redirectUri: String = ""): Account.OpenIdConnectIdentity {
     val tokenParts = idToken.split(".")
     val claims =
       JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
@@ -293,7 +291,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
 
     val verifiedJwt =
       SelfIssuedIdTokens.validateJwt(
-        redirectUri = "",
+        redirectUri = redirectUri,
         idToken = idToken,
         publicJwkHandle = publicJwkHandle
       )

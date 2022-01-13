@@ -392,6 +392,36 @@ class AccountsServiceTest {
     }
   }
 
+  @Test
+  fun `validateIdToken throws GeneralSecurityException when redirect uri doesn't match`() {
+    runBlocking {
+      val idToken = generateIdToken()
+
+      assertFailsWith<GeneralSecurityException> {
+        AccountsService.validateIdToken(
+          idToken = idToken,
+          internalAccountsStub = internalClient,
+          redirectUri = REDIRECT_URI + "5"
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `validateIdToken throws GeneralSecurityException when redirect uri is unexpected`() {
+    runBlocking {
+      val idToken = generateIdToken()
+
+      assertFailsWith<GeneralSecurityException> {
+        AccountsService.validateIdToken(
+          idToken = idToken,
+          internalAccountsStub = internalClient,
+          redirectUri = ""
+        )
+      }
+    }
+  }
+
   private suspend fun generateIdToken(): String {
     val uriString =
       client.authenticate(authenticateRequest { issuer = SELF_ISSUED_ISSUER })
