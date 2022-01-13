@@ -59,18 +59,19 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
+private const val MISSING_CREDENTIALS_ERROR = "Api Key credentials are invalid or missing"
+private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
+
 class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoroutineStub) :
   MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     val measurementConsumer =
       ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
 
     val key =
-      grpcRequireNotNull(MeasurementKey.fromName(request.name)) {
-        "Resource name is either unspecified or invalid"
-      }
+      grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
     val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
@@ -92,7 +93,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
     val measurementConsumer =
       ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
 
     val measurement = request.measurement
 
@@ -154,7 +155,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   ): ListMeasurementsResponse {
     val measurementConsumer =
       ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
 
     val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
@@ -196,12 +197,10 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
     val measurementConsumer =
       ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
 
     val key =
-      grpcRequireNotNull(MeasurementKey.fromName(request.name)) {
-        "Resource name is either unspecified or invalid"
-      }
+      grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
     val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
@@ -290,7 +289,7 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
   val key =
     grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
-      "Resource name is either unspecified or invalid"
+      MISSING_RESOURCE_NAME_ERROR
     }
   grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
 
@@ -331,7 +330,7 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasurementsRequest {
   val source = this
   return streamMeasurementsRequest {
-    // get 1 more than the actual page size for deciding whether or not to set page token
+    // get 1 more than the actual page size for deciding whether to set page token
     limit = source.pageSize + 1
     measurementView = InternalMeasurementView.DEFAULT
     filter =
