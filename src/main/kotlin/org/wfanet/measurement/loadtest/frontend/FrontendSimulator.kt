@@ -74,6 +74,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
@@ -85,7 +86,9 @@ data class MeasurementConsumerData(
   /** The MC's consent signaling signing key. */
   val signingKey: SigningKeyHandle,
   /** The MC's encryption public key. */
-  val encryptionKey: PrivateKeyHandle
+  val encryptionKey: PrivateKeyHandle,
+  /** An API key for the MC. */
+  val apiAuthenticationKey: String
 )
 
 /** A simulator performing frontend operations. */
@@ -98,7 +101,8 @@ class FrontendSimulator(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val sketchStore: SketchStore,
-  private val runId: String
+  private val runId: String,
+  private val apiAuthenticationKey: String,
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -168,13 +172,17 @@ class FrontendSimulator(
           this.measurementReferenceId = runId
         }
     }
-    return measurementsClient.createMeasurement(request)
+    return measurementsClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .createMeasurement(request)
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getResult(measurementName: String): Result? {
     val measurement =
-      measurementsClient.getMeasurement(getMeasurementRequest { name = measurementName })
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
     return if (measurement.state == Measurement.State.SUCCEEDED) {
       val signedResult =
         decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
@@ -246,7 +254,9 @@ class FrontendSimulator(
 
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
-    return measurementConsumersClient.getMeasurementConsumer(request)
+    return measurementConsumersClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .getMeasurementConsumer(request)
   }
 
   private fun newMeasurementSpec(
@@ -269,7 +279,10 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
     }
-    return eventGroupsClient.listEventGroups(request).eventGroupsList
+    return eventGroupsClient
+      .withAuthenticationKey(apiAuthenticationKey)
+      .listEventGroups(request)
+      .eventGroupsList
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
@@ -277,7 +290,10 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
     }
-    return requisitionsClient.listRequisitions(request).requisitionsList
+    return requisitionsClient
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .listRequisitions(request)
+      .requisitionsList
   }
 
   private fun extractDataProviderName(eventGroupName: String): String {

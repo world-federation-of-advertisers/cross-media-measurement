@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
@@ -39,6 +40,7 @@ import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.resourcesetup.DuchyCert
@@ -129,8 +131,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     PublicCertificatesCoroutineStub(kingdom.publicApiChannel)
   }
   private val publicAccountsClient by lazy { PublicAccountsCoroutineStub(kingdom.publicApiChannel) }
+  private val publicApiKeysClient by lazy { PublicApiKeysCoroutineStub(kingdom.publicApiChannel) }
 
   private lateinit var mcResourceName: String
+  private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
 
@@ -140,12 +144,16 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         internalAccountsClient = kingdom.internalAccountsClient,
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         accountsClient = publicAccountsClient,
+        apiKeysClient = publicApiKeysClient,
         certificatesClient = publicCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345"
       )
     // Create the MC.
-    mcResourceName = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT).name
+    val (measurementConsumer, apiAuthenticationKey) =
+      resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT)
+    mcResourceName = measurementConsumer.name
+    this.apiAuthenticationKey = apiAuthenticationKey
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
@@ -170,7 +178,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     // Start all Mills and all EDPs, which can only be started after the resources are created.
     duchies.forEach { it.startLiquidLegionsV2mill(duchyCertMap) }
     edpSimulators.forEach {
-      it.start(edpDisplayNameToResourceNameMap.getValue(it.displayName), mcResourceName)
+      it.start(
+        edpDisplayNameToResourceNameMap.getValue(it.displayName),
+        mcResourceName,
+        apiAuthenticationKey
+      )
     }
   }
 
@@ -182,7 +194,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     val eventGroupList =
       pollFor(timeoutMillis = 10_000) {
         val eventGroups =
-          publicEventGroupsClient.listEventGroups(
+          publicEventGroupsClient
+            .withAuthenticationKey(apiAuthenticationKey)
+            .listEventGroups(
               listEventGroupsRequest {
                 parent = "dataProviders/-"
                 filter = ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }
@@ -202,7 +216,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         MeasurementConsumerData(
           mcResourceName,
           MC_ENTITY_CONTENT.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,
@@ -211,7 +226,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicRequisitionsClient,
         publicMeasurementConsumersClient,
         SketchStore(storageClient),
-        "1234"
+        "1234",
+        apiAuthenticationKey
       )
       .process()
   }

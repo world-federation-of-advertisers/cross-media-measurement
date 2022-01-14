@@ -61,7 +61,8 @@ abstract class FrontendSimulatorRunner : Runnable {
       MeasurementConsumerData(
         mcName,
         loadSigningKey(flags.mcCsCertDerFile, flags.mcCsPrivateKeyDerFile),
-        loadPrivateKey(flags.mcEncryptionPrivateKeyset)
+        loadPrivateKey(flags.mcEncryptionPrivateKeyset),
+        flags.apiAuthenticationKey
       )
     val outputDpParams =
       DifferentialPrivacyParams.newBuilder()
@@ -82,7 +83,8 @@ abstract class FrontendSimulatorRunner : Runnable {
           requisitionsStub,
           measurementConsumersStub,
           SketchStore(storageClient),
-          flags.runId
+          flags.runId,
+          flags.apiAuthenticationKey
         )
         .process()
     }

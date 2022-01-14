@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -89,6 +90,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -101,149 +103,17 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AA
 private const val MEASUREMENT_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAJs"
 private const val MEASUREMENT_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAKs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
-  "measurementConsumers/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
+  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDERS_NAME = makeDataProvider(123L)
 private val EXTERNAL_MEASUREMENT_ID =
   apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
-private val EXTERNAL_MEASUREMENT_ID_2 =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
-private val EXTERNAL_MEASUREMENT_ID_3 =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementConsumerId)
+  apiIdToExternalId(
+    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+  )
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-
-private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
-  externalProtocolConfigId = "llv2"
-  measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-  liquidLegionsV2 =
-    InternalProtocolConfigKt.liquidLegionsV2 {
-      sketchParams =
-        internalLiquidLegionsSketchParams {
-          decayRate = 1.1
-          maxSize = 100
-          samplingIndicatorSize = 1000
-        }
-      dataProviderNoise =
-        internalDifferentialPrivacyParams {
-          epsilon = 2.1
-          delta = 3.3
-        }
-    }
-}
-private val PUBLIC_PROTOCOL_CONFIG = protocolConfig {
-  name = "protocolConfigs/llv2"
-  measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-  liquidLegionsV2 =
-    liquidLegionsV2 {
-      sketchParams =
-        liquidLegionsSketchParams {
-          decayRate = 1.1
-          maxSize = 100
-          samplingIndicatorSize = 1000
-        }
-      dataProviderNoise =
-        differentialPrivacyParams {
-          epsilon = 2.1
-          delta = 3.3
-        }
-    }
-}
-private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
-  liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-}
-private val MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = UPDATE_TIME.toByteString()
-  reachAndFrequency =
-    reachAndFrequency {
-      reachPrivacyParams =
-        differentialPrivacyParams {
-          epsilon = 1.0
-          delta = 1.0
-        }
-      frequencyPrivacyParams =
-        differentialPrivacyParams {
-          epsilon = 1.0
-          delta = 1.0
-        }
-    }
-  nonceHashes += ByteString.copyFromUtf8("foo")
-}
-private val MEASUREMENT = measurement {
-  name = MEASUREMENT_NAME
-  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  measurementSpec =
-    signedData {
-      data = MEASUREMENT_SPEC.toByteString()
-      signature = UPDATE_TIME.toByteString()
-    }
-  dataProviders +=
-    dataProviderEntry {
-      key = DATA_PROVIDERS_NAME
-      value =
-        value {
-          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-          dataProviderPublicKey =
-            signedData {
-              data = UPDATE_TIME.toByteString()
-              signature = UPDATE_TIME.toByteString()
-            }
-          encryptedRequisitionSpec = UPDATE_TIME.toByteString()
-          nonceHash = DATA_PROVIDER_NONCE_HASH
-        }
-    }
-  protocolConfig = PUBLIC_PROTOCOL_CONFIG
-  measurementReferenceId = "ref_id"
-  failure =
-    failure {
-      reason = Failure.Reason.CERTIFICATE_REVOKED
-      message = "Measurement Consumer Certificate has been revoked"
-    }
-}
-
-private val INTERNAL_MEASUREMENT = internalMeasurement {
-  externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-  externalMeasurementId = EXTERNAL_MEASUREMENT_ID
-  providedMeasurementId = MEASUREMENT.measurementReferenceId
-  externalMeasurementConsumerCertificateId =
-    apiIdToExternalId(
-      MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
-        .certificateId
-    )
-  updateTime = UPDATE_TIME
-  dataProviders.putAll(
-    MEASUREMENT.dataProvidersList.associateBy(
-      { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
-      {
-        InternalMeasurementKt.dataProviderValue {
-          externalDataProviderCertificateId =
-            apiIdToExternalId(
-              DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!.certificateId
-            )
-          dataProviderPublicKey = it.value.dataProviderPublicKey.data
-          dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
-          encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
-          nonceHash = it.value.nonceHash
-        }
-      }
-    )
-  )
-  details =
-    InternalMeasurementKt.details {
-      apiVersion = Version.V2_ALPHA.string
-      measurementSpec = MEASUREMENT.measurementSpec.data
-      measurementSpecSignature = MEASUREMENT.measurementSpec.signature
-      protocolConfig = INTERNAL_PROTOCOL_CONFIG
-      duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
-      failure =
-        InternalMeasurementKt.failure {
-          reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
-          message = MEASUREMENT.failure.message
-        }
-    }
-}
 
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
@@ -255,8 +125,14 @@ class MeasurementsServiceTest {
         .thenReturn(
           flowOf(
             INTERNAL_MEASUREMENT,
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 },
-            INTERNAL_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_3 }
+            INTERNAL_MEASUREMENT.copy {
+              externalMeasurementId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+            },
+            INTERNAL_MEASUREMENT.copy {
+              externalMeasurementId =
+                apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_3)!!.measurementId)
+            }
           )
         )
       onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
@@ -276,7 +152,10 @@ class MeasurementsServiceTest {
   fun `getMeasurement returns measurement`() {
     val request = getMeasurementRequest { name = MEASUREMENT_NAME }
 
-    val result = runBlocking { service.getMeasurement(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.getMeasurement(request) }
+      }
 
     val expected = MEASUREMENT
 
@@ -298,18 +177,43 @@ class MeasurementsServiceTest {
   fun `getMeasurement throws INVALID_ARGUMENT when resource name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.getMeasurement(GetMeasurementRequest.getDefaultInstance()) }
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.getMeasurement(GetMeasurementRequest.getDefaultInstance()) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
+  }
+
+  @Test
+  fun `getMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(
+          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
+        ) { runBlocking { service.getMeasurement(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.getMeasurement(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
   fun `createMeasurement returns measurement with resource name set`() {
     val request = createMeasurementRequest { measurement = MEASUREMENT }
 
-    val result = runBlocking { service.createMeasurement(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.createMeasurement(request) }
+      }
 
     val expected = MEASUREMENT
 
@@ -332,288 +236,326 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when certificate resource name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement = MEASUREMENT.copy { clearMeasurementConsumerCertificate() }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement = MEASUREMENT.copy { clearMeasurementConsumerCertificate() }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement Consumer Certificate resource name is either unspecified or invalid")
+  }
+
+  @Test
+  fun `createMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(
+          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
+        ) {
+          runBlocking {
+            service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when measurement spec is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest { measurement = MEASUREMENT.copy { clearMeasurementSpec() } }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest { measurement = MEASUREMENT.copy { clearMeasurementSpec() } }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement spec is unspecified")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when measurement public key is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  measurementSpec =
-                    signedData {
-                      data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data = MEASUREMENT_SPEC.copy { clearMeasurementPublicKey() }.toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement public key is unspecified")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when reach privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  measurementSpec =
-                    signedData {
-                      data =
-                        MEASUREMENT_SPEC
-                          .copy {
-                            clearReachAndFrequency()
-                            reachAndFrequency =
-                              reachAndFrequency {
-                                frequencyPrivacyParams =
-                                  differentialPrivacyParams {
-                                    epsilon = 1.0
-                                    delta = 1.0
-                                  }
-                              }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              reachAndFrequency =
+                                reachAndFrequency {
+                                  frequencyPrivacyParams =
+                                    differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 1.0
+                                    }
+                                }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Reach privacy params are unspecified")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when frequency privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  measurementSpec =
-                    signedData {
-                      data =
-                        MEASUREMENT_SPEC
-                          .copy {
-                            clearReachAndFrequency()
-                            reachAndFrequency =
-                              reachAndFrequency {
-                                reachPrivacyParams =
-                                  differentialPrivacyParams {
-                                    epsilon = 1.0
-                                    delta = 1.0
-                                  }
-                              }
-                          }
-                          .toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              reachAndFrequency =
+                                reachAndFrequency {
+                                  reachPrivacyParams =
+                                    differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 1.0
+                                    }
+                                }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Frequency privacy params are unspecified")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when measurement type is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  measurementSpec =
-                    signedData {
-                      data = MEASUREMENT_SPEC.copy { clearMeasurementType() }.toByteString()
-                      signature = UPDATE_TIME.toByteString()
-                    }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data = MEASUREMENT_SPEC.copy { clearMeasurementType() }.toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Measurement type is unspecified")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest { measurement = MEASUREMENT.copy { dataProviders.clear() } }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest { measurement = MEASUREMENT.copy { dataProviders.clear() } }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Providers list is empty")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers Entry is missing key`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  dataProviders.clear()
-                  dataProviders += dataProviderEntry { key = "" }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    dataProviders.clear()
+                    dataProviders += dataProviderEntry { key = "" }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider resource name is either unspecified or invalid")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing cert name`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  dataProviders.clear()
-                  dataProviders += dataProviderEntry { key = DATA_PROVIDERS_NAME }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    dataProviders.clear()
+                    dataProviders += dataProviderEntry { key = DATA_PROVIDERS_NAME }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Data Provider certificate resource name is either unspecified or invalid")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing public key`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  dataProviders.clear()
-                  dataProviders +=
-                    dataProviderEntry {
-                      key = DATA_PROVIDERS_NAME
-                      value = value { dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME }
-                    }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    dataProviders.clear()
+                    dataProviders +=
+                      dataProviderEntry {
+                        key = DATA_PROVIDERS_NAME
+                        value = value { dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME }
+                      }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Data Provider public key is unspecified")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing spec`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  dataProviders.clear()
-                  dataProviders +=
-                    dataProviderEntry {
-                      key = DATA_PROVIDERS_NAME
-                      value =
-                        value {
-                          dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
-                          dataProviderPublicKey =
-                            signedData {
-                              data = UPDATE_TIME.toByteString()
-                              signature = UPDATE_TIME.toByteString()
-                            }
-                        }
-                    }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    dataProviders.clear()
+                    dataProviders +=
+                      dataProviderEntry {
+                        key = DATA_PROVIDERS_NAME
+                        value =
+                          value {
+                            dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
+                            dataProviderPublicKey =
+                              signedData {
+                                data = UPDATE_TIME.toByteString()
+                                signature = UPDATE_TIME.toByteString()
+                              }
+                          }
+                      }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("spec")
   }
 
   @Test
   fun `createMeasurement throws error when Data Providers Entry value is missing nonce hash`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement =
-                MEASUREMENT.copy {
-                  dataProviders[0] =
-                    dataProviders[0].copy { value = value.copy { clearNonceHash() } }
-                }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    dataProviders[0] =
+                      dataProviders[0].copy { value = value.copy { clearNonceHash() } }
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("hash")
   }
 
   @Test
   fun `listMeasurements with no page token returns response`() {
     val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
-    val result = runBlocking { service.listMeasurements(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.listMeasurements(request) }
+      }
 
     val expected = listMeasurementsResponse {
       measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
@@ -675,7 +617,10 @@ class MeasurementsServiceTest {
       filter = filter { states += publicStates }
     }
 
-    val result = runBlocking { service.listMeasurements(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.listMeasurements(request) }
+      }
 
     val expected = listMeasurementsResponse {
       measurement += MEASUREMENT.copy { name = MEASUREMENT_NAME }
@@ -684,7 +629,11 @@ class MeasurementsServiceTest {
         this.pageSize = pageSize
         externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
         states += publicStates
-        lastMeasurement = previousPageEnd { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
+        lastMeasurement =
+          previousPageEnd {
+            externalMeasurementId =
+              apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME_2)!!.measurementId)
+          }
       }
       nextPageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
@@ -726,7 +675,9 @@ class MeasurementsServiceTest {
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
-    runBlocking { service.listMeasurements(request) }
+    withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      runBlocking { service.listMeasurements(request) }
+    }
 
     val streamMeasurementsRequest =
       captureFirst<StreamMeasurementsRequest> {
@@ -749,7 +700,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `listEventGroups with no page size uses page size in page token`() {
+  fun `listMeasurements with no page size uses page size in page token`() {
     val pageSize = 1
     val request = listMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -761,7 +712,9 @@ class MeasurementsServiceTest {
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
-    runBlocking { service.listMeasurements(request) }
+    withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      runBlocking { service.listMeasurements(request) }
+    }
 
     val streamMeasurementsRequest =
       captureFirst<StreamMeasurementsRequest> {
@@ -781,6 +734,28 @@ class MeasurementsServiceTest {
             }
         }
       )
+  }
+
+  @Test
+  fun `listMeasurements throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(
+          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
+        ) { runBlocking { service.listMeasurements(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listMeasurements throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
@@ -798,10 +773,12 @@ class MeasurementsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listMeasurements(request) }
+        }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
@@ -819,45 +796,51 @@ class MeasurementsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.listMeasurements(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listMeasurements(request) }
+        }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Arguments must be kept the same when using a page token")
   }
 
   @Test
   fun `listMeasurements throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listMeasurements(ListMeasurementsRequest.getDefaultInstance()) }
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.listMeasurements(ListMeasurementsRequest.getDefaultInstance()) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
   fun `listMeasurements throws INVALID_ARGUMENT when pageSize is less than 0`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listMeasurements(
-            listMeasurementsRequest {
-              parent = MEASUREMENT_CONSUMER_NAME
-              pageSize = -1
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.listMeasurements(
+              listMeasurementsRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
+                pageSize = -1
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
   }
 
   @Test
   fun `cancelMeasurement returns measurement`() {
     val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
 
-    val result = runBlocking { service.cancelMeasurement(request) }
+    val result =
+      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        runBlocking { service.cancelMeasurement(request) }
+      }
 
     val expected = MEASUREMENT
 
@@ -876,30 +859,53 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `cancelMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+    val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumer(
+          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
+        ) { runBlocking { service.cancelMeasurement(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `cancelMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+    val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.cancelMeasurement(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
   fun `cancelMeasurement throws INVALID_ARGUMENT when resource name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.cancelMeasurement(CancelMeasurementRequest.getDefaultInstance()) }
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking { service.cancelMeasurement(CancelMeasurementRequest.getDefaultInstance()) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Resource name is either unspecified or invalid")
   }
 
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when dataProviderList has duplicated keys`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createMeasurement(
-            createMeasurementRequest {
-              measurement = MEASUREMENT.copy { dataProviders += dataProviders }
-            }
-          )
+        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement = MEASUREMENT.copy { dataProviders += dataProviders }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).contains("Duplicated keys")
   }
 
   companion object {
@@ -910,6 +916,145 @@ class MeasurementsServiceTest {
         INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
         DUCHY_PROTOCOL_CONFIG.liquidLegionsV2
       )
+    }
+
+    private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
+      externalProtocolConfigId = "llv2"
+      measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+      liquidLegionsV2 =
+        InternalProtocolConfigKt.liquidLegionsV2 {
+          sketchParams =
+            internalLiquidLegionsSketchParams {
+              decayRate = 1.1
+              maxSize = 100
+              samplingIndicatorSize = 1000
+            }
+          dataProviderNoise =
+            internalDifferentialPrivacyParams {
+              epsilon = 2.1
+              delta = 3.3
+            }
+        }
+    }
+
+    private val PUBLIC_PROTOCOL_CONFIG = protocolConfig {
+      name = "protocolConfigs/llv2"
+      measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+      liquidLegionsV2 =
+        liquidLegionsV2 {
+          sketchParams =
+            liquidLegionsSketchParams {
+              decayRate = 1.1
+              maxSize = 100
+              samplingIndicatorSize = 1000
+            }
+          dataProviderNoise =
+            differentialPrivacyParams {
+              epsilon = 2.1
+              delta = 3.3
+            }
+        }
+    }
+
+    private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
+      liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+    }
+
+    private val MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = UPDATE_TIME.toByteString()
+      reachAndFrequency =
+        reachAndFrequency {
+          reachPrivacyParams =
+            differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 1.0
+            }
+          frequencyPrivacyParams =
+            differentialPrivacyParams {
+              epsilon = 1.0
+              delta = 1.0
+            }
+        }
+      nonceHashes += ByteString.copyFromUtf8("foo")
+    }
+
+    private val INTERNAL_MEASUREMENT_CONSUMER = measurementConsumer {
+      externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+    }
+
+    private val MEASUREMENT = measurement {
+      name = MEASUREMENT_NAME
+      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      measurementSpec =
+        signedData {
+          data = MEASUREMENT_SPEC.toByteString()
+          signature = UPDATE_TIME.toByteString()
+        }
+      dataProviders +=
+        dataProviderEntry {
+          key = DATA_PROVIDERS_NAME
+          value =
+            value {
+              dataProviderCertificate = DATA_PROVIDERS_CERTIFICATE_NAME
+              dataProviderPublicKey =
+                signedData {
+                  data = UPDATE_TIME.toByteString()
+                  signature = UPDATE_TIME.toByteString()
+                }
+              encryptedRequisitionSpec = UPDATE_TIME.toByteString()
+              nonceHash = DATA_PROVIDER_NONCE_HASH
+            }
+        }
+      protocolConfig = PUBLIC_PROTOCOL_CONFIG
+      measurementReferenceId = "ref_id"
+      failure =
+        failure {
+          reason = Failure.Reason.CERTIFICATE_REVOKED
+          message = "Measurement Consumer Certificate has been revoked"
+        }
+    }
+
+    private val INTERNAL_MEASUREMENT = internalMeasurement {
+      externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+      externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+      providedMeasurementId = MEASUREMENT.measurementReferenceId
+      externalMeasurementConsumerCertificateId =
+        apiIdToExternalId(
+          MeasurementConsumerCertificateKey.fromName(MEASUREMENT.measurementConsumerCertificate)!!
+            .certificateId
+        )
+      updateTime = UPDATE_TIME
+      dataProviders.putAll(
+        MEASUREMENT.dataProvidersList.associateBy(
+          { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
+          {
+            InternalMeasurementKt.dataProviderValue {
+              externalDataProviderCertificateId =
+                apiIdToExternalId(
+                  DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!
+                    .certificateId
+                )
+              dataProviderPublicKey = it.value.dataProviderPublicKey.data
+              dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
+              encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
+              nonceHash = it.value.nonceHash
+            }
+          }
+        )
+      )
+      details =
+        InternalMeasurementKt.details {
+          apiVersion = Version.V2_ALPHA.string
+          measurementSpec = MEASUREMENT.measurementSpec.data
+          measurementSpecSignature = MEASUREMENT.measurementSpec.signature
+          protocolConfig = INTERNAL_PROTOCOL_CONFIG
+          duchyProtocolConfig = DUCHY_PROTOCOL_CONFIG
+          failure =
+            InternalMeasurementKt.failure {
+              reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
+              message = MEASUREMENT.failure.message
+            }
+        }
     }
   }
 }
