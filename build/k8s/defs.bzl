@@ -102,7 +102,7 @@ def _k8s_apply_impl(ctx):
 
     commands = [import_executable.short_path for import_executable in ctx.files.imports]
     if ctx.attr.delete_selector:
-        commands.append("kubectl delete pods,jobs,services --selector={selector}".format(
+        commands.append("kubectl delete pods,jobs,services,deployments,networkpolicies,ingresses --selector={selector}".format(
             selector = shell.quote(ctx.attr.delete_selector),
         ))
     commands.append("kubectl apply -f {manifest_file}".format(

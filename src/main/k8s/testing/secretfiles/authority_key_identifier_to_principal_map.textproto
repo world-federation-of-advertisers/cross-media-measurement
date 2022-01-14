@@ -1,4 +1,4 @@
-# proto-file: src/main/proto/wfa/measurement/api/v2alpha/authority_key_to_principal_map.proto
+# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
 # proto-message: AuthorityKeyToPrincipalMap
 entries {
   authority_key_identifier: "\xD6\x65\x86\x86\xD8\x7E\xD2\xC4\xDA\xD8\xDF\x76\x39\x66\x21\x3A\xC2\x92\xCC\xE2"

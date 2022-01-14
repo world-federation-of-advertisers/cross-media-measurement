@@ -1,0 +1,38 @@
+load("//build:variables.bzl", "TEST_K8S_SETTINGS")
+load("//src/main/k8s:macros.bzl", "cue_dump")
+load("//build/k8s:defs.bzl", "k8s_apply")
+
+cue_dump(
+    name = "kingdom",
+    srcs = ["kingdom.cue"],
+    cue_tags = {
+        "secret_name": TEST_K8S_SETTINGS.secret_name,
+    },
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s:kingdom",
+        "//src/main/k8s:resource_setup",
+    ],
+)
+
+KINGDOM_IMAGE_NAMES = [
+    "push_spanner_schema_image",
+    "fake_storage_server_image",
+    "resource_setup_runner_image",
+    "kingdom_data_server_image",
+    "kingdom_system_api_server_image",
+    "kingdom_v2alpha_public_api_server_image",
+]
+
+k8s_apply(
+    name = "kingdom_kind",
+    src = ":kingdom.yaml",
+    # Deploying Kingdom should bring down everything else since DB and storage
+    # get recreated.
+    delete_selector = "app.kubernetes.io/part-of=halo-cmms",
+    imports = [
+        "//src/main/k8s:import_" + image_name + "_kind"
+        for image_name in KINGDOM_IMAGE_NAMES
+    ],
+    tags = ["manual"],
+)

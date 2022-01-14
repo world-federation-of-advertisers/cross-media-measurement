@@ -55,28 +55,14 @@ import ("strings")
 		"v2alpha-public-api-server": _type: "LoadBalancer"
 	}
 
-	kingdom_job: "kingdom-push-spanner-schema-job": {
-		apiVersion: "batch/v1"
-		kind:       "Job"
-		metadata: {
-			name: "kingdom-push-spanner-schema-job"
-			labels: "app.kubernetes.io/name": #AppName
-		}
-		spec: template: {
-			metadata: labels: app: "kingdom-push-spanner-schema-job"
-			spec: {
-				containers: [{
-					name:            "push-spanner-schema-container"
-					image:           _images[name]
-					imagePullPolicy: _kingdom_image_pull_policy
-					args:            [
-								"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
-					] + _spanner_schema_push_flags
-				}]
-				restartPolicy: "OnFailure"
-			}
-		}
-	}
+	push_spanner_schema_job: [#Job & {
+		_name:            "kingdom-push-spanner-schema"
+		_image:           _images["push-spanner-schema-container"]
+		_imagePullPolicy: _kingdom_image_pull_policy
+		_args:            [
+					"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
+		] + _spanner_schema_push_flags
+	}]
 
 	kingdom_deployment: [Name=_]: #Deployment & {
 		_name:                  strings.TrimSuffix(Name, "-deployment")

@@ -36,3 +36,8 @@ TEST_GOOGLE_CLOUD_SETTINGS = struct(
     cloud_storage_bucket = "$(gcloud_storage_bucket)",
     bigquery_table = "$(gcloud_bigquery_table)",
 )
+
+# Settings for test Kubernetes deployments.
+TEST_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_secret_name)",
+)
