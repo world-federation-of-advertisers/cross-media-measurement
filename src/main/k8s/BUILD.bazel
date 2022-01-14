@@ -1,5 +1,4 @@
 load("//build/k8s:defs.bzl", "k8s_apply", "k8s_import")
-load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS", "TEST_GOOGLE_CLOUD_SETTINGS")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load(":macros.bzl", "cue_dump")
 
@@ -19,20 +18,6 @@ cue_dump(
     srcs = CUE_LIBRARIES + ["kingdom_and_three_duchies_local.cue"],
 )
 
-cue_dump(
-    name = "kingdom_and_three_duchies_from_cue_gke",
-    srcs = CUE_LIBRARIES + ["kingdom_and_three_duchies_gke.cue"],
-    cue_tags = {
-        "cloud_storage_bucket": TEST_GOOGLE_CLOUD_SETTINGS.cloud_storage_bucket,
-        "cloud_storage_project": TEST_GOOGLE_CLOUD_SETTINGS.cloud_storage_project,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "repository_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "spanner_instance": TEST_GOOGLE_CLOUD_SETTINGS.spanner_instance,
-        "spanner_project": TEST_GOOGLE_CLOUD_SETTINGS.spanner_project,
-    },
-    tags = ["manual"],
-)
-
 ALL_LOCAL_IMAGE_ARCHIVES = [
     image_spec.image + ".tar"
     for image_spec in ALL_LOCAL_IMAGES
@@ -47,7 +32,6 @@ filegroup(
 filegroup(
     name = "k8s_deployment_config",
     srcs = [
-        ":kingdom_and_three_duchies_from_cue_gke.yaml",
         ":kingdom_and_three_duchies_from_cue_local.yaml",
     ],
     data = [

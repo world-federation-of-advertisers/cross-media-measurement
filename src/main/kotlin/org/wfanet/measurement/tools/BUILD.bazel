@@ -40,10 +40,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "deploy_to_gke_impl",
     srcs = ["DeployToGke.kt"],
-    data = [
-        "//src/main/k8s:k8s_deployment_config",
-        "//src/main/k8s/dev:k8s_deployment_config",
-    ],
     tags = ["manual"],
     deps = [
         ":run_subprocess",
@@ -66,6 +62,9 @@ java_binary(
         "--cluster-name=halo-cmm-kingdom-dev-cluster",
         "--environment=dev",
     ],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
+    ],
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     tags = ["manual"],
     runtime_deps = ["deploy_to_gke_impl"],
@@ -77,6 +76,9 @@ java_binary(
         "--yaml-file=edp_simulator_gke.yaml",
         "--cluster-name=halo-cmm-simulator-dev-cluster",
         "--environment=dev",
+    ],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
     ],
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     tags = ["manual"],
@@ -90,6 +92,9 @@ java_binary(
         "--cluster-name=halo-cmm-aggregator-dev-cluster",
         "--environment=dev",
     ],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
+    ],
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     tags = ["manual"],
     runtime_deps = ["deploy_to_gke_impl"],
@@ -101,6 +106,9 @@ java_binary(
         "--yaml-file=worker1_gke.yaml",
         "--cluster-name=halo-cmm-worker1-dev-cluster",
         "--environment=dev",
+    ],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
     ],
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     tags = ["manual"],
@@ -114,6 +122,9 @@ java_binary(
         "--cluster-name=halo-cmm-worker2-dev-cluster",
         "--environment=dev",
     ],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
+    ],
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     tags = ["manual"],
     runtime_deps = ["deploy_to_gke_impl"],
@@ -125,6 +136,9 @@ java_binary(
         "--yaml-file=frontend_simulator_gke.yaml",
         "--cluster-name=halo-cmm-simulator-dev-cluster",
         "--environment=dev",
+    ],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
     ],
     main_class = "org.wfanet.measurement.tools.DeployToGkeKt",
     tags = ["manual"],
