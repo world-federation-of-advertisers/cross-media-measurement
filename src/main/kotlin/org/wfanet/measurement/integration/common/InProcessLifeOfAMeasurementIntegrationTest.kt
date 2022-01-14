@@ -76,7 +76,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private val kingdom: InProcessKingdom =
     InProcessKingdom(
       dataServicesProvider = { kingdomDataServices },
-      verboseGrpcLogging = false,
+      verboseGrpcLogging = true,
       REDIRECT_URI
     )
 
@@ -86,7 +86,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
         duchyDependenciesProvider = { duchyDependenciesRule.value(it) },
-        verboseGrpcLogging = false,
+        verboseGrpcLogging = true,
       )
     }
   }
@@ -193,6 +193,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     // Wait until all EDPs finish creating eventGroups before the test starts.
     val eventGroupList =
       pollFor(timeoutMillis = 10_000) {
+        println("Polling event groups")
         val eventGroups =
           publicEventGroupsClient
             .withAuthenticationKey(apiAuthenticationKey)

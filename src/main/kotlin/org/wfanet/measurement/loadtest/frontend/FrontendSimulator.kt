@@ -172,17 +172,13 @@ class FrontendSimulator(
           this.measurementReferenceId = runId
         }
     }
-    return measurementsClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .createMeasurement(request)
+    return measurementsClient.createMeasurement(request)
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getResult(measurementName: String): Result? {
     val measurement =
-      measurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementName })
+      measurementsClient.getMeasurement(getMeasurementRequest { name = measurementName })
     return if (measurement.state == Measurement.State.SUCCEEDED) {
       val signedResult =
         decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
@@ -254,9 +250,7 @@ class FrontendSimulator(
 
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
-    return measurementConsumersClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .getMeasurementConsumer(request)
+    return measurementConsumersClient.getMeasurementConsumer(request)
   }
 
   private fun newMeasurementSpec(
