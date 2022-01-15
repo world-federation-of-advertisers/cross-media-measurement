@@ -75,10 +75,10 @@ class CertificateAuthority(
       .setSubject(
         Subject.newBuilder()
           .setCommonName(context.commonName)
-          .setOrganization(context.orgName)
+          .setOrganization(context.organization)
           .build()
       )
-      .setSubjectAltName(SubjectAltNames.newBuilder().addDnsNames(context.domainName).build())
+      .setSubjectAltName(SubjectAltNames.newBuilder().addDnsNames(context.dnsName).build())
       .build()
 
   private val caPoolName = CaPoolName.of(projectId, caLocation, poolId).toString()

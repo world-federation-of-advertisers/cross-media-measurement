@@ -21,9 +21,8 @@ import java.security.cert.X509Certificate
 interface CertificateAuthority {
   data class Context(
     val commonName: String,
-    val orgName: String,
-    val domainName: String,
-    val hostname: String,
+    val organization: String,
+    val dnsName: String,
     val validDays: Int,
   )
 
