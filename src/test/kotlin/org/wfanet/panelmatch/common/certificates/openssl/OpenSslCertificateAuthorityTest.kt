@@ -37,9 +37,8 @@ import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 private val CONTEXT =
   CertificateAuthority.Context(
     commonName = "some-common-name",
-    orgName = "some-org-name",
-    domainName = "some-domain-name",
-    hostname = "example.com",
+    organization = "some-org-name",
+    dnsName = "example.com",
     validDays = 5,
   )
 

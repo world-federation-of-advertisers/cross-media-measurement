@@ -97,7 +97,7 @@ private class GenerateKeyPair(
       "-keyout",
       keyFile.relativeTo(baseDir).path,
       "-subj",
-      "/O=${context.orgName}/CN=${context.commonName}",
+      "/O=${context.organization}/CN=${context.commonName}",
     )
   }
 
@@ -109,7 +109,7 @@ private class GenerateKeyPair(
       authorityKeyIdentifier=keyid:always,issuer
       subjectKeyIdentifier=hash
       basicConstraints=CA:FALSE
-      subjectAltName=DNS:${context.hostname}
+      subjectAltName=DNS:${context.dnsName}
       """.trimIndent()
     )
   }

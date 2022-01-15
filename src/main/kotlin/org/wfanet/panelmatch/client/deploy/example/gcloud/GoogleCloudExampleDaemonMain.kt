@@ -18,10 +18,47 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
-import org.wfanet.panelmatch.common.certificates.CertificateAuthority
+import org.wfanet.panelmatch.common.certificates.gcloud.CertificateAuthority
+import org.wfanet.panelmatch.common.certificates.gcloud.PrivateCaClient
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
+import picocli.CommandLine.Option
+
+private class PrivateCaFlags {
+  @Option(
+    names = ["--privateca-project-id"],
+    description = ["Google Cloud PrivateCA project id"],
+    required = true
+  )
+  lateinit var projectId: String
+    private set
+
+  @Option(
+    names = ["--privateca-ca-location"],
+    description = ["Google Cloud PrivateCA CA location"],
+    required = true
+  )
+  lateinit var caLocation: String
+    private set
+
+  @Option(
+    names = ["--privateca-pool-id"],
+    description = ["Google Cloud PrivateCA pool id"],
+    required = true
+  )
+  lateinit var poolId: String
+    private set
+
+  @Option(
+    names = ["--privateca-ca-name"],
+    description = ["Google Cloud PrivateCA CA name"],
+    required = true
+  )
+  lateinit var certificateAuthorityName: String
+    private set
+}
 
 @Command(
   name = "GoogleCloudExampleDaemon",
@@ -31,13 +68,23 @@ import picocli.CommandLine.Mixin
 )
 private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
+  @Mixin private lateinit var caFlags: CertificateAuthorityFlags
+  @Mixin private lateinit var privateCaFlags: PrivateCaFlags
 
   override val rootStorageClient: StorageClient by lazy {
     GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
   }
 
-  override val certificateAuthority: CertificateAuthority
-    get() = TODO("Not yet implemented")
+  override val certificateAuthority by lazy {
+    CertificateAuthority(
+      caFlags.context,
+      privateCaFlags.projectId,
+      privateCaFlags.caLocation,
+      privateCaFlags.poolId,
+      privateCaFlags.certificateAuthorityName,
+      PrivateCaClient(),
+    )
+  }
 }
 
 /** Reference Google Cloud implementation of a daemon for executing Exchange Workflows. */

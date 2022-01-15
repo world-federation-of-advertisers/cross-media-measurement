@@ -45,9 +45,8 @@ import org.wfanet.panelmatch.common.toProto
 private val CONTEXT =
   CertificateAuthority.Context(
     commonName = "some-common-name",
-    orgName = "some-org-name",
-    domainName = "some-domain-name",
-    hostname = "example.com",
+    organization = "some-org-name",
+    dnsName = "some-domain-name",
     validDays = 5,
   )
 
@@ -64,10 +63,10 @@ private val SUBJECT_CONFIG =
     .setSubject(
       Subject.newBuilder()
         .setCommonName(CONTEXT.commonName)
-        .setOrganization(CONTEXT.orgName)
+        .setOrganization(CONTEXT.organization)
         .build()
     )
-    .setSubjectAltName(SubjectAltNames.newBuilder().addDnsNames(CONTEXT.domainName).build())
+    .setSubjectAltName(SubjectAltNames.newBuilder().addDnsNames(CONTEXT.dnsName).build())
     .build()
 
 @RunWith(JUnit4::class)
