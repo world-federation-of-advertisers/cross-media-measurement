@@ -41,7 +41,7 @@ message LookupKeyAndId {
 
 // A collection of lookup key and ids.
 message LookupKeyAndIdCollection {
-  repeated LookupKeyAndId lookupKeyAndIds = 1;
+  repeated LookupKeyAndId lookup_key_and_ids = 1;
 }
 
 // Response of the PrepareQueryRequest method
