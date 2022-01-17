@@ -76,7 +76,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private val kingdom: InProcessKingdom =
     InProcessKingdom(
       dataServicesProvider = { kingdomDataServices },
-      verboseGrpcLogging = true,
+      verboseGrpcLogging = false,
       REDIRECT_URI
     )
 
@@ -86,7 +86,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
         duchyDependenciesProvider = { duchyDependenciesRule.value(it) },
-        verboseGrpcLogging = true,
+        verboseGrpcLogging = false,
       )
     }
   }

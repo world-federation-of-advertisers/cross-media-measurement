@@ -28,10 +28,13 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.grpc.DeferredListener
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub
@@ -50,10 +53,16 @@ class ApiKeyAuthenticationServerInterceptor(
     val authenticationKey = headers.get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
 
     var context = Context.current()
-    if (authenticationKey != null) {
+    if (authenticationKey == null) {
+      return Contexts.interceptCall(context, call, headers, next)
+    }
+
+    val deferredListener = DeferredListener<ReqT>()
+
+    CoroutineScope(Dispatchers.Default).launch {
       try {
         val measurementConsumer =
-          runBlocking(Dispatchers.IO) { authenticateAuthenticationKey(authenticationKey) }
+          withContext(Dispatchers.IO) { authenticateAuthenticationKey(authenticationKey) }
         context =
           context.withValue(ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY, measurementConsumer)
       } catch (e: Exception) {
@@ -63,9 +72,11 @@ class ApiKeyAuthenticationServerInterceptor(
             call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
         }
       }
+
+      deferredListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
     }
 
-    return Contexts.interceptCall(context, call, headers, next)
+    return deferredListener
   }
 
   private suspend fun authenticateAuthenticationKey(
