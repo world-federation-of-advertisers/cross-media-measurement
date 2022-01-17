@@ -9,6 +9,7 @@ kt_jvm_library(
         "//imports/java/org/apache/beam:core",
         "//src/main/kotlin/org/wfanet/panelmatch/common",
         "//src/main/kotlin/org/wfanet/panelmatch/common/beam",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:database_kt_jvm_proto",
@@ -18,6 +19,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_evaluator_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/privatemembership:query_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/common/compression:compression_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
     ],
 )
