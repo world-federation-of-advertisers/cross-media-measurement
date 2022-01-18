@@ -48,8 +48,11 @@ class ApiKeyAuthenticationServerInterceptor(
   ): ServerCall.Listener<ReqT> {
     val authenticationKey = headers.get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
 
-    var context = Context.current()
-    if (authenticationKey != null) {
+    if (authenticationKey == null) {
+      return Contexts.interceptCall(Context.current(), call, headers, next)
+    } else {
+      var context = Context.current()
+
       try {
         val measurementConsumer = authenticateAuthenticationKey(authenticationKey)
         context =
@@ -61,9 +64,9 @@ class ApiKeyAuthenticationServerInterceptor(
             call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
         }
       }
-    }
 
-    return Contexts.interceptCall(context, call, headers, next)
+      return Contexts.interceptCall(context, call, headers, next)
+    }
   }
 
   private fun authenticateAuthenticationKey(authenticationKey: String): MeasurementConsumer =
