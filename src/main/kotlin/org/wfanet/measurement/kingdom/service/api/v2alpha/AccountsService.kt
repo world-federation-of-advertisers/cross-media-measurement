@@ -289,10 +289,10 @@ class AccountsService(
         throw GeneralSecurityException()
       }
 
-      return if (verifiedJwt.issuer != null && verifiedJwt.subject != null) {
+      return if (verifiedJwt.subject != null) {
         InternalAccountKt.openIdConnectIdentity {
-          issuer = verifiedJwt.issuer!!
-          subject = verifiedJwt.subject!!
+          issuer = requireNotNull(verifiedJwt.issuer)
+          subject = requireNotNull(verifiedJwt.subject)
         }
       } else {
         throw GeneralSecurityException()
