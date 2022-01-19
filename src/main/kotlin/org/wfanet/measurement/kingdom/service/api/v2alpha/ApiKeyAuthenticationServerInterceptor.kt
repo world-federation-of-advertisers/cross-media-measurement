@@ -46,27 +46,25 @@ class ApiKeyAuthenticationServerInterceptor(
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    val authenticationKey = headers.get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+    val authenticationKey =
+      headers.get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+        ?: return Contexts.interceptCall(Context.current(), call, headers, next)
 
-    if (authenticationKey == null) {
-      return Contexts.interceptCall(Context.current(), call, headers, next)
-    } else {
-      var context = Context.current()
+    var context = Context.current()
 
-      try {
-        val measurementConsumer = authenticateAuthenticationKey(authenticationKey)
-        context =
-          context.withValue(ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY, measurementConsumer)
-      } catch (e: Exception) {
-        when (e) {
-          is StatusRuntimeException, is StatusException -> {}
-          else ->
-            call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
-        }
+    try {
+      val measurementConsumer = authenticateAuthenticationKey(authenticationKey)
+      context =
+        context.withValue(ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY, measurementConsumer)
+    } catch (e: Exception) {
+      when (e) {
+        is StatusRuntimeException, is StatusException -> {}
+        else ->
+          call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
       }
-
-      return Contexts.interceptCall(context, call, headers, next)
     }
+
+    return Contexts.interceptCall(context, call, headers, next)
   }
 
   private fun authenticateAuthenticationKey(authenticationKey: String): MeasurementConsumer =
