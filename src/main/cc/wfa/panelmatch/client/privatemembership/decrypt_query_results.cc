@@ -25,7 +25,10 @@
 #include "google/protobuf/repeated_field.h"
 #include "private_membership/rlwe/batch/cpp/client/client.h"
 #include "private_membership/rlwe/batch/proto/client.pb.h"
+#include "private_membership/rlwe/batch/proto/shared.pb.h"
+#include "wfa/panelmatch/client/exchangetasks/join_key.pb.h"
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
+#include "wfa/panelmatch/client/privatemembership/query.pb.h"
 #include "wfa/panelmatch/common/compression/compressor.h"
 #include "wfa/panelmatch/common/compression/make_compressor.h"
 

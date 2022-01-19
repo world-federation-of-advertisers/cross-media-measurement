@@ -19,6 +19,8 @@
 
 #include "absl/status/statusor.h"
 #include "tink/util/secret_data.h"
+#include "wfa/panelmatch/client/exchangetasks/join_key.pb.h"
+#include "wfa/panelmatch/client/privatemembership/query.pb.h"
 #include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
 #include "wfa/panelmatch/common/crypto/hkdf.h"

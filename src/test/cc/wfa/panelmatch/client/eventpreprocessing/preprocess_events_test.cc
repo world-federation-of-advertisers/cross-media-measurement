@@ -27,6 +27,7 @@
 #include "google/protobuf/message.h"
 #include "gtest/gtest.h"
 #include "wfa/panelmatch/client/eventpreprocessing/preprocess_events.pb.h"
+#include "wfa/panelmatch/common/compression/compression.pb.h"
 #include "wfa/panelmatch/protocol/crypto/event_data_preprocessor.h"
 
 namespace wfa::panelmatch::client::eventpreprocessing {

@@ -10,12 +10,14 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/java/org/mockito",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
     ],
 )
@@ -119,6 +121,7 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
         "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
     ],
 )

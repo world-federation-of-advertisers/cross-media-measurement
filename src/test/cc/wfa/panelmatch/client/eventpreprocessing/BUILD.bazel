@@ -9,6 +9,8 @@ cc_test(
         "//src/main/cc/wfa/panelmatch/common/crypto:register_identity_key_loader",
         "//src/main/cc/wfa/panelmatch/protocol/crypto:event_data_preprocessor",
         "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:preprocess_events_cc_proto",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_cc_proto",
+        "//src/main/proto/wfa/panelmatch/common/compression:compression_cc_proto",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
