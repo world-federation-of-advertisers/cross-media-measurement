@@ -20,10 +20,15 @@
 #include "common_cpp/testing/status_macros.h"
 #include "common_cpp/testing/status_matchers.h"
 #include "gtest/gtest.h"
+#include "tink/util/secret_data.h"
+#include "wfa/panelmatch/client/exchangetasks/join_key.pb.h"
 #include "wfa/panelmatch/client/privatemembership/decrypt_event_data.pb.h"
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor.h"
 #include "wfa/panelmatch/client/privatemembership/event_data_decryptor_wrapper.h"
+#include "wfa/panelmatch/client/privatemembership/query.pb.h"
+#include "wfa/panelmatch/common/crypto/aes.h"
 #include "wfa/panelmatch/common/crypto/aes_with_hkdf.h"
+#include "wfa/panelmatch/common/crypto/hkdf.h"
 
 namespace wfa::panelmatch::client::privatemembership {
 namespace {
