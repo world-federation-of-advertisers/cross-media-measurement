@@ -26,7 +26,7 @@ listObject: {
 
 objects: [ for objectSet in objectSets for object in objectSet {object}]
 
-#AppName: "measurement-system"
+#AppName: "halo-cmms"
 
 #ResourceConfig: {
 	replicas:              int
@@ -49,6 +49,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	targetPort: uint16
 }
 
+#ConfigMapMount: {
+	name:          string
+	configMapName: string | *name
+	mountPath:     string | *"/etc/\(#AppName)/\(name)"
+}
+
 #GrpcService: {
 	_name:      string
 	_system:    string
@@ -62,7 +68,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"cloud.google.com/app-protocols":   '{"grpc-port":"HTTP2"}'
 			"kubernetes.io/ingress.allow-http": "false"
 		}
-		labels: "app.kubernetes.io/name": #AppName
+		labels: {
+			"app.kubernetes.io/name":      _name
+			"app.kubernetes.io/part-of":   #AppName
+			"app.kubernetes.io/component": _system
+		}
 	}
 	spec: {
 		selector: app: _name + "-app"
@@ -92,13 +102,17 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceLimitCpu:      string
 	_resourceRequestMemory: string
 	_resourceLimitMemory:   string
-	apiVersion:             "apps/v1"
-	kind:                   "Deployment"
+	_configMapMounts: [...#ConfigMapMount]
+
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
 	metadata: {
 		name: _name + "-deployment"
 		labels: {
-			app:                      _name + "-app"
-			"app.kubernetes.io/name": #AppName
+			app:                           _name + "-app"
+			"app.kubernetes.io/name":      _name
+			"app.kubernetes.io/part-of":   #AppName
+			"app.kubernetes.io/component": _system
 		}
 		annotations: system: _system
 	}
@@ -130,6 +144,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 						name:      _name + "-files"
 						mountPath: "/var/run/secrets/files"
 						readOnly:  true
+					}] + [ for configVolume in _configMapMounts {
+						name:      configVolume.name
+						mountPath: configVolume.mountPath
+						readOnly:  true
 					}]
 					readinessProbe?: {
 						exec: command: [...string]
@@ -141,6 +159,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					secret: {
 						secretName: _secretName
 					}
+				}] + [ for configVolume in _configMapMounts {
+					name: configVolume.name
+					configMap: name: configVolume.configMapName
 				}]
 				initContainers: [ for ds in _dependencies {
 					name:  "init-\(ds)"
@@ -171,8 +192,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #Job: {
 	_name:            string
-	_secretName:      string | *""
-	_image:           string | *""
+	_secretName:      string | *null
+	_image:           string
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
@@ -185,7 +206,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	kind:       "Job"
 	metadata: {
 		name: _name + "-job"
-		labels: "app.kubernetes.io/name": #AppName
+		labels: {
+			"app.kubernetes.io/name":    _name
+			"app.kubernetes.io/part-of": #AppName
+		}
 	}
 	spec: template: {
 		metadata: labels: app: _name + "-app"
@@ -203,20 +227,22 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 				imagePullPolicy: _imagePullPolicy
 				args:            _args
-				volumeMounts: [{
-					name:      _name + "-files"
-					mountPath: "/var/run/secrets/files"
-					readOnly:  true
-				}]
+				if _secretName != null {
+					volumeMounts: [{
+						name:      _name + "-files"
+						mountPath: "/var/run/secrets/files"
+						readOnly:  true
+					}]
+				}
 			}]
-			volumes: [
-				{
+			if _secretName != null {
+				volumes: [{
 					name: _name + "-files"
 					secret: {
 						secretName: _secretName
 					}
-				},
-			]
+				}]
+			}
 			restartPolicy: "OnFailure"
 		}
 	}
@@ -238,6 +264,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	kind:       "NetworkPolicy"
 	metadata: {
 		name: _name + "-network-policy"
+		labels: {
+			"app.kubernetes.io/part-of": #AppName
+		}
 	}
 	spec: {
 		podSelector: matchLabels: app: _app_label
@@ -277,6 +306,9 @@ default_deny_ingress_and_egress: [{
 	kind:       "NetworkPolicy"
 	metadata:
 		name: "default-deny-ingress-and-egress"
+	labels: {
+		"app.kubernetes.io/part-of": #AppName
+	}
 	spec: {
 		podSelector: {}
 		policyTypes: ["Ingress", "Egress"]
@@ -296,6 +328,9 @@ default_deny_ingress_and_egress: [{
 		name: _name + "-ingress"
 		annotations: {
 			"kubernetes.io/ingress.class": _ingressClass
+		}
+		labels: {
+			"app.kubernetes.io/part-of": #AppName
 		}
 	}
 	spec: {

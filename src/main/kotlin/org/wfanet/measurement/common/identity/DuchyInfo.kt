@@ -17,44 +17,42 @@ package org.wfanet.measurement.common.identity
 import com.google.protobuf.ByteString
 import java.io.File
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.DuchyRpcConfig
+import org.wfanet.measurement.config.DuchyCertConfig
 import picocli.CommandLine
 
 object DuchyInfo {
-  lateinit var entries: Array<Entry>
-  val count: Int
-    get() = entries.size
+  lateinit var entries: Map<String, Entry>
   val ALL_DUCHY_IDS: Set<String>
-    get() = entries.map { it.duchyId }.toSet()
+    get() = entries.keys
 
   fun initializeFromFlags(flags: DuchyInfoFlags) {
     require(!DuchyInfo::entries.isInitialized)
     val configMessage =
-      flags.config.reader().use { parseTextProto(it, DuchyRpcConfig.getDefaultInstance()) }
+      flags.config.reader().use { parseTextProto(it, DuchyCertConfig.getDefaultInstance()) }
     require(configMessage.duchiesCount > 0) { "Duchy info config has no entries" }
-    entries = configMessage.duchiesList.map { it.toDuchyInfoEntry() }.toTypedArray()
+    entries =
+      configMessage.duchiesList.associateBy(DuchyCertConfig.Duchy::getDuchyId) {
+        it.toDuchyInfoEntry()
+      }
   }
 
   /** Returns the [Entry] for the specified root cert key ID. */
   fun getByRootCertificateSkid(rootCertificateSkid: ByteString): Entry? {
-    return entries.firstOrNull { it.rootCertificateSkid == rootCertificateSkid }
+    return entries.values.firstOrNull { it.rootCertificateSkid == rootCertificateSkid }
   }
 
   /** Returns the [Entry] for the specified Duchy ID. */
   fun getByDuchyId(duchyId: String): Entry? {
-    return entries.firstOrNull { it.duchyId == duchyId }
+    return entries.values.firstOrNull { it.duchyId == duchyId }
   }
 
   fun setForTest(duchyIds: Set<String>) {
     entries =
-      duchyIds
-        .map { Entry(it, "hostname-$it", "cert-host-$it", ByteString.copyFromUtf8("cert-id-$it")) }
-        .toTypedArray()
+      duchyIds.associateWith { Entry(it, "cert-host-$it", ByteString.copyFromUtf8("cert-id-$it")) }
   }
 
   data class Entry(
     val duchyId: String,
-    val computationControlServiceTarget: String,
     val computationControlServiceCertHost: String,
     val rootCertificateSkid: ByteString
   )
@@ -63,18 +61,13 @@ object DuchyInfo {
 class DuchyInfoFlags {
   @CommandLine.Option(
     names = ["--duchy-info-config"],
-    description = ["DuchyRpcConfig proto message in text format."],
+    description = ["DuchyCertConfig proto message in text format."],
     required = true
   )
   lateinit var config: File
     private set
 }
 
-private fun DuchyRpcConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
-  return DuchyInfo.Entry(
-    duchyId,
-    computationControlServiceTarget,
-    computationControlServiceCertHost,
-    rootCertificateSkid
-  )
+private fun DuchyCertConfig.Duchy.toDuchyInfoEntry(): DuchyInfo.Entry {
+  return DuchyInfo.Entry(duchyId, computationControlServiceCertHost, rootCertificateSkid)
 }

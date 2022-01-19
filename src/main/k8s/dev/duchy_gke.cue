@@ -18,7 +18,6 @@ _duchy_name:                   string @tag("duchy_name")
 _duchy_cert_name:              string @tag("duchy_cert_name")
 _duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
 _secret_name:                  string @tag("secret_name")
-_environment:                  string @tag("environment")
 
 #KingdomSystemApiTarget:  "system.kingdom.dev.halo-cmm.org:8443"
 #GloudProject:            "halo-cmm-dev"
@@ -51,13 +50,17 @@ _environment:                  string @tag("environment")
 objectSets: [default_deny_ingress_and_egress] + [ for d in duchy {d}]
 
 duchy: #Duchy & {
-	_env: _environment
 	_duchy: {
 		name:                   _duchy_name
 		protocols_setup_config: _duchy_protocols_setup_config
 		cs_cert_resource_name:  _duchy_cert_name
 	}
-	_duchy_secret_name:         _secret_name
+	_duchy_secret_name: _secret_name
+	_computation_control_targets: {
+		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
+		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
+		"worker2":    "system.worker2.dev.halo-cmm.org:8443"
+	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_spanner_schema_push_flags: [
 		"--ignore-already-existing-databases",

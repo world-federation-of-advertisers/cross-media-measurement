@@ -18,7 +18,7 @@ def _cue_binaries_impl(rctx):
     version = rctx.attr.version
     sha256 = rctx.attr.sha256
 
-    url = "https://github.com/cuelang/cue/releases/download/v{version}/cue_{version}_Linux_x86_64.tar.gz".format(version = version)
+    url = "https://github.com/cue-lang/cue/releases/download/v{version}/cue_v{version}_linux_amd64.tar.gz".format(version = version)
 
     rctx.download_and_extract(
         url = url,

@@ -19,23 +19,20 @@ package org.wfa.measurement.config;
 option java_package = "org.wfanet.measurement.config";
 option java_multiple_files = true;
 
-// Duchy RPC Information configuration.
-message DuchyRpcConfig {
+// Duchy certificate configuration.
+message DuchyCertConfig {
   message Duchy {
     // The ID of the Duchy
     string duchy_id = 1;
 
-    // The URI of the Duchy ComputationControlService
-    string computation_control_service_target = 2;
-
     // The expected hostname in the duchy ComputationControlServer's TLS
     // certificate.
-    string computation_control_service_cert_host = 3;
+    string computation_control_service_cert_host = 2;
 
     // The SKID of the Duchy's root certificate
-    bytes root_certificate_skid = 4;
+    bytes root_certificate_skid = 3;
   }
 
-  // The list of all the Duchy RPC information in this config message
+  // The list of all the Duchy certificate information in this config message.
   repeated Duchy duchies = 1;
 }
