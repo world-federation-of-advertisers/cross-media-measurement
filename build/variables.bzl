@@ -27,12 +27,3 @@ IMAGE_REPOSITORY_SETTINGS = struct(
     # Common prefix of container image repositories.
     repository_prefix = "$(image_repo_prefix)",
 )
-
-# Settings for deploying tests to Google Cloud.
-TEST_GOOGLE_CLOUD_SETTINGS = struct(
-    spanner_project = "$(gcloud_spanner_project)",
-    spanner_instance = "$(gcloud_spanner_instance)",
-    cloud_storage_project = "$(gcloud_storage_project)",
-    cloud_storage_bucket = "$(gcloud_storage_bucket)",
-    bigquery_table = "$(gcloud_bigquery_table)",
-)
