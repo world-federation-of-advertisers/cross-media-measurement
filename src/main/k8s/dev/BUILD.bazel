@@ -2,25 +2,21 @@ load("//src/main/k8s:macros.bzl", "cue_dump")
 
 cue_dump(
     name = "kingdom_gke",
-    srcs = [
-        "kingdom_gke.cue",
-        "//src/main/k8s:base.cue",
-        "//src/main/k8s:kingdom.cue",
-        "//src/main/k8s:resource_setup.cue",
-    ],
+    srcs = ["kingdom_gke.cue"],
     cue_tags = {
         "environment": "dev",
         "secret_name": "TBD",
     },
+    deps = [
+        "//src/main/k8s:base",
+        "//src/main/k8s:kingdom",
+        "//src/main/k8s:resource_setup",
+    ],
 )
 
 cue_dump(
     name = "aggregator_gke",
-    srcs = [
-        "duchy_gke.cue",
-        "//src/main/k8s:base.cue",
-        "//src/main/k8s:duchy.cue",
-    ],
+    srcs = ["duchy_gke.cue"],
     cue_tags = {
         "duchy_name": "aggregator",
         "duchy_cert_name": "TBD",
@@ -28,15 +24,15 @@ cue_dump(
         "environment": "dev",
         "secret_name": "TBD",
     },
+    deps = [
+        "//src/main/k8s:base",
+        "//src/main/k8s:duchy",
+    ],
 )
 
 cue_dump(
     name = "worker1_gke",
-    srcs = [
-        "duchy_gke.cue",
-        "//src/main/k8s:base.cue",
-        "//src/main/k8s:duchy.cue",
-    ],
+    srcs = ["duchy_gke.cue"],
     cue_tags = {
         "duchy_name": "worker1",
         "duchy_cert_name": "TBD",
@@ -44,15 +40,15 @@ cue_dump(
         "environment": "dev",
         "secret_name": "TBD",
     },
+    deps = [
+        "//src/main/k8s:base",
+        "//src/main/k8s:duchy",
+    ],
 )
 
 cue_dump(
     name = "worker2_gke",
-    srcs = [
-        "duchy_gke.cue",
-        "//src/main/k8s:base.cue",
-        "//src/main/k8s:duchy.cue",
-    ],
+    srcs = ["duchy_gke.cue"],
     cue_tags = {
         "duchy_name": "worker2",
         "duchy_cert_name": "TBD",
@@ -60,15 +56,15 @@ cue_dump(
         "environment": "dev",
         "secret_name": "TBD",
     },
+    deps = [
+        "//src/main/k8s:base",
+        "//src/main/k8s:duchy",
+    ],
 )
 
 cue_dump(
     name = "edp_simulator_gke",
-    srcs = [
-        "edp_simulator_gke.cue",
-        "//src/main/k8s:base.cue",
-        "//src/main/k8s:edp_simulator.cue",
-    ],
+    srcs = ["edp_simulator_gke.cue"],
     cue_tags = {
         "mc_name": "TBD",
         "edp1_name": "TBD",
@@ -79,19 +75,23 @@ cue_dump(
         "edp6_name": "TBD",
         "secret_name": "TBD",
     },
+    deps = [
+        "//src/main/k8s:base",
+        "//src/main/k8s:edp_simulator",
+    ],
 )
 
 cue_dump(
     name = "frontend_simulator_gke",
-    srcs = [
-        "frontend_simulator_gke.cue",
-        "//src/main/k8s:base.cue",
-        "//src/main/k8s:frontend_simulator.cue",
-    ],
+    srcs = ["frontend_simulator_gke.cue"],
     cue_tags = {
         "mc_name": "TBD",
         "secret_name": "TBD",
     },
+    deps = [
+        "//src/main/k8s:base",
+        "//src/main/k8s:frontend_simulator",
+    ],
 )
 
 filegroup(
