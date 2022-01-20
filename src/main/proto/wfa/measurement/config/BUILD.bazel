@@ -7,20 +7,20 @@ package(default_visibility = ["//visibility:public"])
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
-    name = "duchy_rpc_config_proto",
-    srcs = ["duchy_rpc_config.proto"],
+    name = "duchy_cert_config_proto",
+    srcs = ["duchy_cert_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
 )
 
 java_proto_library(
-    name = "duchy_rpc_config_java_proto",
-    deps = [":duchy_rpc_config_proto"],
+    name = "duchy_cert_config_java_proto",
+    deps = [":duchy_cert_config_proto"],
 )
 
 kt_jvm_proto_library(
-    name = "duchy_rpc_config_kt_jvm_proto",
-    srcs = [":duchy_rpc_config_proto"],
-    deps = [":duchy_rpc_config_java_proto"],
+    name = "duchy_cert_config_kt_jvm_proto",
+    srcs = [":duchy_cert_config_proto"],
+    deps = [":duchy_cert_config_java_proto"],
 )
 
 proto_library(
