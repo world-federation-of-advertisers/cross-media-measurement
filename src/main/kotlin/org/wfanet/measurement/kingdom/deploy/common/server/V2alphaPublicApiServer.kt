@@ -46,6 +46,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V2alphaPublicApiServer"
@@ -82,6 +83,7 @@ private fun run(
     TextprotoFilePrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
   val internalAccountsCoroutineStub = InternalAccountsCoroutineStub(channel)
+  val internalApiKeysCoroutineStub = InternalApiKeysCoroutineStub(channel)
   val internalExchangeStepsCoroutineStub = InternalExchangeStepsCoroutineStub(channel)
 
   // TODO: do we need something similar to .withDuchyIdentities() for EDP and MC?
@@ -107,12 +109,14 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepsService(internalExchangeStepsCoroutineStub)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      MeasurementsService(InternalMeasurementsCoroutineStub(channel)).bindService(),
+      MeasurementsService(InternalMeasurementsCoroutineStub(channel))
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
         .withAccountAuthenticationServerInterceptor(
           internalAccountsCoroutineStub,
           v2alphaFlags.redirectUri
         ),
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()

@@ -54,6 +54,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
+private const val API_AUTHENTICATION_KEY = "authentication key"
 private const val RUN_ID = "run id"
 private const val BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val REQUISITION_ONE = "requisition_one"
@@ -181,7 +182,8 @@ class FrontendSimulatorImplTest {
       MeasurementConsumerData(
         "name",
         loadSigningKey(FIXED_SERVER_CERT_DER_FILE, FIXED_SERVER_KEY_DER_FILE),
-        loadPrivateKey(FIXED_ENCRYPTION_PRIVATE_KEYSET)
+        loadPrivateKey(FIXED_ENCRYPTION_PRIVATE_KEYSET),
+        API_AUTHENTICATION_KEY
       )
 
     @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()

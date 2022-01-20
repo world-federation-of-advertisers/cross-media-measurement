@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
@@ -129,8 +130,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     PublicCertificatesCoroutineStub(kingdom.publicApiChannel)
   }
   private val publicAccountsClient by lazy { PublicAccountsCoroutineStub(kingdom.publicApiChannel) }
+  private val publicApiKeysClient by lazy { PublicApiKeysCoroutineStub(kingdom.publicApiChannel) }
 
   private lateinit var mcResourceName: String
+  private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
 
@@ -140,12 +143,15 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         internalAccountsClient = kingdom.internalAccountsClient,
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         accountsClient = publicAccountsClient,
+        apiKeysClient = publicApiKeysClient,
         certificatesClient = publicCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345"
       )
     // Create the MC.
-    mcResourceName = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT).name
+    val (measurementConsumer, apiKey) = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT)
+    mcResourceName = measurementConsumer.name
+    apiAuthenticationKey = apiKey
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
       ALL_EDP_DISPLAY_NAMES.associateWith {
@@ -202,7 +208,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         MeasurementConsumerData(
           mcResourceName,
           MC_ENTITY_CONTENT.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
         ),
         OUTPUT_DP_PARAMS,
         publicDataProvidersClient,

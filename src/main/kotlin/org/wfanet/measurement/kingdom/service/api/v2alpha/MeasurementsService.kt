@@ -19,6 +19,7 @@ import io.grpc.Status
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
@@ -58,18 +59,30 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
+private const val MISSING_CREDENTIALS_ERROR = "Api Key credentials are invalid or missing"
+private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
+
 class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoroutineStub) :
   MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
+    val measurementConsumer =
+      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+
     val key =
-      grpcRequireNotNull(MeasurementKey.fromName(request.name)) {
-        "Resource name is either unspecified or invalid"
+      grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
+
+    val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+    if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot get a Measurement from another MeasurementConsumer"
       }
+    }
 
     val internalGetMeasurementRequest = getMeasurementRequest {
       externalMeasurementId = apiIdToExternalId(key.measurementId)
-      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
     }
 
     val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
@@ -78,12 +91,24 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
+    val measurementConsumer =
+      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+
     val measurement = request.measurement
 
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
       ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
+
+    if (measurementConsumer.externalMeasurementConsumerId !=
+        apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
+    ) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot create a Measurement for another MeasurementConsumer"
+      }
+    }
 
     val measurementSpec = measurement.measurementSpec
     grpcRequire(!measurementSpec.data.isEmpty && !measurementSpec.signature.isEmpty) {
@@ -128,7 +153,19 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun listMeasurements(
     request: ListMeasurementsRequest
   ): ListMeasurementsResponse {
+    val measurementConsumer =
+      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+
     val listMeasurementsPageToken = request.toListMeasurementsPageToken()
+
+    if (measurementConsumer.externalMeasurementConsumerId !=
+        listMeasurementsPageToken.externalMeasurementConsumerId
+    ) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot list Measurements for other MeasurementConsumers"
+      }
+    }
 
     val results: List<InternalMeasurement> =
       internalMeasurementsStub
@@ -158,14 +195,23 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 
   override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
+    val measurementConsumer =
+      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
+        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+
     val key =
-      grpcRequireNotNull(MeasurementKey.fromName(request.name)) {
-        "Resource name is either unspecified or invalid"
+      grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
+
+    val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+    if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot cancel a Measurement for another MeasurementConsumer"
       }
+    }
 
     val internalCancelMeasurementRequest = cancelMeasurementRequest {
       externalMeasurementId = apiIdToExternalId(key.measurementId)
-      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
     }
 
     val internalMeasurement =
@@ -243,7 +289,7 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
   val key =
     grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
-      "Resource name is either unspecified or invalid"
+      MISSING_RESOURCE_NAME_ERROR
     }
   grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
 
@@ -284,7 +330,7 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasurementsRequest {
   val source = this
   return streamMeasurementsRequest {
-    // get 1 more than the actual page size for deciding whether or not to set page token
+    // get 1 more than the actual page size for deciding whether to set page token
     limit = source.pageSize + 1
     measurementView = InternalMeasurementView.DEFAULT
     filter =

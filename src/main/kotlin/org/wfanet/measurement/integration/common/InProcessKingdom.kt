@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -41,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
@@ -51,6 +53,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementConsumersSe
 import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetup
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
@@ -67,6 +70,7 @@ class InProcessKingdom(
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
   private val internalApiChannel by lazy { internalDataServer.channel }
+  private val internalApiKeysClient by lazy { InternalApiKeysCoroutineStub(internalApiChannel) }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
   }
@@ -121,15 +125,19 @@ class InProcessKingdom(
       logger.info("Building Kingdom's public API services")
 
       listOf(
+        ApiKeysService(internalApiKeysClient)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient),
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
-        MeasurementsService(internalMeasurementsClient),
+        MeasurementsService(internalMeasurementsClient)
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         RequisitionsService(internalRequisitionsClient),
         AccountsService(internalAccountsClient, redirectUri)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
         MeasurementConsumersService(internalMeasurementConsumersClient)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use the appropriate principal
