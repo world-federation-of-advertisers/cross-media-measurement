@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.resourcesetup
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
@@ -59,6 +60,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
   val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
   val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
+  val apiKeysStub = ApiKeysCoroutineStub(v2alphaPublicApiChannel)
 
   // Makes sure the three maps contain the same set of EDPs.
   require(
@@ -91,6 +93,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         internalAccountsStub,
         internalDataProvidersStub,
         accountsStub,
+        apiKeysStub,
         certificatesStub,
         measurementConsumersStub,
         flags.runId

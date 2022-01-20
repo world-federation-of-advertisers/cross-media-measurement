@@ -92,4 +92,12 @@ class FrontendSimulatorFlags {
       .withZone(ZoneOffset.UTC)
       .format(Instant.now())
     private set
+
+  @CommandLine.Option(
+    names = ["--api-authentication-key"],
+    description = ["API authentication key for measurement consumer authentication."],
+    required = true
+  )
+  lateinit var apiAuthenticationKey: String
+    private set
 }
