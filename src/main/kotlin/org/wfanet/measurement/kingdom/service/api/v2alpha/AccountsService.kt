@@ -289,13 +289,13 @@ class AccountsService(
         throw GeneralSecurityException()
       }
 
-      return if (verifiedJwt.subject == null) {
+      if (verifiedJwt.subject == null) {
         throw GeneralSecurityException()
-      } else {
-        InternalAccountKt.openIdConnectIdentity {
-          issuer = requireNotNull(verifiedJwt.issuer)
-          subject = requireNotNull(verifiedJwt.subject)
-        }
+      }
+
+      return InternalAccountKt.openIdConnectIdentity {
+        issuer = requireNotNull(verifiedJwt.issuer)
+        subject = requireNotNull(verifiedJwt.subject)
       }
     }
   }
