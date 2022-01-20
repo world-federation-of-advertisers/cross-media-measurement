@@ -24,12 +24,18 @@ sealed class Principal<T : ResourceKey> {
 
   class DataProvider(override val resourceKey: DataProviderKey) : Principal<DataProviderKey>()
   class ModelProvider(override val resourceKey: ModelProviderKey) : Principal<ModelProviderKey>()
+  class MeasurementConsumer(override val resourceKey: MeasurementConsumerKey) :
+    Principal<MeasurementConsumerKey>()
+  class Account(override val resourceKey: AccountKey) : Principal<AccountKey>()
 
   companion object {
     fun fromName(name: String): Principal<*>? {
       return when (name.substringBefore('/')) {
         DataProviderKey.COLLECTION_NAME -> DataProviderKey.fromName(name)?.let(::DataProvider)
         ModelProviderKey.COLLECTION_NAME -> ModelProviderKey.fromName(name)?.let(::ModelProvider)
+        MeasurementConsumerKey.COLLECTION_NAME ->
+          MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumer)
+        AccountKey.COLLECTION_NAME -> AccountKey.fromName(name)?.let(::Account)
         else -> null
       }
     }

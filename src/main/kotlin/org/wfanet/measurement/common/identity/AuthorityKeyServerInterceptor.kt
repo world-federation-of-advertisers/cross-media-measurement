@@ -25,6 +25,7 @@ import io.grpc.ServerInterceptor
 import io.grpc.Status
 import java.security.cert.X509Certificate
 import javax.net.ssl.SSLSession
+import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.grpc.failGrpc
 
@@ -49,6 +50,10 @@ class AuthorityKeyServerInterceptor : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
+    if (PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get() != null) {
+      return Contexts.interceptCall(Context.current(), call, headers, next)
+    }
+
     val sslSession: SSLSession? = call.attributes[Grpc.TRANSPORT_ATTR_SSL_SESSION]
 
     if (sslSession == null) {

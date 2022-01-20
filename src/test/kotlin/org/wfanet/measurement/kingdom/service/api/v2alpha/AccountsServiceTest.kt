@@ -139,8 +139,6 @@ class AccountsServiceTest {
         runBlocking { client.withIdToken(ID_TOKEN).createAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Owned Measurement Consumer Resource name invalid")
   }
 
   @Test
@@ -150,7 +148,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.createAccount(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -163,7 +160,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { client.withIdToken(ID_TOKEN).createAccount(request) }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -195,7 +191,6 @@ class AccountsServiceTest {
         runBlocking { client.withIdToken(ID_TOKEN).activateAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -207,7 +202,6 @@ class AccountsServiceTest {
         runBlocking { client.withIdToken(ID_TOKEN).activateAccount(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Activation token is missing")
   }
 
   @Test
@@ -220,7 +214,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.activateAccount(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Id token is missing")
   }
 
   @Test
@@ -255,7 +248,6 @@ class AccountsServiceTest {
         runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
@@ -265,7 +257,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.replaceAccountIdentity(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -280,7 +271,6 @@ class AccountsServiceTest {
         client.withIdToken(ID_TOKEN).replaceAccountIdentity(request)
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("Account credentials are invalid or missing")
   }
 
   @Test
@@ -292,7 +282,6 @@ class AccountsServiceTest {
         runBlocking { client.withIdToken(ID_TOKEN).replaceAccountIdentity(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("New id token is missing")
   }
 
   @Test
@@ -324,7 +313,6 @@ class AccountsServiceTest {
     val exception =
       assertFailsWith<StatusException> { runBlocking { client.authenticate(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Issuer unspecified")
   }
 }
 

@@ -39,6 +39,7 @@ kt_jvm_library(
     srcs = ["PrincipalServerInterceptor.kt"],
     deps = [
         ":principal",
+        "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",

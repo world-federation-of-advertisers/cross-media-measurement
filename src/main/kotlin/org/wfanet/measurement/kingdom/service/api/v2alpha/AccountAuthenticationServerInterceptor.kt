@@ -28,15 +28,23 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.AccountConstants
+import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.grpc.DeferredListener
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 
 /** gRPC [ServerInterceptor] to check [Account] credentials coming in from a request. */
 class AccountAuthenticationServerInterceptor(
-  private val internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  private val internalAccountsClient: AccountsCoroutineStub
 ) : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
@@ -46,27 +54,61 @@ class AccountAuthenticationServerInterceptor(
     val idToken = headers.get(AccountConstants.ID_TOKEN_METADATA_KEY)
 
     var context = Context.current()
-    if (idToken != null) {
-      context = Context.current().withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
-      try {
-        val account = authenticateAccountCredentials(idToken)
-        context = context.withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
-      } catch (e: Exception) {
-        when (e) {
-          is StatusRuntimeException, is StatusException -> {}
-          else ->
-            call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
-        }
+
+    if (idToken == null) {
+      if (call.methodDescriptor.fullMethodName ==
+          "wfa.measurement.api.v2alpha.Accounts/ActivateAccount"
+      ) {
+        call.close(Status.INVALID_ARGUMENT.withDescription("ID token is missing"), headers)
       }
+
+      return Contexts.interceptCall(context, call, headers, next)
+    } else if (call.methodDescriptor.fullMethodName ==
+        "wfa.measurement.api.v2alpha.Accounts/ActivateAccount"
+    ) {
+      // To bypass authentication checks
+      context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
+
+      return Contexts.interceptCall(context, call, headers, next)
+    } else {
+      val deferredListener = DeferredListener<ReqT>()
+
+      CoroutineScope(Dispatchers.Default).launch {
+        try {
+          val account = authenticateAccountCredentials(idToken)
+          context =
+            context
+              .withPrincipal(
+                Principal.Account(AccountKey(externalIdToApiId(account.externalAccountId)))
+              )
+              .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
+        } catch (e: Exception) {
+          when (e) {
+            is StatusRuntimeException, is StatusException ->
+              call.close(Status.UNAUTHENTICATED.withDescription("ID token is invalid"), headers)
+            else ->
+              call.close(
+                Status.UNKNOWN.withDescription("Unknown error when authenticating"),
+                headers
+              )
+          }
+        }
+
+        deferredListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
+      }
+
+      return deferredListener
     }
-
-    return Contexts.interceptCall(context, call, headers, next)
   }
 
-  private fun authenticateAccountCredentials(idToken: String): Account = runBlocking {
-    internalAccountsStub.withIdToken(idToken).authenticateAccount(authenticateAccountRequest {})
-  }
+  private suspend fun authenticateAccountCredentials(idToken: String): Account =
+    internalAccountsClient.withIdToken(idToken).authenticateAccount(authenticateAccountRequest {})
 }
+
+val accountFromCurrentContext: Account
+  get() =
+    AccountConstants.CONTEXT_ACCOUNT_KEY.get()
+      ?: failGrpc(Status.UNAUTHENTICATED) { "Account not found" }
 
 fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
   val metadata = Metadata()
@@ -75,20 +117,14 @@ fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
 }
 
 fun BindableService.withAccountAuthenticationServerInterceptor(
-  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  internalAccountsStub: AccountsCoroutineStub
 ): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
-    this,
-    AccountAuthenticationServerInterceptor(internalAccountsStub)
-  )
+  ServerInterceptors.intercept(this, AccountAuthenticationServerInterceptor(internalAccountsStub))
 
 fun ServerServiceDefinition.withAccountAuthenticationServerInterceptor(
-  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  internalAccountsStub: AccountsCoroutineStub
 ): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
-    this,
-    AccountAuthenticationServerInterceptor(internalAccountsStub)
-  )
+  ServerInterceptors.intercept(this, AccountAuthenticationServerInterceptor(internalAccountsStub))
 
 /** Executes [block] with [Account] installed in a new [Context]. */
 fun <T> withAccount(account: Account, block: () -> T): T {

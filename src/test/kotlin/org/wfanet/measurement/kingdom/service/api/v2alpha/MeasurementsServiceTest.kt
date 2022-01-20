@@ -67,6 +67,8 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -90,7 +92,6 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
-import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
@@ -99,6 +100,7 @@ private const val DEFAULT_LIMIT = 50
 private const val DATA_PROVIDERS_CERTIFICATE_NAME =
   "dataProviders/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
 private const val MEASUREMENT_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAJs"
 private const val MEASUREMENT_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAKs"
@@ -153,7 +155,7 @@ class MeasurementsServiceTest {
     val request = getMeasurementRequest { name = MEASUREMENT_NAME }
 
     val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.getMeasurement(request) }
       }
 
@@ -177,7 +179,7 @@ class MeasurementsServiceTest {
   fun `getMeasurement throws INVALID_ARGUMENT when resource name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.getMeasurement(GetMeasurementRequest.getDefaultInstance()) }
         }
       }
@@ -185,20 +187,33 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `getMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+  fun `getMeasurement throws PERMISSION_DENIED when mc caller doesn't match`() {
     val request = getMeasurementRequest { name = MEASUREMENT_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(
-          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
-        ) { runBlocking { service.getMeasurement(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.getMeasurement(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `getMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+  fun `getMeasurement throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
+          runBlocking { service.getMeasurement(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getMeasurement throws UNAUTHENTICATED when mc principal not found`() {
     val request = getMeasurementRequest { name = MEASUREMENT_NAME }
 
     val exception =
@@ -211,7 +226,7 @@ class MeasurementsServiceTest {
     val request = createMeasurementRequest { measurement = MEASUREMENT }
 
     val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.createMeasurement(request) }
       }
 
@@ -236,7 +251,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when certificate resource name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -250,12 +265,10 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+  fun `createMeasurement throws PERMISSION_DENIED when mc caller doesn't match`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(
-          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
-        ) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
           runBlocking {
             service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
           }
@@ -265,7 +278,20 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+  fun `createMeasurement throws PERMISSION_DENIED when principal without authorization is found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
+          runBlocking {
+            service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `createMeasurement throws UNAUTHENTICATED when mc principal not found`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
@@ -279,7 +305,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when measurement spec is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest { measurement = MEASUREMENT.copy { clearMeasurementSpec() } }
@@ -294,7 +320,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when measurement public key is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -318,7 +344,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when reach privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -355,7 +381,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when frequency privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -392,7 +418,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when measurement type is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -416,7 +442,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest { measurement = MEASUREMENT.copy { dataProviders.clear() } }
@@ -431,7 +457,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when Data Providers Entry is missing key`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -452,7 +478,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws error when Data Providers Entry value is missing cert name`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -473,7 +499,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws error when Data Providers Entry value is missing public key`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -498,7 +524,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws error when Data Providers Entry value is missing spec`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -531,7 +557,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws error when Data Providers Entry value is missing nonce hash`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -553,7 +579,7 @@ class MeasurementsServiceTest {
     val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.listMeasurements(request) }
       }
 
@@ -618,7 +644,7 @@ class MeasurementsServiceTest {
     }
 
     val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.listMeasurements(request) }
       }
 
@@ -675,7 +701,7 @@ class MeasurementsServiceTest {
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
-    withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
       runBlocking { service.listMeasurements(request) }
     }
 
@@ -712,7 +738,7 @@ class MeasurementsServiceTest {
       pageToken = listMeasurementsPageToken.toByteArray().base64UrlEncode()
     }
 
-    withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
       runBlocking { service.listMeasurements(request) }
     }
 
@@ -737,20 +763,33 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `listMeasurements throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+  fun `listMeasurements throws PERMISSION_DENIED when mc caller doesn't match`() {
     val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(
-          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
-        ) { runBlocking { service.listMeasurements(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.listMeasurements(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `listMeasurements throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+  fun `listMeasurements throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
+          runBlocking { service.listMeasurements(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listMeasurements throws UNAUTHENTICATED when mc principal not found`() {
     val request = listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
@@ -774,7 +813,7 @@ class MeasurementsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.listMeasurements(request) }
         }
       }
@@ -797,7 +836,7 @@ class MeasurementsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.listMeasurements(request) }
         }
       }
@@ -808,7 +847,7 @@ class MeasurementsServiceTest {
   fun `listMeasurements throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.listMeasurements(ListMeasurementsRequest.getDefaultInstance()) }
         }
       }
@@ -819,7 +858,7 @@ class MeasurementsServiceTest {
   fun `listMeasurements throws INVALID_ARGUMENT when pageSize is less than 0`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.listMeasurements(
               listMeasurementsRequest {
@@ -838,7 +877,7 @@ class MeasurementsServiceTest {
     val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
 
     val result =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.cancelMeasurement(request) }
       }
 
@@ -859,20 +898,33 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `cancelMeasurement throws PERMISSION_DENIED when authenticated MC doesn't match`() {
+  fun `cancelMeasurement throws PERMISSION_DENIED when mc caller doesn't match`() {
     val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(
-          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
-        ) { runBlocking { service.cancelMeasurement(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.cancelMeasurement(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `cancelMeasurement throws UNAUTHENTICATED when MeasurementConsumer principal not found`() {
+  fun `cancelMeasurement throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS_NAME) {
+          runBlocking { service.cancelMeasurement(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `cancelMeasurement throws UNAUTHENTICATED when mc principal not found`() {
     val request = cancelMeasurementRequest { name = MEASUREMENT_NAME }
 
     val exception =
@@ -884,7 +936,7 @@ class MeasurementsServiceTest {
   fun `cancelMeasurement throws INVALID_ARGUMENT when resource name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.cancelMeasurement(CancelMeasurementRequest.getDefaultInstance()) }
         }
       }
@@ -895,7 +947,7 @@ class MeasurementsServiceTest {
   fun `createMeasurement throws INVALID_ARGUMENT when dataProviderList has duplicated keys`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
@@ -976,10 +1028,6 @@ class MeasurementsServiceTest {
             }
         }
       nonceHashes += ByteString.copyFromUtf8("foo")
-    }
-
-    private val INTERNAL_MEASUREMENT_CONSUMER = measurementConsumer {
-      externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
     }
 
     private val MEASUREMENT = measurement {

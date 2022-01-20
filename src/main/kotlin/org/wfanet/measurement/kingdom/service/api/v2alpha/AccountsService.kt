@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import io.grpc.Status
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
@@ -32,7 +31,6 @@ import org.wfanet.measurement.api.v2alpha.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -55,9 +53,7 @@ class AccountsService(
 ) : AccountsCoroutineImplBase() {
 
   override suspend fun createAccount(request: CreateAccountRequest): Account {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val ownedMeasurementConsumer = request.account.activationParams.ownedMeasurementConsumer
     val externalOwnedMeasurementConsumerId =
@@ -94,8 +90,7 @@ class AccountsService(
       activationToken = apiIdToExternalId(request.activationToken)
     }
 
-    val idToken =
-      grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "Id token is missing" }
+    val idToken = AccountConstants.CONTEXT_ID_TOKEN_KEY.get()
 
     val result =
       internalAccountsStub.withIdToken(idToken).activateAccount(internalActivateAccountRequest)
@@ -105,14 +100,12 @@ class AccountsService(
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     grpcRequireNotNull(AccountKey.fromName(request.name)) { "Resource name unspecified or invalid" }
 
     val newIdToken = request.openId.identityBearerToken
-    grpcRequire(newIdToken.isNotBlank()) { "New id token is missing" }
+    grpcRequire(newIdToken.isNotBlank()) { "New ID token is missing" }
 
     val internalReplaceAccountIdentityRequest = replaceAccountIdentityRequest {
       externalAccountId = account.externalAccountId

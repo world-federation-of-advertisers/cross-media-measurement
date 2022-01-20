@@ -133,17 +133,19 @@ class InProcessKingdom(
       listOf(
         ApiKeysService(internalApiKeysClient)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient),
-        CertificatesService(internalCertificatesClient),
-        DataProvidersService(internalDataProvidersClient),
-        EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient)
+          .withMetadataPrincipalIdentities()
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        RequisitionsService(internalRequisitionsClient),
         AccountsService(internalAccountsClient, redirectUri)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient),
         MeasurementConsumersService(internalMeasurementConsumersClient)
+          .withMetadataPrincipalIdentities()
           .withAccountAuthenticationServerInterceptor(internalAccountsClient)
-          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        EventGroupsService(internalEventGroupsClient),
+        DataProvidersService(internalDataProvidersClient),
+        RequisitionsService(internalRequisitionsClient),
+        CertificatesService(internalCertificatesClient)
       )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use the appropriate principal
@@ -153,6 +155,7 @@ class InProcessKingdom(
             is ServerServiceDefinition -> addService(it.withVerboseLogging(verboseGrpcLogging))
           }
         }
+
       listOf(
         ExchangeStepAttemptsService(
           internalExchangeStepAttemptsClient,

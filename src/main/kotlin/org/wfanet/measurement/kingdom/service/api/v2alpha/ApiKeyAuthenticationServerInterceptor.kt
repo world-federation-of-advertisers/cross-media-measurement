@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import io.grpc.BindableService
 import io.grpc.Context
 import io.grpc.Contexts
 import io.grpc.Metadata
@@ -28,10 +27,18 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.ApiKeyConstants
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.crypto.hashSha256
+import org.wfanet.measurement.common.grpc.DeferredListener
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
@@ -51,30 +58,43 @@ class ApiKeyAuthenticationServerInterceptor(
         ?: return Contexts.interceptCall(Context.current(), call, headers, next)
 
     var context = Context.current()
+    val deferredListener = DeferredListener<ReqT>()
 
-    try {
-      val measurementConsumer = authenticateAuthenticationKey(authenticationKey)
-      context =
-        context.withValue(ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY, measurementConsumer)
-    } catch (e: Exception) {
-      when (e) {
-        is StatusRuntimeException, is StatusException -> {}
-        else ->
-          call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
+    CoroutineScope(Dispatchers.Default).launch {
+      try {
+        val measurementConsumer =
+          withContext(Dispatchers.IO) { authenticateAuthenticationKey(authenticationKey) }
+        context =
+          context.withPrincipal(
+            Principal.MeasurementConsumer(
+              MeasurementConsumerKey(
+                externalIdToApiId(measurementConsumer.externalMeasurementConsumerId)
+              )
+            )
+          )
+      } catch (e: Exception) {
+        when (e) {
+          is StatusRuntimeException, is StatusException ->
+            call.close(Status.UNAUTHENTICATED.withDescription("API key is invalid"), headers)
+          else ->
+            call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
+        }
       }
+
+      deferredListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
     }
 
-    return Contexts.interceptCall(context, call, headers, next)
+    return deferredListener
   }
 
-  private fun authenticateAuthenticationKey(authenticationKey: String): MeasurementConsumer =
-      runBlocking {
+  private suspend fun authenticateAuthenticationKey(
+    authenticationKey: String
+  ): MeasurementConsumer =
     internalApiKeysClient.authenticateApiKey(
       authenticateApiKeyRequest {
         authenticationKeyHash = hashSha256(apiIdToExternalId(authenticationKey))
       }
     )
-  }
 }
 
 fun <T : AbstractStub<T>> T.withAuthenticationKey(authenticationKey: String? = null): T {
@@ -83,27 +103,7 @@ fun <T : AbstractStub<T>> T.withAuthenticationKey(authenticationKey: String? = n
   return MetadataUtils.attachHeaders(this, metadata)
 }
 
-fun BindableService.withApiKeyAuthenticationServerInterceptor(
-  internalApiKeysStub: ApiKeysCoroutineStub
-): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
-    this,
-    ApiKeyAuthenticationServerInterceptor(internalApiKeysStub)
-  )
-
 fun ServerServiceDefinition.withApiKeyAuthenticationServerInterceptor(
   internalApiKeysStub: ApiKeysCoroutineStub
 ): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
-    this,
-    ApiKeyAuthenticationServerInterceptor(internalApiKeysStub)
-  )
-
-/** Executes [block] with [MeasurementConsumer] installed in a new [Context]. */
-fun <T> withMeasurementConsumer(measurementConsumer: MeasurementConsumer, block: () -> T): T {
-  return Context.current().withMeasurementConsumer(measurementConsumer).call(block)
-}
-
-fun Context.withMeasurementConsumer(measurementConsumer: MeasurementConsumer): Context {
-  return withValue(ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY, measurementConsumer)
-}
+  ServerInterceptors.intercept(this, ApiKeyAuthenticationServerInterceptor(internalApiKeysStub))

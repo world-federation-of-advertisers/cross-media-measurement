@@ -25,6 +25,7 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
+import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
@@ -36,7 +37,9 @@ import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrent
  * Callers can trust that the [Principal] is authenticated (but not necessarily authorized).
  */
 val principalFromCurrentContext: Principal<*>
-  get() = PRINCIPAL_CONTEXT_KEY.get() ?: failGrpc(Status.UNAUTHENTICATED) { "No Principal found" }
+  get() =
+    PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get()
+      ?: failGrpc(Status.UNAUTHENTICATED) { "No Principal found" }
 
 /**
  * Executes [block] with [principal] installed in a new [Context].
@@ -48,14 +51,33 @@ fun <T> withPrincipal(principal: Principal<*>, block: () -> T): T {
   return Context.current().withPrincipal(principal).call(block)
 }
 
-/** Adds [principal] to the receiver and returns the new [Context]. */
-fun Context.withPrincipal(principal: Principal<*>): Context {
-  return withValue(PRINCIPAL_CONTEXT_KEY, principal)
+/** Executes [block] with a [DataProvider] [Principal] installed in a new [Context]. */
+fun <T> withDataProviderPrincipal(dataProviderName: String, block: () -> T): T {
+  return Context.current()
+    .withPrincipal(Principal.DataProvider(DataProviderKey.fromName(dataProviderName)!!))
+    .call(block)
 }
 
-/** This is the context key for the authenticated Principal. */
-private val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> =
-  Context.key("principal-from-x509-certificate")
+/** Executes [block] with a [ModelProvider] [Principal] installed in a new [Context]. */
+fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T {
+  return Context.current()
+    .withPrincipal(Principal.ModelProvider(ModelProviderKey.fromName(modelProviderName)!!))
+    .call(block)
+}
+
+/** Executes [block] with a [MeasurementConsumer] [Principal] installed in a new [Context]. */
+fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
+  return Context.current()
+    .withPrincipal(
+      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
+    )
+    .call(block)
+}
+
+/** Adds [principal] to the receiver and returns the new [Context]. */
+fun Context.withPrincipal(principal: Principal<*>): Context {
+  return withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principal)
+}
 
 /**
  * gRPC [ServerInterceptor] to extract a [Principal] from a request.
@@ -76,12 +98,17 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
+    if (PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get() != null) {
+      return Contexts.interceptCall(Context.current(), call, headers, next)
+    }
+
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     val principals = authorityKeyIdentifiers.map(principalLookup::get)
     return when (principals.size) {
       0 -> unauthenticatedError(call, "No principal found")
       1 -> {
-        val context = Context.current().withValue(PRINCIPAL_CONTEXT_KEY, principals.single())
+        val context =
+          Context.current().withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principals.single())
         Contexts.interceptCall(context, call, headers, next)
       }
       else -> unauthenticatedError(call, "More than one principal found")
@@ -106,3 +133,9 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
     AuthorityKeyServerInterceptor(),
     PrincipalServerInterceptor(principalLookup)
   )
+
+/** Convenience helper for [PrincipalServerInterceptor]. */
+fun ServerServiceDefinition.withPrincipalServerInterceptor(
+  principalLookup: PrincipalServerInterceptor.PrincipalLookup
+): ServerServiceDefinition =
+  ServerInterceptors.interceptForward(this, PrincipalServerInterceptor(principalLookup))
