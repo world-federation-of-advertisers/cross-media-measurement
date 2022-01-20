@@ -165,16 +165,24 @@ main() {
   local command="$1"
   shift 1
 
+  local container_id
+  container_id=$(
+    "${DOCKER}" create "${docker_options[@]}" \
+      "${IMAGE}" \
+      "${startup_options[@]}" \
+      "${command}" \
+      --config=container \
+      --experimental_convenience_symlinks=ignore \
+      "$@"
+  )
+
+  if [[ -e "$HOME/.bazelrc" ]]; then
+    "${DOCKER}" cp "$HOME/.bazelrc" "${container_id}:${CONTAINER_HOME}/"
+  fi
+
   echo "Running in Bazel container with output volume ${output_volume}:" \
     "${command} $*" >&2
-
-  exec "${DOCKER}" run "${docker_options[@]}" \
-    "${IMAGE}" \
-    "${startup_options[@]}" \
-    "${command}" \
-    --config=container \
-    --experimental_convenience_symlinks=ignore \
-    "$@"
+  exec "${DOCKER}" start --attach --interactive "${container_id}"
 }
 
 main "$@"
