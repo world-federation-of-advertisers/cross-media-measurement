@@ -126,7 +126,7 @@ class InProcessKingdom(
 
       listOf(
         ApiKeysService(internalApiKeysClient)
-          .withAccountAuthenticationServerInterceptor(internalAccountsClient),
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
         CertificatesService(internalCertificatesClient),
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),

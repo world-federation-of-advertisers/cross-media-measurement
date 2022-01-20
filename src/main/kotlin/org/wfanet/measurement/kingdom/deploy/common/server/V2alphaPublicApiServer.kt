@@ -115,7 +115,7 @@ private fun run(
         .withAccountAuthenticationServerInterceptor(
           internalAccountsCoroutineStub,
           v2alphaFlags.redirectUri
-        ),
+        )
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
     )
