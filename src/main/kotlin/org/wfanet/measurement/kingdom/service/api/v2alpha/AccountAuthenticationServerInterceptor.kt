@@ -28,15 +28,17 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 
 /** gRPC [ServerInterceptor] to check [Account] credentials coming in from a request. */
 class AccountAuthenticationServerInterceptor(
-  private val internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  private val internalAccountsClient: AccountsCoroutineStub,
+  private val redirectUri: String
 ) : ServerInterceptor {
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
@@ -49,7 +51,7 @@ class AccountAuthenticationServerInterceptor(
     if (idToken != null) {
       context = Context.current().withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
       try {
-        val account = authenticateAccountCredentials(idToken)
+        val account = runBlocking(Dispatchers.IO) { authenticateAccountCredentials(idToken) }
         context = context.withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
       } catch (e: Exception) {
         when (e) {
@@ -63,8 +65,17 @@ class AccountAuthenticationServerInterceptor(
     return Contexts.interceptCall(context, call, headers, next)
   }
 
-  private fun authenticateAccountCredentials(idToken: String): Account = runBlocking {
-    internalAccountsStub.withIdToken(idToken).authenticateAccount(authenticateAccountRequest {})
+  private suspend fun authenticateAccountCredentials(idToken: String): Account {
+    val openIdConnectIdentity =
+      AccountsService.validateIdToken(
+        idToken = idToken,
+        redirectUri = redirectUri,
+        internalAccountsStub = internalAccountsClient
+      )
+
+    return internalAccountsClient.authenticateAccount(
+      authenticateAccountRequest { identity = openIdConnectIdentity }
+    )
   }
 }
 
@@ -75,19 +86,21 @@ fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
 }
 
 fun BindableService.withAccountAuthenticationServerInterceptor(
-  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  internalAccountsClient: AccountsCoroutineStub,
+  redirectUri: String
 ): ServerServiceDefinition =
   ServerInterceptors.interceptForward(
     this,
-    AccountAuthenticationServerInterceptor(internalAccountsStub)
+    AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
   )
 
 fun ServerServiceDefinition.withAccountAuthenticationServerInterceptor(
-  internalAccountsStub: AccountsGrpcKt.AccountsCoroutineStub
+  internalAccountsClient: AccountsCoroutineStub,
+  redirectUri: String
 ): ServerServiceDefinition =
   ServerInterceptors.interceptForward(
     this,
-    AccountAuthenticationServerInterceptor(internalAccountsStub)
+    AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
   )
 
 /** Executes [block] with [Account] installed in a new [Context]. */

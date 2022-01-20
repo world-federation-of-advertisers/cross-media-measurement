@@ -13,19 +13,3 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/grpc:api",
     ],
 )
-
-kt_jvm_library(
-    name = "accounts_server_interceptor",
-    srcs = ["AccountsServerInterceptor.kt"],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/internal/testing:__subpackages__",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api:account_constants",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc:context",
-    ],
-)

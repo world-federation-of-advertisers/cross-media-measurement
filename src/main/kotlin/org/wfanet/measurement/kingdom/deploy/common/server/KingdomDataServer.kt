@@ -18,12 +18,10 @@ import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIdsFlags
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
-import org.wfanet.measurement.kingdom.deploy.common.service.withAccountsServerInterceptor
 import picocli.CommandLine
 
 abstract class KingdomDataServer : Runnable {
@@ -37,15 +35,7 @@ abstract class KingdomDataServer : Runnable {
     DuchyInfo.initializeFromFlags(duchyInfoFlags)
     DuchyIds.initializeFromFlags(duchyIdsFlags)
 
-    val services =
-      dataServices.buildDataServices().toList().map {
-        // TODO(@tristanvuong2021): remove the interceptor once token_id is not used in internal
-        // accountsService.
-        when (it) {
-          is AccountsGrpcKt.AccountsCoroutineImplBase -> it.withAccountsServerInterceptor()
-          else -> it.bindService()
-        }
-      }
+    val services = dataServices.buildDataServices().toList()
     val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
 
     runInterruptible { server.start().blockUntilShutdown() }

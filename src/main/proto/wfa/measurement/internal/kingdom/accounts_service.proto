@@ -43,6 +43,10 @@ service Accounts {
   // Generates state and nonce.
   rpc GenerateOpenIdRequestParams(GenerateOpenIdRequestParamsRequest)
       returns (OpenIdRequestParams);
+
+  // Get nonce using state.
+  rpc GetOpenIdRequestParams(GetOpenIdRequestParamsRequest)
+      returns (OpenIdRequestParams);
 }
 
 message CreateMeasurementConsumerCreationTokenRequest {}
@@ -54,17 +58,28 @@ message CreateMeasurementConsumerCreationTokenResponse {
 message ActivateAccountRequest {
   fixed64 external_account_id = 1;
   fixed64 activation_token = 2;
+
+  Account.OpenIdConnectIdentity identity = 3;
 }
 
 message ReplaceAccountIdentityRequest {
   fixed64 external_account_id = 1;
+
+  Account.OpenIdConnectIdentity identity = 2;
 }
 
-message AuthenticateAccountRequest {}
+message AuthenticateAccountRequest {
+  Account.OpenIdConnectIdentity identity = 1;
+}
 
 message GenerateOpenIdRequestParamsRequest {}
+
+message GetOpenIdRequestParamsRequest {
+  fixed64 state = 1;
+}
 
 message OpenIdRequestParams {
   fixed64 state = 1;
   fixed64 nonce = 2;
+  bool isExpired = 3;
 }

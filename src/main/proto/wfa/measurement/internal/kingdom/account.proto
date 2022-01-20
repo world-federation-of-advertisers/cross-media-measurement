@@ -48,13 +48,11 @@ message Account {
 
   // OpenID Connect identity.
   message OpenIdConnectIdentity {
-    fixed64 external_open_id_connect_id = 1;
-
     // Issuer (`iss` claim value). Required.
-    string issuer = 2;
+    string issuer = 1;
 
     // Subject Identifier (`subj` claim value). Required.
-    string subject = 3;
+    string subject = 2;
   }
 
   // Identity of the user for this `Account.

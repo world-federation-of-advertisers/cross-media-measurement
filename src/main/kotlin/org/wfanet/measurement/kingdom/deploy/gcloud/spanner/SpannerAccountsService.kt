@@ -14,18 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
-import com.google.gson.JsonParser
 import io.grpc.Status
-import java.io.IOException
-import java.security.GeneralSecurityException
-import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.crypto.tink.PublicJwkHandle.Companion.fromJwk
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.calculateRsaThumbprint
-import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.validateJwt
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.toLong
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
@@ -34,10 +26,11 @@ import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
+import org.wfanet.measurement.internal.kingdom.GetOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenResponse
-import org.wfanet.measurement.kingdom.deploy.common.service.getIdToken
+import org.wfanet.measurement.internal.kingdom.openIdRequestParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
@@ -48,15 +41,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasur
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.GenerateOpenIdRequestParams
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceAccountIdentityWithNewOpenIdConnectIdentity
 
-private const val REDIRECT_URI = "https://localhost:2048"
 private const val VALID_SECONDS = 3600L
 
 class SpannerAccountsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
 ) : AccountsCoroutineImplBase() {
-  data class IdToken(val issuer: String, val subject: String)
-
   override suspend fun createAccount(request: Account): Account {
     try {
       val externalCreatorAccountId: ExternalId? =
@@ -119,29 +109,12 @@ class SpannerAccountsService(
   }
 
   override suspend fun activateAccount(request: ActivateAccountRequest): Account {
-    val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "Id token is missing" }
-
-    val parsedValidatedIdToken =
-      try {
-        validateIdToken(idToken)
-      } catch (ex: GeneralSecurityException) {
-        throw Status.INVALID_ARGUMENT
-          .withCause(ex)
-          .withDescription("ID token is invalid")
-          .asRuntimeException()
-      } catch (ex: Exception) {
-        throw Status.UNKNOWN
-          .withCause(ex)
-          .withDescription("ID token is invalid")
-          .asRuntimeException()
-      }
-
     try {
       return ActivateAccount(
           externalAccountId = ExternalId(request.externalAccountId),
           activationToken = ExternalId(request.activationToken),
-          issuer = parsedValidatedIdToken.issuer,
-          subject = parsedValidatedIdToken.subject
+          issuer = request.identity.issuer,
+          subject = request.identity.subject
         )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
@@ -176,28 +149,11 @@ class SpannerAccountsService(
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
-    val idToken = getIdToken() ?: failGrpc(Status.INVALID_ARGUMENT) { "New Id token is missing" }
-
-    val parsedValidatedIdToken =
-      try {
-        validateIdToken(idToken)
-      } catch (ex: GeneralSecurityException) {
-        throw Status.INVALID_ARGUMENT
-          .withCause(ex)
-          .withDescription("ID token is invalid")
-          .asRuntimeException()
-      } catch (ex: Exception) {
-        throw Status.UNKNOWN
-          .withCause(ex)
-          .withDescription("ID token is invalid")
-          .asRuntimeException()
-      }
-
     try {
       return ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
           externalAccountId = ExternalId(request.externalAccountId),
-          issuer = parsedValidatedIdToken.issuer,
-          subject = parsedValidatedIdToken.subject
+          issuer = request.identity.issuer,
+          subject = request.identity.subject
         )
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
@@ -231,29 +187,12 @@ class SpannerAccountsService(
   }
 
   override suspend fun authenticateAccount(request: AuthenticateAccountRequest): Account {
-    val idToken = getIdToken() ?: failGrpc(Status.PERMISSION_DENIED) { "ID token is missing" }
-
-    val parsedValidatedIdToken =
-      try {
-        validateIdToken(idToken)
-      } catch (ex: GeneralSecurityException) {
-        throw Status.PERMISSION_DENIED
-          .withCause(ex)
-          .withDescription("ID token is invalid")
-          .asRuntimeException()
-      } catch (ex: Exception) {
-        throw Status.UNKNOWN
-          .withCause(ex)
-          .withDescription("ID token is invalid")
-          .asRuntimeException()
-      }
-
     val identityResult =
       OpenIdConnectIdentityReader()
         .readByIssuerAndSubject(
           client.singleUse(),
-          parsedValidatedIdToken.issuer,
-          parsedValidatedIdToken.subject
+          request.identity.issuer,
+          request.identity.subject
         )
         ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
 
@@ -269,64 +208,20 @@ class SpannerAccountsService(
     return GenerateOpenIdRequestParams(VALID_SECONDS).execute(client, idGenerator)
   }
 
-  /**
-   * Returns the issuer and subject if the ID token is valid. TODO(@tristanvuong2021): Move
-   * validation to public accounts service
-   *
-   * @throws GeneralSecurityException if the ID token validation fails
-   */
-  private suspend fun validateIdToken(idToken: String): IdToken {
-    val tokenParts = idToken.split(".")
-
-    if (tokenParts.size != 3) {
-      throw GeneralSecurityException("Id token does not have 3 components")
-    }
-
-    val claims =
-      JsonParser.parseString(tokenParts[1].base64UrlDecode().toString(Charsets.UTF_8)).asJsonObject
-
-    val subJwk = claims.get("sub_jwk")
-    if (subJwk.isJsonNull || !subJwk.isJsonObject) {
-      throw GeneralSecurityException()
-    }
-
-    val jwk = subJwk.asJsonObject
-    val publicJwkHandle =
-      try {
-        fromJwk(jwk)
-      } catch (ex: IOException) {
-        throw GeneralSecurityException()
-      }
-
-    val verifiedJwt =
-      validateJwt(redirectUri = REDIRECT_URI, idToken = idToken, publicJwkHandle = publicJwkHandle)
-
-    if (!verifiedJwt.subject.equals(calculateRsaThumbprint(jwk.toString()))) {
-      throw GeneralSecurityException()
-    }
-
-    val state = verifiedJwt.getStringClaim("state")
-    val nonce = verifiedJwt.getStringClaim("nonce")
-
-    if (state == null || nonce == null) {
-      throw GeneralSecurityException()
-    }
-
+  override suspend fun getOpenIdRequestParams(
+    request: GetOpenIdRequestParamsRequest
+  ): OpenIdRequestParams {
     val result =
-      OpenIdRequestParamsReader()
-        .readByState(client.singleUse(), ExternalId(state.base64UrlDecode().toLong()))
-    if (result != null) {
-      if (nonce.base64UrlDecode().toLong() != result.nonce.value || result.isExpired) {
-        throw GeneralSecurityException()
-      }
-    } else {
-      throw GeneralSecurityException()
-    }
+      OpenIdRequestParamsReader().readByState(client.singleUse(), ExternalId(request.state))
 
-    if (verifiedJwt.issuer == null || verifiedJwt.subject == null) {
-      throw GeneralSecurityException()
+    return if (result == null) {
+      OpenIdRequestParams.getDefaultInstance()
     } else {
-      return IdToken(issuer = verifiedJwt.issuer!!, subject = verifiedJwt.subject!!)
+      openIdRequestParams {
+        state = result.state.value
+        nonce = result.nonce.value
+        isExpired = result.isExpired
+      }
     }
   }
 }

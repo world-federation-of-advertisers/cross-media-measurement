@@ -48,7 +48,6 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
-import org.wfanet.measurement.kingdom.deploy.common.service.withIdToken
 
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
 private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
@@ -330,10 +329,11 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
     )
 
+    val openIdConnectIdentity = population.parseIdToken(idToken = idToken2)
     val updatedAccount =
-      withIdToken(idToken2) {
-        runBlocking { accountsService.authenticateAccount(authenticateAccountRequest {}) }
-      }
+      accountsService.authenticateAccount(
+        authenticateAccountRequest { identity = openIdConnectIdentity }
+      )
 
     assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
       .contains(measurementConsumer.externalMeasurementConsumerId)
@@ -432,10 +432,9 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         }
       )
 
-    var updatedAccount =
-      withIdToken(idToken) {
-        runBlocking { accountsService.authenticateAccount(authenticateAccountRequest {}) }
-      }
+    val openIdConnectIdentity = population.parseIdToken(idToken = idToken)
+    val authenticateAccountRequest = authenticateAccountRequest { identity = openIdConnectIdentity }
+    var updatedAccount = accountsService.authenticateAccount(authenticateAccountRequest)
 
     assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
       .contains(measurementConsumer.externalMeasurementConsumerId)
@@ -447,10 +446,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       }
     )
 
-    updatedAccount =
-      withIdToken(idToken) {
-        runBlocking { accountsService.authenticateAccount(authenticateAccountRequest {}) }
-      }
+    updatedAccount = accountsService.authenticateAccount(authenticateAccountRequest)
 
     assertThat(updatedAccount.externalOwnedMeasurementConsumerIdsList)
       .doesNotContain(measurementConsumer.externalMeasurementConsumerId)
