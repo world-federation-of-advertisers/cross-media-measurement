@@ -42,6 +42,10 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.removeMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -72,9 +76,13 @@ private const val MEASUREMENT_CONSUMER_ID = 123L
 private const val ACCOUNT_ID = 123L
 private const val CERTIFICATE_ID = 456L
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val ACCOUNT_NAME = "accounts/AAAAAAAAAHs"
 private const val CERTIFICATE_NAME = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_CREATION_TOKEN = "MTIzNDU2NzM"
+
+private val DATA_PROVIDER_NAME = makeDataProvider(123L)
+private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class MeasurementConsumersServiceTest {
@@ -201,9 +209,9 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
-  fun `get returns resource`() {
+  fun `get returns resource when mc caller is found`() {
     val measurementConsumer =
-      withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking {
           service.getMeasurementConsumer(
             getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
@@ -218,13 +226,53 @@ class MeasurementConsumersServiceTest {
       publicKey = SIGNED_PUBLIC_KEY
     }
     assertThat(measurementConsumer).isEqualTo(expectedMeasurementConsumer)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalMeasurementConsumersService::getMeasurementConsumer
+      )
+      .isEqualTo(
+        org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+        }
+      )
+  }
+
+  @Test
+  fun `get returns resource when edp caller is found`() {
+    val measurementConsumer =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.getMeasurementConsumer(
+            getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+          )
+        }
+      }
+
+    val expectedMeasurementConsumer = measurementConsumer {
+      name = MEASUREMENT_CONSUMER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+    }
+    assertThat(measurementConsumer).isEqualTo(expectedMeasurementConsumer)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalMeasurementConsumersService::getMeasurementConsumer
+      )
+      .isEqualTo(
+        org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest {
+          externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+        }
+      )
   }
 
   @Test
   fun `get throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.getMeasurementConsumer(GetMeasurementConsumerRequest.getDefaultInstance())
           }
@@ -237,7 +285,7 @@ class MeasurementConsumersServiceTest {
   fun `get throws INVALID_ARGUMENT when name is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(INTERNAL_MEASUREMENT_CONSUMER) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             service.getMeasurementConsumer(getMeasurementConsumerRequest { name = "foo" })
           }
@@ -247,12 +295,10 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
-  fun `get throws PERMISSION_DENIED when authenticated MeasurementConsumer doesn't match`() {
+  fun `get throws PERMISSION_DENIED when mc caller doesn't match`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumer(
-          INTERNAL_MEASUREMENT_CONSUMER.copy { externalMeasurementConsumerId = 1L }
-        ) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
           runBlocking {
             service.getMeasurementConsumer(
               getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
@@ -264,7 +310,22 @@ class MeasurementConsumersServiceTest {
   }
 
   @Test
-  fun `get throws UNAUTHENTICATED when MeasurementConsumer principal is missing`() {
+  fun `get throws PERMISSION_DENIED when principal without authorization found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.getMeasurementConsumer(
+              getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `get throws UNAUTHENTICATED when no principal is found`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {

@@ -28,9 +28,15 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.AccountConstants
+import org.wfanet.measurement.api.v2alpha.AccountKey
+import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.grpc.DeferredListener
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
@@ -48,21 +54,51 @@ class AccountAuthenticationServerInterceptor(
     val idToken = headers.get(AccountConstants.ID_TOKEN_METADATA_KEY)
 
     var context = Context.current()
-    if (idToken != null) {
-      context = Context.current().withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
-      try {
-        val account = runBlocking(Dispatchers.IO) { authenticateAccountCredentials(idToken) }
-        context = context.withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
-      } catch (e: Exception) {
-        when (e) {
-          is StatusRuntimeException, is StatusException -> {}
-          else ->
-            call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)
-        }
-      }
-    }
 
-    return Contexts.interceptCall(context, call, headers, next)
+    if (idToken == null) {
+      if (call.methodDescriptor.fullMethodName ==
+          "wfa.measurement.api.v2alpha.Accounts/ActivateAccount"
+      ) {
+        call.close(Status.INVALID_ARGUMENT.withDescription("ID token is missing"), headers)
+      }
+
+      return Contexts.interceptCall(context, call, headers, next)
+    } else if (call.methodDescriptor.fullMethodName ==
+        "wfa.measurement.api.v2alpha.Accounts/ActivateAccount"
+    ) {
+      // To bypass authentication checks
+      context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
+
+      return Contexts.interceptCall(context, call, headers, next)
+    } else {
+      val deferredListener = DeferredListener<ReqT>()
+
+      CoroutineScope(Dispatchers.Default).launch {
+        try {
+          val account = authenticateAccountCredentials(idToken)
+          context =
+            context
+              .withPrincipal(
+                Principal.Account(AccountKey(externalIdToApiId(account.externalAccountId)))
+              )
+              .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
+        } catch (e: Exception) {
+          when (e) {
+            is StatusRuntimeException, is StatusException ->
+              call.close(Status.UNAUTHENTICATED.withDescription("ID token is invalid"), headers)
+            else ->
+              call.close(
+                Status.UNKNOWN.withDescription("Unknown error when authenticating"),
+                headers
+              )
+          }
+        }
+
+        deferredListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
+      }
+
+      return deferredListener
+    }
   }
 
   private suspend fun authenticateAccountCredentials(idToken: String): Account {
@@ -89,7 +125,7 @@ fun BindableService.withAccountAuthenticationServerInterceptor(
   internalAccountsClient: AccountsCoroutineStub,
   redirectUri: String
 ): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
+  ServerInterceptors.intercept(
     this,
     AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
   )
@@ -98,7 +134,7 @@ fun ServerServiceDefinition.withAccountAuthenticationServerInterceptor(
   internalAccountsClient: AccountsCoroutineStub,
   redirectUri: String
 ): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
+  ServerInterceptors.intercept(
     this,
     AccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
   )

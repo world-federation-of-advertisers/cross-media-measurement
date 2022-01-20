@@ -16,8 +16,6 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("measurementConsumers/{measurement_consumer}")
-
 /** [ResourceKey] of a Measurement Consumer. */
 data class MeasurementConsumerKey(val measurementConsumerId: String) : ResourceKey {
   override fun toName(): String {
@@ -25,7 +23,10 @@ data class MeasurementConsumerKey(val measurementConsumerId: String) : ResourceK
   }
 
   companion object {
+    const val COLLECTION_NAME = "measurementConsumers"
     val defaultValue = MeasurementConsumerKey("")
+
+    private val parser = ResourceNameParser("$COLLECTION_NAME/{measurement_consumer}")
 
     fun fromName(resourceName: String): MeasurementConsumerKey? {
       return parser.parseIdVars(resourceName)?.let {
