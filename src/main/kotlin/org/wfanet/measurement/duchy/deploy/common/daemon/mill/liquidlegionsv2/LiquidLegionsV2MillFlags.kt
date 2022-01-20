@@ -38,6 +38,14 @@ class LiquidLegionsV2MillFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--duchy-computation-control-target"],
+    description = ["Key-value pair of Duchy ID to ComputationControl service target."],
+    required = true
+  )
+  lateinit var computationControlServiceTargets: Map<String, String>
+    private set
+
+  @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
     defaultValue = "3s",
     description = ["How long to allow for the gRPC channel to shutdown."]
