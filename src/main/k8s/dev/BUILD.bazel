@@ -4,7 +4,6 @@ cue_dump(
     name = "kingdom_gke",
     srcs = ["kingdom_gke.cue"],
     cue_tags = {
-        "environment": "dev",
         "secret_name": "TBD",
     },
     deps = [
@@ -21,7 +20,6 @@ cue_dump(
         "duchy_name": "aggregator",
         "duchy_cert_name": "TBD",
         "duchy_protocols_setup_config": "aggregator_protocols_setup_config.textproto",
-        "environment": "dev",
         "secret_name": "TBD",
     },
     deps = [
@@ -37,7 +35,6 @@ cue_dump(
         "duchy_name": "worker1",
         "duchy_cert_name": "TBD",
         "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
-        "environment": "dev",
         "secret_name": "TBD",
     },
     deps = [
@@ -53,7 +50,6 @@ cue_dump(
         "duchy_name": "worker2",
         "duchy_cert_name": "TBD",
         "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
-        "environment": "dev",
         "secret_name": "TBD",
     },
     deps = [

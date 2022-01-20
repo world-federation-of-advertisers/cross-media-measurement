@@ -1,0 +1,59 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package k8s
+
+_secret_name: string @tag("secret_name")
+
+#DefaultResourceConfig: {
+	replicas:              1
+	resourceRequestCpu:    "100m"
+	resourceLimitCpu:      "400m"
+	resourceRequestMemory: "256Mi"
+	resourceLimitMemory:   "512Mi"
+}
+
+objectSets: [ for objectSet in kingdom {objectSet}]
+
+kingdom: #Kingdom & {
+	_kingdom_secret_name: _secret_name
+	_spanner_schema_push_flags: [
+		"--create-instance",
+		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+		"--instance-config-id=spanner-emulator",
+		"--instance-display-name=EmulatorInstance",
+		"--instance-name=emulator-instance",
+		"--instance-node-count=1",
+		"--project-name=cross-media-measurement-system",
+	]
+	_spanner_flags: [
+		"--spanner-database=kingdom",
+		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
+		"--spanner-instance=emulator-instance",
+		"--spanner-project=cross-media-measurement-system",
+	]
+	_images: {
+		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
+		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
+		"system-api-server":             "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
+		"v2alpha-public-api-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
+	}
+	_resource_configs: {
+		"gcp-kingdom-data-server":   #DefaultResourceConfig
+		"system-api-server":         #DefaultResourceConfig
+		"v2alpha-public-api-server": #DefaultResourceConfig
+	}
+	_kingdom_image_pull_policy: "Never"
+	_verbose_grpc_logging:      "true"
+}

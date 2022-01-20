@@ -27,3 +27,21 @@ IMAGE_REPOSITORY_SETTINGS = struct(
     # Common prefix of container image repositories.
     repository_prefix = "$(image_repo_prefix)",
 )
+
+# Settings for test Kubernetes deployments.
+TEST_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_secret_name)",
+    # Resource name of the aggregator Duchy's Certificate.
+    aggregator_cert_name = "$(aggregator_cert_name)",
+    # Resource name of the 1st worker Duchy's Certificate.
+    worker1_cert_name = "$(worker1_cert_name)",
+    # Resource name of the 2nd worker Duchy's Certificate.
+    worker2_cert_name = "$(worker2_cert_name)",
+    mc_name = "$(mc_name)",
+    edp1_name = "$(edp1_name)",
+    edp2_name = "$(edp2_name)",
+    edp3_name = "$(edp3_name)",
+    edp4_name = "$(edp4_name)",
+    edp5_name = "$(edp5_name)",
+    edp6_name = "$(edp6_name)",
+)
