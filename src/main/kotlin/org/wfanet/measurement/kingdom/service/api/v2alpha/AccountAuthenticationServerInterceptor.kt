@@ -36,7 +36,7 @@ import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
-import org.wfanet.measurement.common.grpc.DeferredListener
+import org.wfanet.measurement.common.grpc.DeferredForwardingListener
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
@@ -62,7 +62,7 @@ class AccountAuthenticationServerInterceptor(
     } else {
       context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
 
-      val deferredListener = DeferredListener<ReqT>()
+      val deferredForwardingListener = DeferredForwardingListener<ReqT>()
 
       CoroutineScope(Dispatchers.Default).launch {
         try {
@@ -84,10 +84,10 @@ class AccountAuthenticationServerInterceptor(
           }
         }
 
-        deferredListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
+        deferredForwardingListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
       }
 
-      return deferredListener
+      return deferredForwardingListener
     }
   }
 

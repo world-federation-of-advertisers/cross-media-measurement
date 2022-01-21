@@ -36,7 +36,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.crypto.hashSha256
-import org.wfanet.measurement.common.grpc.DeferredListener
+import org.wfanet.measurement.common.grpc.DeferredForwardingListener
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ApiKey
@@ -59,7 +59,7 @@ class ApiKeyAuthenticationServerInterceptor(
         ?: return Contexts.interceptCall(Context.current(), call, headers, next)
 
     var context = Context.current()
-    val deferredListener = DeferredListener<ReqT>()
+    val deferredForwardingListener = DeferredForwardingListener<ReqT>()
 
     CoroutineScope(Dispatchers.Default).launch {
       try {
@@ -82,10 +82,10 @@ class ApiKeyAuthenticationServerInterceptor(
         }
       }
 
-      deferredListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
+      deferredForwardingListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
     }
 
-    return deferredListener
+    return deferredForwardingListener
   }
 
   private suspend fun authenticateAuthenticationKey(
