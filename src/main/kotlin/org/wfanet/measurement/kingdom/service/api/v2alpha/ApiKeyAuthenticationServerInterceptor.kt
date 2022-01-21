@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.kingdom.authenticateApiKeyRequest
 class ApiKeyAuthenticationServerInterceptor(
   private val internalApiKeysClient: ApiKeysCoroutineStub
 ) : ServerInterceptor {
+
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,

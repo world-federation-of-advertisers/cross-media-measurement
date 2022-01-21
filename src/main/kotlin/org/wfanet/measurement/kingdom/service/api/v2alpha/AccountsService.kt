@@ -97,7 +97,8 @@ class AccountsService(
 
     grpcRequire(request.activationToken.isNotBlank()) { "Activation token is missing" }
 
-    val idToken = AccountConstants.CONTEXT_ID_TOKEN_KEY.get()
+    val idToken =
+      grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "ID token is missing" }
 
     val openIdConnectIdentity =
       try {
@@ -107,9 +108,9 @@ class AccountsService(
           internalAccountsStub = internalAccountsStub
         )
       } catch (ex: GeneralSecurityException) {
-        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "Id token is invalid" }
+        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "ID token is invalid" }
       } catch (ex: Exception) {
-        failGrpc(Status.UNKNOWN.withCause(ex)) { "Id token is invalid" }
+        failGrpc(Status.UNKNOWN.withCause(ex)) { "ID token is invalid" }
       }
 
     val internalActivateAccountRequest = activateAccountRequest {
@@ -140,7 +141,7 @@ class AccountsService(
           internalAccountsStub = internalAccountsStub
         )
       } catch (ex: GeneralSecurityException) {
-        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "New Id token is invalid" }
+        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "New ID token is invalid" }
       } catch (ex: Exception) {
         failGrpc(Status.UNKNOWN.withCause(ex)) { "ID token is invalid" }
       }

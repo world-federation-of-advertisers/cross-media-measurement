@@ -31,6 +31,7 @@ import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.Principal
@@ -46,6 +47,7 @@ class AccountAuthenticationServerInterceptor(
   private val internalAccountsClient: AccountsCoroutineStub,
   private val redirectUri: String
 ) : ServerInterceptor {
+
   override fun <ReqT, RespT> interceptCall(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
@@ -56,26 +58,15 @@ class AccountAuthenticationServerInterceptor(
     var context = Context.current()
 
     if (idToken == null) {
-      if (call.methodDescriptor.fullMethodName ==
-          "wfa.measurement.api.v2alpha.Accounts/ActivateAccount"
-      ) {
-        call.close(Status.INVALID_ARGUMENT.withDescription("ID token is missing"), headers)
-      }
-
-      return Contexts.interceptCall(context, call, headers, next)
-    } else if (call.methodDescriptor.fullMethodName ==
-        "wfa.measurement.api.v2alpha.Accounts/ActivateAccount"
-    ) {
-      // To bypass authentication checks
-      context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
-
       return Contexts.interceptCall(context, call, headers, next)
     } else {
+      context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
+
       val deferredListener = DeferredListener<ReqT>()
 
       CoroutineScope(Dispatchers.Default).launch {
         try {
-          val account = authenticateAccountCredentials(idToken)
+          val account = withContext(Dispatchers.IO) { authenticateAccountCredentials(idToken) }
           context =
             context
               .withPrincipal(
@@ -84,8 +75,7 @@ class AccountAuthenticationServerInterceptor(
               .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
         } catch (e: Exception) {
           when (e) {
-            is StatusRuntimeException, is StatusException ->
-              call.close(Status.UNAUTHENTICATED.withDescription("ID token is invalid"), headers)
+            is StatusRuntimeException, is StatusException -> {}
             else ->
               call.close(
                 Status.UNKNOWN.withDescription("Unknown error when authenticating"),
