@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+set -eu -o pipefail
+
+readonly CONTAINER_OUTPUT="${CONTAINER_OUTPUT:-$PWD/bazel-container-output}"
+
+tools/bazel-container run --script_path="${CONTAINER_OUTPUT}/script" "$@" &&
+  "${CONTAINER_OUTPUT}/script"
