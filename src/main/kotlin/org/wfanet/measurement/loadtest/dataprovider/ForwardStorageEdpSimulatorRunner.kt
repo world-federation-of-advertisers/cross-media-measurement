@@ -50,7 +50,10 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
       RandomEventQuery(
         SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
       )
-    run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient, randomEventQuery)
+    run(
+      ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient,
+      randomEventQuery
+    )
   }
 }
 
