@@ -65,18 +65,12 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    val principal = principalFromCurrentContext
-    val measurementConsumerKey =
-      if (principal.resourceKey is MeasurementConsumerKey) {
-        principal.resourceKey as MeasurementConsumerKey
-      } else {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
-      }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val key =
       grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
-    if (measurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
+    if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot get a Measurement from another MeasurementConsumer"
       }
@@ -93,13 +87,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
-    val principal = principalFromCurrentContext
-    val measurementConsumerKey =
-      if (principal.resourceKey is MeasurementConsumerKey) {
-        principal.resourceKey as MeasurementConsumerKey
-      } else {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller cannot create a Measurement" }
-      }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val measurement = request.measurement
 
@@ -108,7 +96,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
       ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
 
-    if (measurementConsumerKey.measurementConsumerId !=
+    if (authenticatedMeasurementConsumerKey.measurementConsumerId !=
         measurementConsumerCertificateKey.measurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -159,17 +147,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun listMeasurements(
     request: ListMeasurementsRequest
   ): ListMeasurementsResponse {
-    val principal = principalFromCurrentContext
-    val measurementConsumerKey =
-      if (principal.resourceKey is MeasurementConsumerKey) {
-        principal.resourceKey as MeasurementConsumerKey
-      } else {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller cannot list Measurements" }
-      }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
-    if (apiIdToExternalId(measurementConsumerKey.measurementConsumerId) !=
+    if (apiIdToExternalId(authenticatedMeasurementConsumerKey.measurementConsumerId) !=
         listMeasurementsPageToken.externalMeasurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -205,18 +187,12 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 
   override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
-    val principal = principalFromCurrentContext
-    val measurementConsumerKey =
-      if (principal.resourceKey is MeasurementConsumerKey) {
-        principal.resourceKey as MeasurementConsumerKey
-      } else {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller cannot cancel a Measurement" }
-      }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val key =
       grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
-    if (measurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
+    if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot cancel a Measurement for another MeasurementConsumer"
       }
@@ -356,4 +332,10 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
         }
       }
   }
+}
+
+private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
+  val principal = principalFromCurrentContext
+  return principal.resourceKey as? MeasurementConsumerKey
+    ?: failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
 }

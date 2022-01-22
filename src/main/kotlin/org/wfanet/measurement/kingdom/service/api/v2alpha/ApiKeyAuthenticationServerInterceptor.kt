@@ -30,7 +30,6 @@ import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.Principal
@@ -61,10 +60,9 @@ class ApiKeyAuthenticationServerInterceptor(
     var context = Context.current()
     val deferredForwardingListener = DeferredForwardingListener<ReqT>()
 
-    CoroutineScope(Dispatchers.Default).launch {
+    CoroutineScope(Dispatchers.IO).launch {
       try {
-        val measurementConsumer =
-          withContext(Dispatchers.IO) { authenticateAuthenticationKey(authenticationKey) }
+        val measurementConsumer = authenticateAuthenticationKey(authenticationKey)
         context =
           context.withPrincipal(
             Principal.MeasurementConsumer(

@@ -31,7 +31,6 @@ import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.Principal
@@ -64,9 +63,9 @@ class AccountAuthenticationServerInterceptor(
 
       val deferredForwardingListener = DeferredForwardingListener<ReqT>()
 
-      CoroutineScope(Dispatchers.Default).launch {
+      CoroutineScope(Dispatchers.IO).launch {
         try {
-          val account = withContext(Dispatchers.IO) { authenticateAccountCredentials(idToken) }
+          val account = authenticateAccountCredentials(idToken)
           context =
             context
               .withPrincipal(
