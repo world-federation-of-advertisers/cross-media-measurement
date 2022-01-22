@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import io.grpc.Status
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -21,8 +22,11 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -65,8 +69,23 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#119): Pass credentials for
-    // ownership check.
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        if (resourceKey.dataProviderId != key.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot get other DataProviders" }
+        }
+      }
+      is MeasurementConsumerKey -> {}
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to get DataProviders"
+        }
+      }
+    }
+
     val internalResponse: InternalDataProvider =
       internalClient.getDataProvider(
         getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }

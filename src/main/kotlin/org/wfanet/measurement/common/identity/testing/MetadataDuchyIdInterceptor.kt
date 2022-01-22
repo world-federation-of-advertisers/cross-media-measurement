@@ -24,6 +24,9 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
+import org.wfanet.measurement.api.PrincipalConstants.PRINCIPAL_CONTEXT_KEY
+import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.common.identity.DUCHY_IDENTITY_CONTEXT_KEY
 import org.wfanet.measurement.common.identity.DUCHY_ID_METADATA_KEY
 import org.wfanet.measurement.common.identity.DuchyIdentity
@@ -46,12 +49,19 @@ class MetadataDuchyIdInterceptor : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
+    if (PRINCIPAL_CONTEXT_KEY.get() != null) {
+      return Contexts.interceptCall(Context.current(), call, headers, next)
+    }
+
     val duchyId = headers[DUCHY_ID_METADATA_KEY]
     return if (duchyId == null) {
       call.close(Status.UNAUTHENTICATED.withDescription("No duchy Id in the header"), Metadata())
       object : ServerCall.Listener<ReqT>() {}
     } else {
-      val context = Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
+      val context =
+        Context.current()
+          .withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyId))
+          .withValue(PRINCIPAL_CONTEXT_KEY, Principal.Duchy(DuchyKey(duchyId)))
       Contexts.interceptCall(context, call, headers, next)
     }
   }

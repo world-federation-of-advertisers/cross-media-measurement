@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import io.grpc.Status
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -26,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -39,10 +41,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -56,6 +60,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisit
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
@@ -72,11 +77,50 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
+    val principal = principalFromCurrentContext
+
     val listRequisitionsPageToken = request.toListRequisitionsPageToken()
+
+    var externalMeasurementConsumerId = 0L
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        if (apiIdToExternalId(resourceKey.dataProviderId) !=
+            listRequisitionsPageToken.externalDataProviderId
+        ) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list Requisitions belonging to other DataProviders"
+          }
+        }
+      }
+      is MeasurementConsumerKey -> {
+        externalMeasurementConsumerId = apiIdToExternalId(resourceKey.measurementConsumerId)
+        if (listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
+            listRequisitionsPageToken.externalMeasurementConsumerId != externalMeasurementConsumerId
+        ) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list Requisitions belonging to other MeasurementConsumers"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to list Requisitions"
+        }
+      }
+    }
 
     val results: List<InternalRequisition> =
       internalRequisitionStub
-        .streamRequisitions(listRequisitionsPageToken.toStreamRequisitionsRequest())
+        .streamRequisitions(
+          listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
+            filter =
+              filter.copy {
+                if (this.externalMeasurementConsumerId == 0L) {
+                  this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                }
+              }
+          }
+        )
         .toList()
 
     if (results.isEmpty()) {
@@ -107,6 +151,24 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
       grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        if (resourceKey.dataProviderId != key.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot refuse Requisitions belonging to other DataProviders"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to refuse Requisitions"
+        }
+      }
+    }
+
     grpcRequire(request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED) {
       "Refusal details must be present"
     }

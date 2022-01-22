@@ -14,9 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
-import io.grpc.BindableService
 import io.grpc.Channel
-import io.grpc.ServerServiceDefinition
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -127,13 +125,22 @@ class InProcessKingdom(
       listOf(
         ApiKeysService(internalApiKeysClient)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-        CertificatesService(internalCertificatesClient),
-        DataProvidersService(internalDataProvidersClient),
-        EventGroupsService(internalEventGroupsClient),
+        CertificatesService(internalCertificatesClient)
+          .withMetadataDuchyIdentities()
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        DataProvidersService(internalDataProvidersClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        EventGroupsService(internalEventGroupsClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         MeasurementsService(internalMeasurementsClient)
           .withMetadataPrincipalIdentities()
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        RequisitionsService(internalRequisitionsClient),
+        RequisitionsService(internalRequisitionsClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         AccountsService(internalAccountsClient, redirectUri)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
         MeasurementConsumersService(internalMeasurementConsumersClient)
@@ -144,10 +151,7 @@ class InProcessKingdom(
         .forEach {
           // TODO(@wangyaopw): set up all public services to use the appropriate principal
           // interceptors.
-          when (it) {
-            is BindableService -> addService(it.withVerboseLogging(verboseGrpcLogging))
-            is ServerServiceDefinition -> addService(it.withVerboseLogging(verboseGrpcLogging))
-          }
+          addService(it.withVerboseLogging(verboseGrpcLogging))
         }
 
       listOf(
