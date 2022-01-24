@@ -110,8 +110,10 @@ private fun run(
       ExchangeStepsService(internalExchangeStepsCoroutineStub)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       MeasurementsService(InternalMeasurementsCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withAccountAuthenticationServerInterceptor(
           internalAccountsCoroutineStub,
           v2alphaFlags.redirectUri

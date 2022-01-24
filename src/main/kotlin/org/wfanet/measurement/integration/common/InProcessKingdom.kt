@@ -131,11 +131,13 @@ class InProcessKingdom(
         DataProvidersService(internalDataProvidersClient),
         EventGroupsService(internalEventGroupsClient),
         MeasurementsService(internalMeasurementsClient)
+          .withMetadataPrincipalIdentities()
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         RequisitionsService(internalRequisitionsClient),
         AccountsService(internalAccountsClient, redirectUri)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
         MeasurementConsumersService(internalMeasurementConsumersClient)
+          .withMetadataPrincipalIdentities()
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
       )
@@ -147,6 +149,7 @@ class InProcessKingdom(
             is ServerServiceDefinition -> addService(it.withVerboseLogging(verboseGrpcLogging))
           }
         }
+
       listOf(
         ExchangeStepAttemptsService(
           internalExchangeStepAttemptsClient,

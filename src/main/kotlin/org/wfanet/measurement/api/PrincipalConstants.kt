@@ -14,11 +14,10 @@
 
 package org.wfanet.measurement.api
 
-import io.grpc.Metadata
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import io.grpc.Context
+import org.wfanet.measurement.api.v2alpha.Principal
 
-object ApiKeyConstants {
-  /** Metadata key for the api authentication key for a [MeasurementConsumer]. */
-  val API_AUTHENTICATION_KEY_METADATA_KEY: Metadata.Key<String> =
-    Metadata.Key.of("x-api-key", Metadata.ASCII_STRING_MARSHALLER)
+object PrincipalConstants {
+  /** This is the context key for the authenticated Principal. */
+  val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> = Context.key("principal")
 }

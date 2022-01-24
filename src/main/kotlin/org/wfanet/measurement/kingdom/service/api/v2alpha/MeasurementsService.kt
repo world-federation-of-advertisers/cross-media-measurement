@@ -19,7 +19,6 @@ import io.grpc.Status
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
@@ -39,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -59,22 +59,18 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-private const val MISSING_CREDENTIALS_ERROR = "Api Key credentials are invalid or missing"
 private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
 
 class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoroutineStub) :
   MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    val measurementConsumer =
-      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val key =
       grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
-    val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-    if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
+    if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot get a Measurement from another MeasurementConsumer"
       }
@@ -82,7 +78,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     val internalGetMeasurementRequest = getMeasurementRequest {
       externalMeasurementId = apiIdToExternalId(key.measurementId)
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     }
 
     val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
@@ -91,9 +87,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
-    val measurementConsumer =
-      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val measurement = request.measurement
 
@@ -102,8 +96,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
       ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
 
-    if (measurementConsumer.externalMeasurementConsumerId !=
-        apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
+    if (authenticatedMeasurementConsumerKey.measurementConsumerId !=
+        measurementConsumerCertificateKey.measurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -153,13 +147,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   override suspend fun listMeasurements(
     request: ListMeasurementsRequest
   ): ListMeasurementsResponse {
-    val measurementConsumer =
-      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
-    if (measurementConsumer.externalMeasurementConsumerId !=
+    if (apiIdToExternalId(authenticatedMeasurementConsumerKey.measurementConsumerId) !=
         listMeasurementsPageToken.externalMeasurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -195,15 +187,12 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 
   override suspend fun cancelMeasurement(request: CancelMeasurementRequest): Measurement {
-    val measurementConsumer =
-      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { MISSING_CREDENTIALS_ERROR }
+    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
 
     val key =
       grpcRequireNotNull(MeasurementKey.fromName(request.name)) { MISSING_RESOURCE_NAME_ERROR }
 
-    val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-    if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
+    if (authenticatedMeasurementConsumerKey.measurementConsumerId != key.measurementConsumerId) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot cancel a Measurement for another MeasurementConsumer"
       }
@@ -211,7 +200,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     val internalCancelMeasurementRequest = cancelMeasurementRequest {
       externalMeasurementId = apiIdToExternalId(key.measurementId)
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     }
 
     val internalMeasurement =
@@ -343,4 +332,10 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
         }
       }
   }
+}
+
+private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
+  val principal = principalFromCurrentContext
+  return principal.resourceKey as? MeasurementConsumerKey
+    ?: failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
 }
