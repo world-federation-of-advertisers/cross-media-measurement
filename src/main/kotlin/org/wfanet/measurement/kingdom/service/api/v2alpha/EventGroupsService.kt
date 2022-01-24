@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -50,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
@@ -86,8 +88,50 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
     }
+    val parentKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
     return internalEventGroupsStub
-      .createEventGroup(request.eventGroup.toInternal(request))
+      .createEventGroup(
+        request
+          .eventGroup
+          .toInternal()
+          .toBuilder()
+          .apply { externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId) }
+          .build()
+      )
+      .toEventGroup()
+  }
+
+  override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
+    val eventGroupKey =
+      grpcRequireNotNull(EventGroupKey.fromName(request.eventGroup.name)) {
+        "EventGroup is either unspecified or invalid"
+      }
+    grpcRequire(
+      request.eventGroup.encryptedMetadata.isEmpty ||
+        request.eventGroup.hasMeasurementConsumerPublicKey()
+    ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
+    grpcRequire(
+      !request.eventGroup.hasMeasurementConsumerPublicKey() ||
+        !request.eventGroup.measurementConsumerCertificate.isBlank()
+    ) {
+      "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
+        "specified"
+    }
+    return internalEventGroupsStub
+      .updateEventGroup(
+        updateEventGroupRequest {
+          eventGroup =
+            request
+              .eventGroup
+              .toInternal()
+              .toBuilder()
+              .apply { externalDataProviderId = apiIdToExternalId(eventGroupKey.dataProviderId) }
+              .build()
+        }
+      )
       .toEventGroup()
   }
 
@@ -159,20 +203,15 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
 }
 
 /** Converts a public [EventGroup] to an internal [InternalEventGroup]. */
-private fun EventGroup.toInternal(request: CreateEventGroupRequest): InternalEventGroup {
-  val parentKey =
-    grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid"
-    }
+private fun EventGroup.toInternal(): InternalEventGroup {
   val measurementConsumerKey =
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.eventGroup.measurementConsumer)) {
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(this.measurementConsumer)) {
       "Measurement consumer is either unspecified or invalid"
     }
   val measurementConsumerCertificateKey =
     MeasurementConsumerCertificateKey.fromName(this.measurementConsumerCertificate)
 
   return internalEventGroup {
-    externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
     if (measurementConsumerCertificateKey != null) {
       externalMeasurementConsumerCertificateId =
