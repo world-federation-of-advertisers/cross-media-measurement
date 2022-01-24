@@ -29,15 +29,10 @@ service Accounts {
       CreateMeasurementConsumerCreationTokenRequest)
       returns (CreateMeasurementConsumerCreationTokenResponse);
 
-  // Credentials for new identity will be passed-in via call credentials.
   rpc ActivateAccount(ActivateAccountRequest) returns (Account);
 
-  // Credentials for old and new identities will be passed-in via call
-  // credentials.
   rpc ReplaceAccountIdentity(ReplaceAccountIdentityRequest) returns (Account);
 
-  // Credentials to authenticate will be passed-in via call credentials and
-  // returns the authenticated Account for the call credentials.
   rpc AuthenticateAccount(AuthenticateAccountRequest) returns (Account);
 
   // Generates state and nonce.
