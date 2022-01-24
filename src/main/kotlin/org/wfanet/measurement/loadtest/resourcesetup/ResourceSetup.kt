@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
@@ -178,11 +179,12 @@ class ResourceSetup(
   }
 
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
+    val name = DuchyKey(duchyCert.duchyId).toName()
     val request = createCertificateRequest {
-      parent = DuchyKey(duchyCert.duchyId).toName()
+      parent = name
       certificate = certificate { x509Der = duchyCert.consentSignalCertificateDer }
     }
-    return certificatesClient.createCertificate(request)
+    return certificatesClient.withPrincipalName(name).createCertificate(request)
   }
 
   companion object {

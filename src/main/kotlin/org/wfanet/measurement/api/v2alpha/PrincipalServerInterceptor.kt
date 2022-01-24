@@ -65,6 +65,13 @@ fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T
     .call(block)
 }
 
+/** Executes [block] with a [Duchy] [Principal] installed in a new [Context]. */
+fun <T> withDuchyPrincipal(duchyName: String, block: () -> T): T {
+  return Context.current()
+    .withPrincipal(Principal.Duchy(DuchyKey.fromName(duchyName)!!))
+    .call(block)
+}
+
 /** Executes [block] with a [MeasurementConsumer] [Principal] installed in a new [Context]. */
 fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
   return Context.current()

@@ -27,6 +27,9 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.stub.AbstractStub
 import io.grpc.stub.MetadataUtils
+import org.wfanet.measurement.api.PrincipalConstants.PRINCIPAL_CONTEXT_KEY
+import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.Principal
 
 /**
  * Details about an authenticated Duchy.
@@ -70,6 +73,10 @@ class DuchyTlsIdentityInterceptor : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
+    if (PRINCIPAL_CONTEXT_KEY.get() != null) {
+      return Contexts.interceptCall(Context.current(), call, headers, next)
+    }
+
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     if (authorityKeyIdentifiers.isEmpty()) {
       call.close(
@@ -83,7 +90,9 @@ class DuchyTlsIdentityInterceptor : ServerInterceptor {
       val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
 
       val context =
-        Context.current().withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
+        Context.current()
+          .withValue(DUCHY_IDENTITY_CONTEXT_KEY, DuchyIdentity(duchyInfo.duchyId))
+          .withValue(PRINCIPAL_CONTEXT_KEY, Principal.Duchy(DuchyKey(duchyInfo.duchyId)))
       return Contexts.interceptCall(context, call, headers, next)
     }
 
