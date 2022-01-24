@@ -28,7 +28,7 @@ class ForwardedStorageLiquidLegionsV2MillDaemon : LiquidLegionsV2MillDaemon() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override fun run() {
-    run(ForwardedStorageFromFlags(forwardedStorageFlags).storageClient)
+    run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient)
   }
 }
 

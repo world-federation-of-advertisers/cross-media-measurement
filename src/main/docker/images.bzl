@@ -62,7 +62,7 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/loadtest/resource-setup",
     ),
     struct(
-        name = "setup_spanner_schema_image",
+        name = "push_spanner_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
         repository = _PREFIX + "/setup/push-spanner-schema",
     ),

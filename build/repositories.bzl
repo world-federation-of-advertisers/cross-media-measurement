@@ -17,6 +17,7 @@ Adds external repos necessary for wfa_measurement_system.
 """
 
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
+load("//build/cue:repo.bzl", "cue_binaries")
 
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
@@ -24,8 +25,10 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "410c405b6f3fa17a5871c32aeb886d624e4f413c28e22cc6c9de34b9fd7f65b8",
-        version = "0.26.0",
+        # TODO(world-federation-of-advertisers/common-jvm#84): Switch to release
+        # version once PR has been merged and released.
+        version = "0.27.0-rc1",
+        sha256 = "05ee603b364350a710d465fa12e4fdccd291baef973f28e03540244543071c1c",
     )
 
     wfa_repo_archive(
@@ -68,4 +71,10 @@ def wfa_measurement_system_repositories():
         repo = "consent-signaling-client",
         version = "0.12.0",
         sha256 = "b907c0dd4f6efbe4f6db3f34efeca0f1763d3cc674c37cbfebac1ee2a80c86f5",
+    )
+
+    cue_binaries(
+        name = "cue_binaries",
+        sha256 = "d3f1df656101a498237d0a8b168a22253dde11f6b6b8cc577508b13a112142de",
+        version = "0.4.1",
     )
