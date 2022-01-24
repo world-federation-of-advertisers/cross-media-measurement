@@ -157,6 +157,7 @@ class EventGroupsServiceTest {
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+      onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { streamEventGroups(any()) }
         .thenReturn(
           flowOf(
@@ -283,18 +284,20 @@ class EventGroupsServiceTest {
 
   @Test
   fun `updateEventGroup returns event group`() {
-    val eventGroup = EVENT_GROUP.toBuilder().apply { name = EVENT_GROUP_NAME }.build()
-    val request = updateEventGroupRequest { this.eventGroup = eventGroup }
+    val request = updateEventGroupRequest { this.eventGroup = EVENT_GROUP }
 
     val result = runBlocking { service.updateEventGroup(request) }
 
-    val expected = eventGroup
+    val expected = EVENT_GROUP
 
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::updateEventGroup)
       .isEqualTo(
-        INTERNAL_EVENT_GROUP.copy {
-          clearCreateTime()
-          clearExternalEventGroupId()
+        org.wfanet.measurement.internal.kingdom.updateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearExternalEventGroupId()
+            }
         }
       )
 
@@ -306,11 +309,16 @@ class EventGroupsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.updateEventGroup(updateEventGroupRequest { eventGroup = EVENT_GROUP })
+          service.updateEventGroup(
+            updateEventGroupRequest {
+              eventGroup = EVENT_GROUP.toBuilder().apply { clearName() }.build()
+            }
+          )
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid")
+    assertThat(exception.status.description)
+      .isEqualTo("EventGroup name is either unspecified or invalid")
   }
 
   @Test

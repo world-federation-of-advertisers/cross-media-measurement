@@ -107,7 +107,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
     val eventGroupKey =
       grpcRequireNotNull(EventGroupKey.fromName(request.eventGroup.name)) {
-        "EventGroup is either unspecified or invalid"
+        "EventGroup name is either unspecified or invalid"
       }
     grpcRequire(
       request.eventGroup.encryptedMetadata.isEmpty ||
