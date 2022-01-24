@@ -98,6 +98,15 @@ proto_library(
 )
 
 proto_library(
+    name = "event_annotations_proto",
+    srcs = ["event_annotations.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:descriptor_proto",
+    ],
+)
+
+proto_library(
     name = "event_group_proto",
     srcs = ["event_group.proto"],
     strip_import_prefix = IMPORT_PREFIX,
