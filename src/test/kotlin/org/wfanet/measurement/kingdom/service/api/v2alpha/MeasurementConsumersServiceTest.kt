@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerReques
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest as internalCreateMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest as internalGetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest as internalRemoveMeasurementConsumerOwnerRequest
 
@@ -232,7 +233,7 @@ class MeasurementConsumersServiceTest {
         InternalMeasurementConsumersService::getMeasurementConsumer
       )
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest {
+        internalGetMeasurementConsumerRequest {
           externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         }
       )
@@ -262,7 +263,7 @@ class MeasurementConsumersServiceTest {
         InternalMeasurementConsumersService::getMeasurementConsumer
       )
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest {
+        internalGetMeasurementConsumerRequest {
           externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         }
       )

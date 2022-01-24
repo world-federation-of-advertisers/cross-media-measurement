@@ -56,6 +56,7 @@ class AccountAuthenticationServerInterceptor(
 
     var context = Context.current()
 
+    // it might be a request that doesn't require an ID token so can't close it
     if (idToken == null) {
       return Contexts.interceptCall(context, call, headers, next)
     } else {
@@ -74,7 +75,10 @@ class AccountAuthenticationServerInterceptor(
               .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
         } catch (e: Exception) {
           when (e) {
-            is StatusRuntimeException, is StatusException -> {}
+            // it might be a request that has an ID token but doesn't require authentication
+            // so can't close it
+            is StatusRuntimeException,
+            is StatusException -> {}
             else ->
               call.close(
                 Status.UNKNOWN.withDescription("Unknown error when authenticating"),
