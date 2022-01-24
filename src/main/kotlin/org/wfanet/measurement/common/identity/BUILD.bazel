@@ -15,7 +15,6 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
         "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/config:duchy_rpc_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/stub",
         "@wfa_common_jvm//imports/java/picocli",
