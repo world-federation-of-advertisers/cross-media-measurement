@@ -114,10 +114,13 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         jobLauncher = launcher
       )
 
-    scope.launch(CoroutineName("ExchangeWorkflowDaemon")) {
-      throttler.loopOnReady {
-        logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
-      }
+    scope.launch(CoroutineName("ExchangeWorkflowDaemon")) { runDaemon(exchangeStepLauncher) }
+  }
+
+  /** Runs [exchangeStepLauncher] in an infinite loop. */
+  protected open suspend fun runDaemon(exchangeStepLauncher: ExchangeStepLauncher) {
+    throttler.loopOnReady {
+      logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
     }
   }
 }
