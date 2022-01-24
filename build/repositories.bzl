@@ -25,10 +25,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        # TODO(world-federation-of-advertisers/common-jvm#84): Switch to release
-        # version once PR has been merged and released.
-        version = "0.27.0-rc1",
-        sha256 = "05ee603b364350a710d465fa12e4fdccd291baef973f28e03540244543071c1c",
+        version = "0.27.0",
+        sha256 = "116ef23bac19cdb3b6310c25ecc2718a843a9a3e6e2da981b3bd4b04ca1c6197",
     )
 
     wfa_repo_archive(
