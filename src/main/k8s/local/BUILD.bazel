@@ -78,6 +78,7 @@ cue_dump(
     cue_tags = {
         "secret_name": TEST_K8S_SETTINGS.secret_name,
         "mc_name": TEST_K8S_SETTINGS.mc_name,
+        "mc_api_key": TEST_K8S_SETTINGS.mc_api_key,
     },
     tags = ["manual"],
     deps = [

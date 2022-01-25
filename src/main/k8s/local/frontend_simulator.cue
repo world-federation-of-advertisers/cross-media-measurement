@@ -15,6 +15,7 @@
 package k8s
 
 _mc_name:     string @tag("mc_name")
+_mc_api_key:  string @tag("mc_api_key")
 _secret_name: string @tag("secret_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
@@ -24,6 +25,7 @@ objectSets: [frontendSimulator]
 frontendSimulator: #FrontendSimulator & {
 	_mc_resource_name:            _mc_name
 	_mc_secret_name:              _secret_name
+	_mc_api_authentication_key:   _mc_api_key
 	_kingdom_public_api_target:   #KingdomPublicApiTarget
 	_simulator_image:             "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image"
 	_simulator_image_pull_policy: "Never"

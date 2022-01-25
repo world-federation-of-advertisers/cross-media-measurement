@@ -264,9 +264,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	kind:       "NetworkPolicy"
 	metadata: {
 		name: _name + "-network-policy"
-		labels: {
-			"app.kubernetes.io/part-of": #AppName
-		}
 	}
 	spec: {
 		podSelector: matchLabels: app: _app_label
@@ -306,9 +303,6 @@ default_deny_ingress_and_egress: [{
 	kind:       "NetworkPolicy"
 	metadata:
 		name: "default-deny-ingress-and-egress"
-	labels: {
-		"app.kubernetes.io/part-of": #AppName
-	}
 	spec: {
 		podSelector: {}
 		policyTypes: ["Ingress", "Egress"]
@@ -328,9 +322,6 @@ default_deny_ingress_and_egress: [{
 		name: _name + "-ingress"
 		annotations: {
 			"kubernetes.io/ingress.class": _ingressClass
-		}
-		labels: {
-			"app.kubernetes.io/part-of": #AppName
 		}
 	}
 	spec: {
