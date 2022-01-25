@@ -293,11 +293,7 @@ class EventGroupsServiceTest {
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::updateEventGroup)
       .isEqualTo(
         org.wfanet.measurement.internal.kingdom.updateEventGroupRequest {
-          eventGroup =
-            INTERNAL_EVENT_GROUP.copy {
-              clearCreateTime()
-              clearExternalEventGroupId()
-            }
+          eventGroup = INTERNAL_EVENT_GROUP.copy { clearCreateTime() }
         }
       )
 

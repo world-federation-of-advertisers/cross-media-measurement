@@ -83,7 +83,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
     grpcRequire(
       !request.eventGroup.hasMeasurementConsumerPublicKey() ||
-        !request.eventGroup.measurementConsumerCertificate.isBlank()
+        request.eventGroup.measurementConsumerCertificate.isNotBlank()
     ) {
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
@@ -93,14 +93,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         "Parent is either unspecified or invalid"
       }
     return internalEventGroupsStub
-      .createEventGroup(
-        request
-          .eventGroup
-          .toInternal()
-          .toBuilder()
-          .apply { externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId) }
-          .build()
-      )
+      .createEventGroup(request.eventGroup.toInternal(parentKey.dataProviderId))
       .toEventGroup()
   }
 
@@ -115,7 +108,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
     grpcRequire(
       !request.eventGroup.hasMeasurementConsumerPublicKey() ||
-        !request.eventGroup.measurementConsumerCertificate.isBlank()
+        request.eventGroup.measurementConsumerCertificate.isNotBlank()
     ) {
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
@@ -124,12 +117,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       .updateEventGroup(
         updateEventGroupRequest {
           eventGroup =
-            request
-              .eventGroup
-              .toInternal()
-              .toBuilder()
-              .apply { externalDataProviderId = apiIdToExternalId(eventGroupKey.dataProviderId) }
-              .build()
+            request.eventGroup.toInternal(eventGroupKey.dataProviderId, eventGroupKey.eventGroupId)
         }
       )
       .toEventGroup()
@@ -203,7 +191,10 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
 }
 
 /** Converts a public [EventGroup] to an internal [InternalEventGroup]. */
-private fun EventGroup.toInternal(): InternalEventGroup {
+private fun EventGroup.toInternal(
+  dataProviderId: String,
+  eventGroupId: String = ""
+): InternalEventGroup {
   val measurementConsumerKey =
     grpcRequireNotNull(MeasurementConsumerKey.fromName(this.measurementConsumer)) {
       "Measurement consumer is either unspecified or invalid"
@@ -212,6 +203,10 @@ private fun EventGroup.toInternal(): InternalEventGroup {
     MeasurementConsumerCertificateKey.fromName(this.measurementConsumerCertificate)
 
   return internalEventGroup {
+    externalDataProviderId = apiIdToExternalId(dataProviderId)
+    if (eventGroupId.isNotEmpty()) {
+      externalEventGroupId = apiIdToExternalId(eventGroupId)
+    }
     externalMeasurementConsumerId = apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
     if (measurementConsumerCertificateKey != null) {
       externalMeasurementConsumerCertificateId =
