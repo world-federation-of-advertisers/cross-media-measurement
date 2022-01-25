@@ -126,7 +126,6 @@ class InProcessKingdom(
         ApiKeysService(internalApiKeysClient)
           .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
         CertificatesService(internalCertificatesClient)
-          .withMetadataDuchyIdentities()
           .withMetadataPrincipalIdentities()
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         DataProvidersService(internalDataProvidersClient)
