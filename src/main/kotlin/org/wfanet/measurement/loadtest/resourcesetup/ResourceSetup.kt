@@ -76,19 +76,19 @@ class ResourceSetup(
   ) {
     logger.info("Starting with RunID: $runId ...")
 
-    // Step 1: Create the EDPs.
-    dataProviderContents.forEach {
-      val dataProviderName = createInternalDataProvider(it)
-      logger.info("Successfully created data provider: $dataProviderName")
-    }
-
-    // Step 2: Create the MC.
+    // Step 1: Create the MC.
     val (measurementConsumer, apiAuthenticationKey) =
       createMeasurementConsumer(measurementConsumerContent)
     logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
     logger.info(
       "API key for measurement consumer ${measurementConsumer.name}: $apiAuthenticationKey"
     )
+
+    // Step 2: Create the EDPs.
+    dataProviderContents.forEach {
+      val dataProviderName = createInternalDataProvider(it)
+      logger.info("Successfully created data provider: $dataProviderName")
+    }
 
     // Step 3: Create certificate for each duchy.
     duchyCerts.forEach {
