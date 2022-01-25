@@ -26,7 +26,9 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.withPrincipal
+import org.wfanet.measurement.common.identity.withPrincipalName
 
 private const val KEY_NAME = "principal"
 private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
@@ -37,7 +39,7 @@ private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
  *
  * To install, wrap a service with:
  * ```
- *   yourService.withMedataPrincipalIdentities()
+ *   yourService.withMetadataPrincipalIdentities()
  * ```
  *
  * The principal can be accessed within gRPC services via [principalFromCurrentContext].
@@ -76,8 +78,4 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
 
 /** Installs [MetadataPrincipalServerInterceptor] on the service. */
 fun BindableService.withMetadataPrincipalIdentities(): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, MetadataPrincipalServerInterceptor())
-
-/** Installs [MetadataPrincipalServerInterceptor] on the service. */
-fun ServerServiceDefinition.withMetadataPrincipalIdentities(): ServerServiceDefinition =
   ServerInterceptors.interceptForward(this, MetadataPrincipalServerInterceptor())
