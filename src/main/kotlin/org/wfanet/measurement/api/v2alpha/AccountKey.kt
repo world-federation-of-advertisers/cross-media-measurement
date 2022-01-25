@@ -16,8 +16,6 @@ package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
 
-private val parser = ResourceNameParser("accounts/{account}")
-
 /** [AccountKey] of an Account. */
 data class AccountKey(val accountId: String) : ResourceKey {
   override fun toName(): String {
@@ -25,7 +23,10 @@ data class AccountKey(val accountId: String) : ResourceKey {
   }
 
   companion object {
+    const val COLLECTION_NAME = "accounts"
     val defaultValue = AccountKey("")
+
+    private val parser = ResourceNameParser("$COLLECTION_NAME/{account}")
 
     fun fromName(resourceName: String): AccountKey? {
       return parser.parseIdVars(resourceName)?.let { AccountKey(it.getValue(IdVariable.ACCOUNT)) }
