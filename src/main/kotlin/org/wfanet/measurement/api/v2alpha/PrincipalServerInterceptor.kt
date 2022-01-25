@@ -28,6 +28,7 @@ import io.grpc.Status
 import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
 
 /**
@@ -112,7 +113,20 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     val principals = authorityKeyIdentifiers.map(principalLookup::get)
     return when (principals.size) {
-      0 -> unauthenticatedError(call, "No principal found")
+      0 -> {
+        for (authorityKeyIdentifier in authorityKeyIdentifiers) {
+          val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
+
+          val context =
+            Context.current()
+              .withValue(
+                PrincipalConstants.PRINCIPAL_CONTEXT_KEY,
+                Principal.Duchy(DuchyKey(duchyInfo.duchyId))
+              )
+          return Contexts.interceptCall(context, call, headers, next)
+        }
+        unauthenticatedError(call, "No principal found")
+      }
       1 -> {
         val context =
           Context.current().withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principals.single())
@@ -140,9 +154,3 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
     AuthorityKeyServerInterceptor(),
     PrincipalServerInterceptor(principalLookup)
   )
-
-/** Convenience helper for [PrincipalServerInterceptor]. */
-fun ServerServiceDefinition.withPrincipalServerInterceptor(
-  principalLookup: PrincipalServerInterceptor.PrincipalLookup
-): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, PrincipalServerInterceptor(principalLookup))
