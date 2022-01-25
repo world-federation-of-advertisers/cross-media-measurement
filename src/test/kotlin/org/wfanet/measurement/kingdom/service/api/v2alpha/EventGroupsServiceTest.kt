@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -156,6 +157,7 @@ class EventGroupsServiceTest {
     mock(useConstructor = UseConstructor.parameterless()) {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+      onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { streamEventGroups(any()) }
         .thenReturn(
           flowOf(
@@ -240,24 +242,6 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `createEventGroup throws INVALID_ARGUMENT when measurement consumer is missing`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createEventGroup(
-            createEventGroupRequest {
-              parent = DATA_PROVIDER_NAME
-              eventGroup = EVENT_GROUP.copy { clearMeasurementConsumer() }
-            }
-          )
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Measurement consumer is either unspecified or invalid")
-  }
-
-  @Test
   fun `createEventGroup throws INVALID_ARGUMENT if encrypted_metadata is set without public key`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -296,6 +280,106 @@ class EventGroupsServiceTest {
         "measurement_consumer_certificate must be specified if " +
           "measurement_consumer_public_key is specified"
       )
+  }
+
+  @Test
+  fun `updateEventGroup returns event group`() {
+    val request = updateEventGroupRequest { this.eventGroup = EVENT_GROUP }
+
+    val result = runBlocking { service.updateEventGroup(request) }
+
+    val expected = EVENT_GROUP
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::updateEventGroup)
+      .isEqualTo(
+        org.wfanet.measurement.internal.kingdom.updateEventGroupRequest {
+          eventGroup = INTERNAL_EVENT_GROUP.copy { clearCreateTime() }
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `updateEventGroup throws INVALID_ARGUMENT when name is missing or invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.updateEventGroup(
+            updateEventGroupRequest {
+              eventGroup = EVENT_GROUP.toBuilder().apply { clearName() }.build()
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("EventGroup name is either unspecified or invalid")
+  }
+
+  @Test
+  fun `updateEventGroup throws INVALID_ARGUMENT if encrypted_metadata is set without public key`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.updateEventGroup(
+            updateEventGroupRequest {
+              eventGroup =
+                EVENT_GROUP.copy {
+                  name = EVENT_GROUP_NAME
+                  clearMeasurementConsumerPublicKey()
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo(
+        "measurement_consumer_public_key must be specified if encrypted_metadata is specified"
+      )
+  }
+
+  @Test
+  fun `updateEventGroup throws INVALID_ARGUMENT if public key is set without certificate`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.updateEventGroup(
+            updateEventGroupRequest {
+              eventGroup =
+                EVENT_GROUP.copy {
+                  name = EVENT_GROUP_NAME
+                  clearMeasurementConsumerCertificate()
+                }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo(
+        "measurement_consumer_certificate must be specified if " +
+          "measurement_consumer_public_key is specified"
+      )
+  }
+
+  @Test
+  fun `toInternal throws INVALID_ARGUMENT when measurement consumer is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.createEventGroup(
+            createEventGroupRequest {
+              parent = DATA_PROVIDER_NAME
+              eventGroup = EVENT_GROUP.copy { clearMeasurementConsumer() }
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Measurement consumer is either unspecified or invalid")
   }
 
   @Test
