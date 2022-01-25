@@ -41,6 +41,8 @@ kt_jvm_library(
         ":principal",
         "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/proto/wfa/measurement/api/v2alpha:duchy_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_java_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:context",
