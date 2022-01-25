@@ -190,12 +190,16 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       }
       is MeasurementConsumerKey -> {
         val externalMeasurementConsumerId = apiIdToExternalId(resourceKey.measurementConsumerId)
-        if (listEventGroupsPageToken.externalMeasurementConsumerIdsList.isNotEmpty()) {
-          listEventGroupsPageToken.externalMeasurementConsumerIdsList.forEach {
-            if (it != externalMeasurementConsumerId) {
-              failGrpc(Status.PERMISSION_DENIED) {
-                "Cannot list Event Groups belonging to other MeasurementConsumers"
-              }
+        if (listEventGroupsPageToken.externalMeasurementConsumerIdsList.isEmpty()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list Event Groups belonging to other MeasurementConsumers"
+          }
+        }
+
+        listEventGroupsPageToken.externalMeasurementConsumerIdsList.forEach {
+          if (it != externalMeasurementConsumerId) {
+            failGrpc(Status.PERMISSION_DENIED) {
+              "Cannot list Event Groups belonging to other MeasurementConsumers"
             }
           }
         }

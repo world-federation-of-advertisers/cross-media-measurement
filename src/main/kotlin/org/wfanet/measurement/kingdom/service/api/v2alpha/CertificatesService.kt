@@ -104,18 +104,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             }
           }
         }
-        is ModelProviderCertificateKey -> {
+        is ModelProviderCertificateKey ->
           externalModelProviderId = apiIdToExternalId(key.modelProviderId)
-
-          when (principal.resourceKey) {
-            is ModelProviderKey -> {}
-            else -> {
-              failGrpc(Status.PERMISSION_DENIED) {
-                "Caller does not have permission to get a ModelProvider's Certificate"
-              }
-            }
-          }
-        }
         else -> failGrpc(Status.INTERNAL) { "Unsupported parent: ${key.toName()}" }
       }
     }
@@ -127,6 +117,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val dataProviderKey = DataProviderKey.fromName(request.parent)
     val duchyKey = DuchyKey.fromName(request.parent)
     val measurementConsumerKey = MeasurementConsumerKey.fromName(request.parent)
+    val modelProviderKey = ModelProviderKey.fromName(request.parent)
 
     val principal = principalFromCurrentContext
 
@@ -184,6 +175,24 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             else -> {
               failGrpc(Status.PERMISSION_DENIED) {
                 "Caller does not have permission to create a MeasurementConsumer's Certificate"
+              }
+            }
+          }
+        }
+        modelProviderKey != null -> {
+          externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot create another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to create a ModelProvider's Certificate"
               }
             }
           }
@@ -260,6 +269,25 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             else -> {
               failGrpc(Status.PERMISSION_DENIED) {
                 "Caller does not have permission to revoke a MeasurementConsumer's Certificate"
+              }
+            }
+          }
+        }
+        is ModelProviderCertificateKey -> {
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+          externalCertificateId = apiIdToExternalId(key.certificateId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot revoke another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to revoke a ModelProvider's Certificate"
               }
             }
           }
