@@ -406,7 +406,10 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups with parent uses filter with parent`() {
-    val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
+    val request = listEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
+    }
 
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -430,7 +433,10 @@ class EventGroupsServiceTest {
         streamEventGroupsRequest {
           limit = DEFAULT_LIMIT + 1
           filter =
-            StreamEventGroupsRequestKt.filter { externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID }
+            StreamEventGroupsRequestKt.filter {
+              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+              externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
+            }
         }
       )
 
@@ -445,12 +451,14 @@ class EventGroupsServiceTest {
       val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
         lastEventGroup =
           previousPageEnd {
             externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
       }
+      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
@@ -465,6 +473,7 @@ class EventGroupsServiceTest {
       val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = request.pageSize
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
         lastEventGroup =
           previousPageEnd {
             externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
@@ -489,6 +498,7 @@ class EventGroupsServiceTest {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
               externalDataProviderIdAfter = DATA_PROVIDER_EXTERNAL_ID
               externalEventGroupIdAfter = EVENT_GROUP_EXTERNAL_ID
+              externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
             }
         }
       )
@@ -509,7 +519,9 @@ class EventGroupsServiceTest {
             externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
             externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
           }
+        externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
       }
+      filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
@@ -543,7 +555,7 @@ class EventGroupsServiceTest {
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
 
-    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+    withDataProviderPrincipal(DATA_PROVIDER_NAME) {
       runBlocking { service.listEventGroups(request) }
     }
 
@@ -636,6 +648,19 @@ class EventGroupsServiceTest {
           measurementConsumers += "measurementConsumers/BBBAAAAAAHt"
         }
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listEventGroups(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `listEventGroups throws PERMISSION_DENIED when mc caller and missing mc filter`() {
+    val request = listEventGroupsRequest { parent = DATA_PROVIDER_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
