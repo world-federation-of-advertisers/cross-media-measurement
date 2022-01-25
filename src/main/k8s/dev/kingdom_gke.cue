@@ -29,7 +29,6 @@ _secret_name: string @tag("secret_name")
 }
 
 objectSets: [
-		// resource_setup_job, Only deploy if the kingdom database is reset.
 		default_deny_ingress_and_egress,
 ] + [ for k in kingdom {k}]
 
@@ -58,11 +57,4 @@ kingdom: #Kingdom & {
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verbose_grpc_logging:      "false"
-}
-
-resource_setup_job: #ResourceSetup & {
-	_edp_display_names: ["edp1", "edp2", "edp3", "edp4", "edp5", "edp6"]
-	_duchy_ids: ["aggregator", "worker1", "worker2"]
-	_job_image:                  #ContainerRegistryPrefix + "/loadtest/resource-setup"
-	_resource_setup_secret_name: _secret_name
 }
