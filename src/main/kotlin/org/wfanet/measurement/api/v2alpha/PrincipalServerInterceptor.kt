@@ -90,10 +90,9 @@ fun Context.withPrincipal(principal: Principal<*>): Context {
 /**
  * gRPC [ServerInterceptor] to extract a [Principal] from a request.
  *
- * Currently, this only supports deriving the [Principal] from an X509 cert's authority key
- * identifier.
- *
- * TODO(@sanjayvas): consider supporting other Principals derived from more request metadata.
+ * If the [Principal] has already been set in the context, this does nothing. Otherwise, this
+ * derives the [Principal] from an X509 cert's authority key identifier. A [Principal] derived from
+ * the authority key identifier is one of [DataProvider], [ModelProvider], or [Duchy].
  */
 class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
 
