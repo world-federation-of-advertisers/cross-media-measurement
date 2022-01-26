@@ -178,6 +178,7 @@ class ResourceSetup(
     return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
   }
 
+  // TODO(@wangyaopw): Create duchy certificate using the internal API instead of public API.
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
     val name = DuchyKey(duchyCert.duchyId).toName()
     val request = createCertificateRequest {
