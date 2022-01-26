@@ -93,12 +93,12 @@ cue_dump(
 filegroup(
     name = "k8s_deployment_config",
     srcs = [
-        ":aggregator_gke.yaml",
-        ":edp_simulator_gke.yaml",
-        ":frontend_simulator_gke.yaml",
-        ":kingdom_gke.yaml",
-        ":worker1_gke.yaml",
-        ":worker2_gke.yaml",
+        ":aggregator_gke",
+        ":edp_simulator_gke",
+        ":frontend_simulator_gke",
+        ":kingdom_gke",
+        ":worker1_gke",
+        ":worker2_gke",
     ],
     tags = ["manual"],
     visibility = [
