@@ -52,10 +52,10 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -340,6 +340,22 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `createEventGroup throws PERMISSION_DENIED when edp caller doesn't match`() {
+    val request = createEventGroupRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroup = EVENT_GROUP
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.createEventGroup(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `createEventGroup throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -410,7 +426,10 @@ class EventGroupsServiceTest {
   fun `updateEventGroup returns event group`() {
     val request = updateEventGroupRequest { this.eventGroup = EVENT_GROUP }
 
-    val result = runBlocking { service.updateEventGroup(request) }
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.updateEventGroup(request) }
+      }
 
     val expected = EVENT_GROUP
 
@@ -425,15 +444,52 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `updateEventGroup throws UNAUTHENTICATED when no principal is found`() {
+    val request = updateEventGroupRequest { eventGroup = EVENT_GROUP }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.updateEventGroup(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `updateEventGroup throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = updateEventGroupRequest { eventGroup = EVENT_GROUP }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking { service.updateEventGroup(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `updateEventGroup throws PERMISSION_DENIED when edp caller doesn't match `() {
+    val request = updateEventGroupRequest { eventGroup = EVENT_GROUP }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.updateEventGroup(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `updateEventGroup throws INVALID_ARGUMENT when name is missing or invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.updateEventGroup(
-            updateEventGroupRequest {
-              eventGroup = EVENT_GROUP.toBuilder().apply { clearName() }.build()
-            }
-          )
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(
+              updateEventGroupRequest {
+                eventGroup = EVENT_GROUP.toBuilder().apply { clearName() }.build()
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -443,16 +499,18 @@ class EventGroupsServiceTest {
   fun `updateEventGroup throws INVALID_ARGUMENT if encrypted_metadata is set without public key`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.updateEventGroup(
-            updateEventGroupRequest {
-              eventGroup =
-                EVENT_GROUP.copy {
-                  name = EVENT_GROUP_NAME
-                  clearMeasurementConsumerPublicKey()
-                }
-            }
-          )
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(
+              updateEventGroupRequest {
+                eventGroup =
+                  EVENT_GROUP.copy {
+                    name = EVENT_GROUP_NAME
+                    clearMeasurementConsumerPublicKey()
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -462,32 +520,35 @@ class EventGroupsServiceTest {
   fun `updateEventGroup throws INVALID_ARGUMENT if public key is set without certificate`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.updateEventGroup(
-            updateEventGroupRequest {
-              eventGroup =
-                EVENT_GROUP.copy {
-                  name = EVENT_GROUP_NAME
-                  clearMeasurementConsumerCertificate()
-                }
-            }
-          )
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(
+              updateEventGroupRequest {
+                eventGroup =
+                  EVENT_GROUP.copy {
+                    name = EVENT_GROUP_NAME
+                    clearMeasurementConsumerCertificate()
+                  }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
-  fun `toInternal throws INVALID_ARGUMENT when measurement consumer is missing`() {
+  fun `updateEventGroup throws INVALID_ARGUMENT when measurement consumer is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.createEventGroup(
-            createEventGroupRequest {
-              parent = DATA_PROVIDER_NAME
-              eventGroup = EVENT_GROUP.copy { clearMeasurementConsumer() }
-            }
-          )
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.updateEventGroup(
+              updateEventGroupRequest {
+                eventGroup = EVENT_GROUP.copy { clearMeasurementConsumer() }
+              }
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

@@ -52,7 +52,6 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
-import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
@@ -110,9 +109,10 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
   }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
-    val parentKey = grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
-      "Parent is either unspecified or invalid"
-    }
+    val parentKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
+        "Parent is either unspecified or invalid"
+      }
 
     val principal = principalFromCurrentContext
 
@@ -152,6 +152,24 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       grpcRequireNotNull(EventGroupKey.fromName(request.eventGroup.name)) {
         "EventGroup name is either unspecified or invalid"
       }
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        if (resourceKey.dataProviderId != eventGroupKey.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot update EventGroups for another DataProvider"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to update EventGroups"
+        }
+      }
+    }
+
     grpcRequire(
       request.eventGroup.encryptedMetadata.isEmpty ||
         request.eventGroup.hasMeasurementConsumerPublicKey()
