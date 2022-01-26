@@ -19,6 +19,7 @@ package k8s
 	_duchy_ids: [...string]
 	_resource_setup_secret_name: string
 	_job_image:                  string
+	_job_image_pull_policy:      string | *"Always"
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -58,9 +59,10 @@ package k8s
 	]
 
 	resource_setup_job: #Job & {
-		_name:       "resource-setup"
-		_secretName: _resource_setup_secret_name
-		_image:      _job_image
+		_name:            "resource-setup"
+		_secretName:      _resource_setup_secret_name
+		_image:           _job_image
+		_imagePullPolicy: _job_image_pull_policy
 		_args:
 			_edp_cert_key_files_flags +
 			_mc_cert_key_files_flags +

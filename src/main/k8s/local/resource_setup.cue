@@ -12,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api
+package k8s
 
-import io.grpc.Metadata
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+_secret_name: string @tag("secret_name")
 
-object ApiKeyConstants {
-  /** Metadata key for the api authentication key for a [MeasurementConsumer]. */
-  val API_AUTHENTICATION_KEY_METADATA_KEY: Metadata.Key<String> =
-    Metadata.Key.of("x-api-key", Metadata.ASCII_STRING_MARSHALLER)
+objectSets: [resourceSetupJob]
+
+resourceSetupJob: #ResourceSetup & {
+	_edp_display_names: ["edp1", "edp2", "edp3", "edp4", "edp5", "edp6"]
+	_duchy_ids: ["aggregator", "worker1", "worker2"]
+	_job_image:                  "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup_runner_image"
+	_job_image_pull_policy:      "Never"
+	_resource_setup_secret_name: _secret_name
+	_dependencies: ["gcp-kingdom-data-server"]
 }

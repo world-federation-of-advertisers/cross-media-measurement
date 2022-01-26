@@ -15,12 +15,12 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import org.wfanet.measurement.api.AccountConstants
-import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -40,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as InternalMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.addMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.measurementConsumer as internalMeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.removeMeasurementConsumerOwnerRequest
 
@@ -52,9 +54,7 @@ class MeasurementConsumersService(
   override suspend fun createMeasurementConsumer(
     request: CreateMeasurementConsumerRequest
   ): MeasurementConsumer {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val measurementConsumer = request.measurementConsumer
 
@@ -91,9 +91,7 @@ class MeasurementConsumersService(
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
-    val measurementConsumer =
-      ApiKeyConstants.CONTEXT_MEASUREMENT_CONSUMER_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Api Key credentials are invalid or missing" }
+    val principal = principalFromCurrentContext
 
     val key: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
@@ -101,21 +99,33 @@ class MeasurementConsumersService(
       }
 
     val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-    if (measurementConsumer.externalMeasurementConsumerId != externalMeasurementConsumerId) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "Authenticated MeasurementConsumer doesn't match MeasurementConsumer in request"
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {}
+      is MeasurementConsumerKey -> {
+        if (apiIdToExternalId(resourceKey.measurementConsumerId) != externalMeasurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot get another MeasurementConsumer" }
+        }
       }
-    } else {
-      return measurementConsumer.toMeasurementConsumer()
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to get MeasurementConsumers"
+        }
+      }
     }
+
+    val internalResponse: InternalMeasurementConsumer =
+      internalClient.getMeasurementConsumer(
+        getMeasurementConsumerRequest {
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        }
+      )
+    return internalResponse.toMeasurementConsumer()
   }
 
   override suspend fun addMeasurementConsumerOwner(
     request: AddMeasurementConsumerOwnerRequest
   ): MeasurementConsumer {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val measurementConsumerKey: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
@@ -145,9 +155,7 @@ class MeasurementConsumersService(
   override suspend fun removeMeasurementConsumerOwner(
     request: RemoveMeasurementConsumerOwnerRequest
   ): MeasurementConsumer {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val measurementConsumerKey: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {

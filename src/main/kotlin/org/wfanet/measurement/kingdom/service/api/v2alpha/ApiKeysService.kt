@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import org.wfanet.measurement.api.AccountConstants
+import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeyKey
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineImplBase
@@ -38,9 +38,7 @@ class ApiKeysService(
 ) : ApiKeysCoroutineImplBase() {
 
   override suspend fun createApiKey(request: CreateApiKeyRequest): ApiKey {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val measurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -67,9 +65,7 @@ class ApiKeysService(
   }
 
   override suspend fun deleteApiKey(request: DeleteApiKeyRequest): ApiKey {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val key =
       grpcRequireNotNull(ApiKeyKey.fromName(request.name)) {

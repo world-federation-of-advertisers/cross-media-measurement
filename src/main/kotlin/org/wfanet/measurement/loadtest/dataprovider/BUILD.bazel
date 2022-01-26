@@ -24,7 +24,6 @@ kt_jvm_library(
         "RandomEventQuery.kt",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:service_flags",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
         "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
@@ -79,7 +78,7 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_edp_simulator_runner_image",
-    main_class = "org.wfanet.measurement.loadtest.frontend.ForwardStorageEdpSimulatorRunnerKt",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":forwarded_storage_edp_simulator_runner"],

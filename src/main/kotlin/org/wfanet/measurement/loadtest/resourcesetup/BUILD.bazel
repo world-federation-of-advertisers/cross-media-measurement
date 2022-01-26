@@ -1,7 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
-load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
 package(
     default_testonly = True,
@@ -22,6 +21,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:account_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates",
         "//src/main/proto/wfa/measurement/api/v2alpha:account_kt_jvm_proto",
@@ -84,7 +84,6 @@ java_binary(
 java_image(
     name = "resource_setup_runner_image",
     main_class = "org.wfanet.measurement.loadtest.resourcesetup.ResourceSetupRunnerKt",
-    target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":resource_setup_runner"],
 )

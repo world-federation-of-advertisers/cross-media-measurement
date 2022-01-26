@@ -19,6 +19,7 @@ import io.grpc.Status
 import java.io.IOException
 import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
+import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.Account.ActivationState
 import org.wfanet.measurement.api.v2alpha.Account.OpenIdConnectIdentity
@@ -62,10 +63,9 @@ class AccountsService(
   private val internalAccountsStub: AccountsCoroutineStub,
   private val redirectUri: String
 ) : AccountsCoroutineImplBase() {
+
   override suspend fun createAccount(request: CreateAccountRequest): Account {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     val ownedMeasurementConsumer = request.account.activationParams.ownedMeasurementConsumer
     val externalOwnedMeasurementConsumerId =
@@ -98,7 +98,7 @@ class AccountsService(
     grpcRequire(request.activationToken.isNotBlank()) { "Activation token is missing" }
 
     val idToken =
-      grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "Id token is missing" }
+      grpcRequireNotNull(AccountConstants.CONTEXT_ID_TOKEN_KEY.get()) { "ID token is missing" }
 
     val openIdConnectIdentity =
       try {
@@ -108,9 +108,9 @@ class AccountsService(
           internalAccountsStub = internalAccountsStub
         )
       } catch (ex: GeneralSecurityException) {
-        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "Id token is invalid" }
+        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "ID token is invalid" }
       } catch (ex: Exception) {
-        failGrpc(Status.UNKNOWN.withCause(ex)) { "Id token is invalid" }
+        failGrpc(Status.UNKNOWN.withCause(ex)) { "ID token is invalid" }
       }
 
     val internalActivateAccountRequest = activateAccountRequest {
@@ -126,14 +126,12 @@ class AccountsService(
   }
 
   override suspend fun replaceAccountIdentity(request: ReplaceAccountIdentityRequest): Account {
-    val account =
-      AccountConstants.CONTEXT_ACCOUNT_KEY.get()
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Account credentials are invalid or missing" }
+    val account = accountFromCurrentContext
 
     grpcRequireNotNull(AccountKey.fromName(request.name)) { "Resource name unspecified or invalid" }
 
     val newIdToken = request.openId.identityBearerToken
-    grpcRequire(newIdToken.isNotBlank()) { "New id token is missing" }
+    grpcRequire(newIdToken.isNotBlank()) { "New ID token is missing" }
 
     val openIdConnectIdentity =
       try {
@@ -143,7 +141,7 @@ class AccountsService(
           internalAccountsStub = internalAccountsStub
         )
       } catch (ex: GeneralSecurityException) {
-        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "New Id token is invalid" }
+        failGrpc(Status.INVALID_ARGUMENT.withCause(ex)) { "New ID token is invalid" }
       } catch (ex: Exception) {
         failGrpc(Status.UNKNOWN.withCause(ex)) { "ID token is invalid" }
       }
