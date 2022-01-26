@@ -60,7 +60,6 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -105,18 +104,16 @@ class EdpSimulator(
   /** Creates an eventGroup for the MC. */
   private suspend fun createEventGroup() {
     val eventGroup =
-      eventGroupsStub
-        .withPrincipalName(edpData.name)
-        .createEventGroup(
-          createEventGroupRequest {
-            parent = edpData.name
-            eventGroup =
-              eventGroup {
-                measurementConsumer = measurementConsumerName
-                eventGroupReferenceId = "001"
-              }
-          }
-        )
+      eventGroupsStub.createEventGroup(
+        createEventGroupRequest {
+          parent = edpData.name
+          eventGroup =
+            eventGroup {
+              measurementConsumer = measurementConsumerName
+              eventGroupReferenceId = "001"
+            }
+        }
+      )
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
   }
 
@@ -138,9 +135,9 @@ class EdpSimulator(
     }
 
     val measurementConsumerCertificate =
-      certificatesStub
-        .withPrincipalName(edpData.name)
-        .getCertificate(getCertificateRequest { name = requisition.measurementConsumerCertificate })
+      certificatesStub.getCertificate(
+        getCertificateRequest { name = requisition.measurementConsumerCertificate }
+      )
 
     val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
     val measurementConsumerCertificateX509 = readCertificate(measurementConsumerCertificate.x509Der)
@@ -282,11 +279,7 @@ class EdpSimulator(
         }
         .build()
 
-    return requisitionsStub
-      .withPrincipalName(edpData.name)
-      .listRequisitions(request)
-      .requisitionsList
-      .firstOrNull()
+    return requisitionsStub.listRequisitions(request).requisitionsList.firstOrNull()
   }
 
   companion object {
