@@ -17,11 +17,15 @@ package org.wfanet.measurement.kingdom.deploy.tools
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
+import io.grpc.ManagedChannel
 import java.io.File
 import java.util.concurrent.Callable
+import java.util.logging.Logger
 import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -32,6 +36,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -39,7 +44,9 @@ import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider
@@ -107,6 +114,38 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
 
   protected val encryptionPublicKeySignature: ByteString by lazy {
     encryptionPublicKeySignatureFile.readBytes().toByteString()
+  }
+}
+
+@Command(name = "measurement_consumer", description = ["Creates a MeasurementConsumer"])
+private class CreateMeasurementConsumerCommand : CreatePrincipalCommand() {
+  override fun call(): Int {
+    val internalAccountsClient = AccountsGrpcKt.AccountsCoroutineStub(apiFlags.channel)
+    runBlocking {
+      launch {
+        val internalAccount = internalAccountsClient.createAccount(account {})
+        val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
+        val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
+        val mcCreationToken =
+          externalIdToApiId(
+            internalAccountsClient.createMeasurementConsumerCreationToken(
+              createMeasurementConsumerCreationTokenRequest {}
+            )
+              .measurementConsumerCreationToken
+          )
+
+        logger.info("Successfully created measurement consumer: ${accountName}")
+        logger.info(
+          "API key for measurement consumer ${accountName}:\n$mcCreationToken"
+        )
+      }
+    }
+
+    return 0
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
@@ -225,6 +264,7 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   subcommands =
     [
       HelpCommand::class,
+      CreateMeasurementConsumerCommand::class,
       CreateDataProviderCommand::class,
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
