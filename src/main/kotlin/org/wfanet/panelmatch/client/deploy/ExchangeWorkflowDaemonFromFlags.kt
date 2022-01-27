@@ -41,9 +41,7 @@ import picocli.CommandLine.Mixin
 
 /** Executes ExchangeWorkflows. */
 abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
-  @Mixin
-  protected lateinit var flags: ExchangeWorkflowFlags
-    private set
+  @Mixin private lateinit var flags: ExchangeWorkflowFlags
 
   override val clock: Clock = Clock.systemUTC()
 
@@ -91,13 +89,16 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   }
 
-  private val preprocessingParameters =
-    PreprocessingParameters(
-      maxByteSize = flags.preprocessingStepContext.maxByteSize.toLong(),
-      fileCount = flags.preprocessingStepContext.fileCount.toInt(),
+  private val taskContext: TaskParameters by lazy {
+    TaskParameters(
+      setOf(
+        PreprocessingParameters(
+          maxByteSize = flags.preProcessingMaxByteSize,
+          fileCount = flags.preProcessingFileCount,
+        )
+      )
     )
-
-  private val taskContext: TaskParameters = TaskParameters(setOf(preprocessingParameters))
+  }
 
   override val exchangeTaskMapper: ExchangeTaskMapper by lazy {
     ProductionExchangeTaskMapper(

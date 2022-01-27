@@ -2,12 +2,13 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "gcloud",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/com/google/common:tink_gcpkms",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
@@ -21,13 +22,18 @@ kt_jvm_library(
 
 java_binary(
     name = "GoogleCloudExampleDaemonMain",
-    main_class = "org.wfanet.panelmatch.client.deploy.gcloud.GoogleCloudExampleDaemonMainKt",
-    runtime_deps = [":gcloud"],
+    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
+    runtime_deps = [
+        ":gcloud",
+        "//imports/java/com/google/common:tink_gcpkms",
+    ],
 )
 
 java_image(
     name = "google_cloud_example_daemon_image",
-    data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.panelmatch.client.deploy.gcloud.GoogleCloudExampleDaemonMainKt",
-    runtime_deps = [":gcloud"],
+    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
+    runtime_deps = [
+        ":gcloud",
+        "//imports/java/com/google/common:tink_gcpkms",
+    ],
 )

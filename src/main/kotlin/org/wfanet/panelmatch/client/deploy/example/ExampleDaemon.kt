@@ -66,6 +66,7 @@ abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
   override val privateStorageFactories = exampleStorageFactories
 
   /** This can be customized per deployment. */
-  override val sharedStorageFactories =
+  override val sharedStorageFactories by lazy {
     exampleStorageFactories.mapValues { blobSizeFlags.wrapStorageFactory(it.value) }
+  }
 }
