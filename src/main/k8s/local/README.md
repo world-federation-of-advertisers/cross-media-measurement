@@ -3,6 +3,10 @@
 How to deploy system components to a local Kubernetes cluster running in
 [KiND](https://kind.sigs.k8s.io/).
 
+This assumes that you have `kubectl` installed and configured to point to a
+local KiND cluster. You should have some familiarity with Kubernetes and
+`kubectl`.
+
 Note that some of the targets listed below -- namely, the Duchies and
 simulators -- have requirements regarding the version of glibc in the build
 environment. See [Building](../../../../docs/building.md).
