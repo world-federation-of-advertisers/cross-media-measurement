@@ -183,8 +183,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				"--addr=:8443",
 				"--tls=true",
 				"--tls-ca-cert=/var/run/secrets/files/all_root_certs.pem",
-				"--tls-client-cert=/var/run/secrets/files/aggregator_tls.pem",
-				"--tls-client-key=/var/run/secrets/files/aggregator_tls.key",
+				"--tls-client-cert=/var/run/secrets/files/health_probe_tls.pem",
+				"--tls-client-key=/var/run/secrets/files/health_probe_tls.key",
 			]
 			periodSeconds: 60
 		}}]
