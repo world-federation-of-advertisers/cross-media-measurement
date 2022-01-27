@@ -14,6 +14,8 @@
 
 package org.wfanet.panelmatch.client.deploy.example.gcloud
 
+import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
+import java.util.Optional
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -84,6 +86,12 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
       privateCaFlags.certificateAuthorityName,
       PrivateCaClient(),
     )
+  }
+
+  companion object {
+    init {
+      GcpKmsClient.register(Optional.empty(), Optional.empty())
+    }
   }
 }
 

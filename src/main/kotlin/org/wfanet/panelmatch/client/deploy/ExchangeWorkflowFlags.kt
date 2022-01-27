@@ -16,9 +16,9 @@ package org.wfanet.panelmatch.client.deploy
 
 import java.net.InetSocketAddress
 import java.time.Duration
+import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.common.grpc.TlsFlags
-import org.wfanet.panelmatch.client.eventpreprocessing.PreprocessingParameters
 import picocli.CommandLine
 import picocli.CommandLine.ITypeConverter
 import picocli.CommandLine.Option
@@ -95,27 +95,25 @@ class ExchangeWorkflowFlags {
   lateinit var exchangeApiCertHost: String
     private set
 
-  @CommandLine.Mixin
-  lateinit var preprocessingStepContext: PreprocessingParameters
-    private set
-
-  @Option(
-    names = ["--max-byte-size"],
+  @set:CommandLine.Option(
+    names = ["--preprocessing-max-byte-size"],
+    defaultValue = "1000000",
     description = ["Max batch size for processing"],
     required = true
   )
-  lateinit var dataProviderMaxByteSize: String
+  var preProcessingMaxByteSize by Delegates.notNull<Long>()
     private set
 
-  @Option(
-    names = ["--file-count"],
+  @set:CommandLine.Option(
+    names = ["--preprocessing-file-count"],
+    defaultValue = "1000",
     description = ["Number of output files from event preprocessing step"],
     required = true
   )
-  lateinit var fileCount: String
+  var preProcessingFileCount by Delegates.notNull<Int>()
     private set
 
-  private inner class InetSocketAddressConverter : ITypeConverter<InetSocketAddress> {
+  class InetSocketAddressConverter : ITypeConverter<InetSocketAddress> {
     override fun convert(value: String): InetSocketAddress {
       val pos = value.lastIndexOf(':')
       if (pos < 0) {

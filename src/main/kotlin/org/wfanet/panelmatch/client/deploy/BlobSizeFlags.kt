@@ -23,7 +23,7 @@ import picocli.CommandLine
 
 class BlobSizeFlags {
   @set:CommandLine.Option(
-    names = ["--blob_size_limit_bytes"],
+    names = ["--blob-size-limit-bytes"],
     description = ["Maximum byte size allowed for any input or output blob"],
     defaultValue = (1 shl 31).toString() // 1GiB
   )
