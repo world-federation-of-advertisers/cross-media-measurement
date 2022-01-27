@@ -31,6 +31,7 @@ java_binary(
 
 java_image(
     name = "google_cloud_example_daemon_image",
+    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
     runtime_deps = [
         ":gcloud",
