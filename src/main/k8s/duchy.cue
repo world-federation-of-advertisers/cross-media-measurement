@@ -235,7 +235,7 @@ import ("strings")
 			_destinationMatchLabels: [] // Herald is allowed to send traffic externally.
 		}
 		"push-spanner-schema-job": #NetworkPolicy & {
-			_app_label: _object_prefix + "push-spanner-schema-job"
+			_app_label: _object_prefix + "push-spanner-schema-app"
 			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
 			_destinationMatchLabels: [] // Need to send external traffic to spanner.
 		}
