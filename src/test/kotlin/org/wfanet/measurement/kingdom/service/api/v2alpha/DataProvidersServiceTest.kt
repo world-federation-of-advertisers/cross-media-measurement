@@ -32,13 +32,15 @@ import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYSET
@@ -59,10 +61,14 @@ import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvi
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 
 private const val DATA_PROVIDER_ID = 123L
+private const val DATA_PROVIDER_ID_2 = 124L
 private const val CERTIFICATE_ID = 456L
 
 private val DATA_PROVIDER_NAME = makeDataProvider(DATA_PROVIDER_ID)
+private val DATA_PROVIDER_NAME_2 = makeDataProvider(DATA_PROVIDER_ID_2)
 private val CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
@@ -123,7 +129,6 @@ class DataProvidersServiceTest {
         runBlocking { service.createDataProvider(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("certificate_der is not specified")
   }
 
   @Test
@@ -137,14 +142,16 @@ class DataProvidersServiceTest {
         runBlocking { service.createDataProvider(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("public_key.data is missing")
   }
 
   @Test
-  fun `get returns resource`() {
-    val dataProvider = runBlocking {
-      service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
-    }
+  fun `get with edp caller returns resource`() {
+    val dataProvider =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
 
     val expectedDataProvider = dataProvider {
       name = DATA_PROVIDER_NAME
@@ -158,23 +165,82 @@ class DataProvidersServiceTest {
   }
 
   @Test
+  fun `get with mc caller returns resource`() {
+    val dataProvider =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+
+    val expectedDataProvider = dataProvider {
+      name = DATA_PROVIDER_NAME
+      certificate = CERTIFICATE_NAME
+      certificateDer = SERVER_CERTIFICATE_DER
+      publicKey = SIGNED_PUBLIC_KEY
+    }
+    assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    verifyProtoArgument(internalServiceMock, InternalDataProvidersService::getDataProvider)
+      .isEqualTo(internalGetDataProviderRequest { externalDataProviderId = DATA_PROVIDER_ID })
+  }
+
+  @Test
+  fun `get throws UNAUTHENTICATED when no principal found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `get throws PERMISSION_DENIED when edp caller doesn't match`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking {
+            service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `get throws PERMISSION_DENIED when principal with no authorization found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          runBlocking {
+            service.getDataProvider(getDataProviderRequest { name = DATA_PROVIDER_NAME })
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `get throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.getDataProvider(GetDataProviderRequest.getDefaultInstance()) }
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.getDataProvider(getDataProviderRequest {}) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   @Test
   fun `get throws INVALID_ARGUMENT when name is invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.getDataProvider(getDataProviderRequest { name = "foo" }) }
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.getDataProvider(getDataProviderRequest { name = "foo" }) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Resource name unspecified or invalid")
   }
 
   companion object {
