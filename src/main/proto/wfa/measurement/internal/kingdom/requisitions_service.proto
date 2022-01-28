@@ -63,6 +63,10 @@ message StreamRequisitionsRequest {
     // for next page token, both after fields need to be set
     fixed64 external_data_provider_id_after = 7;
     fixed64 external_requisition_id_after = 8;
+
+    // If requisition does not have participant requisition params set, it is
+    // excluded when this is true.
+    bool exclude_params_not_set = 9;
   }
   Filter filter = 1;
 

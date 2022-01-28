@@ -31,7 +31,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationP
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.READY
 
 /**
- * Sets participant details for a computationPartcipant in the database.
+ * Sets participant details for a computationParticipant in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
@@ -72,7 +72,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
           "It should have been in state ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION}  " +
-          "but was in state ${computationParticipant.state}"
+          "but was in state ${computationParticipantResult.measurementState}"
       }
     }
     if (computationParticipant.state != ComputationParticipant.State.REQUISITION_PARAMS_SET) {

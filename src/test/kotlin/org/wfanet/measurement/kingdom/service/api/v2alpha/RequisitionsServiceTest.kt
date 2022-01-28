@@ -188,6 +188,7 @@ class RequisitionsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
+              excludeParamsNotSet = true
             }
         }
       )
@@ -256,6 +257,7 @@ class RequisitionsServiceTest {
               measurementStates += VISIBLE_MEASUREMENT_STATES
               externalDataProviderIdAfter = EXTERNAL_DATA_PROVIDER_ID
               externalRequisitionIdAfter = EXTERNAL_REQUISITION_ID
+              excludeParamsNotSet = true
             }
         }
       )
@@ -308,6 +310,7 @@ class RequisitionsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
+              excludeParamsNotSet = true
             }
         }
       )
@@ -348,6 +351,7 @@ class RequisitionsServiceTest {
               externalMeasurementId = EXTERNAL_MEASUREMENT_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
+              excludeParamsNotSet = true
             }
         }
       )

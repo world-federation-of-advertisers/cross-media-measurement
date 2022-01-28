@@ -183,6 +183,79 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
+  fun `streamRequisitions excludes requisitions with params not set when exclude filter set`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(
+        dataServices.measurementConsumersService,
+        dataServices.accountsService
+      )
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createMeasurement(
+        dataServices.measurementsService,
+        measurementConsumer,
+        "measurement",
+        dataProvider
+      )
+
+    population.createMeasurement(
+      dataServices.measurementsService,
+      measurementConsumer,
+      "measurement2",
+      dataProvider2
+    )
+
+    for (duchyCertificate in duchyCertificates.values) {
+      dataServices.computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = duchyCertificate.externalDuchyId
+          externalDuchyCertificateId = duchyCertificate.externalCertificateId
+        }
+      )
+    }
+
+    val requisitions: List<Requisition> =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                excludeParamsNotSet = true
+              }
+          }
+        )
+        .toList()
+
+    assertThat(requisitions)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(
+        requisition {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          externalDataProviderId = dataProvider.externalDataProviderId
+        }
+      )
+
+    val requisitions2: List<Requisition> =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    assertThat(requisitions.size).isLessThan(requisitions2.size)
+  }
+
+  @Test
   fun `streamRequisitions returns all requisitions for measurement`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(

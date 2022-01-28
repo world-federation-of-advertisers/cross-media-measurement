@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -73,8 +74,23 @@ class SpannerRequisitionsService(
       }
     }
 
-    return StreamRequisitions(requestFilter, request.limit).execute(client.singleUse()).map {
-      it.requisition
+    return if (request.filter.excludeParamsNotSet) {
+      StreamRequisitions(requestFilter, request.limit)
+        .execute(client.singleUse())
+        .filter { requisitionResult ->
+          requisitionResult.requisition.duchiesMap.entries.forEach {
+            if (it.value.protocolCase == Requisition.DuchyValue.ProtocolCase.PROTOCOL_NOT_SET) {
+              return@filter false
+            }
+          }
+
+          true
+        }
+        .map { it.requisition }
+    } else {
+      StreamRequisitions(requestFilter, request.limit).execute(client.singleUse()).map {
+        it.requisition
+      }
     }
   }
 

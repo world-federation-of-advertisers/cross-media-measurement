@@ -118,6 +118,8 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
                 if (this.externalMeasurementConsumerId == 0L) {
                   this.externalMeasurementConsumerId = externalMeasurementConsumerId
                 }
+
+                excludeParamsNotSet = true
               }
           }
         )

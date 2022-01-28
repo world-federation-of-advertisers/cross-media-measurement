@@ -37,7 +37,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationP
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
 
 /**
- * Sets participant details for a computationPartcipant in the database.
+ * Sets participant details for a computationParticipant in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
