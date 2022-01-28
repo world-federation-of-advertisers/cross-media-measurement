@@ -16,6 +16,7 @@ secretGenerator:
 - name: certs-and-configs
   files:
   - all_root_certs.pem
+  - kingdom_root.pem
   - kingdom_tls.key
   - kingdom_tls.pem
   - aggregator_tls.key
