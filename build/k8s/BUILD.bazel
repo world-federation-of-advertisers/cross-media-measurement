@@ -1,6 +1,1 @@
 package(default_visibility = ["//visibility:public"])
-
-sh_binary(
-    name = "usernetes_run",
-    srcs = ["usernetes_run.sh"],
-)

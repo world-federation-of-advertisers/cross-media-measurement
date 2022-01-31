@@ -1,5 +1,3 @@
-load("//build/k8s:defs.bzl", "k8s_import")
-load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 load("//build/cue:defs.bzl", "cue_library")
 
 package(default_visibility = ["//src/main/k8s:__subpackages__"])
@@ -38,17 +36,3 @@ cue_library(
     srcs = ["edp_simulator.cue"],
     deps = [":base"],
 )
-
-[k8s_import(
-    name = "import_" + image.name + "_kind",
-    image_archive = image.image + ".tar",
-    k8s_environment = "kind",
-    tags = ["manual"],
-) for image in ALL_LOCAL_IMAGES]
-
-[k8s_import(
-    name = "import_" + image.name + "_u7s",
-    image_archive = image.image + ".tar",
-    k8s_environment = "usernetes-containerd",
-    tags = ["manual"],
-) for image in ALL_LOCAL_IMAGES]

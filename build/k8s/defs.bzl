@@ -18,7 +18,7 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 
 ImageImportInfo = provider(
     doc = "Information about importing container images.",
-    fields = ["image_ref", "k8s_environment"],
+    fields = ["image_ref"],
 )
 
 def _get_image_name(image_archive_label):
@@ -27,27 +27,14 @@ def _get_image_name(image_archive_label):
         label = image_archive_label.name.rsplit(".", 1)[0],
     )
 
-def _k8s_import_impl(ctx):
+def _kind_load_image_impl(ctx):
     image_archive = ctx.file.image_archive
     runfiles = [image_archive]
-    k8s_env = ctx.attr.k8s_environment
     image_name = _get_image_name(ctx.attr.image_archive.label)
 
-    command = ""
-    if k8s_env == "kind":
-        command = "kind load image-archive {archive_path}".format(
-            archive_path = image_archive.short_path,
-        )
-    elif k8s_env == "usernetes-containerd":
-        usernetes_run = ctx.executable._usernetes_run
-        runfiles.append(usernetes_run)
-
-        command = "{usernetes_run} ctr images import {archive_path}".format(
-            usernetes_run = usernetes_run.short_path,
-            archive_path = image_archive.short_path,
-        )
-    else:
-        fail("Unhandled k8s environment " + k8s_env)
+    command = "kind load image-archive {archive_path}".format(
+        archive_path = image_archive.short_path,
+    )
 
     output = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.write(output, command, is_executable = True)
@@ -59,48 +46,66 @@ def _k8s_import_impl(ctx):
         ),
         ImageImportInfo(
             image_ref = "docker.io/" + image_name,
-            k8s_environment = k8s_env,
         ),
     ]
 
-k8s_import = rule(
-    doc = "Executable that imports an image archive into a container runtime.",
-    implementation = _k8s_import_impl,
+kind_load_image = rule(
+    doc = "Executable that loads an image archive into KiND.",
+    implementation = _kind_load_image_impl,
     attrs = {
         "image_archive": attr.label(
             doc = "Container image archive.",
             mandatory = True,
             allow_single_file = True,
         ),
-        "k8s_environment": attr.string(
-            doc = "Which Kubernetes environment to use.",
-            values = ["kind", "usernetes-containerd"],
-            default = "kind",
-        ),
-        "_usernetes_run": attr.label(
-            doc = "Executable tool for running commands in the Usernetes namespace.",
-            default = "//build/k8s:usernetes_run",
-            executable = True,
-            cfg = "target",
-        ),
     },
     executable = True,
     provides = [DefaultInfo, ImageImportInfo],
 )
 
-def _k8s_apply_impl(ctx):
-    if len(ctx.attr.imports) == 0:
-        fail("No imports specified")
+def _merge_runfiles(runfiles, runfiles_list):
+    """Polyfill for runfiles.merge_all.
 
-    k8s_env = ctx.attr.imports[0][ImageImportInfo].k8s_environment
-    runfiles = ctx.runfiles(files = ctx.files.src)
+    TODO(@SanjayVas): Drop this once we're using Bazel 5.0.0+.
+    """
+    for other in runfiles_list:
+        runfiles = runfiles.merge(other)
+    return runfiles
+
+def _get_import_commands(import_targets):
     commands = []
-    for import_target in ctx.attr.imports:
-        if import_target[ImageImportInfo].k8s_environment != k8s_env:
-            fail("k8s_environment must be the same for all imports")
-        runfiles = runfiles.merge(import_target[DefaultInfo].default_runfiles)
+    runfiles_list = []
+    for import_target in import_targets:
+        default_info = import_target[DefaultInfo]
+        runfiles_list.append(default_info.default_runfiles)
+        commands.append(default_info.files_to_run.executable.short_path)
+    return commands, runfiles_list
 
-    commands = [import_executable.short_path for import_executable in ctx.files.imports]
+def _kind_load_images_impl(ctx):
+    commands, runfiles_list = _get_import_commands(ctx.attr.deps)
+
+    output = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.write(output, " && ".join(commands), is_executable = True)
+
+    runfiles = _merge_runfiles(ctx.runfiles(), runfiles_list)
+    return DefaultInfo(executable = output, runfiles = runfiles)
+
+kind_load_images = rule(
+    doc = "Executable that loads multiple image archives into KiND.",
+    attrs = {
+        "deps": attr.label_list(
+            doc = "kind_load_image targets",
+            providers = [ImageImportInfo, DefaultInfo],
+            cfg = "target",
+            mandatory = True,
+            allow_empty = False,
+        ),
+    },
+    implementation = _kind_load_images_impl,
+)
+
+def _k8s_apply_impl(ctx):
+    commands, runfiles_list = _get_import_commands(ctx.attr.imports)
     if ctx.attr.delete_selector:
         commands.append("kubectl delete pods,jobs,services,deployments,networkpolicies,ingresses --selector={selector}".format(
             selector = shell.quote(ctx.attr.delete_selector),
@@ -112,6 +117,10 @@ def _k8s_apply_impl(ctx):
     output = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.write(output, " && ".join(commands), is_executable = True)
 
+    runfiles = _merge_runfiles(
+        ctx.runfiles(files = ctx.files.src),
+        runfiles_list,
+    )
     return DefaultInfo(executable = output, runfiles = runfiles)
 
 k8s_apply = rule(
@@ -124,9 +133,10 @@ k8s_apply = rule(
             allow_single_file = [".yaml"],
         ),
         "imports": attr.label_list(
-            doc = "k8s_import targets of images to import",
+            doc = "kind_load targets of images to import",
             providers = [DefaultInfo, ImageImportInfo],
             cfg = "target",
+            allow_empty = False,
         ),
         # TODO(b/168034831): Consider splitting out separate k8s_delete rule
         # with attribute to specify resources.
