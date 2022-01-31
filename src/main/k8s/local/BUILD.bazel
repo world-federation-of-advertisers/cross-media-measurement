@@ -1,6 +1,7 @@
 load("//build:variables.bzl", "TEST_K8S_SETTINGS")
+load("//build/k8s:defs.bzl", "k8s_apply", "kind_load_image", "kind_load_images")
 load("//src/main/k8s:macros.bzl", "cue_dump")
-load("//build/k8s:defs.bzl", "k8s_apply")
+load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 
 cue_dump(
     name = "emulators",
@@ -86,9 +87,19 @@ cue_dump(
     ],
 )
 
-EMULATOR_IMAGE_NAMES = [
-    "fake_storage_server_image",
-]
+[kind_load_image(
+    name = "load_" + image.name,
+    image_archive = image.image + ".tar",
+    tags = ["manual"],
+) for image in ALL_LOCAL_IMAGES]
+
+EMULATOR_IMAGE_IMPORTS = [":load_fake_storage_server_image"]
+
+kind_load_images(
+    name = "load_emulator_images",
+    tags = ["manual"],
+    deps = EMULATOR_IMAGE_IMPORTS,
+)
 
 k8s_apply(
     name = "emulators_kind",
@@ -96,24 +107,22 @@ k8s_apply(
     # Deploying emulators should bring down everything else since DB and storage
     # get recreated.
     delete_selector = "app.kubernetes.io/part-of=halo-cmms",
-    imports = [
-        "//src/main/k8s:import_" + image_name + "_kind"
-        for image_name in EMULATOR_IMAGE_NAMES
-    ],
+    imports = EMULATOR_IMAGE_IMPORTS,
     tags = ["manual"],
 )
 
-RESOURCE_SETUP_IMAGE_NAMES = [
-    "resource_setup_runner_image",
-]
+RESOURCE_SETUP_IMAGE_IMPORTS = [":load_resource_setup_runner_image"]
+
+kind_load_images(
+    name = "load_resource_setup_images",
+    tags = ["manual"],
+    deps = RESOURCE_SETUP_IMAGE_IMPORTS,
+)
 
 k8s_apply(
     name = "resource_setup_kind",
     src = ":resource_setup",
-    imports = [
-        "//src/main/k8s:import_" + image_name + "_kind"
-        for image_name in RESOURCE_SETUP_IMAGE_NAMES
-    ],
+    imports = RESOURCE_SETUP_IMAGE_IMPORTS,
     tags = ["manual"],
 )
 
@@ -124,14 +133,22 @@ KINGDOM_IMAGE_NAMES = [
     "kingdom_v2alpha_public_api_server_image",
 ]
 
+KINGDOM_IMAGE_IMPORTS = [
+    ":load_" + image_name
+    for image_name in KINGDOM_IMAGE_NAMES
+]
+
+kind_load_images(
+    name = "load_kingdom_images",
+    tags = ["manual"],
+    deps = KINGDOM_IMAGE_IMPORTS,
+)
+
 k8s_apply(
     name = "kingdom_kind",
     src = ":kingdom",
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=kingdom",
-    imports = [
-        "//src/main/k8s:import_" + image_name + "_kind"
-        for image_name in KINGDOM_IMAGE_NAMES
-    ],
+    imports = KINGDOM_IMAGE_IMPORTS,
     tags = ["manual"],
 )
 
@@ -145,42 +162,54 @@ DUCHY_IMAGE_NAMES = [
     "forwarded_storage_requisition_fulfillment_server_image",
 ]
 
+DUCHY_IMAGE_IMPORTS = [
+    ":load_" + image_name
+    for image_name in DUCHY_IMAGE_NAMES
+]
+
+kind_load_images(
+    name = "load_duchy_images",
+    tags = ["manual"],
+    deps = DUCHY_IMAGE_IMPORTS,
+)
+
 k8s_apply(
     name = "duchies_kind",
     src = ":duchies",
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=duchy",
-    imports = [
-        "//src/main/k8s:import_" + image_name + "_kind"
-        for image_name in DUCHY_IMAGE_NAMES
-    ],
+    imports = DUCHY_IMAGE_IMPORTS,
     tags = ["manual"],
 )
 
-EDP_SIMULATOR_IMAGE_NAMES = [
-    "forwarded_storage_edp_simulator_runner_image",
-]
+EDP_SIMULATOR_IMAGE_IMPORTS = [":load_fake_storage_server_image"]
+
+kind_load_images(
+    name = "load_edp_simulator_images",
+    tags = ["manual"],
+    deps = EDP_SIMULATOR_IMAGE_IMPORTS,
+)
 
 k8s_apply(
     name = "edp_simulators_kind",
     src = ":edp_simulators",
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=simulator",
-    imports = [
-        "//src/main/k8s:import_" + image_name + "_kind"
-        for image_name in EDP_SIMULATOR_IMAGE_NAMES
-    ],
+    imports = EDP_SIMULATOR_IMAGE_IMPORTS,
     tags = ["manual"],
 )
 
-FRONTEND_SIMULATOR_IMAGE_NAMES = [
-    "forwarded_storage_frontend_simulator_runner_image",
+FRONTEND_SIMULATOR_IMAGE_IMPORTS = [
+    ":load_forwarded_storage_frontend_simulator_runner_image",
 ]
+
+kind_load_images(
+    name = "load_mc_frontend_simulator_images",
+    tags = ["manual"],
+    deps = FRONTEND_SIMULATOR_IMAGE_IMPORTS,
+)
 
 k8s_apply(
     name = "mc_frontend_simulator_kind",
     src = ":mc_frontend_simulator",
-    imports = [
-        "//src/main/k8s:import_" + image_name + "_kind"
-        for image_name in FRONTEND_SIMULATOR_IMAGE_NAMES
-    ],
+    imports = FRONTEND_SIMULATOR_IMAGE_IMPORTS,
     tags = ["manual"],
 )
