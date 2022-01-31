@@ -92,7 +92,7 @@ EMULATOR_IMAGE_NAMES = [
 
 k8s_apply(
     name = "emulators_kind",
-    src = ":emulators.yaml",
+    src = ":emulators",
     # Deploying emulators should bring down everything else since DB and storage
     # get recreated.
     delete_selector = "app.kubernetes.io/part-of=halo-cmms",
@@ -109,7 +109,7 @@ RESOURCE_SETUP_IMAGE_NAMES = [
 
 k8s_apply(
     name = "resource_setup_kind",
-    src = ":resource_setup.yaml",
+    src = ":resource_setup",
     imports = [
         "//src/main/k8s:import_" + image_name + "_kind"
         for image_name in RESOURCE_SETUP_IMAGE_NAMES
@@ -126,7 +126,7 @@ KINGDOM_IMAGE_NAMES = [
 
 k8s_apply(
     name = "kingdom_kind",
-    src = ":kingdom.yaml",
+    src = ":kingdom",
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=kingdom",
     imports = [
         "//src/main/k8s:import_" + image_name + "_kind"
@@ -147,7 +147,7 @@ DUCHY_IMAGE_NAMES = [
 
 k8s_apply(
     name = "duchies_kind",
-    src = ":duchies.yaml",
+    src = ":duchies",
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=duchy",
     imports = [
         "//src/main/k8s:import_" + image_name + "_kind"
@@ -162,7 +162,7 @@ EDP_SIMULATOR_IMAGE_NAMES = [
 
 k8s_apply(
     name = "edp_simulators_kind",
-    src = ":edp_simulators.yaml",
+    src = ":edp_simulators",
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=simulator",
     imports = [
         "//src/main/k8s:import_" + image_name + "_kind"
@@ -177,7 +177,7 @@ FRONTEND_SIMULATOR_IMAGE_NAMES = [
 
 k8s_apply(
     name = "mc_frontend_simulator_kind",
-    src = ":mc_frontend_simulator.yaml",
+    src = ":mc_frontend_simulator",
     imports = [
         "//src/main/k8s:import_" + image_name + "_kind"
         for image_name in FRONTEND_SIMULATOR_IMAGE_NAMES
