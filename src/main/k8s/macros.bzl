@@ -17,12 +17,10 @@
 load("//build/cue:defs.bzl", "cue_export")
 
 def cue_dump(name, srcs, deps = None, cue_tags = None, **kwargs):
-    outfile = name + ".yaml"
     cue_export(
         name = name,
         srcs = srcs,
         deps = deps,
-        outfile = outfile,
         filetype = "yaml",
         expression = "listObject",
         cue_tags = cue_tags,

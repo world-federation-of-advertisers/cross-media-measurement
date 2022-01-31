@@ -109,14 +109,15 @@ cue_library = rule(
 )
 
 def _cue_export_impl(ctx):
-    outfile = ctx.outputs.outfile
+    outfile = ctx.actions.declare_file(
+        ".".join((ctx.label.name, ctx.attr.filetype)),
+    )
     transitive_sources = _get_transitive_sources(ctx.files.srcs, ctx.attr.deps)
 
     args = ctx.actions.args()
     args.add("export")
     args.add("--outfile", outfile)
-    if ctx.attr.filetype:
-        args.add("--out", ctx.attr.filetype)
+    args.add("--out", ctx.attr.filetype)
     if ctx.attr.expression:
         args.add("--expression", ctx.attr.expression)
     args.add_all(transitive_sources)
@@ -136,6 +137,8 @@ def _cue_export_impl(ctx):
         arguments = [args],
     )
 
+    return [DefaultInfo(files = depset([outfile]))]
+
 cue_export = rule(
     implementation = _cue_export_impl,
     attrs = {
@@ -150,10 +153,7 @@ cue_export = rule(
         "filetype": attr.string(
             doc = "Output filetype.",
             default = "yaml",
-        ),
-        "outfile": attr.output(
-            doc = "Output file.",
-            mandatory = True,
+            values = ["yaml", "json"],
         ),
         "expression": attr.string(),
         "cue_tags": attr.string_dict(

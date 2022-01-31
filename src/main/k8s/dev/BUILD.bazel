@@ -78,8 +78,8 @@ cue_dump(
 filegroup(
     name = "k8s_kingdom_deployment_config",
     srcs = [
-        ":kingdom_gke.yaml",
-        ":resource_setup_gke.yaml",
+        ":kingdom_gke",
+        ":resource_setup_gke",
     ],
     tags = ["manual"],
     visibility = [
@@ -90,7 +90,7 @@ filegroup(
 filegroup(
     name = "k8s_duchy_deployment_config",
     srcs = [
-        ":duchy_gke.yaml",
+        ":duchy_gke",
     ],
     tags = ["manual"],
     visibility = [
@@ -101,7 +101,7 @@ filegroup(
 filegroup(
     name = "k8s_edp_simulator_deployment_config",
     srcs = [
-        ":edp_simulator_gke.yaml",
+        ":edp_simulator_gke",
     ],
     tags = ["manual"],
     visibility = [
@@ -112,7 +112,7 @@ filegroup(
 filegroup(
     name = "k8s_frontend_simulator_deployment_config",
     srcs = [
-        ":frontend_simulator_gke.yaml",
+        ":frontend_simulator_gke",
     ],
     tags = ["manual"],
     visibility = [
