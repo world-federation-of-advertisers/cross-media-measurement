@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.tools
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
-import io.grpc.ManagedChannel
 import java.io.File
 import java.util.concurrent.Callable
 import java.util.logging.Logger
@@ -36,7 +35,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -120,7 +119,7 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
 @Command(name = "measurement_consumer", description = ["Creates a MeasurementConsumer"])
 private class CreateMeasurementConsumerCommand : CreatePrincipalCommand() {
   override fun call(): Int {
-    val internalAccountsClient = AccountsGrpcKt.AccountsCoroutineStub(apiFlags.channel)
+    val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     runBlocking {
       launch {
         val internalAccount = internalAccountsClient.createAccount(account {})
