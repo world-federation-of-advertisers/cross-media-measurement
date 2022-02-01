@@ -17,6 +17,7 @@ package k8s
 #FrontendSimulator: {
 	_mc_resource_name:            string
 	_mc_secret_name:              string
+	_mc_api_authentication_key:   string
 	_simulator_image:             string
 	_simulator_image_pull_policy: string | *"Always"
 	_kingdom_public_api_target:   string
@@ -34,6 +35,7 @@ package k8s
 					"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 					"--kingdom-public-api-cert-host=localhost",
 					"--mc-resource-name=\(_mc_resource_name)",
+					"--api-authentication-key=\(_mc_api_authentication_key)",
 					"--mc-consent-signaling-cert-der-file=/var/run/secrets/files/mc_cs_cert.der",
 					"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
 					"--mc-encryption-private-keyset=/var/run/secrets/files/mc_enc_private.tink",

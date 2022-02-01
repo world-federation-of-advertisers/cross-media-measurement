@@ -99,9 +99,15 @@ private fun run(
           internalAccountsCoroutineStub,
           v2alphaFlags.redirectUri
         ),
-      CertificatesService(InternalCertificatesCoroutineStub(channel)).bindService(),
-      DataProvidersService(InternalDataProvidersCoroutineStub(channel)).bindService(),
-      EventGroupsService(InternalEventGroupsCoroutineStub(channel)).bindService(),
+      CertificatesService(InternalCertificatesCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+      DataProvidersService(InternalDataProvidersCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+      EventGroupsService(InternalEventGroupsCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ExchangeStepAttemptsService(
           InternalExchangeStepAttemptsCoroutineStub(channel),
           internalExchangeStepsCoroutineStub
@@ -119,7 +125,9 @@ private fun run(
           v2alphaFlags.redirectUri
         )
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel)).bindService()
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }

@@ -1,57 +1,40 @@
+load("//build:variables.bzl", "DUCHY_K8S_SETTINGS", "EDP_SIMULATOR_K8S_SETTINGS", "FRONTEND_SIMULATOR_K8S_SETTINGS", "KINGDOM_K8S_SETTINGS")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
 cue_dump(
     name = "kingdom_gke",
     srcs = ["kingdom_gke.cue"],
     cue_tags = {
-        "secret_name": "TBD",
+        "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
     },
+    tags = ["manual"],
     deps = [
-        "//src/main/k8s:base",
         "//src/main/k8s:kingdom",
+    ],
+)
+
+cue_dump(
+    name = "resource_setup_gke",
+    srcs = ["resource_setup_gke.cue"],
+    cue_tags = {
+        "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
+    },
+    tags = ["manual"],
+    deps = [
         "//src/main/k8s:resource_setup",
     ],
 )
 
 cue_dump(
-    name = "aggregator_gke",
+    name = "duchy_gke",
     srcs = ["duchy_gke.cue"],
     cue_tags = {
-        "duchy_name": "aggregator",
-        "duchy_cert_name": "TBD",
-        "duchy_protocols_setup_config": "aggregator_protocols_setup_config.textproto",
-        "secret_name": "TBD",
+        "duchy_name": DUCHY_K8S_SETTINGS.duchy_name,
+        "duchy_cert_name": DUCHY_K8S_SETTINGS.duchy_cert_name,
+        "duchy_protocols_setup_config": DUCHY_K8S_SETTINGS.duchy_protocols_setup_config,
+        "secret_name": DUCHY_K8S_SETTINGS.secret_name,
     },
-    deps = [
-        "//src/main/k8s:base",
-        "//src/main/k8s:duchy",
-    ],
-)
-
-cue_dump(
-    name = "worker1_gke",
-    srcs = ["duchy_gke.cue"],
-    cue_tags = {
-        "duchy_name": "worker1",
-        "duchy_cert_name": "TBD",
-        "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
-        "secret_name": "TBD",
-    },
-    deps = [
-        "//src/main/k8s:base",
-        "//src/main/k8s:duchy",
-    ],
-)
-
-cue_dump(
-    name = "worker2_gke",
-    srcs = ["duchy_gke.cue"],
-    cue_tags = {
-        "duchy_name": "worker2",
-        "duchy_cert_name": "TBD",
-        "duchy_protocols_setup_config": "non_aggregator_protocols_setup_config.textproto",
-        "secret_name": "TBD",
-    },
+    tags = ["manual"],
     deps = [
         "//src/main/k8s:base",
         "//src/main/k8s:duchy",
@@ -62,17 +45,17 @@ cue_dump(
     name = "edp_simulator_gke",
     srcs = ["edp_simulator_gke.cue"],
     cue_tags = {
-        "mc_name": "TBD",
-        "edp1_name": "TBD",
-        "edp2_name": "TBD",
-        "edp3_name": "TBD",
-        "edp4_name": "TBD",
-        "edp5_name": "TBD",
-        "edp6_name": "TBD",
-        "secret_name": "TBD",
+        "mc_name": EDP_SIMULATOR_K8S_SETTINGS.mc_name,
+        "edp1_name": EDP_SIMULATOR_K8S_SETTINGS.edp1_name,
+        "edp2_name": EDP_SIMULATOR_K8S_SETTINGS.edp2_name,
+        "edp3_name": EDP_SIMULATOR_K8S_SETTINGS.edp3_name,
+        "edp4_name": EDP_SIMULATOR_K8S_SETTINGS.edp4_name,
+        "edp5_name": EDP_SIMULATOR_K8S_SETTINGS.edp5_name,
+        "edp6_name": EDP_SIMULATOR_K8S_SETTINGS.edp6_name,
+        "secret_name": EDP_SIMULATOR_K8S_SETTINGS.secret_name,
     },
+    tags = ["manual"],
     deps = [
-        "//src/main/k8s:base",
         "//src/main/k8s:edp_simulator",
     ],
 )
@@ -81,9 +64,11 @@ cue_dump(
     name = "frontend_simulator_gke",
     srcs = ["frontend_simulator_gke.cue"],
     cue_tags = {
-        "mc_name": "TBD",
-        "secret_name": "TBD",
+        "mc_name": FRONTEND_SIMULATOR_K8S_SETTINGS.mc_name,
+        "mc_api_key": FRONTEND_SIMULATOR_K8S_SETTINGS.mc_api_key,
+        "secret_name": FRONTEND_SIMULATOR_K8S_SETTINGS.secret_name,
     },
+    tags = ["manual"],
     deps = [
         "//src/main/k8s:base",
         "//src/main/k8s:frontend_simulator",
@@ -91,14 +76,43 @@ cue_dump(
 )
 
 filegroup(
-    name = "k8s_deployment_config",
+    name = "k8s_kingdom_deployment_config",
     srcs = [
-        ":aggregator_gke.yaml",
-        ":edp_simulator_gke.yaml",
-        ":frontend_simulator_gke.yaml",
-        ":kingdom_gke.yaml",
-        ":worker1_gke.yaml",
-        ":worker2_gke.yaml",
+        ":kingdom_gke",
+        ":resource_setup_gke",
+    ],
+    tags = ["manual"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "k8s_duchy_deployment_config",
+    srcs = [
+        ":duchy_gke",
+    ],
+    tags = ["manual"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "k8s_edp_simulator_deployment_config",
+    srcs = [
+        ":edp_simulator_gke",
+    ],
+    tags = ["manual"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/tools:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "k8s_frontend_simulator_deployment_config",
+    srcs = [
+        ":frontend_simulator_gke",
     ],
     tags = ["manual"],
     visibility = [

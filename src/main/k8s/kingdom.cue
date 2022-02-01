@@ -158,7 +158,7 @@ import ("strings")
 			]
 		}
 		"push-spanner-schema-job": #NetworkPolicy & {
-			_app_label: "kingdom-push-spanner-schema-job"
+			_app_label: "kingdom-push-spanner-schema-app"
 			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
 			_destinationMatchLabels: [] // Need to send external traffic to spanner.
 		}

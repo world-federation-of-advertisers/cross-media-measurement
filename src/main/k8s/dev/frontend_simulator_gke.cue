@@ -15,6 +15,7 @@
 package k8s
 
 _mc_name:     string @tag("mc_name")
+_mc_api_key:  string @tag("mc_api_key")
 _secret_name: string @tag("secret_name")
 
 #KingdomPublicApiTarget:  "public.kingdom.dev.halo-cmm.org:8443"
@@ -27,6 +28,7 @@ objectSets: [frontend_simulator]
 
 frontend_simulator: #FrontendSimulator & {
 	_mc_resource_name:          _mc_name
+	_mc_api_authentication_key: _mc_api_key
 	_mc_secret_name:            _secret_name
 	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_simulator_image:           #ContainerRegistryPrefix + "/loadtest/frontend-simulator"

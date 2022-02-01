@@ -27,6 +27,7 @@ sealed class Principal<T : ResourceKey> {
   class MeasurementConsumer(override val resourceKey: MeasurementConsumerKey) :
     Principal<MeasurementConsumerKey>()
   class Account(override val resourceKey: AccountKey) : Principal<AccountKey>()
+  class Duchy(override val resourceKey: DuchyKey) : Principal<DuchyKey>()
 
   companion object {
     fun fromName(name: String): Principal<*>? {
@@ -36,6 +37,7 @@ sealed class Principal<T : ResourceKey> {
         MeasurementConsumerKey.COLLECTION_NAME ->
           MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumer)
         AccountKey.COLLECTION_NAME -> AccountKey.fromName(name)?.let(::Account)
+        DuchyKey.COLLECTION_NAME -> DuchyKey.fromName(name)?.let(::Duchy)
         else -> null
       }
     }

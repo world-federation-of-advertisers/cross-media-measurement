@@ -38,10 +38,43 @@ TEST_K8S_SETTINGS = struct(
     # Resource name of the 2nd worker Duchy's Certificate.
     worker2_cert_name = "$(worker2_cert_name)",
     mc_name = "$(mc_name)",
+    mc_api_key = "$(mc_api_key)",
     edp1_name = "$(edp1_name)",
     edp2_name = "$(edp2_name)",
     edp3_name = "$(edp3_name)",
     edp4_name = "$(edp4_name)",
     edp5_name = "$(edp5_name)",
     edp6_name = "$(edp6_name)",
+)
+
+# Settings for Kingdom Kubernetes deployments.
+KINGDOM_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_kingdom_secret_name)",
+)
+
+# Settings for Duchy Kubernetes deployments.
+DUCHY_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_duchy_secret_name)",
+    duchy_name = "$(duchy_name)",
+    duchy_cert_name = "$(duchy_cert_name)",
+    duchy_protocols_setup_config = "$(duchy_protocols_setup_config)",
+)
+
+# Settings for EDP simulator Kubernetes deployments.
+EDP_SIMULATOR_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_simulator_secret_name)",
+    mc_name = "$(mc_name)",
+    edp1_name = "$(edp1_name)",
+    edp2_name = "$(edp2_name)",
+    edp3_name = "$(edp3_name)",
+    edp4_name = "$(edp4_name)",
+    edp5_name = "$(edp5_name)",
+    edp6_name = "$(edp6_name)",
+)
+
+# Settings for Frontend simulator Kubernetes deployments.
+FRONTEND_SIMULATOR_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_simulator_secret_name)",
+    mc_name = "$(mc_name)",
+    mc_api_key = "$(mc_api_key)",
 )

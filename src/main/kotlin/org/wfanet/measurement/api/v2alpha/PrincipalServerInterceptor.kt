@@ -28,6 +28,7 @@ import io.grpc.Status
 import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
 
 /**
@@ -65,6 +66,13 @@ fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T
     .call(block)
 }
 
+/** Executes [block] with a [Duchy] [Principal] installed in a new [Context]. */
+fun <T> withDuchyPrincipal(duchyName: String, block: () -> T): T {
+  return Context.current()
+    .withPrincipal(Principal.Duchy(DuchyKey.fromName(duchyName)!!))
+    .call(block)
+}
+
 /** Executes [block] with a [MeasurementConsumer] [Principal] installed in a new [Context]. */
 fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
   return Context.current()
@@ -82,10 +90,9 @@ fun Context.withPrincipal(principal: Principal<*>): Context {
 /**
  * gRPC [ServerInterceptor] to extract a [Principal] from a request.
  *
- * Currently, this only supports deriving the [Principal] from an X509 cert's authority key
- * identifier.
- *
- * TODO(@sanjayvas): consider supporting other Principals derived from more request metadata.
+ * If the [Principal] has already been set in the context, this does nothing. Otherwise, this
+ * derives the [Principal] from an X509 cert's authority key identifier. A [Principal] derived from
+ * the authority key identifier is one of [DataProvider], [ModelProvider], or [Duchy].
  */
 class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
 
@@ -105,7 +112,20 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     val principals = authorityKeyIdentifiers.map(principalLookup::get)
     return when (principals.size) {
-      0 -> unauthenticatedError(call, "No principal found")
+      0 -> {
+        for (authorityKeyIdentifier in authorityKeyIdentifiers) {
+          val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
+
+          val context =
+            Context.current()
+              .withValue(
+                PrincipalConstants.PRINCIPAL_CONTEXT_KEY,
+                Principal.Duchy(DuchyKey(duchyInfo.duchyId))
+              )
+          return Contexts.interceptCall(context, call, headers, next)
+        }
+        unauthenticatedError(call, "No principal found")
+      }
       1 -> {
         val context =
           Context.current().withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principals.single())
@@ -133,9 +153,3 @@ fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
     AuthorityKeyServerInterceptor(),
     PrincipalServerInterceptor(principalLookup)
   )
-
-/** Convenience helper for [PrincipalServerInterceptor]. */
-fun ServerServiceDefinition.withPrincipalServerInterceptor(
-  principalLookup: PrincipalServerInterceptor.PrincipalLookup
-): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, PrincipalServerInterceptor(principalLookup))

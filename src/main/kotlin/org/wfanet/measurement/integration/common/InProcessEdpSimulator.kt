@@ -64,9 +64,9 @@ class InProcessEdpSimulator(
         EdpSimulator(
             edpData = edpData,
             measurementConsumerName = mcName,
-            certificatesStub = certificatesClient,
-            eventGroupsStub = eventGroupsClient,
-            requisitionsStub = requisitionsClient,
+            certificatesStub = certificatesClient.withPrincipalName(edpData.name),
+            eventGroupsStub = eventGroupsClient.withPrincipalName(edpData.name),
+            requisitionsStub = requisitionsClient.withPrincipalName(edpData.name),
             requisitionFulfillmentStub = requisitionFulfillmentClient,
             sketchStore = SketchStore(storageClient),
             eventQuery =

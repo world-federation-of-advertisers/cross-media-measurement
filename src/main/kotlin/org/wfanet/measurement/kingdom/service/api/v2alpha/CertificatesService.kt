@@ -28,6 +28,7 @@ import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
@@ -36,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.makeDuchyCertificateName
 import org.wfanet.measurement.api.v2alpha.makeMeasurementConsumerCertificateName
 import org.wfanet.measurement.api.v2alpha.makeModelProviderCertificateName
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -56,14 +58,52 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val key =
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
+    val principal = principalFromCurrentContext
+
     val internalGetCertificateRequest = getCertificateRequest {
       externalCertificateId = apiIdToExternalId(key.certificateId)
       when (key) {
-        is DataProviderCertificateKey ->
+        is DataProviderCertificateKey -> {
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is DataProviderKey -> {
+              if (apiIdToExternalId(resourceKey.dataProviderId) != externalDataProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot get another DataProvider's Certificate"
+                }
+              }
+            }
+            is MeasurementConsumerKey -> {}
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to get a DataProvider's Certificate"
+              }
+            }
+          }
+        }
         is DuchyCertificateKey -> externalDuchyId = key.duchyId
-        is MeasurementConsumerCertificateKey ->
+        is MeasurementConsumerCertificateKey -> {
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is DataProviderKey -> {}
+            is MeasurementConsumerKey -> {
+              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+                  externalMeasurementConsumerId
+              ) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot get another MeasurementConsumer's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to get a MeasurementConsumer's Certificate"
+              }
+            }
+          }
+        }
         is ModelProviderCertificateKey ->
           externalModelProviderId = apiIdToExternalId(key.modelProviderId)
         else -> failGrpc(Status.INTERNAL) { "Unsupported parent: ${key.toName()}" }
@@ -77,16 +117,86 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val dataProviderKey = DataProviderKey.fromName(request.parent)
     val duchyKey = DuchyKey.fromName(request.parent)
     val measurementConsumerKey = MeasurementConsumerKey.fromName(request.parent)
+    val modelProviderKey = ModelProviderKey.fromName(request.parent)
+
+    val principal = principalFromCurrentContext
 
     val internalCertificate = internalCertificate {
       fillCertificateFromDer(request.certificate.x509Der)
       when {
-        dataProviderKey != null ->
+        dataProviderKey != null -> {
           externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
-        duchyKey != null -> externalDuchyId = duchyKey.duchyId
-        measurementConsumerKey != null ->
+
+          when (val resourceKey = principal.resourceKey) {
+            is DataProviderKey -> {
+              if (apiIdToExternalId(resourceKey.dataProviderId) != externalDataProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot create another DataProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to create a DataProvider's Certificate"
+              }
+            }
+          }
+        }
+        duchyKey != null -> {
+          externalDuchyId = duchyKey.duchyId
+
+          when (val resourceKey = principal.resourceKey) {
+            is DuchyKey -> {
+              if (resourceKey.duchyId != externalDuchyId) {
+                failGrpc(Status.PERMISSION_DENIED) { "Cannot create another Duchy's Certificate" }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to create a Duchy's Certificate"
+              }
+            }
+          }
+        }
+        measurementConsumerKey != null -> {
           externalMeasurementConsumerId =
             apiIdToExternalId(measurementConsumerKey.measurementConsumerId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is MeasurementConsumerKey -> {
+              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+                  externalMeasurementConsumerId
+              ) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot create another MeasurementConsumer's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to create a MeasurementConsumer's Certificate"
+              }
+            }
+          }
+        }
+        modelProviderKey != null -> {
+          externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot create another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to create a ModelProvider's Certificate"
+              }
+            }
+          }
+        }
         else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
       }
     }
@@ -95,6 +205,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
   }
 
   override suspend fun revokeCertificate(request: RevokeCertificateRequest): Certificate {
+    val principal = principalFromCurrentContext
+
     val key =
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
@@ -107,15 +219,80 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
         is DataProviderCertificateKey -> {
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is DataProviderKey -> {
+              if (apiIdToExternalId(resourceKey.dataProviderId) != externalDataProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot revoke another DataProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to revoke a DataProvider's Certificate"
+              }
+            }
+          }
         }
         is DuchyCertificateKey -> {
           externalDuchyId = key.duchyId
           externalCertificateId = apiIdToExternalId(key.certificateId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is DuchyKey -> {
+              if (resourceKey.duchyId != externalDuchyId) {
+                failGrpc(Status.PERMISSION_DENIED) { "Cannot revoke another Duchy's Certificate" }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to revoke a Duchy's Certificate"
+              }
+            }
+          }
         }
         is MeasurementConsumerCertificateKey -> {
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
           externalCertificateId = apiIdToExternalId(key.certificateId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is MeasurementConsumerKey -> {
+              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+                  externalMeasurementConsumerId
+              ) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot revoke another MeasurementConsumer's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to revoke a MeasurementConsumer's Certificate"
+              }
+            }
+          }
         }
+        is ModelProviderCertificateKey -> {
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+          externalCertificateId = apiIdToExternalId(key.certificateId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot revoke another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to revoke a ModelProvider's Certificate"
+              }
+            }
+          }
+        }
+        else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
       }
       revocationState = request.revocationState.toInternal()
     }
@@ -126,19 +303,86 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
   }
 
   override suspend fun releaseCertificateHold(request: ReleaseCertificateHoldRequest): Certificate {
+    val principal = principalFromCurrentContext
+
     val key =
       grpcRequireNotNull(createResourceKey(request.name)) { "Resource name unspecified or invalid" }
 
     val internalReleaseCertificateHoldRequest = releaseCertificateHoldRequest {
       externalCertificateId = apiIdToExternalId(key.certificateId)
       when (key) {
-        is DataProviderCertificateKey ->
+        is DataProviderCertificateKey -> {
           externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        is DuchyCertificateKey -> externalDuchyId = key.duchyId
-        is MeasurementConsumerCertificateKey ->
+
+          when (val resourceKey = principal.resourceKey) {
+            is DataProviderKey -> {
+              if (apiIdToExternalId(resourceKey.dataProviderId) != externalDataProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot release another DataProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to release a DataProvider's Certificate"
+              }
+            }
+          }
+        }
+        is DuchyCertificateKey -> {
+          externalDuchyId = key.duchyId
+
+          when (val resourceKey = principal.resourceKey) {
+            is DuchyKey -> {
+              if (resourceKey.duchyId != externalDuchyId) {
+                failGrpc(Status.PERMISSION_DENIED) { "Cannot release another Duchy's Certificate" }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to release a Duchy's Certificate"
+              }
+            }
+          }
+        }
+        is MeasurementConsumerCertificateKey -> {
           externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-        is ModelProviderCertificateKey ->
+
+          when (val resourceKey = principal.resourceKey) {
+            is MeasurementConsumerKey -> {
+              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+                  externalMeasurementConsumerId
+              ) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot release another MeasurementConsumer's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to release a MeasurementConsumer's Certificate"
+              }
+            }
+          }
+        }
+        is ModelProviderCertificateKey -> {
           externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot release another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to release a ModelProvider's Certificate"
+              }
+            }
+          }
+        }
       }
     }
 
