@@ -116,35 +116,37 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
   }
 }
 
-@Command(name = "measurement_consumer", description = ["Creates a MeasurementConsumer"])
-private class CreateMeasurementConsumerCommand : CreatePrincipalCommand() {
+@Command(name = "account", description = ["Creates an Account"])
+private class CreateAccountCommand : CreatePrincipalCommand() {
   override fun call(): Int {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
-    runBlocking {
-      launch {
-        val internalAccount = internalAccountsClient.createAccount(account {})
-        val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
-        val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
-        val mcCreationToken =
-          externalIdToApiId(
-            internalAccountsClient.createMeasurementConsumerCreationToken(
-              createMeasurementConsumerCreationTokenRequest {}
-            )
-              .measurementConsumerCreationToken
-          )
-
-        logger.info("Successfully created measurement consumer: ${accountName}")
-        logger.info(
-          "API key for measurement consumer ${accountName}:\n$mcCreationToken"
-        )
-      }
-    }
+    val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
+    val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
+    println(accountName)
 
     return 0
   }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
+}
+
+@Command(name = "mc_creation_token", description = ["Get a Measurement Consumer Creation Token"])
+private class CreateMCCreationTokenCommand : CreatePrincipalCommand() {
+  override fun call(): Int {
+    val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
+    val mcCreationToken = runBlocking {
+        externalIdToApiId(
+          internalAccountsClient.createMeasurementConsumerCreationToken(
+            createMeasurementConsumerCreationTokenRequest {}
+          )
+            .measurementConsumerCreationToken
+        )
+    }
+    println(mcCreationToken)
+
+    return 0
   }
 }
 
@@ -263,7 +265,8 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   subcommands =
     [
       HelpCommand::class,
-      CreateMeasurementConsumerCommand::class,
+      CreateAccountCommand::class,
+      CreateMCCreationTokenCommand::class,
       CreateDataProviderCommand::class,
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
@@ -286,6 +289,8 @@ class CreateResource : Callable<Int> {
  * Creates resources in the Kingdom
  * Commands:
  *  help                Displays help information about the specified command
+ *  account             Creates an Account
+ *  mc_creation_token   Creates a Measurement Consumer Creation Token
  *  data_provider       Creates a DataProvider
  *  model_provider      Creates a ModelProvider
  *  recurring_exchange  Creates a RecurringExchange
