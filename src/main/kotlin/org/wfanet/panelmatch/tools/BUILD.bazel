@@ -17,3 +17,37 @@ java_binary(
     tags = ["manual"],
     runtime_deps = [":exchange_workflow_to_graphviz_main"],
 )
+
+kt_jvm_library(
+    name = "run_subprocess",
+    srcs = ["RunSubprocess.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "deploy_to_gke_impl",
+    srcs = ["DeployToGke.kt"],
+    data = [
+        "//src/main/k8s/dev:k8s_deployment_config",
+    ],
+    tags = ["manual"],
+    deps = [
+        ":run_subprocess",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "deploy_panelmatch_dev_to_gke",
+    args = [
+        "--yaml-file=example_daemon_from_cue_gke.yaml",
+        "--cluster-name=halo-panelmatch-demo-cluster",
+        "--environment=dev",
+    ],
+    main_class = "org.wfanet.panelmatch.tools.DeployToGkeKt",
+    tags = ["manual"],
+    runtime_deps = ["deploy_to_gke_impl"],
+)
