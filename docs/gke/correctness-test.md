@@ -19,8 +19,8 @@ update to the codebase during the demo.
 Please refer to the following documentation if you need extra information on
 deploying particular components in production.
 
--   How to deploy a Halo Kingdom on GKE (TODO: add the link)
--   How to deploy a Halo Duchy on GKE (TODO: add the link)
+-   [How to deploy a Halo Kingdom on GKE](kingdom-deployment.md)
+-   [How to deploy a Halo Duchy on GKE](duchy-deployment.md)
 
 However, you don't need to follow the above docs for kingdom/duchy deployments
 in this demo. Since many steps can be simplified. For example, there is no need
