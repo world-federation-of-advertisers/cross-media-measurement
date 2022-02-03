@@ -11,9 +11,7 @@ package(
 kt_jvm_library(
     name = "integration",
     testonly = True,
-    srcs = [
-        "PanelMatchResourceSetup.kt",
-    ],
+    srcs = glob(["*.kt"]),
     deps = KINGDOM_INTERNAL_PROTOS + [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -24,17 +22,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-    ],
-)
-
-kt_jvm_library(
-    name = "panel_match_resource_setup_runner",
-    srcs = [
-        "PanelMatchResourceSetupFlags.kt",
-        "PanelMatchResourceSetupRunner.kt",
-    ],
-    deps = [
-        ":integration",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
     ],
 )
@@ -42,12 +29,12 @@ kt_jvm_library(
 java_binary(
     name = "PanelMatchResourceSetupRunner",
     main_class = "org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetupRunnerKt",
-    runtime_deps = [":panel_match_resource_setup_runner"],
+    runtime_deps = [":integration"],
 )
 
 java_image(
     name = "panel_match_resource_setup_runner_image",
     main_class = "org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetupRunnerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":panel_match_resource_setup_runner"],
+    runtime_deps = [":integration"],
 )
