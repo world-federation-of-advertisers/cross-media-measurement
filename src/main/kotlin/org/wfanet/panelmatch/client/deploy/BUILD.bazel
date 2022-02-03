@@ -1,4 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_jvm_external//:defs.bzl", "java_export")
+load("//build:maven_deps.bzl", "panel_exchange_client_maven_deploy_env", "panel_exchange_client_maven_runtime_deps")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
@@ -10,6 +12,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/common/compression",
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher",
@@ -34,4 +37,13 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
+)
+
+java_export(
+    name = "maven",
+    deploy_env = panel_exchange_client_maven_deploy_env(),
+    maven_coordinates = "org.wfanet:panel-exchange-client-core:${TAG_NAME}",
+    pom_template = "//deploy:pom_template.xml",
+    tags = ["no-javadocs"],
+    runtime_deps = [":deploy"] + panel_exchange_client_maven_runtime_deps(),
 )
