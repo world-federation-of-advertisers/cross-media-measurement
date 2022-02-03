@@ -122,16 +122,9 @@ private class CreateAccountCommand : Callable<Int> {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
-    val mcCreationToken = runBlocking {
-      externalIdToApiId(
-        internalAccountsClient.createMeasurementConsumerCreationToken(
-            createMeasurementConsumerCreationTokenRequest {}
-          )
-          .measurementConsumerCreationToken
-      )
-    }
+    val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     println(accountName)
-    println("mc-creation-token: $mcCreationToken")
+    println("account-activation-token/$accountActivationToken")
 
     return 0
   }
