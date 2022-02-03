@@ -38,8 +38,12 @@ import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange as internalRecurringExchange
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
+import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 /** Prepares resources for Panel Match integration tests using internal APIs. */
 class PanelMatchResourceSetup(
@@ -65,6 +69,39 @@ class PanelMatchResourceSetup(
     ModelProvidersCoroutineStub(kingdomInternalApiChannel),
     RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
   )
+
+  suspend fun process(
+    exchangeSchedule: String,
+    apiVersion: String,
+    exchangeWorkflow: ExchangeWorkflow,
+    exchangeDate: Date,
+    edpContent: EntityContent
+    runId: String = LocalDate.now().toString()
+  ): WorkflowResourceKeys {
+    logger.info("Starting with RunID: $runId ...")
+
+    val externalDataProviderId = createDataProvider()
+    logger.info("Successfully created data provider: $externalDataProviderId.")
+    val externalModelProviderId = createModelProvider()
+    logger.info("Successfully created model provider: $externalModelProviderId.")
+
+    val externalRecurringExchangeId =
+      createRecurringExchange(
+        externalDataProvider = externalDataProviderId,
+        externalModelProvider = externalModelProviderId,
+        exchangeDate = exchangeDate,
+        exchangeSchedule = exchangeSchedule,
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
+      )
+    logger.info("Successfully created Recurring Exchange $externalRecurringExchangeId")
+
+    return WorkflowResourceKeys(
+      DataProviderKey(externalIdToApiId(externalDataProviderId)),
+      ModelProviderKey(externalIdToApiId(externalModelProviderId)),
+      RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    )
+  }
 
   /** Process to create resources. */
   suspend fun createResourcesForWorkflow(
@@ -124,7 +161,23 @@ class PanelMatchResourceSetup(
   }
 
   private suspend fun createModelProvider(): Long {
-    return modelProvidersStub.createModelProvider(internalModelProvider {}).externalModelProviderId
+    return modelProvidersStub.createModelProvider(internalModelProvider {
+      certificate =
+        certificate {
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details =
+            CertificateKt.details {
+              x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+            }
+        }
+      details =
+        ModelProviderKt.details {
+          apiVersion = "2"
+          publicKey = ByteString.copyFromUtf8("This is a  public key.")
+          publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+        }
+    }).externalModelProviderId
   }
 
   private suspend fun createRecurringExchange(
