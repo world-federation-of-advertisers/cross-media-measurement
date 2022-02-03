@@ -19,10 +19,8 @@ import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
 import java.util.concurrent.Callable
-import java.util.logging.Logger
 import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -126,10 +124,6 @@ private class CreateAccountCommand : CreatePrincipalCommand() {
 
     return 0
   }
-
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-  }
 }
 
 @Command(name = "mc_creation_token", description = ["Get a Measurement Consumer Creation Token"])
@@ -137,12 +131,12 @@ private class CreateMCCreationTokenCommand : CreatePrincipalCommand() {
   override fun call(): Int {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     val mcCreationToken = runBlocking {
-        externalIdToApiId(
-          internalAccountsClient.createMeasurementConsumerCreationToken(
-            createMeasurementConsumerCreationTokenRequest {}
-          )
-            .measurementConsumerCreationToken
+      externalIdToApiId(
+        internalAccountsClient.createMeasurementConsumerCreationToken(
+          createMeasurementConsumerCreationTokenRequest {}
         )
+          .measurementConsumerCreationToken
+      )
     }
     println(mcCreationToken)
 
@@ -263,14 +257,14 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   name = "create_resource",
   description = ["Creates resources in the Kingdom"],
   subcommands =
-    [
-      HelpCommand::class,
-      CreateAccountCommand::class,
-      CreateMCCreationTokenCommand::class,
-      CreateDataProviderCommand::class,
-      CreateModelProviderCommand::class,
-      CreateRecurringExchangeCommand::class,
-    ]
+  [
+    HelpCommand::class,
+    CreateAccountCommand::class,
+    CreateMCCreationTokenCommand::class,
+    CreateDataProviderCommand::class,
+    CreateModelProviderCommand::class,
+    CreateRecurringExchangeCommand::class,
+  ]
 )
 class CreateResource : Callable<Int> {
   /** Return 0 for success -- all work happens in subcommands. */
