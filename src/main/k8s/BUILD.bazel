@@ -1,4 +1,4 @@
-load("//build/cue:defs.bzl", "cue_library")
+load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 
 package(default_visibility = ["//src/main/k8s:__subpackages__"])
 
