@@ -133,8 +133,8 @@ private class CreateMCCreationTokenCommand : CreatePrincipalCommand() {
     val mcCreationToken = runBlocking {
       externalIdToApiId(
         internalAccountsClient.createMeasurementConsumerCreationToken(
-          createMeasurementConsumerCreationTokenRequest {}
-        )
+            createMeasurementConsumerCreationTokenRequest {}
+          )
           .measurementConsumerCreationToken
       )
     }
@@ -257,14 +257,14 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   name = "create_resource",
   description = ["Creates resources in the Kingdom"],
   subcommands =
-  [
-    HelpCommand::class,
-    CreateAccountCommand::class,
-    CreateMCCreationTokenCommand::class,
-    CreateDataProviderCommand::class,
-    CreateModelProviderCommand::class,
-    CreateRecurringExchangeCommand::class,
-  ]
+    [
+      HelpCommand::class,
+      CreateAccountCommand::class,
+      CreateMCCreationTokenCommand::class,
+      CreateDataProviderCommand::class,
+      CreateModelProviderCommand::class,
+      CreateRecurringExchangeCommand::class,
+    ]
 )
 class CreateResource : Callable<Int> {
   /** Return 0 for success -- all work happens in subcommands. */
