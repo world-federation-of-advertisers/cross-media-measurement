@@ -19,8 +19,8 @@ package k8s
 	_job_image:                  string
 	_job_image_pull_policy:      string | *"Always"
 	_tls_cert_key_files_flags: [
-		"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
-		"--tls-key-file=/var/run/secrets/files/mc_tls.key",
+		"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+		"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
 		"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 	]
 	_kingdom_internal_api_flags: [
