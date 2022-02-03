@@ -79,14 +79,10 @@ class PanelMatchResourceSetup(
 
     val externalDataProviderId = createDataProvider()
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
-    logger.info(
-      "Successfully created data provider id: $externalDataProviderId name: ${dataProviderKey.toName()}."
-    )
+    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
-    logger.info(
-      "Successfully created model provider id: $externalModelProviderId and name: ${modelProviderKey.toName()}."
-    )
+    logger.info("Successfully created model provider: ${modelProviderKey.toName()}.")
 
     val externalRecurringExchangeId =
       createRecurringExchange(
@@ -98,9 +94,7 @@ class PanelMatchResourceSetup(
         exchangeWorkflow = exchangeWorkflow
       )
     val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
-    logger.info(
-      "Successfully created Recurring Exchange id: $externalRecurringExchangeId and name: ${recurringExchangeKey.toName()}."
-    )
+    logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
 
     return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
   }
