@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-sh_binary(
-    name = "gen-cue-string-field",
-    srcs = ["gen_cue_string_field.sh"],
-)
