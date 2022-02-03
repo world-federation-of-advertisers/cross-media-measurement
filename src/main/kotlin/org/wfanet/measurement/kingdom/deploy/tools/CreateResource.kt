@@ -115,19 +115,32 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
 }
 
 @Command(name = "account", description = ["Creates an Account"])
-private class CreateAccountCommand : CreatePrincipalCommand() {
+private class CreateAccountCommand : Callable<Int> {
+  @Mixin lateinit var apiFlags: ApiFlags
+
   override fun call(): Int {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
+    val mcCreationToken = runBlocking {
+      externalIdToApiId(
+        internalAccountsClient.createMeasurementConsumerCreationToken(
+            createMeasurementConsumerCreationTokenRequest {}
+          )
+          .measurementConsumerCreationToken
+      )
+    }
     println(accountName)
+    println("mc-creation-token: $mcCreationToken")
 
     return 0
   }
 }
 
-@Command(name = "mc_creation_token", description = ["Get a Measurement Consumer Creation Token"])
-private class CreateMCCreationTokenCommand : CreatePrincipalCommand() {
+@Command(name = "mc_creation_token", description = ["Create a Measurement Consumer Creation Token"])
+private class CreateMcCreationTokenCommand : Callable<Int> {
+  @Mixin lateinit var apiFlags: ApiFlags
+
   override fun call(): Int {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     val mcCreationToken = runBlocking {
@@ -260,7 +273,7 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
     [
       HelpCommand::class,
       CreateAccountCommand::class,
-      CreateMCCreationTokenCommand::class,
+      CreateMcCreationTokenCommand::class,
       CreateDataProviderCommand::class,
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
