@@ -1,0 +1,26 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+proto_library(
+    name = "event_templates",
+    srcs = glob(["*_template.proto"],),
+    deps = [
+         "@com_google_protobuf//:descriptor_proto",
+         "@com_google_protobuf//:duration_proto",
+         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
+)
+
+java_proto_library(
+    name = "event_templates_java",
+    deps = [":event_templates",],
+)
+
+kt_jvm_library(
+    name = "event_templates_kt_jvm",
+    srcs = [":event_templates"],
+    deps = [":event_templates_java",],
+)
