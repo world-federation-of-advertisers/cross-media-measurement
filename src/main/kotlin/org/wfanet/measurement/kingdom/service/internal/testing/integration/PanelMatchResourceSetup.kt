@@ -19,6 +19,7 @@ import com.google.type.Date
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.time.Instant
+import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -70,8 +71,10 @@ class PanelMatchResourceSetup(
     exchangeSchedule: String,
     apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow,
-    exchangeDate: Date
+    exchangeDate: Date,
+    runId: String = LocalDate.now().toString(),
   ): WorkflowResourceKeys {
+    logger.info("Starting with RunID: $runId ...")
 
     val externalDataProviderId = createDataProvider()
     logger.info("Successfully created data provider: $externalDataProviderId.")
