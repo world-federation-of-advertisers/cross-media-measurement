@@ -66,14 +66,13 @@ private class ApiFlags {
 
   val channel: Channel by lazy {
     val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = tlsFlags.certFile,
-        privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
-      )
+        SigningCerts.fromPemFiles(
+            certificateFile = tlsFlags.certFile,
+            privateKeyFile = tlsFlags.privateKeyFile,
+            trustedCertCollectionFile = tlsFlags.certCollectionFile)
 
     buildMutualTlsChannel(internalApiFlags.target, clientCerts, internalApiFlags.certHost)
-      .withVerboseLogging(true)
+        .withVerboseLogging(true)
   }
 }
 
@@ -81,10 +80,9 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
   @Mixin protected lateinit var apiFlags: ApiFlags
 
   @Option(
-    names = ["--certificate-der-file"],
-    description = ["Certificate for the principal"],
-    required = true
-  )
+      names = ["--certificate-der-file"],
+      description = ["Certificate for the principal"],
+      required = true)
   private lateinit var certificateDerFile: File
 
   protected val certificate: Certificate by lazy {
@@ -92,10 +90,9 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
   }
 
   @Option(
-    names = ["--encryption-public-key-file"],
-    description = ["Principal's serialized EncryptionPublicKey"],
-    required = true
-  )
+      names = ["--encryption-public-key-file"],
+      description = ["Principal's serialized EncryptionPublicKey"],
+      required = true)
   private lateinit var encryptionPublicKeyFile: File
 
   protected val serializedEncryptionPublicKey: ByteString by lazy {
@@ -103,10 +100,9 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
   }
 
   @Option(
-    names = ["--encryption-public-key-signature-file"],
-    description = ["Principal's signature of serialized EncryptionPublicKey"],
-    required = true
-  )
+      names = ["--encryption-public-key-signature-file"],
+      description = ["Principal's signature of serialized EncryptionPublicKey"],
+      required = true)
   private lateinit var encryptionPublicKeySignatureFile: File
 
   protected val encryptionPublicKeySignature: ByteString by lazy {
@@ -132,11 +128,9 @@ private class CreateMCCreationTokenCommand : CreatePrincipalCommand() {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     val mcCreationToken = runBlocking {
       externalIdToApiId(
-        internalAccountsClient.createMeasurementConsumerCreationToken(
-          createMeasurementConsumerCreationTokenRequest {}
-        )
-          .measurementConsumerCreationToken
-      )
+          internalAccountsClient.createMeasurementConsumerCreationToken(
+                  createMeasurementConsumerCreationTokenRequest {})
+              .measurementConsumerCreationToken)
     }
     println(mcCreationToken)
 
@@ -151,16 +145,16 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
       certificate = this@CreateDataProviderCommand.certificate
 
       details =
-        DataProviderKt.details {
-          apiVersion = API_VERSION
-          publicKey = serializedEncryptionPublicKey
-          publicKeySignature = this@CreateDataProviderCommand.encryptionPublicKeySignature
-        }
+          DataProviderKt.details {
+            apiVersion = API_VERSION
+            publicKey = serializedEncryptionPublicKey
+            publicKeySignature = this@CreateDataProviderCommand.encryptionPublicKeySignature
+          }
     }
 
     val dataProvidersStub = DataProvidersCoroutineStub(apiFlags.channel)
     val outputDataProvider =
-      runBlocking(Dispatchers.IO) { dataProvidersStub.createDataProvider(dataProvider) }
+        runBlocking(Dispatchers.IO) { dataProvidersStub.createDataProvider(dataProvider) }
 
     val apiId = externalIdToApiId(outputDataProvider.externalDataProviderId)
     println(DataProviderKey(apiId).toName())
@@ -176,16 +170,16 @@ private class CreateModelProviderCommand : CreatePrincipalCommand() {
       certificate = this@CreateModelProviderCommand.certificate
 
       details =
-        ModelProviderKt.details {
-          apiVersion = API_VERSION
-          publicKey = serializedEncryptionPublicKey
-          publicKeySignature = this@CreateModelProviderCommand.encryptionPublicKeySignature
-        }
+          ModelProviderKt.details {
+            apiVersion = API_VERSION
+            publicKey = serializedEncryptionPublicKey
+            publicKeySignature = this@CreateModelProviderCommand.encryptionPublicKeySignature
+          }
     }
 
     val modelProvidersStub = ModelProvidersCoroutineStub(apiFlags.channel)
     val outputModelProvider =
-      runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider) }
+        runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider) }
 
     val apiId = externalIdToApiId(outputModelProvider.externalModelProviderId)
     println(ModelProviderKey(apiId).toName())
@@ -197,23 +191,23 @@ private class CreateModelProviderCommand : CreatePrincipalCommand() {
 @Command(name = "recurring_exchange", description = ["Creates a RecurringExchange"])
 private class CreateRecurringExchangeCommand : Callable<Int> {
   @Option(
-    names = ["--model-provider"],
-    description = ["API resource name of the ModelProvider"],
-    required = true,
+      names = ["--model-provider"],
+      description = ["API resource name of the ModelProvider"],
+      required = true,
   )
   private lateinit var modelProviderName: String
 
   @Option(
-    names = ["--data-provider"],
-    description = ["API resource name of the DataProvider"],
-    required = true,
+      names = ["--data-provider"],
+      description = ["API resource name of the DataProvider"],
+      required = true,
   )
   private lateinit var dataProviderName: String
 
   @Option(
-    names = ["--exchange-workflow-file"],
-    description = ["Public API serialized ExchangeWorkflow"],
-    required = true,
+      names = ["--exchange-workflow-file"],
+      description = ["Public API serialized ExchangeWorkflow"],
+      required = true,
   )
   private lateinit var exchangeWorkflowFile: File
 
@@ -231,20 +225,19 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
       externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
       state = RecurringExchange.State.ACTIVE
       details =
-        recurringExchangeDetails {
-          this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
-          exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
-        }
+          recurringExchangeDetails {
+            this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
+            exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          }
     }
 
     val recurringExchangesStub = RecurringExchangesCoroutineStub(apiFlags.channel)
 
     val outputRecurringExchange =
-      runBlocking(Dispatchers.IO) {
-        recurringExchangesStub.createRecurringExchange(
-          createRecurringExchangeRequest { this.recurringExchange = recurringExchange }
-        )
-      }
+        runBlocking(Dispatchers.IO) {
+          recurringExchangesStub.createRecurringExchange(
+              createRecurringExchangeRequest { this.recurringExchange = recurringExchange })
+        }
 
     val apiId = externalIdToApiId(outputRecurringExchange.externalRecurringExchangeId)
     println(RecurringExchangeKey(apiId).toName())
@@ -254,18 +247,17 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
 }
 
 @Command(
-  name = "create_resource",
-  description = ["Creates resources in the Kingdom"],
-  subcommands =
-  [
-    HelpCommand::class,
-    CreateAccountCommand::class,
-    CreateMCCreationTokenCommand::class,
-    CreateDataProviderCommand::class,
-    CreateModelProviderCommand::class,
-    CreateRecurringExchangeCommand::class,
-  ]
-)
+    name = "create_resource",
+    description = ["Creates resources in the Kingdom"],
+    subcommands =
+        [
+            HelpCommand::class,
+            CreateAccountCommand::class,
+            CreateMCCreationTokenCommand::class,
+            CreateDataProviderCommand::class,
+            CreateModelProviderCommand::class,
+            CreateRecurringExchangeCommand::class,
+        ])
 class CreateResource : Callable<Int> {
   /** Return 0 for success -- all work happens in subcommands. */
   override fun call(): Int = 0
