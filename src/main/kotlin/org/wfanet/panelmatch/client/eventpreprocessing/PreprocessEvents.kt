@@ -75,7 +75,7 @@ class PreprocessEventsTransform(
   override fun expand(events: PCollection<UnprocessedEvent>): PCollection<DatabaseEntry> {
     return events
       .map<UnprocessedEvent, KV<ByteString, ByteString>>("Map to KV") { kvOf(it.id, it.data) }
-      .groupByKey()
+      .groupByKey("Group Events")
       .mapValues("Make CombinedEvents") { combinedEvents { serializedEvents += it }.toByteString() }
       .parDo(BatchingDoFn(maxByteSize, EventSize), name = "Batch by $maxByteSize bytes")
       .apply(

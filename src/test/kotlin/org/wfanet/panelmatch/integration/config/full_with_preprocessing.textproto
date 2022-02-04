@@ -467,7 +467,7 @@ steps {
 
   execute_private_membership_queries_step {
     serialized_parameters: "\n\b\b\001\020\v\030\001(\001\022#\n\020\201\300\270\377\377\377\377\377\377\001\377\377\377\377\377\003\022\003\201\300}\030\f \001(\b0\0028\004@\n"
-    encrypted_query_result_file_count: 1
+    encrypted_query_result_file_count: 2
     num_shards: 1
     num_buckets_per_shard: 10
     max_queries_per_shard: 10
