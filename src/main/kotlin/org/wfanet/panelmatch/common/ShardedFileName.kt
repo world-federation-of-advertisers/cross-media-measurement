@@ -49,7 +49,7 @@ data class ShardedFileName(val spec: String) : Serializable {
   }
 
   fun fileNameForShard(i: Int): String {
-    require(i in 0 until shardCount)
+    require(i in 0 until shardCount) { "Shard $i must be in 0..$shardCount" }
     val digits = shardCount.toString().length
     return "$baseName-%0${digits}d-of-$shardCount".format(i)
   }

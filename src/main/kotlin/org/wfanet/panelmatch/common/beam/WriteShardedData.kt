@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.common.beam
 
 import com.google.protobuf.Message
+import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.map
@@ -65,7 +66,7 @@ class WriteShardedData<T : Message>(
     val shardCount = shardedFileName.shardCount
     val filesWritten =
       input
-        .keyBy("Key by Blob") { it.hashCode() % shardCount }
+        .keyBy("Key by Blob") { abs(it.hashCode()) % shardCount }
         .apply("Group by Blob", GroupByKey.create())
         .apply("Write $fileSpec", ParDo.of(WriteFilesFn(fileSpec, storageFactory)))
 
