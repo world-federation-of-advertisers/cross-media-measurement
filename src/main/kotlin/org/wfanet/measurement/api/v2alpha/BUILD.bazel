@@ -19,6 +19,17 @@ package_group(
 )
 
 kt_jvm_library(
+    name = "event_template_type_registry",
+    srcs = ["EventTemplateTypeRegistry.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/event_templates:event_templates_java",
+        "//imports/org/reflections:reflections",
+    ],
+)
+
+kt_jvm_library(
     name = "resource_key",
     srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
     deps = [
@@ -58,16 +69,5 @@ kt_jvm_library(
         ":principal_server_interceptor",
         "//src/main/proto/wfa/measurement/internal/common:provider_java_proto",
         "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
-    ],
-)
-
-kt_jvm_library(
-    name = "event_template_type_registry",
-    srcs = ["EventTemplateTypeRegistry.kt"],
-    deps = [
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/event_templates:event_templates_java",
-        "//imports/org/reflections:reflections",
     ],
 )

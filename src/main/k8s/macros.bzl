@@ -14,7 +14,7 @@
 
 """Build rules for generating Kubernetes yaml from CUE files."""
 
-load("//build/cue:defs.bzl", "cue_export")
+load("@wfa_rules_cue//cue:defs.bzl", "cue_export")
 
 def cue_dump(name, srcs, deps = None, cue_tags = None, **kwargs):
     cue_export(

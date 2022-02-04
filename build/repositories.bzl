@@ -17,7 +17,6 @@ Adds external repos necessary for wfa_measurement_system.
 """
 
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
-load("//build/cue:repo.bzl", "cue_binaries")
 
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
@@ -71,8 +70,9 @@ def wfa_measurement_system_repositories():
         sha256 = "b907c0dd4f6efbe4f6db3f34efeca0f1763d3cc674c37cbfebac1ee2a80c86f5",
     )
 
-    cue_binaries(
-        name = "cue_binaries",
-        sha256 = "d3f1df656101a498237d0a8b168a22253dde11f6b6b8cc577508b13a112142de",
-        version = "0.4.1",
+    wfa_repo_archive(
+        name = "wfa_rules_cue",
+        repo = "rules_cue",
+        version = "0.1.0",
+        sha256 = "62def6a4dc401fd1549e44e2a4e2ae73cf75e6870025329bc78a0150d9a2594a",
     )
