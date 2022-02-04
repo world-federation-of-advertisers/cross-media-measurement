@@ -31,16 +31,17 @@ Run the CLI tool with the flag `help` to check the instruction. Provide the cred
 Create an Account
 ```shell
 create_resource account --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
-    --internal-api-cert-host=localhost --internal-api-target=localhost:8443
+    --internal-api-cert-host localhost --internal-api-target localhost:8443 --certificate-der-file mc_cs_cert.der \
+    --encryption-public-key-file mc_enc_public.tink --encryption-public-key-signature-file mc_cs_cert.der
 ```
 Create a MeasurementConsumer Creation Token
 ```shell
 create_resource mc_creation_token --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
-    --internal-api-cert-host=localhost --internal-api-target=localhost:8443
+    --internal-api-cert-host localhost --internal-api-target localhost:8443
 ```
 Create a Data Provider
 ```shell
 create_resource data_provider --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
-    --internal-api-cert-host=localhost --internal-api-target=localhost:8443 --certificate-der-file edp1_cs_cert.der \
+    --internal-api-cert-host localhost --internal-api-target localhost:8443 --certificate-der-file edp1_cs_cert.der \
     --encryption-public-key-file edp1_enc_public.tink --encryption-public-key-signature-file edp1_cs_cert.der
 ```
