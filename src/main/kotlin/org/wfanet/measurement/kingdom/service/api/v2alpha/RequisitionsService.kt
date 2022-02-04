@@ -115,8 +115,16 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
           listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
             filter =
               filter.copy {
+                // Filters for the caller's ID if the caller is an MC.
                 if (this.externalMeasurementConsumerId == 0L) {
                   this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                }
+
+                // If no Requisition state is specified, still exclude if params haven't been set.
+                if (states.isEmpty()) {
+                  states += InternalState.UNFULFILLED
+                  states += InternalState.FULFILLED
+                  states += InternalState.REFUSED
                 }
               }
           }
@@ -296,7 +304,7 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
 /** Converts an internal [InternalState] to a public [State]. */
 private fun InternalState.toRequisitionState(): State =
   when (this) {
-    InternalState.UNFULFILLED -> State.UNFULFILLED
+    InternalState.PENDING_PARAMS, InternalState.UNFULFILLED -> State.UNFULFILLED
     InternalState.FULFILLED -> State.FULFILLED
     InternalState.REFUSED -> State.REFUSED
     InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED

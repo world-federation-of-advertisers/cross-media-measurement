@@ -128,6 +128,13 @@ private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
     InternalMeasurement.State.CANCELLED
   )
 
+private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
+  setOf(
+    InternalRequisition.State.UNFULFILLED,
+    InternalRequisition.State.FULFILLED,
+    InternalRequisition.State.REFUSED
+  )
+
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase =
@@ -188,6 +195,7 @@ class RequisitionsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
+              states += VISIBLE_REQUISITION_STATES
             }
         }
       )
@@ -308,6 +316,7 @@ class RequisitionsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
+              states += VISIBLE_REQUISITION_STATES
             }
         }
       )
@@ -348,6 +357,7 @@ class RequisitionsServiceTest {
               externalMeasurementId = EXTERNAL_MEASUREMENT_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               measurementStates += VISIBLE_MEASUREMENT_STATES
+              states += VISIBLE_REQUISITION_STATES
             }
         }
       )

@@ -71,7 +71,8 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
 /** Converts a kingdom internal Requisition.State to system Api Requisition.State. */
 fun InternalRequisition.State.toSystemRequisitionState(): Requisition.State {
   return when (this) {
-    InternalRequisition.State.UNFULFILLED -> Requisition.State.UNFULFILLED
+    InternalRequisition.State.PENDING_PARAMS, InternalRequisition.State.UNFULFILLED ->
+      Requisition.State.UNFULFILLED
     InternalRequisition.State.FULFILLED -> Requisition.State.FULFILLED
     InternalRequisition.State.REFUSED -> Requisition.State.REFUSED
     InternalRequisition.State.STATE_UNSPECIFIED, InternalRequisition.State.UNRECOGNIZED ->
@@ -241,7 +242,7 @@ fun InternalDifferentialPrivacyParams.toSystemDifferentialPrivacyParams():
     .build()
 }
 
-/** Converts a kingdom internal Requisition.State to system Api Requisition.State. */
+/** Converts a kingdom internal Measurement.State to system Api Requisition.State. */
 fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
   return when (this) {
     InternalMeasurement.State.PENDING_REQUISITION_PARAMS ->

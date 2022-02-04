@@ -527,7 +527,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             externalComputationId = measurement.externalComputationId
             externalDataProviderId = dataProvider.externalDataProviderId
             updateTime = createdMeasurement.createTime
-            state = Requisition.State.UNFULFILLED
+            state = Requisition.State.PENDING_PARAMS
             dataProviderCertificate = dataProvider.certificate
             parentMeasurement =
               parentMeasurement {

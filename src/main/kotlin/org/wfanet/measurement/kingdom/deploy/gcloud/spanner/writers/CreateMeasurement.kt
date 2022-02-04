@@ -176,7 +176,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
-      set("State" to Requisition.State.UNFULFILLED)
+      set("State" to Requisition.State.PENDING_PARAMS)
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
     }
