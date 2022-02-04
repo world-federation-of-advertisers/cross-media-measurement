@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.internal.testing.integration
+package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 
 import io.grpc.ManagedChannel
 import java.time.LocalDate
@@ -22,9 +22,13 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import picocli.CommandLine
 
 @CommandLine.Command(
@@ -50,6 +54,20 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
       flags.kingdomInternalApiCertHost
     )
 
+  val dataProviderContent =
+    EntityContent(
+      displayName = flags.edpDisplayName,
+      signingKey = loadSigningKey(flags.edpCsCertDerFile, flags.edpCsKeyDerFile),
+      encryptionPublicKey = loadPublicKey(flags.edpEncryptionPublicKeyset).toEncryptionPublicKey()
+    )
+
+  val modelProviderContent =
+    EntityContent(
+      displayName = flags.mpDisplayName,
+      signingKey = loadSigningKey(flags.mpCsCertDerFile, flags.mpCsKeyDerFile),
+      encryptionPublicKey = loadPublicKey(flags.mpEncryptionPublicKeyset).toEncryptionPublicKey()
+    )
+
   val exchangeWorkflow: ExchangeWorkflow by lazy {
     flags
       .exchangeWorkflow
@@ -61,7 +79,9 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
   runBlocking {
     // Runs the resource setup job.
     PanelMatchResourceSetup(kingdomInternalApiChannel)
-      .createResourcesForWorkflow(
+      .process(
+        dataProviderContent = dataProviderContent,
+        modelProviderContent = modelProviderContent,
         exchangeSchedule = SCHEDULE,
         apiVersion = API_VERSION,
         exchangeWorkflow = exchangeWorkflow,

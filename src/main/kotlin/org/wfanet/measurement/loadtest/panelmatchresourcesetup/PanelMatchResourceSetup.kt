@@ -12,21 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.internal.testing.integration
+package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import com.google.type.Date
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Logger
+import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -40,7 +43,11 @@ import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvi
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange as internalRecurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
+import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
+
+private val API_VERSION = Version.V2_ALPHA
 
 /** Prepares resources for Panel Match integration tests using internal APIs. */
 class PanelMatchResourceSetup(
@@ -66,6 +73,42 @@ class PanelMatchResourceSetup(
     ModelProvidersCoroutineStub(kingdomInternalApiChannel),
     RecurringExchangesCoroutineStub(kingdomInternalApiChannel)
   )
+
+  /** Process to create resources with actual certificates. */
+  suspend fun process(
+    dataProviderContent: EntityContent,
+    modelProviderContent: EntityContent,
+    exchangeSchedule: String,
+    apiVersion: String,
+    exchangeWorkflow: ExchangeWorkflow,
+    exchangeDate: Date,
+    runId: String = LocalDate.now().toString(),
+  ) {
+    logger.info("Starting with RunID: $runId ...")
+
+    // Step 2a: Create the EDPs.
+    val externalDataProviderId = createDataProvider(dataProviderContent)
+    val dataProviderName = DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
+    logger.info("Successfully created data provider: $dataProviderName")
+
+    // Step 2b: Create the MPs.
+    val externalModelProviderId = createDataProvider(modelProviderContent)
+    val modelProviderName = ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
+    logger.info("Successfully created model provider: $modelProviderName")
+
+    val externalRecurringExchangeId =
+      createRecurringExchange(
+        externalDataProvider = externalDataProviderId,
+        externalModelProvider = externalModelProviderId,
+        exchangeDate = exchangeDate,
+        exchangeSchedule = exchangeSchedule,
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
+      )
+    val recurringExchangeName =
+      RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
+    logger.info("Successfully created Recurring Exchange: ${recurringExchangeName}.")
+  }
 
   /** Process to create resources. */
   suspend fun createResourcesForWorkflow(
@@ -97,6 +140,46 @@ class PanelMatchResourceSetup(
     logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
 
     return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
+  }
+
+  /** Create an internal dataProvider, and return its corresponding public API resource name. */
+  suspend fun createDataProvider(dataProviderContent: EntityContent): Long {
+    val encryptionPublicKey = dataProviderContent.encryptionPublicKey
+    val signedPublicKey =
+      signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
+    return dataProvidersStub.createDataProvider(
+        internalDataProvider {
+          certificate =
+            parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
+          details =
+            DataProviderKt.details {
+              apiVersion = API_VERSION.string
+              publicKey = signedPublicKey.data
+              publicKeySignature = signedPublicKey.signature
+            }
+        }
+      )
+      .externalDataProviderId
+  }
+
+  /** Create an internal modelProvider, and return its corresponding public API resource name. */
+  suspend fun createModelProvider(modelProviderContent: EntityContent): Long {
+    val encryptionPublicKey = modelProviderContent.encryptionPublicKey
+    val signedPublicKey =
+      signEncryptionPublicKey(encryptionPublicKey, modelProviderContent.signingKey)
+    return modelProvidersStub.createModelProvider(
+        internalModelProvider {
+          certificate =
+            parseCertificateDer(modelProviderContent.signingKey.certificate.encoded.toByteString())
+          details =
+            ModelProviderKt.details {
+              apiVersion = API_VERSION.string
+              publicKey = signedPublicKey.data
+              publicKeySignature = signedPublicKey.signature
+            }
+        }
+      )
+      .externalModelProviderId
   }
 
   private suspend fun createDataProvider(): Long {
