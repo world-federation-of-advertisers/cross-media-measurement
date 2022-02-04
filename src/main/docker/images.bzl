@@ -64,7 +64,7 @@ COMMON_IMAGES = [
     struct(
         name = "panel_match_resource_setup_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:panel_match_resource_setup_runner_image",
-        repository = _PREFIX + "/panel-match-resource-setup",
+        repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
     struct(
         name = "push_spanner_schema_image",
