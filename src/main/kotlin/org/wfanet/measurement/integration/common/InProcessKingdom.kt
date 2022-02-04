@@ -52,11 +52,11 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.MeasurementsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
-import org.wfanet.measurement.kingdom.service.internal.testing.integration.PanelMatchResourceSetup
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
+import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(

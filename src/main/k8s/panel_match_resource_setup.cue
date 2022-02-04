@@ -15,6 +15,8 @@
 package k8s
 
 #PanelMatchResourceSetup: {
+	_edp_display_name:           string
+	_mp_display_name:            string
 	_resource_setup_secret_name: string
 	_job_image:                  string
 	_job_image_pull_policy:      string | *"Always"
@@ -27,6 +29,21 @@ package k8s
 		"--kingdom-internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target,
 		"--kingdom-internal-api-cert-host=localhost",
 	]
+	_edp_cert_key_files_flags: [
+		"--edp-display-name=\(_edp_display_name)",
+		"--edp-cert-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_cert.der",
+		"--edp-key-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_private.der",
+		"--edp-encryption-public-keyset=/var/run/secrets/files/\(_edp_display_name)_enc_public.tink",
+	]
+	_mp_cert_key_files_flags: [
+		"--mp-display-name=\(_mp_display_name)",
+		"--mp-cert-der-file=/var/run/secrets/files/\(_mp_display_name)_cs_cert.der",
+		"--mp-key-der-file=/var/run/secrets/files/\(_mp_display_name)_cs_private.der",
+		"--mp-encryption-public-keyset=/var/run/secrets/files/\(_mp_display_name)_enc_public.tink",
+	]
+	_exchange_workflow_flag: [
+		"--exchange-workflow=/var/run/secrets/files/exchange_workflow.textproto",
+	]
 
 	resource_setup_job: #Job & {
 		_name:            "panel-match-resource-setup"
@@ -35,6 +52,9 @@ package k8s
 		_imagePullPolicy: _job_image_pull_policy
 		_args:
 			_tls_cert_key_files_flags +
-			_kingdom_internal_api_flags
+			_kingdom_internal_api_flags +
+			_edp_cert_key_files_flags +
+			_mp_cert_key_files_flags +
+			_exchange_workflow_flag
 	}
 }

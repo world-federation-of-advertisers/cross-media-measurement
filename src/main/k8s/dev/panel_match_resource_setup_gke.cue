@@ -32,6 +32,8 @@ objectSets: [
 ]
 
 panel_match_resource_setup_job: #PanelMatchResourceSetup & {
+	_edp_display_name:           "edp1"
+	_mp_display_name:            "mp1"
 	_job_image:                  #ContainerRegistryPrefix + "/panel-match-resource-setup"
 	_resource_configs:           #DefaultResourceConfig
 	_resource_setup_secret_name: _secret_name

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.internal.testing.integration
+package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 
 import java.io.File
 import java.time.Instant
@@ -44,8 +44,72 @@ class PanelMatchResourceSetupFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--edp-display-name"],
+    description = ["Event Data Provider (EDP) display name."],
+    required = true
+  )
+  lateinit var edpDisplayName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--edp-cert-der-file"],
+    description = ["EDP cert (DER format) file."],
+    required = true
+  )
+  lateinit var edpCsCertDerFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--edp-key-der-file"],
+    description = ["MP private key (DER format) file."],
+    required = true
+  )
+  lateinit var edpCsKeyDerFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--edp-encryption-public-keyset"],
+    description = ["EDP encryption public key Tink Keyset file."],
+    required = true
+  )
+  lateinit var edpEncryptionPublicKeyset: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--mp-display-name"],
+    description = ["Model Provider (MP) display name."],
+    required = true
+  )
+  lateinit var mpDisplayName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--mp-cert-der-file"],
+    description = ["MP cert (DER format) file."],
+    required = true
+  )
+  lateinit var mpCsCertDerFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--mp-key-der-file"],
+    description = ["MP private key (DER format) file."],
+    required = true
+  )
+  lateinit var mpCsKeyDerFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--mp-encryption-public-keyset"],
+    description = ["MP encryption public key Tink Keyset file."],
+    required = true
+  )
+  lateinit var mpEncryptionPublicKeyset: File
+    private set
+
+  @CommandLine.Option(
     names = ["--exchange-workflow"],
-    description = ["Exchange Workflow file."],
+    description = ["Exchange Workflow textproto file."],
     required = true
   )
   lateinit var exchangeWorkflow: File
