@@ -15,7 +15,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:computation_token_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
