@@ -107,7 +107,7 @@ class PanelMatchResourceSetup(
       )
     val recurringExchangeName =
       RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
-    logger.info("Successfully created Recurring Exchange: ${recurringExchangeName}.")
+    logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")
   }
 
   /** Process to create resources. */
