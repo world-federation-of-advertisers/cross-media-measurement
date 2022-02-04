@@ -46,7 +46,7 @@ package k8s
 	]
 
 	resource_setup_job: #Job & {
-		_name:            "panel-match-resource-setup"
+		_name:            "resource-setup"
 		_secretName:      _resource_setup_secret_name
 		_image:           _job_image
 		_imagePullPolicy: _job_image_pull_policy
