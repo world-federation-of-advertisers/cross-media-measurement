@@ -26,17 +26,20 @@ kubectl port-forward gcp-kingdom-data-server-deployment-<pod-name> 8443:8443
 ```
 
 ## Send requests
-Run the CLI tool with the flag `help` to check the instruction. Provide the credentials as required. Examples here
+Run the CLI tool with the flag `help` to check the instruction. Provide the credentials as required.
+### Usage
+Create an Account
 ```shell
-# Create an Account
 create_resource account --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
     --internal-api-cert-host=localhost --internal-api-target=localhost:8443
-    
-# Create a MeasurementConsumer Creation Token
+```
+Create a MeasurementConsumer Creation Token
+```shell
 create_resource mc_creation_token --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
     --internal-api-cert-host=localhost --internal-api-target=localhost:8443
-
-# Create a Data Provider
+```
+Create a Data Provider
+```shell
 create_resource data_provider --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
     --internal-api-cert-host=localhost --internal-api-target=localhost:8443 --certificate-der-file edp1_cs_cert.der \
     --encryption-public-key-file edp1_enc_public.tink --encryption-public-key-signature-file edp1_cs_cert.der

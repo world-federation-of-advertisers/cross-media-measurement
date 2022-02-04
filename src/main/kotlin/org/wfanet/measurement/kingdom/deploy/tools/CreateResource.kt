@@ -122,7 +122,7 @@ private class CreateAccountCommand : CreatePrincipalCommand() {
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     println(accountName)
-    println("account-activation-token/$accountActivationToken")
+    println("Activation token: $accountActivationToken")
 
     return 0
   }
