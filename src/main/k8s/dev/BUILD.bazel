@@ -91,6 +91,7 @@ filegroup(
     name = "k8s_kingdom_deployment_config",
     srcs = [
         ":kingdom_gke",
+        ":panel_match_resource_setup_gke",
         ":resource_setup_gke",
     ],
     tags = ["manual"],
