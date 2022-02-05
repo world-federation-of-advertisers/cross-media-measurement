@@ -136,7 +136,6 @@ import ("strings")
 				"v2alpha-public-api-server-app",
 				"system-api-server-app",
 				"resource-setup-app",
-				"panel-match-resource-setup-app",
 			]
 			_destinationMatchLabels: [] // Need to send external traffic to spanner.
 		}
