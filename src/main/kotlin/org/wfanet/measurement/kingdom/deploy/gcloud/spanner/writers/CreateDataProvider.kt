@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
-import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -25,8 +24,6 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
   SpannerWriter<DataProvider, DataProvider>() {
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val internalCertificateId = idGenerator.generateInternalId()
-
-    dataProvider.certificate.toInsertMutation(internalCertificateId).bufferTo(transactionContext)
 
     val internalDataProviderId = idGenerator.generateInternalId()
     val externalDataProviderId = idGenerator.generateExternalId()
@@ -49,10 +46,10 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
 
     return dataProvider.copy {
       this.externalDataProviderId = externalDataProviderId.value
-      certificate =
+      this.certificate =
         certificate.copy {
           this.externalDataProviderId = externalDataProviderId.value
-          externalCertificateId = externalDataProviderCertificateId.value
+          this.externalCertificateId = externalDataProviderCertificateId.value
         }
     }
   }

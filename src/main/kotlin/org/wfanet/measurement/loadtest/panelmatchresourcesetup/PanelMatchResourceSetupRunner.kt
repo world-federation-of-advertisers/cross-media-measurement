@@ -31,15 +31,15 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 import picocli.CommandLine
 
+private val EXCHANGE_DATE = LocalDate.now()
+private const val API_VERSION = "v2alpha"
+private const val SCHEDULE = "@daily"
+
 @CommandLine.Command(
   name = "RunPanelMatchResourceSetupJob",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-private val EXCHANGE_DATE = LocalDate.now()
-private const val API_VERSION = "v2alpha"
-private const val SCHEDULE = "@daily"
-
 private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
   val clientCerts =
     SigningCertsTesting.fromPemFiles(
@@ -57,14 +57,14 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
   val dataProviderContent =
     EntityContent(
       displayName = flags.edpDisplayName,
-      signingKey = loadSigningKey(flags.edpCsCertDerFile, flags.edpCsKeyDerFile),
+      signingKey = loadSigningKey(flags.edpCertDerFile, flags.edpKeyDerFile),
       encryptionPublicKey = loadPublicKey(flags.edpEncryptionPublicKeyset).toEncryptionPublicKey()
     )
 
   val modelProviderContent =
     EntityContent(
       displayName = flags.mpDisplayName,
-      signingKey = loadSigningKey(flags.mpCsCertDerFile, flags.mpCsKeyDerFile),
+      signingKey = loadSigningKey(flags.mpCertDerFile, flags.mpKeyDerFile),
       encryptionPublicKey = loadPublicKey(flags.mpEncryptionPublicKeyset).toEncryptionPublicKey()
     )
 

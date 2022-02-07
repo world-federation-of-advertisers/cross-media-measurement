@@ -31,15 +31,15 @@ package k8s
 	]
 	_edp_cert_key_files_flags: [
 		"--edp-display-name=\(_edp_display_name)",
-		"--edp-cert-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_cert.der",
-		"--edp-key-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_private.der",
-		"--edp-encryption-public-keyset=/var/run/secrets/files/\(_edp_display_name)_enc_public.tink",
+		"--edp-cert-der-file=/var/run/secrets/files/edp1_cs_cert.der",
+		"--edp-key-der-file=/var/run/secrets/files/edp1_cs_private.der",
+		"--edp-encryption-public-keyset=/var/run/secrets/files/edp1_enc_public.tink",
 	]
 	_mp_cert_key_files_flags: [
 		"--mp-display-name=\(_mp_display_name)",
-		"--mp-cert-der-file=/var/run/secrets/files/\(_mp_display_name)_cs_cert.der",
-		"--mp-key-der-file=/var/run/secrets/files/\(_mp_display_name)_cs_private.der",
-		"--mp-encryption-public-keyset=/var/run/secrets/files/\(_mp_display_name)_enc_public.tink",
+		"--mp-cert-der-file=/var/run/secrets/files/edp2_cs_cert.der",
+		"--mp-key-der-file=/var/run/secrets/files/edp2_cs_private.der",
+		"--mp-encryption-public-keyset=/var/run/secrets/files/edp2_enc_public.tink",
 	]
 	_exchange_workflow_flag: [
 		"--exchange-workflow=/var/run/secrets/files/exchange_workflow.textproto",
