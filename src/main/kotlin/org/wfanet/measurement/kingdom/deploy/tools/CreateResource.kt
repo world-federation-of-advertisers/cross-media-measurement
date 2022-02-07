@@ -115,7 +115,9 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
 }
 
 @Command(name = "account", description = ["Creates an Account"])
-private class CreateAccountCommand : CreatePrincipalCommand() {
+private class CreateAccountCommand : Callable<Int> {
+  @Mixin private lateinit var apiFlags: ApiFlags
+
   override fun call(): Int {
     val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
     val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
