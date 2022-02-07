@@ -92,7 +92,7 @@ class PanelMatchResourceSetup(
     logger.info("Successfully created data provider: $dataProviderName")
 
     // Step 2b: Create the MPs.
-    val externalModelProviderId = createDataProvider(modelProviderContent)
+    val externalModelProviderId = createModelProvider(modelProviderContent)
     val modelProviderName = ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
     logger.info("Successfully created model provider: $modelProviderName")
 
@@ -147,10 +147,12 @@ class PanelMatchResourceSetup(
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
     val signedPublicKey =
       signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
+    val certificateDer =
+      parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
+
     return dataProvidersStub.createDataProvider(
         internalDataProvider {
-          certificate =
-            parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
+          certificate = certificateDer
           details =
             DataProviderKt.details {
               apiVersion = API_VERSION.string
@@ -167,10 +169,12 @@ class PanelMatchResourceSetup(
     val encryptionPublicKey = modelProviderContent.encryptionPublicKey
     val signedPublicKey =
       signEncryptionPublicKey(encryptionPublicKey, modelProviderContent.signingKey)
+    val certificateDer =
+      parseCertificateDer(modelProviderContent.signingKey.certificate.encoded.toByteString())
+
     return modelProvidersStub.createModelProvider(
         internalModelProvider {
-          certificate =
-            parseCertificateDer(modelProviderContent.signingKey.certificate.encoded.toByteString())
+          certificate = certificateDer
           details =
             ModelProviderKt.details {
               apiVersion = API_VERSION.string

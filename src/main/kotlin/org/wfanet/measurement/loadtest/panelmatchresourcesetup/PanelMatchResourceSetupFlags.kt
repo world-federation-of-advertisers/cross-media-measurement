@@ -56,7 +56,7 @@ class PanelMatchResourceSetupFlags {
     description = ["EDP cert (DER format) file."],
     required = true
   )
-  lateinit var edpCsCertDerFile: File
+  lateinit var edpCertDerFile: File
     private set
 
   @CommandLine.Option(
@@ -64,7 +64,7 @@ class PanelMatchResourceSetupFlags {
     description = ["MP private key (DER format) file."],
     required = true
   )
-  lateinit var edpCsKeyDerFile: File
+  lateinit var edpKeyDerFile: File
     private set
 
   @CommandLine.Option(
@@ -88,7 +88,7 @@ class PanelMatchResourceSetupFlags {
     description = ["MP cert (DER format) file."],
     required = true
   )
-  lateinit var mpCsCertDerFile: File
+  lateinit var mpCertDerFile: File
     private set
 
   @CommandLine.Option(
@@ -96,7 +96,7 @@ class PanelMatchResourceSetupFlags {
     description = ["MP private key (DER format) file."],
     required = true
   )
-  lateinit var mpCsKeyDerFile: File
+  lateinit var mpKeyDerFile: File
     private set
 
   @CommandLine.Option(
