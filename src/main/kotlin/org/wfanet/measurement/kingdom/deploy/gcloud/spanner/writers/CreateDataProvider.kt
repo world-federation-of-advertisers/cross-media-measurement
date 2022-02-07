@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
@@ -24,6 +26,16 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
   SpannerWriter<DataProvider, DataProvider>() {
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val internalCertificateId = idGenerator.generateInternalId()
+
+    transactionContext.bufferInsertMutation("Certificates") {
+      set("CertificateId" to internalCertificateId)
+      set("SubjectKeyIdentifier" to dataProvider.certificate.subjectKeyIdentifier.toGcloudByteArray())
+      set("NotValidBefore" to dataProvider.certificate.notValidBefore.toGcloudTimestamp())
+      set("NotValidAfter" to dataProvider.certificate.notValidAfter.toGcloudTimestamp())
+      set("RevocationState" to dataProvider.certificate.revocationState)
+      set("CertificateDetails" to dataProvider.certificate.details)
+      setJson("CertificateDetailsJson" to dataProvider.certificate.details)
+    }
 
     val internalDataProviderId = idGenerator.generateInternalId()
     val externalDataProviderId = idGenerator.generateExternalId()
