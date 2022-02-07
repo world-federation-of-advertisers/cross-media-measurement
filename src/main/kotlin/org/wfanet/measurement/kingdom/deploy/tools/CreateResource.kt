@@ -121,7 +121,7 @@ private class CreateAccountCommand : CreatePrincipalCommand() {
     val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
-    println(accountName)
+    println("Account Name: $accountName")
     println("Activation Token: $accountActivationToken")
 
     return 0
@@ -167,7 +167,8 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
       runBlocking(Dispatchers.IO) { dataProvidersStub.createDataProvider(dataProvider) }
 
     val apiId = externalIdToApiId(outputDataProvider.externalDataProviderId)
-    println(DataProviderKey(apiId).toName())
+    val dataProviderName = DataProviderKey(apiId).toName()
+    println("Data Provider Name: $dataProviderName")
 
     return 0
   }
@@ -192,7 +193,8 @@ private class CreateModelProviderCommand : CreatePrincipalCommand() {
       runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider) }
 
     val apiId = externalIdToApiId(outputModelProvider.externalModelProviderId)
-    println(ModelProviderKey(apiId).toName())
+    val modelProviderName = ModelProviderKey(apiId).toName()
+    println("Model Provider Name: $modelProviderName")
 
     return 0
   }
