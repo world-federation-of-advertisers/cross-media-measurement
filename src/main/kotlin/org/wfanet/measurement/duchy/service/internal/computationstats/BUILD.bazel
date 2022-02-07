@@ -15,7 +15,7 @@ kt_jvm_library(
     srcs = ["ComputationStatsService.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
-        "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
