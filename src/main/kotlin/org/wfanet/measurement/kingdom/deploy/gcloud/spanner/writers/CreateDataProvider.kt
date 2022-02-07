@@ -29,7 +29,9 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
 
     transactionContext.bufferInsertMutation("Certificates") {
       set("CertificateId" to internalCertificateId)
-      set("SubjectKeyIdentifier" to dataProvider.certificate.subjectKeyIdentifier.toGcloudByteArray())
+      set(
+        "SubjectKeyIdentifier" to dataProvider.certificate.subjectKeyIdentifier.toGcloudByteArray()
+      )
       set("NotValidBefore" to dataProvider.certificate.notValidBefore.toGcloudTimestamp())
       set("NotValidAfter" to dataProvider.certificate.notValidAfter.toGcloudTimestamp())
       set("RevocationState" to dataProvider.certificate.revocationState)
