@@ -49,7 +49,7 @@ message Account {
   // Resource name of the `Account` that created this one. Output-only.
   // Immutable.
   string creator = 2
-      [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
+  [(google.api.resource_reference).type = "halo.wfanet.org/Account"];
 
   // Possible activation state of an `Account`.
   enum ActivationState {
@@ -69,8 +69,8 @@ message Account {
     //
     // This can only be a `MeasurementConsumer` that `creator` is an owner of.
     string owned_measurement_consumer = 1
-        [(google.api.resource_reference).type =
-             "halo.wfanet.org/MeasurementConsumer"];
+    [(google.api.resource_reference).type =
+        "halo.wfanet.org/MeasurementConsumer"];
 
     // Token that can be used to activate the account. Output-only.
     string activation_token = 2;
@@ -80,11 +80,8 @@ message Account {
   // Only set when `activation_state` is `UNACTIVATED` in `FULL` view.
   ActivationParams activation_params = 4;
 
-  // Token that can be used to create a `MeasurementConsumer` resource.
-  // Output-only. Immutable.
-  //
-  // Only set in `FULL` view.
-  string measurement_consumer_creation_token = 5;
+  // DEPRECATED: suppose not to owned by an Account
+  string measurement_consumer_creation_token = 5 [deprecated = true];
 
   // OpenID Connect identity.
   message OpenIdConnectIdentity {
