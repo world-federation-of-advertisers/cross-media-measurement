@@ -117,7 +117,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
                   this.externalMeasurementConsumerId = externalMeasurementConsumerId
                 }
 
-                // If no Requisition state is specified, still exclude if params haven't been set.
+                // If no state filter set in public request, include all visible states.
                 if (states.isEmpty()) {
                   states += InternalState.UNFULFILLED
                   states += InternalState.FULFILLED
