@@ -61,7 +61,7 @@ class PanelMatchResourceSetupFlags {
 
   @CommandLine.Option(
     names = ["--edp-key-der-file"],
-    description = ["MP private key (DER format) file."],
+    description = ["EDP private key (DER format) file."],
     required = true
   )
   lateinit var edpKeyDerFile: File
