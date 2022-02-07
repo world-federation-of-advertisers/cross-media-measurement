@@ -14,9 +14,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import org.wfanet.measurement.gcloud.common.toGcloudByteArray
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
@@ -27,17 +26,7 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val internalCertificateId = idGenerator.generateInternalId()
 
-    transactionContext.bufferInsertMutation("Certificates") {
-      set("CertificateId" to internalCertificateId)
-      set(
-        "SubjectKeyIdentifier" to dataProvider.certificate.subjectKeyIdentifier.toGcloudByteArray()
-      )
-      set("NotValidBefore" to dataProvider.certificate.notValidBefore.toGcloudTimestamp())
-      set("NotValidAfter" to dataProvider.certificate.notValidAfter.toGcloudTimestamp())
-      set("RevocationState" to dataProvider.certificate.revocationState)
-      set("CertificateDetails" to dataProvider.certificate.details)
-      setJson("CertificateDetailsJson" to dataProvider.certificate.details)
-    }
+    dataProvider.certificate.toInsertMutation(internalCertificateId).bufferTo(transactionContext)
 
     val internalDataProviderId = idGenerator.generateInternalId()
     val externalDataProviderId = idGenerator.generateExternalId()
@@ -60,10 +49,10 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
 
     return dataProvider.copy {
       this.externalDataProviderId = externalDataProviderId.value
-      this.certificate =
+      certificate =
         certificate.copy {
           this.externalDataProviderId = externalDataProviderId.value
-          this.externalCertificateId = externalDataProviderCertificateId.value
+          externalCertificateId = externalDataProviderCertificateId.value
         }
     }
   }
