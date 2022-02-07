@@ -86,15 +86,15 @@ class PanelMatchResourceSetup(
   ) {
     logger.info("Starting with RunID: $runId ...")
 
-    // Step 2a: Create the EDPs.
-    val externalDataProviderId = createDataProvider(dataProviderContent)
-    val dataProviderName = DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
-    logger.info("Successfully created data provider: $dataProviderName")
-
-    // Step 2b: Create the MPs.
+    // Step 2a: Create the MP.
     val externalModelProviderId = createModelProvider(modelProviderContent)
     val modelProviderName = ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
     logger.info("Successfully created model provider: $modelProviderName")
+
+    // Step 2b: Create the EDP.
+    val externalDataProviderId = createDataProvider(dataProviderContent)
+    val dataProviderName = DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
+    logger.info("Successfully created data provider: $dataProviderName")
 
     val externalRecurringExchangeId =
       createRecurringExchange(
@@ -120,12 +120,13 @@ class PanelMatchResourceSetup(
   ): WorkflowResourceKeys {
     logger.info("Starting with RunID: $runId ...")
 
-    val externalDataProviderId = createDataProvider()
-    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
-    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
     val externalModelProviderId = createModelProvider()
     val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
     logger.info("Successfully created model provider: ${modelProviderKey.toName()}.")
+
+    val externalDataProviderId = createDataProvider()
+    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
+    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
 
     val externalRecurringExchangeId =
       createRecurringExchange(
