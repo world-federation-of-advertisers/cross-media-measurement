@@ -242,7 +242,7 @@ fun InternalDifferentialPrivacyParams.toSystemDifferentialPrivacyParams():
     .build()
 }
 
-/** Converts a kingdom internal Measurement.State to system Api Requisition.State. */
+/** Converts a kingdom internal Measurement.State to system Api Computation.State. */
 fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
   return when (this) {
     InternalMeasurement.State.PENDING_REQUISITION_PARAMS ->
