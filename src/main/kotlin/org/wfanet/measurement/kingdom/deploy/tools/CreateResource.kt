@@ -22,6 +22,7 @@ import java.util.concurrent.Callable
 import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
@@ -32,6 +33,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -39,7 +41,9 @@ import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider
@@ -110,6 +114,42 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
   }
 }
 
+@Command(name = "account", description = ["Creates an Account"])
+private class CreateAccountCommand : Callable<Int> {
+  @Mixin private lateinit var apiFlags: ApiFlags
+
+  override fun call(): Int {
+    val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
+    val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
+    val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
+    val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
+    println("Account Name: $accountName")
+    println("Activation Token: $accountActivationToken")
+
+    return 0
+  }
+}
+
+@Command(name = "mc_creation_token", description = ["Create a Measurement Consumer Creation Token"])
+private class CreateMcCreationTokenCommand : Callable<Int> {
+  @Mixin lateinit var apiFlags: ApiFlags
+
+  override fun call(): Int {
+    val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
+    val mcCreationToken = runBlocking {
+      externalIdToApiId(
+        internalAccountsClient.createMeasurementConsumerCreationToken(
+            createMeasurementConsumerCreationTokenRequest {}
+          )
+          .measurementConsumerCreationToken
+      )
+    }
+    println("Creation Token: $mcCreationToken")
+
+    return 0
+  }
+}
+
 @Command(name = "data_provider", description = ["Creates a DataProvider"])
 private class CreateDataProviderCommand : CreatePrincipalCommand() {
   override fun call(): Int {
@@ -129,7 +169,8 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
       runBlocking(Dispatchers.IO) { dataProvidersStub.createDataProvider(dataProvider) }
 
     val apiId = externalIdToApiId(outputDataProvider.externalDataProviderId)
-    println(DataProviderKey(apiId).toName())
+    val dataProviderName = DataProviderKey(apiId).toName()
+    println("Data Provider Name: $dataProviderName")
 
     return 0
   }
@@ -154,7 +195,8 @@ private class CreateModelProviderCommand : CreatePrincipalCommand() {
       runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider) }
 
     val apiId = externalIdToApiId(outputModelProvider.externalModelProviderId)
-    println(ModelProviderKey(apiId).toName())
+    val modelProviderName = ModelProviderKey(apiId).toName()
+    println("Model Provider Name: $modelProviderName")
 
     return 0
   }
@@ -225,6 +267,8 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   subcommands =
     [
       HelpCommand::class,
+      CreateAccountCommand::class,
+      CreateMcCreationTokenCommand::class,
       CreateDataProviderCommand::class,
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
@@ -247,6 +291,8 @@ class CreateResource : Callable<Int> {
  * Creates resources in the Kingdom
  * Commands:
  *  help                Displays help information about the specified command
+ *  account             Creates an Account
+ *  mc_creation_token   Creates a Measurement Consumer Creation Token
  *  data_provider       Creates a DataProvider
  *  model_provider      Creates a ModelProvider
  *  recurring_exchange  Creates a RecurringExchange
