@@ -15,7 +15,8 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.protobuf.ByteString
-import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsRequest
+import com.google.protobuf.StringValue
+import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsParameters
 import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsResponse
 import org.wfanet.panelmatch.client.privatemembership.EncryptedEventData
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
@@ -32,19 +33,19 @@ class PlaintextQueryResultsDecryptor(
 ) : QueryResultsDecryptor {
 
   override fun decryptQueryResults(
-    request: DecryptQueryResultsRequest
+    parameters: DecryptQueryResultsParameters
   ): DecryptQueryResultsResponse {
-    require(request.serializedParameters != ByteString.EMPTY) {
-      "Must set serializedParameters: ${request.serializedParameters}"
+    require(parameters.parameters.unpack(StringValue::class.java).value != "") {
+      "Must set serializedParameters: ${parameters.parameters}"
     }
-    require(request.serializedPublicKey != ByteString.EMPTY) {
-      "Must set serializedPublicKey: ${request.serializedPublicKey}"
+    require(parameters.serializedPublicKey != ByteString.EMPTY) {
+      "Must set serializedPublicKey: ${parameters.serializedPublicKey}"
     }
-    require(request.serializedPrivateKey != ByteString.EMPTY) {
-      "Must set serializedPrivateKey: ${request.serializedPrivateKey}"
+    require(parameters.serializedPrivateKey != ByteString.EMPTY) {
+      "Must set serializedPrivateKey: ${parameters.serializedPrivateKey}"
     }
     val decryptedQueryResults =
-      request.encryptedQueryResultsList.map {
+      parameters.encryptedQueryResults.map {
         privateMembershipCryptorHelper.decodeEncryptedQueryResult(it)
       }
     return decryptQueryResultsResponse {
@@ -59,7 +60,7 @@ class PlaintextQueryResultsDecryptor(
                 plaintext {
                   payload =
                     symmetricCryptor
-                      .decrypt(request.decryptedJoinKey.key, listOf(ciphertext))
+                      .decrypt(parameters.decryptedJoinKey.key, listOf(ciphertext))
                       .single()
                 }
               }

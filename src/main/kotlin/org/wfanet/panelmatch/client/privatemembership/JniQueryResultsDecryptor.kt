@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.privatemembership.batch.Shared
 import org.wfanet.panelmatch.common.loadLibraryFromResource
 import org.wfanet.panelmatch.common.wrapJniException
 import org.wfanet.panelmatch.protocol.decryptqueryresults.DecryptQueryResultsSwig
@@ -25,8 +26,18 @@ import org.wfanet.panelmatch.protocol.decryptqueryresults.DecryptQueryResultsSwi
 class JniQueryResultsDecryptor : QueryResultsDecryptor {
 
   override fun decryptQueryResults(
-    request: DecryptQueryResultsRequest
+    parameters: DecryptQueryResultsParameters
   ): DecryptQueryResultsResponse {
+    val request = decryptQueryResultsRequest {
+      serializedParameters =
+        parameters.parameters.unpack(Shared.Parameters::class.java).toByteString()
+      hkdfPepper = parameters.hkdfPepper
+      serializedPublicKey = parameters.serializedPublicKey
+      serializedPrivateKey = parameters.serializedPrivateKey
+      compressionParameters = parameters.compressionParameters
+      decryptedJoinKey = parameters.decryptedJoinKey
+      encryptedQueryResults += parameters.encryptedQueryResults
+    }
     return wrapJniException {
       DecryptQueryResultsResponse.parseFrom(
         DecryptQueryResultsSwig.decryptQueryResultsWrapper(request.toByteArray())

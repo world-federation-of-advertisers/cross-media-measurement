@@ -22,13 +22,15 @@ import com.google.privatemembership.batch.server.RawDatabaseShardKt.bucket
 import com.google.privatemembership.batch.server.Server.RawDatabaseShard
 import com.google.privatemembership.batch.server.applyQueriesRequest
 import com.google.privatemembership.batch.server.rawDatabaseShard
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.client.common.encryptedQueryResultOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 
 /** [QueryEvaluator] that calls into C++ via JNI. */
-class JniQueryEvaluator(serializedParameters: ByteString) : QueryEvaluator {
-  private val privateMembershipParameters: Parameters = Parameters.parseFrom(serializedParameters)
+class JniQueryEvaluator(parameters: Any) : QueryEvaluator {
+
+  private val privateMembershipParameters by lazy { parameters.unpack(Parameters::class.java) }
 
   init {
     check(privateMembershipParameters.shardParameters.enablePaddingNonces) {

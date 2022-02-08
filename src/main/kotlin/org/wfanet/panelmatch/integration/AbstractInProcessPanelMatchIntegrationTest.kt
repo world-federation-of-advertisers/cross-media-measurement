@@ -16,7 +16,9 @@ package org.wfanet.panelmatch.integration
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
+import com.google.privatemembership.batch.Shared
 import com.google.protobuf.ByteString
+import com.google.protobuf.TypeRegistry
 import io.grpc.StatusException
 import java.nio.file.Path
 import java.time.Clock
@@ -83,9 +85,10 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   )
 
   private val exchangeWorkflow: ExchangeWorkflow by lazy {
+    val typeRegistry = TypeRegistry.newBuilder().add(Shared.Parameters.getDescriptor()).build()
     checkNotNull(this::class.java.getResource(exchangeWorkflowResourcePath))
       .openStream()
-      .use { input -> parseTextProto(input.bufferedReader(), exchangeWorkflow {}) }
+      .use { input -> parseTextProto(input.bufferedReader(), exchangeWorkflow {}, typeRegistry) }
       .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
   }
   private val serializedExchangeWorkflow: ByteString by lazy { exchangeWorkflow.toByteString() }

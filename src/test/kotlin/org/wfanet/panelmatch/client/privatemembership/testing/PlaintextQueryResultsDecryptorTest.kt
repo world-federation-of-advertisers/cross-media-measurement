@@ -15,15 +15,18 @@
 package org.wfanet.panelmatch.client.privatemembership.testing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.stringValue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.privatemembership.DecryptEventDataRequest.EncryptedEventDataSet
+import org.wfanet.panelmatch.client.privatemembership.DecryptQueryResultsParameters
 import org.wfanet.panelmatch.client.privatemembership.Plaintext
-import org.wfanet.panelmatch.client.privatemembership.decryptQueryResultsRequest
 import org.wfanet.panelmatch.client.privatemembership.decryptedEventDataSet
+import org.wfanet.panelmatch.common.compression.compressionParameters
 
 private val PLAINTEXTS: List<Pair<Int, List<Plaintext>>> =
   listOf(
@@ -38,7 +41,7 @@ private val DECRYPTED_JOIN_KEYS =
     3 to "some-join-decrypted-key-3"
   )
 private val HKDF_PEPPER = "some-pepper".toByteStringUtf8()
-private val SERIALIZED_PARAMETERS = "some-serialized-parameters".toByteStringUtf8()
+private val PARAMETERS = "some-serialized-parameters"
 
 @RunWith(JUnit4::class)
 class PlaintextQueryResultsDecryptorTest {
@@ -67,14 +70,16 @@ class PlaintextQueryResultsDecryptorTest {
       encryptedQueryResults
         .zip(DECRYPTED_JOIN_KEYS)
         .map { (encryptedQueryResult, joinkeyList) ->
-          val request = decryptQueryResultsRequest {
-            serializedParameters = SERIALIZED_PARAMETERS
-            serializedPublicKey = keys.serializedPublicKey
-            serializedPrivateKey = keys.serializedPrivateKey
-            decryptedJoinKey = joinKeyOf(joinkeyList.second)
-            this.encryptedQueryResults += encryptedQueryResult
-            hkdfPepper = HKDF_PEPPER
-          }
+          val request =
+            DecryptQueryResultsParameters(
+              parameters = Any.pack(stringValue { value = PARAMETERS }),
+              serializedPublicKey = keys.serializedPublicKey,
+              serializedPrivateKey = keys.serializedPrivateKey,
+              decryptedJoinKey = joinKeyOf(joinkeyList.second),
+              encryptedQueryResults = listOf(encryptedQueryResult),
+              compressionParameters = compressionParameters {},
+              hkdfPepper = HKDF_PEPPER
+            )
           queryResultsDecryptor.decryptQueryResults(request).eventDataSetsList.map { eventSet ->
             eventSet.decryptedEventDataList.map { Pair(eventSet.queryId, it) }
           }

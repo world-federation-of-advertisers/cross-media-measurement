@@ -15,8 +15,11 @@
 package org.wfanet.panelmatch.client.privatemembership
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.stringValue
 import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,8 +70,7 @@ private val ASYMMETRIC_KEYS =
 private val COMPRESSION_PARAMETERS = compressionParameters {
   brotli = brotliCompressionParameters { dictionary = "some-dictionary".toByteStringUtf8() }
 }
-private val PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS =
-  "some serialized parameters".toByteStringUtf8()
+private const val PRIVATE_MEMBERSHIP_PARAMETERS = "some serialized parameters"
 
 @RunWith(JUnit4::class)
 class DecryptQueryResultsTest : BeamTestBase() {
@@ -92,7 +94,7 @@ class DecryptQueryResultsTest : BeamTestBase() {
         compressionParameters =
           pcollectionViewOf("CompressionParameters View", COMPRESSION_PARAMETERS),
         privateMembershipKeys = pcollectionViewOf("Keys View", ASYMMETRIC_KEYS),
-        serializedParameters = PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
+        parameters = Any.pack(stringValue { value = PRIVATE_MEMBERSHIP_PARAMETERS }),
         queryResultsDecryptor = TestQueryResultsDecryptor,
         hkdfPepper = HKDF_PEPPER
       )
@@ -110,7 +112,7 @@ class DecryptQueryResultsTest : BeamTestBase() {
             listOf(
               "some-decrypted-join-key-id-1".toByteStringUtf8(),
               HKDF_PEPPER,
-              PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
+              PRIVATE_MEMBERSHIP_PARAMETERS.toByteStringUtf8(),
               COMPRESSION_PARAMETERS.toByteString(),
               ASYMMETRIC_KEYS.serializedPublicKey,
               ASYMMETRIC_KEYS.serializedPrivateKey,
@@ -120,7 +122,7 @@ class DecryptQueryResultsTest : BeamTestBase() {
             listOf(
               "some-decrypted-join-key-id-2".toByteStringUtf8(),
               HKDF_PEPPER,
-              PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
+              PRIVATE_MEMBERSHIP_PARAMETERS.toByteStringUtf8(),
               COMPRESSION_PARAMETERS.toByteString(),
               ASYMMETRIC_KEYS.serializedPublicKey,
               ASYMMETRIC_KEYS.serializedPrivateKey,
@@ -130,7 +132,7 @@ class DecryptQueryResultsTest : BeamTestBase() {
             listOf(
               "some-decrypted-join-key-id-3".toByteStringUtf8(),
               HKDF_PEPPER,
-              PRIVATE_MEMBERSHIP_SERIALIZED_PARAMETERS,
+              PRIVATE_MEMBERSHIP_PARAMETERS.toByteStringUtf8(),
               COMPRESSION_PARAMETERS.toByteString(),
               ASYMMETRIC_KEYS.serializedPublicKey,
               ASYMMETRIC_KEYS.serializedPrivateKey,
@@ -145,7 +147,7 @@ class DecryptQueryResultsTest : BeamTestBase() {
 
 private object TestQueryResultsDecryptor : QueryResultsDecryptor {
   override fun decryptQueryResults(
-    request: DecryptQueryResultsRequest
+    parameters: DecryptQueryResultsParameters
   ): DecryptQueryResultsResponse {
     return decryptQueryResultsResponse {
       // To ensure that things are properly flattened, we test two eventDataSets.
@@ -153,18 +155,23 @@ private object TestQueryResultsDecryptor : QueryResultsDecryptor {
       // To ensure the request parameters are correct, we encode them in the first eventDataSet.
       eventDataSets +=
         decryptedEventDataSet {
-          decryptedEventData += plaintext { payload = request.decryptedJoinKey.key }
-          decryptedEventData += plaintext { payload = request.hkdfPepper }
-          decryptedEventData += plaintext { payload = request.serializedParameters }
-          decryptedEventData += plaintext { payload = request.compressionParameters.toByteString() }
-          decryptedEventData += plaintext { payload = request.serializedPublicKey }
-          decryptedEventData += plaintext { payload = request.serializedPrivateKey }
+          decryptedEventData += plaintext { payload = parameters.decryptedJoinKey.key }
+          decryptedEventData += plaintext { payload = parameters.hkdfPepper }
+          decryptedEventData +=
+            plaintext {
+              payload =
+                parameters.parameters.unpack(StringValue::class.java).value.toByteStringUtf8()
+            }
+          decryptedEventData +=
+            plaintext { payload = parameters.compressionParameters.toByteString() }
+          decryptedEventData += plaintext { payload = parameters.serializedPublicKey }
+          decryptedEventData += plaintext { payload = parameters.serializedPrivateKey }
         }
 
       // To ensure the request encryptedQueryResults are correct, we encode them in an eventDataSet.
       eventDataSets +=
         decryptedEventDataSet {
-          for (result in request.encryptedQueryResultsList) {
+          for (result in parameters.encryptedQueryResults) {
             decryptedEventData += plaintext { payload = result.serializedEncryptedQueryResult }
           }
         }

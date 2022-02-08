@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.Any
 import org.wfanet.panelmatch.client.privatemembership.testing.AbstractEvaluateQueriesEndToEndTest
 import org.wfanet.panelmatch.client.privatemembership.testing.JniQueryEvaluatorContext
 import org.wfanet.panelmatch.client.privatemembership.testing.JniQueryEvaluatorTestHelper
@@ -29,7 +30,7 @@ class JniEvaluateQueriesEndToEndTest : AbstractEvaluateQueriesEndToEndTest() {
   }
 
   override fun makeQueryEvaluator(parameters: EvaluateQueriesParameters): QueryEvaluator {
-    return JniQueryEvaluator(getContext(parameters).privateMembershipParameters.toByteString())
+    return JniQueryEvaluator(Any.pack(getContext(parameters).privateMembershipParameters))
   }
 
   override fun makeHelper(parameters: EvaluateQueriesParameters): QueryEvaluatorTestHelper {

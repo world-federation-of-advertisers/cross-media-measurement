@@ -24,6 +24,7 @@ import com.google.privatemembership.batch.client.Client.PrivateKey
 import com.google.privatemembership.batch.client.decryptQueriesRequest
 import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.parameters
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.random.Random
@@ -112,7 +113,7 @@ fun main(args: Array<String>) {
     )
 
   val privateMembershipCryptor =
-    JniPrivateMembershipCryptor(PRIVATE_MEMBERSHIP_PARAMETERS.toByteString())
+    JniPrivateMembershipCryptor(Any.pack(PRIVATE_MEMBERSHIP_PARAMETERS))
 
   val rawQueries: PCollection<LookupKeyAndId> =
     pipeline.apply("Create Queries", Create.of(0 until SHARD_COUNT)).parDo("Populate Queries") { i
@@ -138,7 +139,7 @@ fun main(args: Array<String>) {
       .map { kvOf(it, paddingNonceOf("padding-nonce-for-${it.id}".toByteStringUtf8())) }
       .toMapView()
 
-  val queryEvaluator = JniQueryEvaluator(PRIVATE_MEMBERSHIP_PARAMETERS.toByteString())
+  val queryEvaluator = JniQueryEvaluator(Any.pack(PRIVATE_MEMBERSHIP_PARAMETERS))
 
   val database: PCollection<DatabaseEntry> =
     pipeline.apply("Create Database Shards", Create.of(0 until SHARD_COUNT)).flatMap(
