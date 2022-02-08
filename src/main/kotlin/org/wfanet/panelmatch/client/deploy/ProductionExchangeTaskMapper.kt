@@ -112,7 +112,7 @@ open class ProductionExchangeTaskMapper(
   override suspend fun ExchangeContext.buildPrivateMembershipQueries(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP)
     val stepDetails = step.buildPrivateMembershipQueriesStep
-    val privateMembershipCryptor = JniPrivateMembershipCryptor(stepDetails.serializedParameters)
+    val privateMembershipCryptor = JniPrivateMembershipCryptor(stepDetails.parameters)
 
     val outputManifests =
       mapOf(
@@ -144,7 +144,7 @@ open class ProductionExchangeTaskMapper(
         maxQueriesPerShard = stepDetails.maxQueriesPerShard
       )
 
-    val queryResultsEvaluator = JniQueryEvaluator(stepDetails.serializedParameters)
+    val queryResultsEvaluator = JniQueryEvaluator(stepDetails.parameters)
 
     val outputManifests = mapOf("encrypted-results" to stepDetails.encryptedQueryResultFileCount)
     val outputLabels = listOf("padding-nonces")
@@ -163,14 +163,14 @@ open class ProductionExchangeTaskMapper(
     val outputManifests = mapOf("decrypted-event-data" to stepDetails.decryptEventDataSetFileCount)
 
     return apacheBeamTaskFor(outputManifests, emptyList()) {
-      decryptPrivateMembershipResults(stepDetails.serializedParameters, JniQueryResultsDecryptor())
+      decryptPrivateMembershipResults(stepDetails.parameters, JniQueryResultsDecryptor())
     }
   }
 
   override suspend fun ExchangeContext.generateSerializedRlweKeyPair(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.GENERATE_SERIALIZED_RLWE_KEY_PAIR_STEP)
     val privateMembershipCryptor =
-      JniPrivateMembershipCryptor(step.generateSerializedRlweKeyPairStep.serializedParameters)
+      JniPrivateMembershipCryptor(step.generateSerializedRlweKeyPairStep.parameters)
     return GenerateAsymmetricKeyPairTask(generateKeys = privateMembershipCryptor::generateKeys)
   }
 

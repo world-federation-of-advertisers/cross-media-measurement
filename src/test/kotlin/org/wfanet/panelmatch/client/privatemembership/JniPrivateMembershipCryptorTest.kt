@@ -18,7 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.privatemembership.batch.ParametersKt.shardParameters
 import com.google.privatemembership.batch.Shared.EncryptedQueries
 import com.google.privatemembership.batch.parameters as clientParameters
-import com.google.protobuf.ByteString
+import com.google.protobuf.Any
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -26,20 +26,18 @@ import org.wfanet.panelmatch.client.privatemembership.testing.PRIVATE_MEMBERSHIP
 import org.wfanet.panelmatch.client.privatemembership.testing.encryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.testing.unencryptedQueryOf
 
-private val SERIALIZED_PARAMETERS: ByteString =
-  clientParameters {
-      shardParameters =
-        shardParameters {
-          numberOfShards = 200
-          numberOfBucketsPerShard = 2000
-        }
-      cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
+private val parameters = clientParameters {
+  shardParameters =
+    shardParameters {
+      numberOfShards = 200
+      numberOfBucketsPerShard = 2000
     }
-    .toByteString()
+  cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
+}
 
 @RunWith(JUnit4::class)
 class JniPrivateMembershipCryptorTest {
-  private val privateMembershipCryptor = JniPrivateMembershipCryptor(SERIALIZED_PARAMETERS)
+  private val privateMembershipCryptor = JniPrivateMembershipCryptor(Any.pack(parameters))
 
   @Test
   fun `encryptQueries with multiple shards`() {

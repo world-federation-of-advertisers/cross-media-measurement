@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import java.io.Serializable
 import org.apache.beam.sdk.coders.KvCoder
@@ -52,7 +53,7 @@ import org.wfanet.panelmatch.common.withTime
  * @param decryptedJoinKeyAndId used to remove the final layer of encryption
  * @param queryIdAndIds a query id tied to its join key identifier
  * @param compressionParameters specifies how to decompress the decrypted event data
- * @param serializedParameters parameters for decryption
+ * @param parameters parameters for decryption
  * @param queryResultsDecryptor decryptor
  * @param hkdfPepper pepper used in AES key derivation
  */
@@ -63,7 +64,7 @@ fun decryptQueryResults(
   queryIdAndIds: PCollection<QueryIdAndId>,
   compressionParameters: PCollectionView<CompressionParameters>,
   privateMembershipKeys: PCollectionView<AsymmetricKeyPair>,
-  serializedParameters: ByteString,
+  parameters: Any,
   queryResultsDecryptor: QueryResultsDecryptor,
   hkdfPepper: ByteString
 ): PCollection<KeyedDecryptedEventDataSet> {
@@ -74,7 +75,7 @@ fun decryptQueryResults(
     .apply(
       "Decrypt Query Results",
       DecryptQueryResults(
-        serializedParameters,
+        parameters,
         queryResultsDecryptor,
         hkdfPepper,
         compressionParameters,
@@ -94,7 +95,7 @@ private data class JoinKeyGroup(
 ) : Serializable
 
 private class DecryptQueryResults(
-  private val serializedParameters: ByteString,
+  private val parameters: Any,
   private val queryResultsDecryptor: QueryResultsDecryptor,
   private val hkdfPepper: ByteString,
   private val compressionParameters: PCollectionView<CompressionParameters>,
@@ -132,10 +133,10 @@ private class DecryptQueryResults(
         .apply(
           "Make DecryptResultsFnRequests",
           ParDo.of(
-              BuildDecryptQueryResultsRequestsFn(
+              BuildDecryptQueryResultsParametersFn(
                 privateMembershipKeys,
                 compressionParameters,
-                serializedParameters,
+                parameters,
                 hkdfPepper
               )
             )
@@ -166,15 +167,15 @@ private class DecryptQueryResults(
   }
 }
 
-private class BuildDecryptQueryResultsRequestsFn(
+private class BuildDecryptQueryResultsParametersFn(
   private val keysView: PCollectionView<AsymmetricKeyPair>,
   private val compressionParametersView: PCollectionView<CompressionParameters>,
-  private val serializedParameters: ByteString,
+  private val parameters: Any,
   private val hkdfPepper: ByteString
 ) :
   DoFn<
     KV<JoinKeyAndId?, Iterable<@JvmWildcard EncryptedQueryResult>>,
-    KV<JoinKeyIdentifier, DecryptQueryResultsRequest>>() {
+    KV<JoinKeyIdentifier, DecryptQueryResultsParameters>>() {
   private val metricsNamespace = "DecryptQueryResults"
   private val noResults = Metrics.counter(metricsNamespace, "no-results")
   private val discardedResult = Metrics.counter(metricsNamespace, "skipped-queries")
@@ -191,15 +192,16 @@ private class BuildDecryptQueryResultsRequestsFn(
     val keys = context.sideInput(keysView)
     val compressionParameters = context.sideInput(compressionParametersView)
     for (item in encryptedQueryResultsList) {
-      val request = decryptQueryResultsRequest {
-        serializedParameters = this@BuildDecryptQueryResultsRequestsFn.serializedParameters
-        hkdfPepper = this@BuildDecryptQueryResultsRequestsFn.hkdfPepper
-        serializedPublicKey = keys.serializedPublicKey
-        serializedPrivateKey = keys.serializedPrivateKey
-        this.compressionParameters = compressionParameters
-        decryptedJoinKey = decryptedJoinKeyAndId.joinKey
-        encryptedQueryResults += item
-      }
+      val request =
+        DecryptQueryResultsParameters(
+          parameters = this@BuildDecryptQueryResultsParametersFn.parameters,
+          hkdfPepper = this@BuildDecryptQueryResultsParametersFn.hkdfPepper,
+          serializedPublicKey = keys.serializedPublicKey,
+          serializedPrivateKey = keys.serializedPrivateKey,
+          compressionParameters = compressionParameters,
+          decryptedJoinKey = decryptedJoinKeyAndId.joinKey,
+          encryptedQueryResults = listOf(item),
+        )
       context.output(kvOf(decryptedJoinKeyAndId.joinKeyIdentifier, request))
     }
   }
@@ -207,7 +209,7 @@ private class BuildDecryptQueryResultsRequestsFn(
 
 private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDecryptor) :
   DoFn<
-    KV<JoinKeyIdentifier, DecryptQueryResultsRequest>,
+    KV<JoinKeyIdentifier, DecryptQueryResultsParameters>,
     KV<JoinKeyIdentifier, List<@JvmWildcard Plaintext>>>() {
   private val metricsNamespace = "DecryptQueryResults"
   private val decryptionTimes = Metrics.distribution(metricsNamespace, "decryption-times")
@@ -227,3 +229,13 @@ private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDe
     }
   }
 }
+
+data class DecryptQueryResultsParameters(
+  val parameters: Any,
+  val hkdfPepper: ByteString,
+  val serializedPublicKey: ByteString,
+  val serializedPrivateKey: ByteString,
+  val compressionParameters: CompressionParameters,
+  val decryptedJoinKey: JoinKey,
+  val encryptedQueryResults: Iterable<EncryptedQueryResult>,
+) : Serializable

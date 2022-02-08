@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
+import com.google.protobuf.Any
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.panelmatch.client.privatemembership.testing.AbstractQueryEvaluatorTest
@@ -27,7 +28,7 @@ class JniQueryEvaluatorTest : AbstractQueryEvaluatorTest() {
     JniQueryEvaluatorContext(shardCount, bucketsPerShardCount)
 
   override val evaluator: QueryEvaluator =
-    JniQueryEvaluator(context.privateMembershipParameters.toByteString())
+    JniQueryEvaluator(Any.pack(context.privateMembershipParameters))
 
   override val helper: QueryEvaluatorTestHelper = JniQueryEvaluatorTestHelper(context)
 }

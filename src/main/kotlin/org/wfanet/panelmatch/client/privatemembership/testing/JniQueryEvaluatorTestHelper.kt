@@ -19,6 +19,7 @@ import com.google.privatemembership.batch.client.decryptQueriesRequest
 import com.google.privatemembership.batch.client.encryptQueriesRequest
 import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import org.wfanet.panelmatch.client.common.bucketIdOf
@@ -86,7 +87,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
 
   override fun makeResult(query: QueryId, rawPayload: ByteString): EncryptedQueryResult {
     // TODO(@efoxepstein): have private-membership expose a helper for this.
-    return JniQueryEvaluator(context.privateMembershipParameters.toByteString())
+    return JniQueryEvaluator(Any.pack(context.privateMembershipParameters))
       .executeQueries(
         listOf(databaseShardOf(shardIdOf(0), listOf(bucketOf(bucketIdOf(0), listOf(rawPayload))))),
         listOf(makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))),
@@ -106,7 +107,7 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
     val queryBundle = makeQueryBundle(shardIdOf(0), listOf(query to bucketIdOf(0)))
     val paddingNonces = mapOf(query to paddingNonce {})
 
-    return JniQueryEvaluator(context.privateMembershipParameters.toByteString())
+    return JniQueryEvaluator(Any.pack(context.privateMembershipParameters))
       .executeQueries(
         listOf(databaseShard),
         listOf(queryBundle),

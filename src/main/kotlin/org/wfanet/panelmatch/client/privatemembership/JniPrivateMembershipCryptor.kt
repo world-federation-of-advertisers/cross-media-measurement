@@ -22,18 +22,20 @@ import com.google.privatemembership.batch.client.encryptQueriesRequest
 import com.google.privatemembership.batch.client.generateKeysRequest
 import com.google.privatemembership.batch.client.plaintextQuery
 import com.google.privatemembership.batch.queryMetadata
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 import org.wfanet.panelmatch.protocol.privatemembership.PrivateMembershipSwig
 
 /** A [PrivateMembershipCryptor] implementation using the JNI [PrivateMembershipSwig]. */
-class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) :
-  PrivateMembershipCryptor {
+class JniPrivateMembershipCryptor(private val parameters: Any) : PrivateMembershipCryptor {
+
+  private val privateMembershipParameters by lazy {
+    parameters.unpack(ClientParameters::class.java)
+  }
 
   override fun generateKeys(): AsymmetricKeyPair {
-    val request = generateKeysRequest {
-      parameters = ClientParameters.parseFrom(serializedParameters)
-    }
+    val request = generateKeysRequest { this.parameters = privateMembershipParameters }
     val keys = JniPrivateMembership.generateKeys(request)
     return AsymmetricKeyPair(
       serializedPrivateKey = keys.privateKey.toByteString(),
@@ -57,7 +59,7 @@ class JniPrivateMembershipCryptor(private val serializedParameters: ByteString) 
         }
       }
     val request = encryptQueriesRequest {
-      parameters = ClientParameters.parseFrom(serializedParameters)
+      this.parameters = privateMembershipParameters
       privateKey = ClientPrivateKey.parseFrom(keys.serializedPrivateKey)
       publicKey = ClientPublicKey.parseFrom(keys.serializedPublicKey)
       this.plaintextQueries += plaintextQueries

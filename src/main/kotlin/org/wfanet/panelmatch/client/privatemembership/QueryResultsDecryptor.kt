@@ -26,5 +26,5 @@ import java.io.Serializable
 interface QueryResultsDecryptor : Serializable {
 
   /** Decrypts a set of encrypted query results */
-  fun decryptQueryResults(request: DecryptQueryResultsRequest): DecryptQueryResultsResponse
+  fun decryptQueryResults(parameters: DecryptQueryResultsParameters): DecryptQueryResultsResponse
 }

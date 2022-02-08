@@ -14,7 +14,7 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
-import com.google.protobuf.ByteString
+import com.google.protobuf.Any
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
@@ -31,7 +31,7 @@ import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
 /** Decrypts private membership results given serialized parameters. */
 suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
-  serializedParameters: ByteString,
+  parameters: Any,
   queryResultsDecryptor: QueryResultsDecryptor,
 ) {
   val encryptedQueryResults: PCollection<EncryptedQueryResult> =
@@ -70,7 +70,7 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
       queryAndIds,
       compressionParameters,
       privateKeysView,
-      serializedParameters,
+      parameters,
       queryResultsDecryptor,
       hkdfPepper,
     )
