@@ -145,7 +145,7 @@ steps {
 
 # MP generates private commutative deterministic key.
 steps {
-  step_id: "generate-commutative-deterministic-key"
+  step_id: "generate-mp-commutative-deterministic-key"
   party: MODEL_PROVIDER
 
   generate_commutative_deterministic_key_step {}
@@ -165,7 +165,7 @@ steps {
 
 # EDP provides previously generated private key as input.
 steps {
-  step_id: "generate-commutative-deterministic-key"
+  step_id: "generate-edp-commutative-deterministic-key"
   party: DATA_PROVIDER
 
   generate_commutative_deterministic_key_step {}

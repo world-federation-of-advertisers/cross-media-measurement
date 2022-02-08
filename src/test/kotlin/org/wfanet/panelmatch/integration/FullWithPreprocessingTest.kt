@@ -20,6 +20,7 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertNotNull
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.common.unprocessedEventOf
@@ -63,7 +64,11 @@ private val EDP_EVENT_DATA_BLOB = EDP_DATABASE_ENTRIES.map { it.toDelimitedByteS
 @RunWith(JUnit4::class)
 class FullWithPreprocessingTest : AbstractInProcessPanelMatchIntegrationTest() {
   override val exchangeWorkflowResourcePath: String = "config/full_with_preprocessing.textproto"
-  // TODO: Add generate pepper step
+
+  override val workflow: ExchangeWorkflow by lazy {
+    readExchangeWorkflowTextProto(exchangeWorkflowResourcePath)
+  }
+
   override val initialDataProviderInputs: Map<String, ByteString> =
     mapOf(
       "edp-event-data" to EDP_EVENT_DATA_MANIFEST,

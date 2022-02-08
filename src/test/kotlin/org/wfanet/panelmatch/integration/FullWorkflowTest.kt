@@ -20,6 +20,7 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertNotNull
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.flatten
 import org.wfanet.panelmatch.client.common.databaseEntryOf
 import org.wfanet.panelmatch.client.common.encryptedEntryOf
@@ -83,6 +84,10 @@ private val EDP_ENCRYPTED_EVENT_DATA_BLOB =
 @RunWith(JUnit4::class)
 class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
   override val exchangeWorkflowResourcePath: String = "config/full_exchange_workflow.textproto"
+
+  override val workflow: ExchangeWorkflow by lazy {
+    readExchangeWorkflowTextProto(exchangeWorkflowResourcePath)
+  }
 
   override val initialDataProviderInputs: Map<String, ByteString> =
     mapOf(
