@@ -14,6 +14,12 @@ cue_library(
 )
 
 cue_library(
+    name = "panel_match_resource_setup",
+    srcs = ["panel_match_resource_setup.cue"],
+    deps = [":base"],
+)
+
+cue_library(
     name = "kingdom",
     srcs = ["kingdom.cue"],
     deps = [":base"],
