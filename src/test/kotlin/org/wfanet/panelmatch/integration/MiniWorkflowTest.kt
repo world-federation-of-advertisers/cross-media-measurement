@@ -19,12 +19,17 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 
 private val HKDF_PEPPER = "some-hkdf-pepper".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 class MiniWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
   override val exchangeWorkflowResourcePath: String = "config/mini_exchange_workflow.textproto"
+
+  override val workflow: ExchangeWorkflow by lazy {
+    readExchangeWorkflowTextProto(exchangeWorkflowResourcePath)
+  }
 
   override val initialDataProviderInputs: Map<String, ByteString> =
     mapOf("edp-hkdf-pepper" to HKDF_PEPPER)

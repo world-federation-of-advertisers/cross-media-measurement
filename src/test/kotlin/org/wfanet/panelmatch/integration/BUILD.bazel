@@ -15,6 +15,25 @@ spanner_emulator_test(
 )
 
 spanner_emulator_test(
+    name = "SingleStepTest",
+    size = "small",
+    srcs = ["SingleStepTest.kt"],
+    data = [
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/edp",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/mp",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/shared",
+    ],
+    resources = ["//src/test/kotlin/org/wfanet/panelmatch/integration/config"],
+    test_class = "org.wfanet.panelmatch.integration.SingleStepTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/integration",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+spanner_emulator_test(
     name = "DoubleBlindWorkflowTest",
     size = "small",
     srcs = ["DoubleBlindWorkflowTest.kt"],

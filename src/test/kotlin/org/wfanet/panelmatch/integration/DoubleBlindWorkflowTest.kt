@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.panelmatch.client.common.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndIdCollection
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndIdCollection
@@ -36,6 +37,10 @@ private val EDP_COMMUTATIVE_DETERMINISTIC_KEY = "some-key".toByteStringUtf8()
 class DoubleBlindWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
   override val exchangeWorkflowResourcePath: String =
     "config/double_blind_exchange_workflow.textproto"
+
+  override val workflow: ExchangeWorkflow by lazy {
+    readExchangeWorkflowTextProto(exchangeWorkflowResourcePath)
+  }
 
   override val initialDataProviderInputs: Map<String, ByteString> =
     mapOf("edp-commutative-deterministic-key" to EDP_COMMUTATIVE_DETERMINISTIC_KEY)
