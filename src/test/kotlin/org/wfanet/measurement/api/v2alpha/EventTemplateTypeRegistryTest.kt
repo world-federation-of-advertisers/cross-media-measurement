@@ -24,33 +24,79 @@ private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.eventtempla
 @RunWith(JUnit4::class)
 class EventTemplateTypeRegistryTest {
   @Test
-  fun `loadTemplate() contains correct fields`() {
+  fun `loadTemplate() template contains correct fields`() {
     val typeRegistry = EventTemplateTypeRegistry(PACKAGE_NAME)
 
-    assertThat(typeRegistry.getTemplates().keys)
-      .containsExactly("TestVideoTemplate", "TestBannerTemplate")
-    assertThat(typeRegistry.getTemplates()["TestVideoTemplate"]?.fields?.map { c -> c.toString() })
-      .containsExactly(
-        "org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate.age",
-        "org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate.duration"
+    assertThat(
+        typeRegistry.getDescriptorForType(
+            "org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate"
+          )
+          .fields
       )
+      .isEmpty()
+    assertThat(
+        typeRegistry.getDescriptorForType(
+            "org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate"
+          )
+          .fields
+          ?.map { field -> field.name }
+      )
+      .containsExactly("age", "duration")
   }
 
   @Test
-  fun `loadTemplate() contains correct custom options`() {
+  fun `loadTemplate() template contains correct custom options`() {
     val typeRegistry = EventTemplateTypeRegistry(PACKAGE_NAME)
 
     assertThat(
-      typeRegistry.getTemplates()["TestVideoTemplate"]
-        ?.options
-        .toString()
-        .contains("display_name: \"Video Ad\"")
-    )
+        typeRegistry
+          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate")
+          .options
+          .getExtension(EventAnnotations.eventTemplate)
+          .displayName
+      )
+      .isEqualTo("Banner Ad")
     assertThat(
-      typeRegistry.getTemplates()["TestBannerTemplate"]
-        ?.options
-        .toString()
-        .contains("display_name: \"Banner Ad\"")
-    )
+        typeRegistry
+          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate")
+          .options
+          .getExtension(EventAnnotations.eventTemplate)
+          .description
+      )
+      .isEqualTo("A simple Event Template for a banner ad.")
+    assertThat(
+        typeRegistry
+          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate")
+          .options
+          .getExtension(EventAnnotations.eventTemplate)
+          .displayName
+      )
+      .isEqualTo("Video Ad")
+    assertThat(
+        typeRegistry
+          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate")
+          .options
+          .getExtension(EventAnnotations.eventTemplate)
+          .description
+      )
+      .isEqualTo("A simple Event Template for a video ad.")
+  }
+
+  @Test
+  fun `loadTemplate() loads subpackages`() {
+    val typeRegistry = EventTemplateTypeRegistry("org.wfanet.measurement.api.v2alpha")
+
+    assertThat(
+        typeRegistry.getDescriptorForType(
+          "org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate"
+        )
+      )
+      .isNotNull()
+    assertThat(
+        typeRegistry.getDescriptorForType(
+          "org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate"
+        )
+      )
+      .isNotNull()
   }
 }

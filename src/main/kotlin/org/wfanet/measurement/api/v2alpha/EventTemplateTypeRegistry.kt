@@ -15,12 +15,14 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.Descriptors.Descriptor
+import com.google.protobuf.Message
+import com.google.protobuf.TypeRegistry
 import org.reflections.ReflectionUtils
 import org.reflections.Reflections
 import org.reflections.scanners.Scanners.SubTypes
 
 class EventTemplateTypeRegistry(private val packageName: String) {
-  private var templates: Map<String, Descriptor> = mapOf<String, Descriptor>()
+  private lateinit var registry: TypeRegistry
 
   init {
     loadTemplates()
@@ -31,19 +33,31 @@ class EventTemplateTypeRegistry(private val packageName: String) {
     loadTemplates()
   }
 
-  /** Returns the current templates map. */
-  fun getTemplates(): Map<String, Descriptor> {
-    return templates
+  /** Returns the current TypeRegistry. */
+  fun getDescriptorForType(messageType: String): Descriptor {
+    // return templates
+    return registry.find(messageType)
   }
 
   private fun loadTemplates() {
-    val tempMap = mutableMapOf<String, Descriptor>()
+    val registryBuilder = TypeRegistry.newBuilder()
     val reflections = Reflections(packageName, SubTypes.filterResultsBy { true })
-    val classes: Set<Class<*>> = reflections.getSubTypesOf(Object::class.java)
-    for (c in classes.filter { c -> c.simpleName.endsWith("Template") }) {
-      tempMap[c.simpleName] = ReflectionUtils.invoke(c.getMethod("getDescriptor"), c) as Descriptor
+    val classes: Set<Class<out Message>> = reflections.getSubTypesOf(Message::class.java)
+    for (c in classes) {
+      try {
+        val descriptor = ReflectionUtils.invoke(c.getMethod("getDescriptor"), c) as Descriptor
+        if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
+          registryBuilder.add(descriptor)
+        }
+      } catch (e: NoSuchMethodException) {}
     }
 
-    templates = tempMap.toMap()
+    registry = registryBuilder.build()
+  }
+
+  companion object {
+    fun createRegistryForPackagePrefix(prefix: String): EventTemplateTypeRegistry {
+      return EventTemplateTypeRegistry(prefix)
+    }
   }
 }

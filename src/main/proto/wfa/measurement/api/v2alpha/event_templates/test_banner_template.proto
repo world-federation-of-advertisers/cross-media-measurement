@@ -16,9 +16,10 @@ syntax = "proto3";
 
 package org.wfa.measurement.api.v2alpha.eventtemplates;
 
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
 option java_package = "org.wfanet.measurement.api.v2alpha.eventtemplates";
 option java_multiple_files = true;
-import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
 message TestBannerTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {

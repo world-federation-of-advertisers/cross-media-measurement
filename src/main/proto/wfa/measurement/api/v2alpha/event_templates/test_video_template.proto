@@ -23,10 +23,16 @@ import "wfa/measurement/api/v2alpha/event_annotations.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.eventtemplates";
 option java_multiple_files = true;
 
-enum AgeRange {
-  AGE_RANGE_UNSPECIFIED = 0;
-  AGE_18_TO_24 = 1;
-  // … other values
+message AgeRange {
+  option (.wfa.measurement.api.v2alpha.event_field) = {
+    display_name: "Age Range"
+  };
+
+  enum Value {
+    AGE_RANGE_UNSPECIFIED = 0;
+    AGE_18_TO_24 = 1;
+  }
+  Value value = 1;
 }
 
 message TestVideoTemplate {
@@ -43,7 +49,6 @@ message TestVideoTemplate {
 message ViewDuration {
   option (.wfa.measurement.api.v2alpha.event_field) = {
     display_name: "View Duration"
-    // … remaining metadata
   };
   google.protobuf.Duration value = 1;
 }
