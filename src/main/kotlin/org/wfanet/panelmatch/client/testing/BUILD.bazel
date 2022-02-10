@@ -19,6 +19,12 @@ package(
 
 java_library(
     name = "testing",
+    resources = [
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/edp",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/mp",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/shared",
+        "//src/test/kotlin/org/wfanet/panelmatch/integration/config",
+    ],
     runtime_deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing",
@@ -29,6 +35,8 @@ java_library(
         "//src/main/kotlin/org/wfanet/panelmatch/common/crypto/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration",
+        "//src/main/kotlin/org/wfanet/panelmatch/integration/testing",
     ],
 )
 
