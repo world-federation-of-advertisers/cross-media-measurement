@@ -7,12 +7,12 @@ resulting container images are intended to run in
 ## Requirements
 
 In order to build the primary system executables and run the corresponding
-tests, your build environment must meet the following:
+tests, your build environment must have the following:
 
 *   Bazel
     *   See [`.bazelversion`](../.bazelversion)
 *   GNU/Linux OS with x86-64 architecture
-    *   Some image targets require glibc <= 2.31
+    *   Some image targets require building with glibc <= 2.31
     *   Known to work on Debian Bullseye and Ubuntu 18.04
 *   [Clang](https://clang.llvm.org/)
 *   [SWIG](http://swig.org/)
@@ -26,6 +26,17 @@ The entire suite of tests can be run using the following command:
 ```shell
 bazel test //src/test/...
 ```
+
+### Specifying Host Platform
+
+As stated above, some targets require building with glibc <= 2.31. Bazel cannot
+detect the glibc version used by the local C++ toolchain, so we rely on the host
+platform being explicitly specified using the `--host_platform` option. Known
+compatible platforms are defined in the
+[//build/platforms package](../build/platforms/BUILD.bazel).
+
+For example, if your host machine is running Ubuntu 20.04, you would specify
+`--host_platform=//build/platforms:ubuntu_20_04`.
 
 ## Make Variables
 
@@ -76,10 +87,11 @@ example:
 tools/bazel-container test //src/test/...
 ```
 
-Note that if you want to develop on the host machine rather than just building,
-it may be simpler to use the Bash shell (`/bin/bash`) as your entry point and
-run your `bazel` commands from there. This way you can install an IDE inside the
-container and use it using X11 forwarding.
+Note that if you don't need to interact with the code on your host machine, it
+may be simpler to use the Bash shell (`/bin/bash`) as your entry point and run
+all of your commands from inside the container. You may even want to install
+IntelliJ inside the container and then use X11 forwarding to use it from your
+host machine.
 
 ### Hybrid Development
 
@@ -88,6 +100,9 @@ requirements, you can do most of your development on the host machine and just
 use the container for building/deploying image targets using the
 `tools/bazel-container` script. You can even run targets built inside the
 container on your host machine.
+
+Note: This script specifies the appropriate host platform to Bazel, so you
+should not use the `--host_platform` option when using it.
 
 The `tools/bazel-container` script uses a Docker volume for Bazel output. The
 script prints the volume name to `STDERR` when it's run. You can use this to
@@ -116,14 +131,5 @@ bazel-container-output/mill-daemon
 ## Local Kubernetes
 
 You can bring up a minimal testing environment in a local Kubernetes environment
-using either [Usernetes](https://github.com/rootless-containers/usernetes) (U7s)
-with containerd or [kind](https://kind.sigs.k8s.io/). Use one of the following
-commands:
-
-```shell
-bazel run //src/main/k8s:kingdom_and_three_duchies_u7s
-```
-
-```shell
-bazel run //src/main/k8s:kingdom_and_three_duchies_kind
-```
+using [KiND](https://kind.sigs.k8s.io/). See
+[instructions](../src/main/k8s/local/README.md).

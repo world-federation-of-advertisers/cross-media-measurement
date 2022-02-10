@@ -1,10 +1,10 @@
 # How to deploy a Halo Kingdom on GKE
 
-Last updated: 2022-01-27
+Last updated: 2022-02-10
 
 ***The doc is updated to work with commit
-[7fab61049e425bb0edd5fa2802290bf1722254e7](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/429/commits/0b0e10d952f1fbfe4aa665c722e859bdeed9128d).
-Newer changes may require some commands to be updated. Stay tuned.***
+7fab61049e425bb0edd5fa2802290bf1722254e7. Newer changes may require some
+commands to be updated. Stay tuned.***
 
 ***Disclaimer***:
 
@@ -47,39 +47,7 @@ Newer changes may require some commands to be updated. Stay tuned.***
 
 ## Step 0. Before You Start
 
-Install the following software on your machine.
-
--   [Kubectl](https://kubernetes.io/docs/tasks/tools/)
--   [Bazel](https://docs.bazel.build/versions/main/install.html)
--   [Cloud SDK](https://cloud.google.com/sdk/docs/install)
-
-Clone the halo
-[cross-media-measurement](https://github.com/world-federation-of-advertisers/cross-media-measurement)
-git repository locally, and check out the targeted commit (likely the one
-mentioned in the beginning of the doc).
-
-```shell
-git clone https://github.com/world-federation-of-advertisers/cross-media-measurement.git
-git checkout the-expected-commit-number
-```
-
-Run the following command in the root directory and make sure it passes
-
-```shell
-bazel test src/...
-```
-
-or
-
-```shell
-tools/bazel-container test src/...
-```
-
-depending on your machine OS.
-
-Read this
-[page](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md)
-for more details if you have trouble building/testing the codes.
+See [Machine Setup](machine-setup.md).
 
 ## Step 1. Create and set up the GCP Project
 
@@ -132,21 +100,21 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
 2.  Build and push the binaries to gcr.io by running the following commands
 
     ```shell
-    $tools/bazel-container-run src/main/docker/push_push_spanner_schema_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-kingdom-demo
+    bazel run src/main/docker/push_push_spanner_schema_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-kingdom-demo
 
-    $tools/bazel-container-run src/main/docker/push_kingdom_data_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-kingdom-demo
+    bazel run src/main/docker/push_kingdom_data_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-kingdom-demo
 
-    $tools/bazel-container-run src/main/docker/push_kingdom_v2alpha_public_api_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-kingdom-demo
+    bazel run src/main/docker/push_kingdom_v2alpha_public_api_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-kingdom-demo
 
-    $tools/bazel-container-run src/main/docker/push_kingdom_system_api_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-kingdom-demo
+    bazel run src/main/docker/push_kingdom_system_api_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-kingdom-demo
     ```
 
     You should see log like "Successfully pushed Docker image to
@@ -155,17 +123,18 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
     or you can run
 
     ```shell
-    $bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
-    tools/bazel-container-run -c opt --define container_registry=gcr.io --define \
-    image_repo_prefix=halo-kingdom-demo
+    bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
+      bazel run -c opt --define container_registry=gcr.io --define \
+      image_repo_prefix=halo-kingdom-demo
     ```
+
+    Tip: If you're using [Hybrid Development](../building.md#hybrid-development)
+    for containerized builds, replace `bazel run` with
+    `tools/bazel-container-run`.
 
     The above command builds and pushes all halo binaries one by one. You should
     see logs like "Successfully pushed Docker image to gcr.io/halo-kingdom-
     demo/something" multiple times.
-
-    If you see errors using `tools/bazel-contain-run`, check the
-    [Hybrid Development approach](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md#hybrid-development).
 
     If you see an `UNAUTHORIZED` error, run the following command and retry.
 
@@ -191,7 +160,7 @@ gcloud config get-value project
 
 You should get result
 
-```shell
+```
 halo-kingdom-demo
 ```
 
@@ -207,10 +176,10 @@ Enable the Kubernetes API in the console if your account hasn't done it. Run the
 following command to create the cluster
 
 ```shell
-gcloud container clusters create halo-cmm-kingdom-demo-cluster --num-nodes 2
---machine-type=e2-small --enable-autoscaling --min-nodes 1 --max-nodes 5
---enable-network-policy --scopes
-"https://www.googleapis.com/auth/cloud-platform"
+gcloud container clusters create halo-cmm-kingdom-demo-cluster --num-nodes 2 \
+  --machine-type=e2-small --enable-autoscaling --min-nodes 1 --max-nodes 5 \
+  --enable-network-policy \
+  --scopes "https://www.googleapis.com/auth/cloud-platform"
 ```
 
 Note:
@@ -229,7 +198,7 @@ gcloud container clusters list
 
 You should get something like
 
-```shell
+```
 NAME                          LOCATION      MASTER_VERSION   MASTER_IP      MACHINE_TYPE NODE_VERSION     NUM_NODES STATUS
 halo-cmm-kingdom-demo-cluster us-central1-c 1.20.10-gke.1600 34.122.232.195 e2-small     1.20.10-gke.1600 2         RUNNING
 ```
@@ -242,7 +211,7 @@ gcloud container clusters get-credentials halo-cmm-kingdom-demo-cluster
 
 ## Step 5. Create Kubernetes secrets.
 
-***(Note: this step does not use any halo code, and you don't need to do it
+***(Note: this step does not use any Halo code, and you don't need to do it
 within the cross-media-measurement repo.)***
 
 The kingdom binary is configured to read certificates and config files from the
@@ -251,29 +220,22 @@ mounted Kubernetes secret volume.
 First, prepare all the files we want to include in the Kubernetes secret. The
 following files are required in the kingdom
 
-1.  all_root_certs.pem
+1.  `all_root_certs.pem`
 
-    -   This is the concatenation of root certificates of all parties that are
+    *   This is the concatenation of root certificates of all parties that are
         allowed to send request to the kingdom, including
-        -   all duchies
-        -   all edps
-        -   all MCs or frontends
-        -   The kingdom's own root certificate (for kingdom internal traffic)
-        -   A certificate used for health check purpose
-    -   One way to construct the all_root_certs file is put all root certs in
-        the same folder, and add a BUILD.bazel similar to
+        *   all duchies
+        *   all edps
+        *   all MCs or frontends
+        *   The kingdom's own root certificate (for kingdom internal traffic)
+        *   A certificate used for health check purpose
 
-        ```shell
-        genrule(
-          name = "all_root_certs",
-          srcs = glob(["*_root.pem"]),
-          outs = ["all_root_certs.pem"],
-          cmd = "cat $(SRCS) > $@",
-        visibility = ["//visibility:public"],
-        )
-        ```
+    Supposing your root certs are all in a single folder and end with
+    `_root.pem`, you can concatenate them all with a simple shell command:
 
-        and then build with `bazel`.
+    ```shell
+    cat *_root.pem > all_root_certs.pem
+    ```
 
 2.  `kingdom_tls.pem`
 
@@ -293,13 +255,13 @@ following files are required in the kingdom
     -   This is the private key of the TLS certificate used to do health checks
         in the kingdom.
 
-6.  `duchy_id_config.textproto`
+6.  `duchy_cert_config.textproto`
 
-    -   [Example](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/testing/secretfiles/duchy_id_config.textproto)
+    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
 
 7.  `llv2_protocol_config_config.textproto`
 
-    -   [Example](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/testing/secretfiles/llv2_protocol_config_config.textproto)
+    -   [Example](../../src/main/k8s/testing/secretfiles/llv2_protocol_config_config.textproto)
 
 ***health_probe_tls.pem, health_probe_tls.key, kingdom_tls.pem and
 kingdom_tls.key are confidential to the kingdom and determined by the kingdom
@@ -318,9 +280,8 @@ secretGenerator:
   - kingdom_tls.pem
   - health_probe_tls.pem
   - health_probe_tls.key
-  - duchy_id_config.textproto
+  - duchy_cert_config.textproto
   - llv2_protocol_config_config.textproto
-  - authority_key_identifier_to_principal_map.textproto
 ```
 
 and run
@@ -351,15 +312,14 @@ kubectl apply -k src/main/k8s/testing/secretfiles
 ## Step 6. Update cue files.
 
 We recommend that you modify the
-[kingdom_gke.cue](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/dev/kingdom_gke.cue)
-file in your local branch and deploy using it directly. Or you can create
-another version of it. But whatever way you do, you keep the changes locally, DO
-NOT COMMIT it.
+[kingdom_gke.cue](../../src/main/k8s/dev/kingdom_gke.cue) file in your local
+branch and deploy using it directly. Or you can create another version of it.
+But whatever way you do, you keep the changes locally, DO NOT COMMIT it.
 
 Update the tag variables in the beginning to match the names you choose in
 earlier steps.
 
-```shell
+```
 # GloudProject:      "halo-kingdom-demo"
 # SpannerInstance:   "halo-kingdom-demo-instance"
 # ContainerRegistry: "gcr.io"
@@ -376,18 +336,19 @@ registered in the system yet. Run
 ```shell
 touch /tmp/authority_key_identifier_to_principal_map.textproto
 kubectl create configmap config-files \
---from-file=/tmp/authority_key_identifier_to_principal_map.textproto
+  --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
 ```
 
 Deploy the kingdom by running (update the parameters if you use different
 values)
 
 ```shell
-tools/bazel-container-run
-src/main/kotlin/org/wfanet/measurement/tools:deploy_kingdom_to_gke \
---define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
--- --yaml-file=kingdom_gke.yaml --cluster-name=halo-cmm-kingdom-demo-cluster \
---environment=dev
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/tools:deploy_kingdom_to_gke \
+  --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
+  -- \
+  --yaml-file=kingdom_gke.yaml --cluster-name=halo-cmm-kingdom-demo-cluster \
+  --environment=dev
 ```
 
 Now all kingdom components will be successfully deployed to your GKE cluster.
@@ -513,9 +474,9 @@ following these steps.
 2.  run the following commands
 
     ```shell
-    openssl req -out test_root.pem -new
-    -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout test_root.key
-    -x509 -days 3650 -subj '/O=Some Organization/CN=Some CA' -extensions v3_ca
+    openssl req -out test_root.pem -new \
+    -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout test_root.key \
+    -x509 -days 3650 -subj '/O=Some Organization/CN=Some CA' -extensions v3_ca \
     -addext subjectAltName=DNS:ca.someorg.example.com
     ```
 
@@ -528,7 +489,7 @@ following these steps.
 
 3.  Then create a file named `test_user.cnf` with the following content
 
-    ```shell
+    ```
     [usr_cert]
     basicConstraints=CA:FALSE
     authorityKeyIdentifier=keyid:always,issuer
@@ -540,12 +501,12 @@ following these steps.
 4.  Then run two commands:
 
     ```shell
-    openssl req -out test_user.csr -new -newkey ec -pkeyopt
-    ec_paramgen_curve:prime256v1 -nodes -keyout test_user.key -subj '/O=Some
+    openssl req -out test_user.csr -new -newkey ec -pkeyopt \
+    ec_paramgen_curve:prime256v1 -nodes -keyout test_user.key -subj '/O=Some \
     Organization/CN=Some Server'
 
-    openssl x509 -in test_user.csr -out test_user.pem
-    -days 365 -req -CA test_root.pem -CAkey test_root.key -CAcreateserial -extfile
+    openssl x509 -in test_user.csr -out test_user.pem \
+    -days 365 -req -CA test_root.pem -CAkey test_root.key -CAcreateserial -extfile \
     test_user.cnf -extensions usr_cert
     ```
 
