@@ -57,39 +57,7 @@ Newer changes may require some commands to be updated. Stay tuned.***
 
 ## Step 0. Before You Start
 
-Install the following software on your machine.
-
--   [Kubectl](https://kubernetes.io/docs/tasks/tools/)
--   [Bazel](https://docs.bazel.build/versions/main/install.html)
--   [Cloud SDK](https://cloud.google.com/sdk/docs/install)
-
-Clone the halo
-[cross-media-measurement](https://github.com/world-federation-of-advertisers/cross-media-measurement)
-git repository locally, and check out the targeted commit (likely the one
-mentioned in the beginning of the doc).
-
-```shell
-git clone https://github.com/world-federation-of-advertisers/cross-media-measurement.git
-git checkout the-expected-commit-number
-```
-
-Run the following command in the root directory and make sure it passes
-
-```shell
-bazel test src/...
-```
-
-or
-
-```shell
-tools/bazel-container test src/...
-```
-
-depending on your machine OS.
-
-Read this
-[page](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md)
-for more details if you have trouble building/testing the codes.
+See [Machine Setup](machine-setup.md).
 
 ## Step 1. Register your duchy with the kingdom (offline)
 
@@ -176,33 +144,33 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
 2.  Build and push the binaries to gcr.io by running the following commands
 
     ```shell
-    $tools/bazel-container-run src/main/docker/push_push_spanner_schema_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_push_spanner_schema_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
 
-    $tools/bazel-container-run src/main/docker/push_duchy_spanner_computations_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_duchy_spanner_computations_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
 
-    $tools/bazel-container-run src/main/docker/push_duchy_requisition_fulfillment_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_duchy_requisition_fulfillment_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
 
-    $tools/bazel-container-run src/main/docker/push_duchy_computation_control_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_duchy_computation_control_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
 
-    $tools/bazel-container-run src/main/docker/push_duchy_async_computation_control_server_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_duchy_async_computation_control_server_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
 
-    $tools/bazel-container-run src/main/docker/push_duchy_herald_daemon_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_duchy_herald_daemon_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
 
-    $tools/bazel-container-run src/main/docker/push_duchy_liquid_legions_v2_mill_daemon_image \
-    -c opt --define container_registry=gcr.io \
-    --define image_repo_prefix=halo-worker1-demo
+    bazel run src/main/docker/push_duchy_liquid_legions_v2_mill_daemon_image \
+      -c opt --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-worker1-demo
     ```
 
     You should see log like "Successfully pushed Docker image to
@@ -211,17 +179,18 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
     Or you can run
 
     ```shell
-    $bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
-    tools/bazel-container-run -c opt --define container_registry=gcr.io --define \
-    image_repo_prefix=halo-kingdom-demo
+    bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
+      bazel run -c opt --define container_registry=gcr.io --define \
+      image_repo_prefix=halo-kingdom-demo
     ```
+
+    Tip: If you're using [Hybrid Development](../building.md#hybrid-development)
+    for containerized builds, replace `bazel run` with
+    `tools/bazel-container-run`.
 
     The above command builds and pushes all halo binaries one by one. You should
     see logs like "Successfully pushed Docker image to gcr.io/halo-kingdom-
     demo/something" multiple times.
-
-    If you see errors using `tools/bazel-contain-run`, check the
-    [Hybrid Development approach](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md#hybrid-development).
 
     If you see an `UNAUTHORIZED` error, run the following command and retry.
 
@@ -229,11 +198,6 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
     gcloud auth configure-docker
     gcloud auth login
     ```
-
-Note: You can also use `bazel run` for all targets except for the
-`push_duchy_liquid_legions_v2_mill_daemon_image`, which has to be run within the
-container since it uses JNI to call c++ code and we need to make sure the glibc
-version of the build system is compatible with the container running the binary.
 
 ## Step 6. Create the Cluster
 
@@ -517,13 +481,14 @@ Replace the k8s_duchy_secret_name and duchy_cert_name (obtained from the kingdom
 operator offline) in the command, and run
 
 ```shell
-tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke
---define=k8s_duchy_secret_name=certs-and-configs-abcdedf
---define=duchy_name=aggregator
---define=duchy_cert_name=duchies/aggregator/certificates/something
---define=duchy_protocols_setup_config=aggregator_protocols_setup_config.textproto --
---yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-aggregator-demo-cluster
---environment=dev
+bazel run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
+  --define=k8s_duchy_secret_name=certs-and-configs-abcdedf \
+  --define=duchy_name=aggregator \
+  --define=duchy_cert_name=duchies/aggregator/certificates/something \
+  --define=duchy_protocols_setup_config=aggregator_protocols_setup_config.textproto \
+  -- \
+  --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-aggregator-demo-cluster \
+  --environment=dev
 ```
 
 Now all duchy components will be successfully deployed to your GKE cluster. You
