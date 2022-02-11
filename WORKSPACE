@@ -33,6 +33,7 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "com.google.crypto.tink:tink": "1.6.0",
     "com.opentable.components:otj-pg-embedded": "0.13.4",
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
+    "org.projectnessie.cel:cel-tools" : "0.2.4",
 })
 
 maven_install(
