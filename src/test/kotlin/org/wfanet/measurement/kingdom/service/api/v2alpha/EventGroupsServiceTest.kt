@@ -130,7 +130,7 @@ private val EVENT_GROUP: EventGroup = eventGroup {
       signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
     }
   vidModelLines.addAll(VID_MODEL_LINES)
-  eventTemplates.addAll(EVENT_TEMPLATES)
+  event_templates.addAll(EVENT_TEMPLATES)
   encryptedMetadata = ENCRYPTED_METADATA
 }
 
@@ -151,7 +151,7 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
       measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
       measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
       vidModelLines.addAll(VID_MODEL_LINES)
-      eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
+      event_templates.addAll(INTERNAL_EVENT_TEMPLATES)
       encryptedMetadata = ENCRYPTED_METADATA
     }
 }

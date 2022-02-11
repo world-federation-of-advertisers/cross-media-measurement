@@ -284,8 +284,8 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
         }
     }
     vidModelLines += details.vidModelLinesList
-    eventTemplates.addAll(
-      details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
+    event_templates.addAll(
+      details.event_templatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
     )
     encryptedMetadata = details.encryptedMetadata
   }
@@ -322,8 +322,8 @@ private fun EventGroup.toInternal(
         measurementConsumerPublicKeySignature =
           this@toInternal.measurementConsumerPublicKey.signature
         vidModelLines += this@toInternal.vidModelLinesList
-        eventTemplates.addAll(
-          this@toInternal.eventTemplatesList.map { event ->
+        event_templates.addAll(
+          this@toInternal.event_templatesList.map { event ->
             EventGroupKt.eventTemplate { fullyQualifiedType = event.type }
           }
         )

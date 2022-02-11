@@ -21,43 +21,31 @@ import org.reflections.ReflectionUtils
 import org.reflections.Reflections
 import org.reflections.scanners.Scanners.SubTypes
 
-class EventTemplateTypeRegistry(private val packageName: String) {
-  private lateinit var registry: TypeRegistry
+class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
 
-  init {
-    loadTemplates()
-  }
-
-  /** Reloads templates into memory, i.e. if a new template was added. */
-  public fun reloadTemplates() {
-    loadTemplates()
-  }
-
-  /** Returns the current TypeRegistry. */
+  /**
+   * Returns the Descriptor for a fully qualified message type. Throws an exception if message is
+   * not found.
+   */
   fun getDescriptorForType(messageType: String): Descriptor {
-    // return templates
     return registry.find(messageType)
-  }
-
-  private fun loadTemplates() {
-    val registryBuilder = TypeRegistry.newBuilder()
-    val reflections = Reflections(packageName, SubTypes.filterResultsBy { true })
-    val classes: Set<Class<out Message>> = reflections.getSubTypesOf(Message::class.java)
-    for (c in classes) {
-      try {
-        val descriptor = ReflectionUtils.invoke(c.getMethod("getDescriptor"), c) as Descriptor
-        if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
-          registryBuilder.add(descriptor)
-        }
-      } catch (e: NoSuchMethodException) {}
-    }
-
-    registry = registryBuilder.build()
   }
 
   companion object {
     fun createRegistryForPackagePrefix(prefix: String): EventTemplateTypeRegistry {
-      return EventTemplateTypeRegistry(prefix)
+      val registryBuilder = TypeRegistry.newBuilder()
+      val reflections = Reflections(prefix, SubTypes.filterResultsBy { true })
+      val classes: Set<Class<out Message>> = reflections.getSubTypesOf(Message::class.java)
+      for (c in classes) {
+        try {
+          val descriptor = ReflectionUtils.invoke(c.getMethod("getDescriptor"), c) as Descriptor
+          if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
+            registryBuilder.add(descriptor)
+          }
+        } catch (e: NoSuchMethodException) {}
+      }
+
+      return EventTemplateTypeRegistry(registryBuilder.build())
     }
   }
 }

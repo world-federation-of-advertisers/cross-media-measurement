@@ -2,10 +2,13 @@ load("@rules_proto//proto:defs.bzl", "proto_library")
 load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 
-package(default_visibility = ["//visibility:public"])
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
 
 proto_library(
-    name = "event_templates",
+    name = "event_templates_proto",
     srcs = glob(["*_template.proto"]),
     deps = [
         "@com_google_protobuf//:descriptor_proto",
@@ -15,12 +18,12 @@ proto_library(
 )
 
 java_proto_library(
-    name = "event_templates_java",
-    deps = [":event_templates"],
+    name = "event_templates_java_proto",
+    deps = [":event_templates_proto"],
 )
 
 kt_jvm_proto_library(
-    name = "event_templates_kt_jvm",
-    srcs = [":event_templates"],
-    deps = [":event_templates_java"],
+    name = "event_templates_kt_jvm_proto",
+    srcs = [":event_templates_proto"],
+    deps = [":event_templates_java_proto"],
 )

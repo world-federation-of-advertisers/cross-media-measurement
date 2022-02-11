@@ -19,84 +19,47 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
-private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.eventtemplates"
+private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.testing.event_templates"
+private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.testing.event_templates"
+private const val BANNER_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestBannerTemplate"
+private const val VIDEO_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestVideoTemplate"
 
 @RunWith(JUnit4::class)
 class EventTemplateTypeRegistryTest {
   @Test
   fun `loadTemplate() template contains correct fields`() {
-    val typeRegistry = EventTemplateTypeRegistry(PACKAGE_NAME)
+    val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
 
+    assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME).fields).isEmpty()
     assertThat(
-        typeRegistry.getDescriptorForType(
-            "org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate"
-          )
-          .fields
-      )
-      .isEmpty()
-    assertThat(
-        typeRegistry.getDescriptorForType(
-            "org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate"
-          )
-          .fields
-          ?.map { field -> field.name }
+        typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME).fields?.map { field -> field.name }
       )
       .containsExactly("age", "duration")
   }
 
   @Test
   fun `loadTemplate() template contains correct custom options`() {
-    val typeRegistry = EventTemplateTypeRegistry(PACKAGE_NAME)
+    val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
 
-    assertThat(
-        typeRegistry
-          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate")
-          .options
-          .getExtension(EventAnnotations.eventTemplate)
-          .displayName
-      )
+    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME).displayName)
       .isEqualTo("Banner Ad")
-    assertThat(
-        typeRegistry
-          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate")
-          .options
-          .getExtension(EventAnnotations.eventTemplate)
-          .description
-      )
+    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME).description)
       .isEqualTo("A simple Event Template for a banner ad.")
-    assertThat(
-        typeRegistry
-          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate")
-          .options
-          .getExtension(EventAnnotations.eventTemplate)
-          .displayName
-      )
+    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME).displayName)
       .isEqualTo("Video Ad")
-    assertThat(
-        typeRegistry
-          .getDescriptorForType("org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate")
-          .options
-          .getExtension(EventAnnotations.eventTemplate)
-          .description
-      )
+    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME).description)
       .isEqualTo("A simple Event Template for a video ad.")
   }
 
   @Test
   fun `loadTemplate() loads subpackages`() {
-    val typeRegistry = EventTemplateTypeRegistry("org.wfanet.measurement.api.v2alpha")
+    val typeRegistry =
+      EventTemplateTypeRegistry.createRegistryForPackagePrefix("org.wfanet.measurement.api.v2alpha")
 
-    assertThat(
-        typeRegistry.getDescriptorForType(
-          "org.wfa.measurement.api.v2alpha.eventtemplates.TestBannerTemplate"
-        )
-      )
-      .isNotNull()
-    assertThat(
-        typeRegistry.getDescriptorForType(
-          "org.wfa.measurement.api.v2alpha.eventtemplates.TestVideoTemplate"
-        )
-      )
-      .isNotNull()
+    assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME)).isNotNull()
+    assertThat(typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME)).isNotNull()
   }
+
+  private fun EventTemplateTypeRegistry.getEventTemplateForType(messageType: String) =
+    getDescriptorForType(messageType).options.getExtension(EventAnnotations.eventTemplate)
 }
