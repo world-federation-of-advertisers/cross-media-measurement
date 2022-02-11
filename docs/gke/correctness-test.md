@@ -64,39 +64,7 @@ sure you have a domain you can config.***
 
 ## Step 0. Before You Start
 
-Install the following software on your machine.
-
--   [Kubectl](https://kubernetes.io/docs/tasks/tools/)
--   [Bazel](https://docs.bazel.build/versions/main/install.html)
--   [Cloud SDK](https://cloud.google.com/sdk/docs/install)
-
-Clone the halo
-[cross-media-measurement](https://github.com/world-federation-of-advertisers/cross-media-measurement)
-git repository locally, and check out the targeted commit (likely the one
-mentioned in the beginning of the doc).
-
-```shell
-git clone https://github.com/world-federation-of-advertisers/cross-media-measurement.git
-git checkout the-expected-commit-number
-```
-
-Run the following command in the root directory and make sure it passes
-
-```shell
-bazel test src/...
-```
-
-or
-
-```shell
-tools/bazel-container test src/...
-```
-
-depending on your machine OS.
-
-Read this
-[page](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md)
-for more details if you have trouble building/testing the codes.
+See [Machine Setup](machine-setup.md).
 
 # Step 1. Create and setup the GCP Project
 
@@ -203,17 +171,18 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
 2.  Build and push the binaries to gcr.io by running the following commands
 
     ```shell
-    $bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
-    tools/bazel-container-run -c opt --define container_registry=gcr.io --define \
-    image_repo_prefix=halo-cmm-demo
+    bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
+      bazel run -c opt --define container_registry=gcr.io --define \
+      image_repo_prefix=halo-cmm-demo
     ```
+
+    Tip: If you're using [Hybrid Development](../building.md#hybrid-development)
+    for containerized builds, replace `bazel run` with
+    `tools/bazel-container-run`.
 
     The above command builds and pushes all halo binaries one by one. You should
     see logs like "Successfully pushed Docker image to gcr.io/halo-cmm-
     demo/something" multiple times.
-
-    If you see errors using `tools/bazel-contain-run`, check the
-    [Hybrid Development approach](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md#hybrid-development).
 
     If you see an `UNAUTHORIZED` error, run the following command and retry.
 
@@ -352,10 +321,13 @@ halo-cmm-worker2-demo-cluster      us-central1-c  1.21.5-gke.1302  34.68.24.213 
     values)
 
     ```shell
-    tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_kingdom_to_gke \
-        --define=k8s_kingdom_secret_name=certs-and-configs-gb46dm7468 \
-        -- --yaml-file=kingdom_gke.yaml --cluster-name=halo-cmm-kingdom-demo-cluster \
-        --environment=dev
+    bazel run \
+      //src/main/kotlin/org/wfanet/measurement/tools:deploy_kingdom_to_gke \
+      --define=k8s_kingdom_secret_name=certs-and-configs-gb46dm7468 \
+      -- \
+      --yaml-file=kingdom_gke.yaml \
+      --cluster-name=halo-cmm-kingdom-demo-cluster \
+      --environment=dev
     ```
 
 6.  Verify everything is fine by run:
@@ -566,13 +538,16 @@ _computation_control_targets: {
     command)
 
     ```shell
-    tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
-        --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
-        --define=duchy_name=aggregator \
-        --define=duchy_cert_name=duchies/aggregator/certificates/DTDmi5he1do \
-        --define=duchy_protocols_setup_config=aggregator_protocols_setup_config.textproto \
-        -- --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-aggregator-demo-cluster \
-        --environment=dev
+    bazel run \
+      //src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
+      --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
+      --define=duchy_name=aggregator \
+      --define=duchy_cert_name=duchies/aggregator/certificates/DTDmi5he1do \
+      --define=duchy_protocols_setup_config=aggregator_protocols_setup_config.textproto \
+      -- \
+      --yaml-file=duchy_gke.yaml \
+      --cluster-name=halo-cmm-aggregator-demo-cluster \
+      --environment=dev
     ```
 
 4.  Update the DNS records for the aggregator's public and system APIs
@@ -612,13 +587,14 @@ _computation_control_targets: {
     the command)
 
     ```shell
-    tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
-        --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
-        --define=duchy_name=worker1 \
-        --define=duchy_cert_name=duchies/worker1/certificates/Vr9cWmehKZM \
-        --define=duchy_protocols_setup_config=non_aggregator_protocols_setup_config.textproto \
-        -- --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-worker1-demo-cluster \
-        --environment=dev
+    bazel run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
+      --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
+      --define=duchy_name=worker1 \
+      --define=duchy_cert_name=duchies/worker1/certificates/Vr9cWmehKZM \
+      --define=duchy_protocols_setup_config=non_aggregator_protocols_setup_config.textproto \
+      -- \
+      --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-worker1-demo-cluster \
+      --environment=dev
     ```
 
 4.  Update the DNS records for the worker1's public and system APIs
@@ -658,13 +634,15 @@ _computation_control_targets: {
     the command)
 
     ```shell
-    tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
-     --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
-     --define=duchy_name=worker2 \
-     --define=duchy_cert_name=duchies/worker2/certificates/QBC5Lphe1p0 \
-     --define=duchy_protocols_setup_config=non_aggregator_protocols_setup_config.textproto \
-    -- --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-worker2-demo-cluster \\
-     --environment=dev
+    bazel run \
+      //src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
+      --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
+      --define=duchy_name=worker2 \
+      --define=duchy_cert_name=duchies/worker2/certificates/QBC5Lphe1p0 \
+      --define=duchy_protocols_setup_config=non_aggregator_protocols_setup_config.textproto \
+      -- \
+      --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-worker2-demo-cluster \
+      --environment=dev
     ```
 
 4.  Update the DNS records for the worker2's public and system APIs
@@ -757,17 +735,19 @@ acts as one of the 6 different EDPs.
 4.  Deploy all 6 EDP simulators by running
 
     ```shell
-    tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_edp_simulator_to_gke \
-    --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
-    --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-    --define=edp1_name=dataProviders/HRL1wWehTSM \
-    --define=edp2_name=dataProviders/djQdz2ehSSE \
-    --define=edp3_name=dataProviders/SQ99TmehSA8 \
-    --define=edp4_name=dataProviders/TBZkB5heuL0 \
-    --define=edp5_name=dataProviders/HOCBxZheuS8 \
-    --define=edp6_name=dataProviders/VGExFmehRhY \
-    -- --yaml-file=edp_simulator_gke.yaml \
-    --cluster-name=halo-cmm-simulator-demo-cluster --environment=dev
+    bazel run \
+      //src/main/kotlin/org/wfanet/measurement/tools:deploy_edp_simulator_to_gke \
+      --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
+      --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
+      --define=edp1_name=dataProviders/HRL1wWehTSM \
+      --define=edp2_name=dataProviders/djQdz2ehSSE \
+      --define=edp3_name=dataProviders/SQ99TmehSA8 \
+      --define=edp4_name=dataProviders/TBZkB5heuL0 \
+      --define=edp5_name=dataProviders/HOCBxZheuS8 \
+      --define=edp6_name=dataProviders/VGExFmehRhY \
+      -- \
+      --yaml-file=edp_simulator_gke.yaml \
+      --cluster-name=halo-cmm-simulator-demo-cluster --environment=dev
     ```
 
 5.  Verify everything is fine.
@@ -828,12 +808,14 @@ a measurement. Then, the frontendSimulator will
     first)
 
     ```shell
-    tools/bazel-container-run src/main/kotlin/org/wfanet/measurement/tools:deploy_frontend_simulator_to_gke \
-    --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
-    --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-    --define=mc_api_key=ZEhkVZhe1Q0 \
-     -- --yaml-file=frontend_simulator_gke.yaml \
-    --cluster-name=halo-cmm-simulator-demo-cluster --environment=dev
+    bazel run \
+      //src/main/kotlin/org/wfanet/measurement/tools:deploy_frontend_simulator_to_gke \
+      --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
+      --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
+      --define=mc_api_key=ZEhkVZhe1Q0 \
+      -- \
+      --yaml-file=frontend_simulator_gke.yaml \
+      --cluster-name=halo-cmm-simulator-demo-cluster --environment=dev
     ```
 
 The frontend simulator job takes about 6 minutes to complete, since that is how
