@@ -24,8 +24,8 @@ import org.reflections.scanners.Scanners.SubTypes
 class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
 
   /**
-   * Returns the Descriptor for a fully qualified message type. Throws an exception if message is
-   * not found.
+   * Returns the Descriptor for a fully qualified message type. Throws an NullPointerException
+   * if message is not found.
    */
   fun getDescriptorForType(messageType: String): Descriptor {
     return registry.find(messageType)

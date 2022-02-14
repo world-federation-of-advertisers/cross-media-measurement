@@ -19,8 +19,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
-private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.testing.event_templates"
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.testing.event_templates"
+private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.event_templates.testing"
+private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
 private const val BANNER_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestBannerTemplate"
 private const val VIDEO_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestVideoTemplate"
 

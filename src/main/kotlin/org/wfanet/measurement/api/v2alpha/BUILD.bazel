@@ -20,11 +20,10 @@ package_group(
 
 kt_jvm_library(
     name = "event_template_type_registry",
-    testonly = True,
     srcs = ["EventTemplateTypeRegistry.kt"],
     deps = [
         "//imports/org/reflections",
-        "//src/main/proto/wfa/measurement/api/v2alpha/testing/event_templates:event_templates_java_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
