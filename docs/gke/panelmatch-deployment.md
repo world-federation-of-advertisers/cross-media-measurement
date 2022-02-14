@@ -2,6 +2,10 @@
 
 Last updated: 2022-02-14
 
+***The doc is updated to work with commit
+a1c9ab2860efbf2ee8f70d74aab64c5b6aa13b6a. Newer changes may require some
+commands to be updated. Stay tuned.***
+
 ## What are we creating/deploying?
 
 -   Under already Kingdom deployed GKE cluster
