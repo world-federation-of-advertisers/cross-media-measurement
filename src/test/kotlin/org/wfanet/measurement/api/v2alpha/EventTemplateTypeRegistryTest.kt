@@ -30,9 +30,9 @@ class EventTemplateTypeRegistryTest {
   fun `loadTemplate() template contains correct fields`() {
     val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
 
-    assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME).fields).isEmpty()
+    assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME)?.fields).isEmpty()
     assertThat(
-        typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME).fields?.map { field -> field.name }
+        typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME)?.fields?.map { field -> field.name }
       )
       .containsExactly("age", "duration")
   }
@@ -41,13 +41,13 @@ class EventTemplateTypeRegistryTest {
   fun `loadTemplate() template contains correct custom options`() {
     val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
 
-    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME).displayName)
+    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME)?.displayName)
       .isEqualTo("Banner Ad")
-    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME).description)
+    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME)?.description)
       .isEqualTo("A simple Event Template for a banner ad.")
-    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME).displayName)
+    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME)?.displayName)
       .isEqualTo("Video Ad")
-    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME).description)
+    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME)?.description)
       .isEqualTo("A simple Event Template for a video ad.")
   }
 
@@ -61,5 +61,5 @@ class EventTemplateTypeRegistryTest {
   }
 
   private fun EventTemplateTypeRegistry.getEventTemplateForType(messageType: String) =
-    getDescriptorForType(messageType).options.getExtension(EventAnnotations.eventTemplate)
+    getDescriptorForType(messageType)?.options?.getExtension(EventAnnotations.eventTemplate)
 }

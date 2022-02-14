@@ -24,15 +24,16 @@ import org.reflections.scanners.Scanners.SubTypes
 class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
 
   /**
-   * Returns the Descriptor for a fully qualified message type. Throws an NullPointerException
-   * if message is not found.
+   * Returns the Descriptor for a fully qualified message type. Returns null if message is not
+   * found.
    */
-  fun getDescriptorForType(messageType: String): Descriptor {
+  fun getDescriptorForType(messageType: String): Descriptor? {
     return registry.find(messageType)
   }
 
   companion object {
     fun createRegistryForPackagePrefix(prefix: String): EventTemplateTypeRegistry {
+
       val registryBuilder = TypeRegistry.newBuilder()
       val reflections = Reflections(prefix, SubTypes.filterResultsBy { true })
       val classes: Set<Class<out Message>> = reflections.getSubTypesOf(Message::class.java)

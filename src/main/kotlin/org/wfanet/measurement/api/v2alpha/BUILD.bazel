@@ -23,7 +23,7 @@ kt_jvm_library(
     srcs = ["EventTemplateTypeRegistry.kt"],
     deps = [
         "//imports/org/reflections",
-        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_java_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
