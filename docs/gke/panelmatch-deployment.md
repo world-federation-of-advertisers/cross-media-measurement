@@ -15,6 +15,8 @@ commands to be updated. Stay tuned.***
 
 ## Step 0. Before You Start
 
+Follow [Machine Setup](machine-setup.md).
+
 Deploy the Kingdom by simply following these [Instructions](kingdom-deployment.md). 
 You should see all the services are up-to-date and ready.
 
@@ -46,16 +48,8 @@ git checkout the-expected-commit-number
 Run the following command in the root directory and make sure it passes
 
 ```shell
-bazel test src/...
+bazel test //src/...
 ```
-
-or
-
-```shell
-tools/bazel-container test src/...
-```
-
-depending on your machine OS.
 
 Read this
 [page](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/building.md)
