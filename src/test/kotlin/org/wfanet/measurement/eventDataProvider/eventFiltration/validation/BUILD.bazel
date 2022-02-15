@@ -1,0 +1,17 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "EventFilterValidatorTest",
+    srcs = ["EventFilterValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.eventDataProvider.eventFiltration.validation.EventFilterValidatorTest",
+    deps = [
+        "//imports/java/org/projectnessie/cel:cel-core",
+        "//imports/java/org/projectnessie/cel:cel-generated-pb",
+        "//imports/java/org/projectnessie/cel:cel-tools",
+        "//src/main/kotlin/org/wfanet/measurement/eventDataProvider/eventFiltration/validation:event_filter_validator",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
