@@ -17,7 +17,6 @@ package org.wfanet.measurement.api.v2alpha
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
-import org.reflections.ReflectionUtils
 import org.reflections.Reflections
 import org.reflections.scanners.Scanners.SubTypes
 
@@ -39,11 +38,13 @@ class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
       val classes: Set<Class<out Message>> = reflections.getSubTypesOf(Message::class.java)
       for (c in classes) {
         try {
-          val descriptor = ReflectionUtils.invoke(c.getMethod("getDescriptor"), c) as Descriptor
+          val constructor = c.getDeclaredConstructor()
+          constructor.isAccessible = true
+          val descriptor: Descriptor = constructor.newInstance().descriptorForType
           if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
             registryBuilder.add(descriptor)
           }
-        } catch (e: NoSuchMethodException) {}
+        } catch (e: InstantiationException) {}
       }
 
       return EventTemplateTypeRegistry(registryBuilder.build())

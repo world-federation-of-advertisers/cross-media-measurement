@@ -158,9 +158,14 @@ message Requisition {
 
   enum State {
     STATE_UNSPECIFIED = 0;
-    UNFULFILLED = 1;
-    FULFILLED = 2;
-    REFUSED = 3;
+
+    // Awaiting the necessary parameters from computation participants (Duchies)
+    // before Requisition may be made available in the public API.
+    PENDING_PARAMS = 1;
+
+    UNFULFILLED = 2;
+    FULFILLED = 3;
+    REFUSED = 4;
   }
   State state = 7;
 

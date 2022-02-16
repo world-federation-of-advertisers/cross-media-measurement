@@ -69,7 +69,6 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -118,14 +117,11 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 
-private val VISIBLE_MEASUREMENT_STATES: Set<InternalMeasurement.State> =
+private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
   setOf(
-    InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT,
-    InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-    InternalMeasurement.State.PENDING_COMPUTATION,
-    InternalMeasurement.State.SUCCEEDED,
-    InternalMeasurement.State.FAILED,
-    InternalMeasurement.State.CANCELLED
+    InternalRequisition.State.UNFULFILLED,
+    InternalRequisition.State.FULFILLED,
+    InternalRequisition.State.REFUSED
   )
 
 @RunWith(JUnit4::class)
@@ -187,7 +183,7 @@ class RequisitionsServiceTest {
             StreamRequisitionsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              measurementStates += VISIBLE_MEASUREMENT_STATES
+              states += VISIBLE_REQUISITION_STATES
             }
         }
       )
@@ -253,7 +249,6 @@ class RequisitionsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
               states += InternalState.UNFULFILLED
-              measurementStates += VISIBLE_MEASUREMENT_STATES
               externalDataProviderIdAfter = EXTERNAL_DATA_PROVIDER_ID
               externalRequisitionIdAfter = EXTERNAL_REQUISITION_ID
             }
@@ -307,7 +302,7 @@ class RequisitionsServiceTest {
             StreamRequisitionsRequestKt.filter {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              measurementStates += VISIBLE_MEASUREMENT_STATES
+              states += VISIBLE_REQUISITION_STATES
             }
         }
       )
@@ -347,7 +342,7 @@ class RequisitionsServiceTest {
               externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
               externalMeasurementId = EXTERNAL_MEASUREMENT_ID
               externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              measurementStates += VISIBLE_MEASUREMENT_STATES
+              states += VISIBLE_REQUISITION_STATES
             }
         }
       )

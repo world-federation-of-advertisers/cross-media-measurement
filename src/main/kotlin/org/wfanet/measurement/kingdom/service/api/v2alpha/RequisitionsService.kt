@@ -51,7 +51,6 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -68,8 +67,6 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
-private val VISIBLE_MEASUREMENT_STATES: List<InternalMeasurement.State> =
-  InternalMeasurement.State.values().filter { it.visible }
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
   RequisitionsCoroutineImplBase() {
@@ -115,8 +112,16 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
           listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
             filter =
               filter.copy {
+                // Filters for the caller's ID if the caller is an MC.
                 if (this.externalMeasurementConsumerId == 0L) {
                   this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                }
+
+                // If no state filter set in public request, include all visible states.
+                if (states.isEmpty()) {
+                  states += InternalState.UNFULFILLED
+                  states += InternalState.FULFILLED
+                  states += InternalState.REFUSED
                 }
               }
           }
@@ -188,20 +193,6 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
     return result.toRequisition()
   }
 }
-
-private val InternalMeasurement.State.visible: Boolean
-  get() =
-    when (this) {
-      InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT,
-      InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-      InternalMeasurement.State.PENDING_COMPUTATION,
-      InternalMeasurement.State.SUCCEEDED,
-      InternalMeasurement.State.FAILED,
-      InternalMeasurement.State.CANCELLED -> true
-      InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
-      InternalMeasurement.State.STATE_UNSPECIFIED,
-      InternalMeasurement.State.UNRECOGNIZED -> false
-    }
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
 private fun InternalRequisition.toRequisition(): Requisition {
@@ -296,7 +287,7 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
 /** Converts an internal [InternalState] to a public [State]. */
 private fun InternalState.toRequisitionState(): State =
   when (this) {
-    InternalState.UNFULFILLED -> State.UNFULFILLED
+    InternalState.PENDING_PARAMS, InternalState.UNFULFILLED -> State.UNFULFILLED
     InternalState.FULFILLED -> State.FULFILLED
     InternalState.REFUSED -> State.REFUSED
     InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
@@ -422,7 +413,6 @@ private fun ListRequisitionsPageToken.toStreamRequisitionsRequest(): StreamRequi
         externalMeasurementConsumerId = source.externalMeasurementConsumerId
         externalMeasurementId = source.externalMeasurementId
         externalDataProviderId = source.externalDataProviderId
-        measurementStates += VISIBLE_MEASUREMENT_STATES
         states += source.statesList.map { state -> state.toInternal() }
         if (source.hasLastRequisition()) {
           externalDataProviderIdAfter = source.lastRequisition.externalDataProviderId

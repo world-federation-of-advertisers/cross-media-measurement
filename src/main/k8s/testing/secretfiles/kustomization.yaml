@@ -81,3 +81,4 @@ secretGenerator:
   - aggregator_protocols_setup_config.textproto
   - non_aggregator_protocols_setup_config.textproto
   - llv2_protocol_config_config.textproto
+  - exchange_workflow.textproto

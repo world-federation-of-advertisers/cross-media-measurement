@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -26,10 +27,13 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
@@ -37,7 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationP
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
 
 /**
- * Sets participant details for a computationPartcipant in the database.
+ * Sets participant details for a computationParticipant in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
  * * [KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND]
@@ -133,6 +137,23 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         InternalId(measurementId),
         Measurement.State.PENDING_REQUISITION_FULFILLMENT
       )
+
+      StreamRequisitions(
+          StreamRequisitionsRequestKt.filter {
+            externalMeasurementConsumerId = computationParticipant.externalMeasurementConsumerId
+            externalMeasurementId = computationParticipant.externalMeasurementId
+          }
+        )
+        .execute(transactionContext)
+        .collect {
+          transactionContext.bufferUpdateMutation("Requisitions") {
+            set("MeasurementConsumerId" to measurementConsumerId)
+            set("MeasurementId" to measurementId)
+            set("RequisitionId" to it.requisitionId)
+            set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+            set("State" to Requisition.State.UNFULFILLED)
+          }
+        }
     }
 
     return computationParticipant.copy {
