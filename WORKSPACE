@@ -34,6 +34,7 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "com.opentable.components:otj-pg-embedded": "0.13.4",
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
     "org.reflections:reflections": "0.10.2",
+    "org.projectnessie.cel:cel-tools" : "0.2.4",
 })
 
 maven_install(
