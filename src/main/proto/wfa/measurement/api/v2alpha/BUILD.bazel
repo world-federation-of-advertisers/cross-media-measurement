@@ -191,6 +191,19 @@ kt_jvm_grpc_proto_library(
 )
 
 java_proto_library(
+    name = "event_annotations_java_proto",
+    deps = [
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "event_annotations_kt_jvm_proto",
+    srcs = ["@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto"],
+    deps = [":event_annotations_java_proto"],
+)
+
+java_proto_library(
     name = "exchange_java_proto",
     deps = [
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:exchange_proto",
