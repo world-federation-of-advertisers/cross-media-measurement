@@ -74,7 +74,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "event_data_classes",
-    srcs = ["EventTemplate.kt", "EventField.kt"],
+    srcs = [
+        "EventField.kt",
+        "EventTemplate.kt",
+    ],
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_java_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

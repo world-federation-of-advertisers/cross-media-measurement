@@ -18,14 +18,13 @@ kt_jvm_test(
     ],
 )
 
-
 kt_jvm_test(
     name = "EventTemplateTest",
     srcs = ["EventTemplateTest.kt"],
     test_class = "org.wfanet.measurement.api.v2alpha.EventTemplateTest",
     deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_data_classes",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
@@ -37,8 +36,8 @@ kt_jvm_test(
     srcs = ["EventFieldTest.kt"],
     test_class = "org.wfanet.measurement.api.v2alpha.EventFieldTest",
     deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_data_classes",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
