@@ -41,10 +41,13 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.consent.client.kingdom.verifyMeasurementSpec
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
@@ -53,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
@@ -61,8 +65,10 @@ private const val MAX_PAGE_SIZE = 1000
 
 private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
 
-class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoroutineStub) :
-  MeasurementsCoroutineImplBase() {
+class MeasurementsService(
+  private val internalMeasurementsClient: MeasurementsCoroutineStub,
+  private val internalCertificatesClient: CertificatesCoroutineStub
+) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
@@ -81,7 +87,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     }
 
-    val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+    val internalMeasurement =
+      internalMeasurementsClient.getMeasurement(internalGetMeasurementRequest)
 
     return internalMeasurement.toMeasurement()
   }
@@ -115,6 +122,27 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       } catch (e: InvalidProtocolBufferException) {
         failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse measurement spec" }
       }
+
+    if (!verifyMeasurementSpec(
+        measurementSpec.signature,
+        parsedMeasurementSpec,
+        readCertificate(
+          internalCertificatesClient.getCertificate(
+              getCertificateRequest {
+                externalMeasurementConsumerId =
+                  apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
+                externalCertificateId =
+                  apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
+              }
+            )
+            .details
+            .x509Der
+        )
+      )
+    ) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Measurement spec signature is invalid" }
+    }
+
     parsedMeasurementSpec.validate()
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
@@ -133,7 +161,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val internalMeasurement =
-      internalMeasurementsStub.createMeasurement(
+      internalMeasurementsClient.createMeasurement(
         request.measurement.toInternal(
           measurementConsumerCertificateKey,
           dataProvidersMap,
@@ -160,7 +188,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val results: List<InternalMeasurement> =
-      internalMeasurementsStub
+      internalMeasurementsClient
         .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
         .toList()
 
@@ -204,7 +232,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val internalMeasurement =
-      internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      internalMeasurementsClient.cancelMeasurement(internalCancelMeasurementRequest)
 
     return internalMeasurement.toMeasurement()
   }

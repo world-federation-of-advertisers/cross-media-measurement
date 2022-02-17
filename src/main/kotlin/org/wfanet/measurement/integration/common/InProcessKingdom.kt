@@ -134,7 +134,7 @@ class InProcessKingdom(
         EventGroupsService(internalEventGroupsClient)
           .withMetadataPrincipalIdentities()
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        MeasurementsService(internalMeasurementsClient)
+        MeasurementsService(internalMeasurementsClient, internalCertificatesClient)
           .withMetadataPrincipalIdentities()
           .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
         RequisitionsService(internalRequisitionsClient)

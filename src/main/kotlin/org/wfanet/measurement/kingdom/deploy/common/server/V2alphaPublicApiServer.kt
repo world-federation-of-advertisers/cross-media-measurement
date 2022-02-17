@@ -115,7 +115,10 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepsService(internalExchangeStepsCoroutineStub)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      MeasurementsService(InternalMeasurementsCoroutineStub(channel))
+      MeasurementsService(
+          InternalMeasurementsCoroutineStub(channel),
+          InternalCertificatesCoroutineStub(channel)
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))

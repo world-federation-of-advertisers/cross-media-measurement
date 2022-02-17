@@ -18,8 +18,11 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.security.PrivateKey
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -71,11 +74,18 @@ import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
+import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.kingdom.CertificateKt
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
@@ -86,6 +96,7 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProto
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
@@ -140,14 +151,26 @@ class MeasurementsServiceTest {
       onBlocking { cancelMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
     }
 
-  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsMock) }
+  private val internalCertificatesMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
+    mock(useConstructor = UseConstructor.parameterless()) {
+      onBlocking { getCertificate(any()) }.thenReturn(INTERNAL_MEASUREMENT_CONSUMER_CERTIFICATE)
+    }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalMeasurementsMock)
+    addService(internalCertificatesMock)
+  }
 
   private lateinit var service: MeasurementsService
 
   @Before
   fun initService() {
     service =
-      MeasurementsService(MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel))
+      MeasurementsService(
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel)
+      )
   }
 
   @Test
@@ -970,6 +993,16 @@ class MeasurementsServiceTest {
       )
     }
 
+    private val serverCertificate: X509Certificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
+    private val SERVER_CERTIFICATE_DER = serverCertificate.encoded.toByteString()
+    private val privateKey: PrivateKey =
+      readPrivateKey(FIXED_SERVER_KEY_FILE, serverCertificate.publicKey.algorithm)
+    private val signingKeyHandle = SigningKeyHandle(serverCertificate, privateKey)
+
+    private val INTERNAL_MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
+      details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
+    }
+
     private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "llv2"
       measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
@@ -1036,7 +1069,7 @@ class MeasurementsServiceTest {
       measurementSpec =
         signedData {
           data = MEASUREMENT_SPEC.toByteString()
-          signature = UPDATE_TIME.toByteString()
+          signature = signingKeyHandle.sign(data)
         }
       dataProviders +=
         dataProviderEntry {
