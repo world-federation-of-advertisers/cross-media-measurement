@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.storage
 
+import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /**
@@ -21,7 +22,7 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
  *
  * @param secretMap map from recurring exchange ids to serialized [StorageDetails] protos.
  */
-class StorageDetailsProvider(private val secretMap: SecretMap) {
+class StorageDetailsProvider(private val secretMap: MutableSecretMap) {
   suspend fun get(recurringExchangeId: String): StorageDetails {
     val serializedStorageDetails =
       secretMap.get(recurringExchangeId)
@@ -29,5 +30,9 @@ class StorageDetailsProvider(private val secretMap: SecretMap) {
 
     @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
     return StorageDetails.parseFrom(serializedStorageDetails)
+  }
+
+  suspend fun put(recurringExchangeId: String, storageDetails: StorageDetails) {
+    secretMap.put(recurringExchangeId, storageDetails.toByteString())
   }
 }

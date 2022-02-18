@@ -1,0 +1,41 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/panelmatch:__subpackages__",
+    "//src/test/kotlin/org/wfanet/panelmatch:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "tools",
+    srcs = ["ConfigureResource.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)
+
+kt_jvm_library(
+    name = "add_resource",
+    srcs = ["AddResource.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/tools",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)
+
+java_binary(
+    name = "AddResource",
+    main_class = "org.wfanet.panelmatch.client.tools.AddResourceKt",
+    tags = ["manual"],
+    runtime_deps = [":add_resource"],
+)

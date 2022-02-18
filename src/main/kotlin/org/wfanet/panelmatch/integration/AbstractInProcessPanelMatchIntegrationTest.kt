@@ -19,6 +19,7 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.privatemembership.batch.Shared
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.StatusException
 import java.nio.file.Path
 import java.time.Clock
@@ -54,16 +55,22 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.integration.deploy.gcloud.buildKingdomSpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.deploy.gcloud.buildSpannerInProcessKingdom
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetailsKt
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.storageDetails
+import org.wfanet.panelmatch.client.tools.ConfigureResource
 import org.wfanet.panelmatch.common.ExchangeDateKey
+import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.loggerFor
-import org.wfanet.panelmatch.common.secrets.testing.TestSecretMap
+import org.wfanet.panelmatch.common.secrets.testing.TestMutableSecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.testing.FakeTinkKeyStorageProvider
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -198,17 +205,13 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
 
   private fun makeDaemon(
     owner: ProviderContext,
-    partner: ProviderContext,
     exchangeDateKey: ExchangeDateKey
   ): ExchangeWorkflowDaemonForTest {
     return ExchangeWorkflowDaemonForTest(
       v2alphaChannel = inProcessKingdom.publicApiChannel,
       provider = owner.key,
-      partnerProvider = partner.key,
       exchangeDateKey = exchangeDateKey,
-      serializedExchangeWorkflow = workflow.toByteString(),
       privateDirectory = owner.privateStoragePath,
-      sharedDirectory = sharedFolder.root.toPath(),
       scope = owner.scope
     )
   }
@@ -227,7 +230,9 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     }
     val specialSharedStorageInfo =
       StorageDetailsProvider(
-        TestSecretMap(recurringExchangeId to specialSharedStorageDetails.toByteString())
+        TestMutableSecretMap(
+          mutableMapOf(recurringExchangeId to specialSharedStorageDetails.toByteString())
+        )
       )
     return PrivateStorageSelector(specialSharedStorageFactories, specialSharedStorageInfo)
   }
@@ -284,23 +289,104 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   @Test
   fun runTest() = runBlockingTest {
     val exchangeDateKey = ExchangeDateKey(recurringExchangeId, EXCHANGE_DATE)
-    val dataProviderDaemon = makeDaemon(dataProviderContext, modelProviderContext, exchangeDateKey)
-    val modelProviderDaemon = makeDaemon(modelProviderContext, dataProviderContext, exchangeDateKey)
+    val dataProviderDaemon = makeDaemon(dataProviderContext, exchangeDateKey)
+    val modelProviderDaemon = makeDaemon(modelProviderContext, exchangeDateKey)
+
+    logger.info("Shared Folder path: ${sharedFolder.root.absolutePath}")
+
+    val dataProviderRootStorageClient: StorageClient by lazy {
+      FileSystemStorageClient(dataProviderContext.privateStoragePath.toFile())
+    }
+
+    val modelProviderRootStorageClient: StorageClient by lazy {
+      FileSystemStorageClient(modelProviderContext.privateStoragePath.toFile())
+    }
+
+    val tinkKeyUri = "fake-tink-key-uri"
+    val modelProviderDefaults by lazy {
+      DaemonStorageClientDefaults(
+        modelProviderRootStorageClient,
+        tinkKeyUri,
+        FakeTinkKeyStorageProvider()
+      )
+    }
+    val dataProviderDefaults by lazy {
+      DaemonStorageClientDefaults(
+        dataProviderRootStorageClient,
+        tinkKeyUri,
+        FakeTinkKeyStorageProvider()
+      )
+    }
+
+    val modelProviderAddResource = ConfigureResource(modelProviderDefaults)
+    val dataProviderAddResource = ConfigureResource(dataProviderDefaults)
+
+    modelProviderAddResource.addWorkflow(workflow, recurringExchangeId)
+    dataProviderAddResource.addWorkflow(workflow, recurringExchangeId)
+
+    modelProviderAddResource.addRootCertificates(
+      dataProviderContext.key.toName(),
+      TestCertificateManager.CERTIFICATE
+    )
+    dataProviderAddResource.addRootCertificates(
+      modelProviderContext.key.toName(),
+      TestCertificateManager.CERTIFICATE
+    )
+
+    val modelProviderPrivateStorageDetails = storageDetails {
+      file =
+        StorageDetailsKt.fileStorage { path = modelProviderContext.privateStoragePath.toString() }
+      visibility = StorageDetails.Visibility.PRIVATE
+    }
+    modelProviderAddResource.addPrivateStorageInfo(
+      recurringExchangeId,
+      modelProviderPrivateStorageDetails
+    )
+    val dataProviderPrivateStorageDetails = storageDetails {
+      file =
+        StorageDetailsKt.fileStorage { path = dataProviderContext.privateStoragePath.toString() }
+      visibility = StorageDetails.Visibility.PRIVATE
+    }
+    dataProviderAddResource.addPrivateStorageInfo(
+      recurringExchangeId,
+      dataProviderPrivateStorageDetails
+    )
+
+    val sharedStorageDetails = storageDetails {
+      file = StorageDetailsKt.fileStorage { path = sharedFolder.root.toPath().toString() }
+      visibility = StorageDetails.Visibility.SHARED
+    }
+    modelProviderAddResource.addSharedStorageInfo(recurringExchangeId, sharedStorageDetails)
+    dataProviderAddResource.addSharedStorageInfo(recurringExchangeId, sharedStorageDetails)
+
+    val privateStorageFactories:
+      Map<StorageDetails.PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory> =
+      mapOf(StorageDetails.PlatformCase.FILE to ::FileSystemStorageFactory)
 
     for ((blobKey, value) in initialDataProviderInputs) {
-      dataProviderDaemon.writePrivateBlob(blobKey, value)
+      dataProviderAddResource.provideWorkflowInput(
+        recurringExchangeId,
+        EXCHANGE_DATE,
+        privateStorageFactories,
+        blobKey,
+        value
+      )
     }
 
     for ((blobKey, value) in initialModelProviderInputs) {
-      modelProviderDaemon.writePrivateBlob(blobKey, value)
+      modelProviderAddResource.provideWorkflowInput(
+        recurringExchangeId,
+        EXCHANGE_DATE,
+        privateStorageFactories,
+        blobKey,
+        value
+      )
     }
 
     val specialSharedStorageSelector: PrivateStorageSelector = makeSpecialSharedStorageSelector()
     for ((blobKey, value) in initialSharedInputs) {
       specialSharedStorageSelector.writeSharedBlob(blobKey, value, exchangeDateKey)
     }
-
-    logger.info("Shared Folder path: ${sharedFolder.root.absolutePath}")
 
     dataProviderDaemon.run()
     modelProviderDaemon.run()

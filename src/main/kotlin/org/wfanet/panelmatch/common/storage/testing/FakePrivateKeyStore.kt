@@ -12,13 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage.testing
+package org.wfanet.panelmatch.common.storage.testing
 
-import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.common.secrets.testing.TestMutableSecretMap
+import org.wfanet.measurement.common.crypto.PrivateKeyStore as CryptoPrivateKeyStore
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.storage.Store
 
-class TestPrivateStorageSelector {
-  val storageClient = InMemoryStorageClient()
-  val storageDetails = TestMutableSecretMap()
-  val selector = makeTestPrivateStorageSelector(storageDetails, storageClient)
+internal class FakePrivateKeyStore(private val store: Store<String>) :
+  CryptoPrivateKeyStore<TinkPrivateKeyHandle> {
+
+  override suspend fun read(keyId: String): TinkPrivateKeyHandle? {
+    TODO("Not yet implemented")
+  }
+
+  override suspend fun write(privateKey: TinkPrivateKeyHandle): String {
+    TODO("Not yet implemented")
+  }
 }
