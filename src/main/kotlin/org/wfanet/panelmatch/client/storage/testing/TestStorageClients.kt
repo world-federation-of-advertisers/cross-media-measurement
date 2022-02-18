@@ -31,7 +31,7 @@ import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
-import org.wfanet.panelmatch.common.secrets.SecretMap
+import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
 
 private fun makeTestStorageFactoryMap(
@@ -46,7 +46,7 @@ private fun makeTestStorageFactoryMap(
 }
 
 fun makeTestPrivateStorageSelector(
-  secretMap: SecretMap,
+  secretMap: MutableSecretMap,
   underlyingClient: InMemoryStorageClient
 ): PrivateStorageSelector {
   return PrivateStorageSelector(
@@ -56,7 +56,7 @@ fun makeTestPrivateStorageSelector(
 }
 
 fun makeTestSharedStorageSelector(
-  secretMap: SecretMap,
+  secretMap: MutableSecretMap,
   underlyingClient: InMemoryStorageClient
 ): SharedStorageSelector {
   return SharedStorageSelector(

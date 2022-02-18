@@ -14,20 +14,24 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
+import org.wfanet.measurement.common.crypto.KeyStorageProvider
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
-import org.wfanet.panelmatch.common.secrets.SecretMap
 import org.wfanet.panelmatch.common.secrets.StorageClientSecretMap
 import org.wfanet.panelmatch.common.storage.withPrefix
 
-class DaemonStorageClientDefaults(rootStorageClient: StorageClient, tinkKeyUri: String) {
-  val validExchangeWorkflows: SecretMap by lazy {
+class DaemonStorageClientDefaults(
+  rootStorageClient: StorageClient,
+  tinkKeyUri: String,
+  tinkStorageProvider: KeyStorageProvider<TinkPrivateKeyHandle>
+) {
+  val validExchangeWorkflows: MutableSecretMap by lazy {
     StorageClientSecretMap(rootStorageClient.withPrefix("valid-exchange-workflows"))
   }
 
-  val rootCertificates: SecretMap by lazy {
+  val rootCertificates: MutableSecretMap by lazy {
     StorageClientSecretMap(rootStorageClient.withPrefix("root-x509-certificates"))
   }
 
@@ -44,7 +48,6 @@ class DaemonStorageClientDefaults(rootStorageClient: StorageClient, tinkKeyUri: 
   }
 
   val privateKeys: MutableSecretMap by lazy {
-    val tinkStorageProvider = TinkKeyStorageProvider()
     val kmsStorageClient = tinkStorageProvider.makeKmsStorageClient(rootStorageClient, tinkKeyUri)
     StorageClientSecretMap(kmsStorageClient.withPrefix("private-keys"))
   }

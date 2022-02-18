@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.deploy.example
 
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
+import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.BlobSizeFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
@@ -40,7 +41,9 @@ abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
   override val pipelineOptions: PipelineOptions = PipelineOptionsFactory.create()
 
   /** This can be customized per deployment. */
-  private val defaults by lazy { DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri) }
+  private val defaults by lazy {
+    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
+  }
 
   /** This can be customized per deployment. */
   override val validExchangeWorkflows: SecretMap
