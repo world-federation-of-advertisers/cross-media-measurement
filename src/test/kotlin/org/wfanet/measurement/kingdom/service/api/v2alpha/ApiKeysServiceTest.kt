@@ -25,9 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeyKey
@@ -35,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.deleteApiKeyRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -57,7 +56,7 @@ private const val AUTHENTICATION_KEY = 12345672L
 @RunWith(JUnit4::class)
 class ApiKeysServiceTest {
   private val internalApiKeysMock: InternalApiKeysCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { createApiKey(any()) }.thenReturn(INTERNAL_API_KEY)
       onBlocking { deleteApiKey(any()) }.thenReturn(INTERNAL_API_KEY)
     }

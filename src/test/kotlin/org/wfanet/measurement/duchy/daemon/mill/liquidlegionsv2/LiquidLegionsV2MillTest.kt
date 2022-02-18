@@ -59,6 +59,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -365,21 +366,19 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 @RunWith(JUnit4::class)
 class LiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { advanceComputation(any()) }.thenAnswer {
         val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
         computationControlRequests = runBlocking { request.toList() }
         AdvanceComputationResponse.getDefaultInstance()
       }
     }
-  private val mockSystemComputations: SystemComputationsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val mockSystemComputations: SystemComputationsCoroutineImplBase = mockService()
   private val mockComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+    mockService()
   private val mockComputationLogEntries: SystemComputationLogEntriesCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
-  private val mockComputationStats: ComputationStatsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+    mockService()
+  private val mockComputationStats: ComputationStatsCoroutineImplBase = mockService()
   private val mockCryptoWorker: LiquidLegionsV2Encryption =
     mock(useConstructor = UseConstructor.parameterless()) {
       on { combineElGamalPublicKeys(any()) }.thenAnswer {
@@ -421,10 +420,10 @@ class LiquidLegionsV2MillTest {
   }
   private fun generateRequisitionBlobKey(context: RequisitionBlobContext): String {
     return listOf(
-      context.globalComputationId,
-      context.externalRequisitionId,
-      blobCount.getAndIncrement()
-    )
+        context.globalComputationId,
+        context.externalRequisitionId,
+        blobCount.getAndIncrement()
+      )
       .joinToString("/")
       .also { generatedBlobKeys.add(it) }
   }

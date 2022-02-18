@@ -23,9 +23,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
-import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.toProtocolStage
@@ -70,7 +69,7 @@ class ComputationsServiceTest {
 
   private val fakeDatabase = FakeComputationsDatabase()
   private val mockComputationLogEntriesService: ComputationLogEntriesCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationLogEntriesService) }

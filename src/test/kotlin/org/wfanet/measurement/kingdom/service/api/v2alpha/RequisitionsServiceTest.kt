@@ -28,9 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
@@ -63,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
@@ -127,7 +126,7 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { refuseRequisition(any()) }
         .thenReturn(
           INTERNAL_REQUISITION.copy {

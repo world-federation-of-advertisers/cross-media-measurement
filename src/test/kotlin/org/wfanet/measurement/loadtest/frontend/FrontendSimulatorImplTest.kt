@@ -23,9 +23,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
@@ -51,6 +49,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -100,16 +99,12 @@ private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
 
 @RunWith(JUnit4::class)
 class FrontendSimulatorImplTest {
-  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
-  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
-  private val measurementsServiceMock: MeasurementsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
-  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService()
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService()
+  private val measurementsServiceMock: MeasurementsCoroutineImplBase = mockService()
+  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase = mockService()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { listRequisitions(any()) }
         .thenReturn(
           ListRequisitionsResponse.newBuilder()

@@ -33,9 +33,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -49,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -110,10 +109,8 @@ private val REQUISITION_METADATA = requisitionMetadata {
 /** Test for [RequisitionFulfillmentService]. */
 @RunWith(JUnit4::class)
 class RequisitionFulfillmentServiceTest {
-  private val requisitionsServiceMock: RequisitionsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
-  private val computationsServiceMock: ComputationsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService()
+  private val computationsServiceMock: ComputationsCoroutineImplBase = mockService()
 
   private val tempDirectory = TemporaryFolder()
   private lateinit var requisitionStore: RequisitionStore

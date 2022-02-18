@@ -30,9 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepRequestKt
 import org.wfanet.measurement.api.v2alpha.ClaimReadyExchangeStepResponse
@@ -57,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.captureFirst
@@ -134,7 +133,7 @@ private val INTERNAL_EXCHANGE_STEP: InternalExchangeStep = internalExchangeStep 
 class ExchangeStepsServiceTest {
 
   private val internalService: InternalExchangeStepsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { claimReadyExchangeStep(any()) }
         .thenReturn(
           internalClaimReadyExchangeStepResponse {

@@ -25,15 +25,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
@@ -161,8 +160,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 @RunWith(JUnit4::class)
 class HeraldTest {
 
-  private val systemComputations: SystemComputationsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {}
+  private val systemComputations: SystemComputationsCoroutineImplBase = mockService()
 
   private val fakeComputationStorage = FakeComputationsDatabase()
 
