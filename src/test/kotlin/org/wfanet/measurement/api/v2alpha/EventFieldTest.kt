@@ -15,10 +15,12 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.AgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 
 @RunWith(JUnit4::class)
 class EventFieldTest {
@@ -28,5 +30,13 @@ class EventFieldTest {
 
     assertThat(eventField.displayName).isEqualTo("Age Range")
     assertThat(eventField.fieldNames).contains("value")
+  }
+
+  @Test
+  fun `init throws exception if EventField annotation missing`() {
+    assertFailsWith(
+      IllegalArgumentException::class,
+      "Descriptor does not have EventField annotation"
+    ) { EventField(TestVideoTemplate.getDescriptor()) }
   }
 }

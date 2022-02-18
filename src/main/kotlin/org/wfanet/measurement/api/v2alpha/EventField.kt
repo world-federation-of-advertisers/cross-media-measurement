@@ -15,11 +15,18 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import java.lang.IllegalArgumentException
 
 data class EventField(val descriptor: Descriptors.Descriptor) {
+  init {
+    if (!descriptor.options.hasExtension(EventAnnotations.eventField)) {
+      throw IllegalArgumentException("Descriptor does not have EventField annotation")
+    }
+  }
   val displayName: String by lazy {
     descriptor.options.getExtension(EventAnnotations.eventField).displayName
   }
+
   val description: String by lazy {
     descriptor.options.getExtension(EventAnnotations.eventField).description
   }

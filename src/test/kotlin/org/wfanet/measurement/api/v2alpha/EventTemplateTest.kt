@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,7 +31,15 @@ class EventTemplateTest {
 
     assertThat(eventTemplate.displayName).isEqualTo("Video Ad")
     assertThat(eventTemplate.description).isEqualTo("A simple Event Template for a video ad.")
-    assertThat(eventTemplate.fields).contains(EventField(AgeRange.getDescriptor()))
-    assertThat(eventTemplate.fields).contains(EventField(ViewDuration.getDescriptor()))
+    assertThat(eventTemplate.eventFields).contains(EventField(AgeRange.getDescriptor()))
+    assertThat(eventTemplate.eventFields).contains(EventField(ViewDuration.getDescriptor()))
+  }
+
+  @Test
+  fun `init throws exception if EventTemplate annotation missing`() {
+    assertFailsWith(
+      IllegalArgumentException::class,
+      "Descriptor does not have EventTemplate annotation"
+    ) { EventTemplate(AgeRange.getDescriptor()) }
   }
 }

@@ -15,15 +15,29 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.Descriptors
+import com.google.protobuf.Descriptors.FieldDescriptor.Type
+import java.lang.IllegalArgumentException
 
 data class EventTemplate(val descriptor: Descriptors.Descriptor) {
+  init {
+    if (!descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
+      throw IllegalArgumentException("Descriptor does not have EventTemplate annotation")
+    }
+  }
   val displayName: String by lazy {
     descriptor.options.getExtension(EventAnnotations.eventTemplate).displayName
   }
+
   val description: String by lazy {
     descriptor.options.getExtension(EventAnnotations.eventTemplate).description
   }
-  val fields: List<EventField> by lazy {
-    descriptor.fields.map { field -> EventField(field.messageType) }
+
+  val eventFields: List<EventField> by lazy {
+    descriptor.fields
+      .filter { field ->
+        field.type == Type.MESSAGE &&
+          field.messageType.options.hasExtension(EventAnnotations.eventField)
+      }
+      .map { field -> EventField(field.messageType) }
   }
 }
