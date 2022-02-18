@@ -24,7 +24,6 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
@@ -127,9 +126,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private val publicRequisitionsClient by lazy {
     PublicRequisitionsCoroutineStub(kingdom.publicApiChannel)
   }
-  private val publicCertificatesClient by lazy {
-    PublicCertificatesCoroutineStub(kingdom.publicApiChannel)
-  }
   private val publicAccountsClient by lazy { PublicAccountsCoroutineStub(kingdom.publicApiChannel) }
   private val publicApiKeysClient by lazy { PublicApiKeysCoroutineStub(kingdom.publicApiChannel) }
 
@@ -145,7 +141,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         internalDataProvidersClient = kingdom.internalDataProvidersClient,
         accountsClient = publicAccountsClient,
         apiKeysClient = publicApiKeysClient,
-        certificatesClient = publicCertificatesClient,
+        internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
         runId = "12345"
       )

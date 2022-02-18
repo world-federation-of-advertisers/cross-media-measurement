@@ -23,9 +23,8 @@ import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Certificate
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -34,20 +33,21 @@ import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
-import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
+import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
 
@@ -59,7 +59,7 @@ class ResourceSetup(
   private val internalDataProvidersClient: InternalDataProvidersCoroutineStub,
   private val accountsClient: AccountsCoroutineStub,
   private val apiKeysClient: ApiKeysCoroutineStub,
-  private val certificatesClient: CertificatesCoroutineStub,
+  private val internalCertificatesClient: InternalCertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String
 ) {
@@ -178,14 +178,24 @@ class ResourceSetup(
     return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
   }
 
-  // TODO(@wangyaopw): Create duchy certificate using the internal API instead of public API.
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
-    val name = DuchyKey(duchyCert.duchyId).toName()
-    val request = createCertificateRequest {
-      parent = name
-      certificate = certificate { x509Der = duchyCert.consentSignalCertificateDer }
+    val internalCertificate =
+      internalCertificatesClient.createCertificate(
+        internalCertificate {
+          fillCertificateFromDer(duchyCert.consentSignalCertificateDer)
+          externalDuchyId = duchyCert.duchyId
+        }
+      )
+
+    return certificate {
+      name =
+        DuchyCertificateKey(
+            internalCertificate.externalDuchyId,
+            externalIdToApiId(internalCertificate.externalCertificateId)
+          )
+          .toName()
+      x509Der = internalCertificate.details.x509Der
     }
-    return certificatesClient.withPrincipalName(name).createCertificate(request)
   }
 
   companion object {
