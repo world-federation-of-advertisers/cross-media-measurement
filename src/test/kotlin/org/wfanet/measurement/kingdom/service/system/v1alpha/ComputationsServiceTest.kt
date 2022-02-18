@@ -24,15 +24,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
@@ -197,8 +196,7 @@ class ComputationsServiceTest {
 
   private val duchyIdProvider = { DuchyIdentity(DUCHY_ID) }
 
-  private val internalMeasurementsServiceMock: InternalMeasurementsCoroutineService =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val internalMeasurementsServiceMock: InternalMeasurementsCoroutineService = mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsServiceMock) }

@@ -28,9 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor.Companion.parameterless
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -40,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.common.Provider
@@ -124,13 +123,12 @@ private val EXCHANGE_STEP_ATTEMPT: ExchangeStepAttempt =
 @RunWith(JUnit4::class)
 class ExchangeStepAttemptsServiceTest {
 
-  private val internalExchangeStepAttempts: InternalExchangeStepAttempts =
-    mock(useConstructor = parameterless()) {
-      onBlocking { appendLogEntry(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
-      onBlocking { finishExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
-    }
+  private val internalExchangeStepAttempts: InternalExchangeStepAttempts = mockService {
+    onBlocking { appendLogEntry(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+    onBlocking { finishExchangeStepAttempt(any()) }.thenReturn(INTERNAL_EXCHANGE_STEP_ATTEMPT)
+  }
 
-  private val internalExchangeSteps: InternalExchangeSteps = mock(useConstructor = parameterless())
+  private val internalExchangeSteps: InternalExchangeSteps = mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

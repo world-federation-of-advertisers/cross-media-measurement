@@ -30,9 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
@@ -72,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -120,7 +119,7 @@ private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
   private val internalMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { createMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { getMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { streamMeasurements(any()) }

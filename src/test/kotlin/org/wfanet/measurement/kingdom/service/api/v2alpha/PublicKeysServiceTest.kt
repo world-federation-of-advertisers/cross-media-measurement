@@ -26,9 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
@@ -37,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt
@@ -52,7 +51,7 @@ private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
 @RunWith(JUnit4::class)
 class PublicKeysServiceTest {
   private val internalPublicKeysMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { updatePublicKey(any()) }.thenReturn(UpdatePublicKeyResponse.getDefaultInstance())
     }
 
