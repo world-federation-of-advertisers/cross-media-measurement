@@ -28,9 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
@@ -47,6 +45,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYS
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -73,7 +72,7 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
   private val internalServiceMock: InternalDataProvidersService =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { createDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
       onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
     }

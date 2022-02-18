@@ -27,9 +27,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -58,6 +56,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -93,7 +92,7 @@ private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg
 @RunWith(JUnit4::class)
 class CertificatesServiceTest {
   private val internalCertificatesMock: CertificatesCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { getCertificate(any()) }.thenAnswer {
         val request = it.getArgument<InternalGetCertificateRequest>(0)
         INTERNAL_CERTIFICATE.copy {

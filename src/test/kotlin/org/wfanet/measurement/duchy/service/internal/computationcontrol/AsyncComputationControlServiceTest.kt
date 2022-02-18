@@ -22,11 +22,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
@@ -48,8 +47,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 
 @RunWith(JUnit4::class)
 class AsyncComputationControlServiceTest {
-  private val mockComputationsService: ComputationsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val mockComputationsService: ComputationsCoroutineImplBase = mockService()
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationsService) }
 

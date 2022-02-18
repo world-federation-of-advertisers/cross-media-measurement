@@ -29,9 +29,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.AccountKt
@@ -46,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.createAccountRequest
 import org.wfanet.measurement.api.v2alpha.replaceAccountIdentityRequest
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -78,7 +77,7 @@ private const val SELF_ISSUED_ISSUER = "https://self-issued.me"
 @RunWith(JUnit4::class)
 class AccountsServiceTest {
   private val internalAccountsMock: AccountsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
+    mockService() {
       onBlocking { createAccount(any()) }.thenReturn(UNACTIVATED_INTERNAL_ACCOUNT)
       onBlocking { activateAccount(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
       onBlocking { replaceAccountIdentity(any()) }.thenReturn(ACTIVATED_INTERNAL_ACCOUNT)
