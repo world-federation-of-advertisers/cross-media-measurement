@@ -87,9 +87,6 @@ class InProcessKingdom(
   private val internalEventGroupsClient by lazy {
     InternalEventGroupsCoroutineStub(internalApiChannel)
   }
-  private val internalCertificatesClient by lazy {
-    InternalCertificatesCoroutineStub(internalApiChannel)
-  }
   private val internalExchangeStepAttemptsClient by lazy {
     InternalExchangeStepAttemptsCoroutineStub(internalApiChannel)
   }
@@ -181,6 +178,9 @@ class InProcessKingdom(
   /** Provides access to Account and DataProvider creation in place of the Kingdom's operator. */
   val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }
   val internalDataProvidersClient by lazy { InternalDataProvidersCoroutineStub(internalApiChannel) }
+
+  /** Provides access to Duchy Certificate creation without having multiple Duchy clients. */
+  val internalCertificatesClient by lazy { InternalCertificatesCoroutineStub(internalApiChannel) }
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)

@@ -18,7 +18,6 @@ import io.grpc.ManagedChannel
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
@@ -28,6 +27,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import picocli.CommandLine
 
@@ -58,7 +58,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val internalDataProvidersStub = InternalDataProvidersCoroutineStub(kingdomInternalApiChannel)
   val internalAccountsStub = InternalAccountsCoroutineStub(kingdomInternalApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
-  val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
+  val internalCertificatesStub = InternalCertificatesCoroutineStub(kingdomInternalApiChannel)
   val accountsStub = AccountsCoroutineStub(v2alphaPublicApiChannel)
   val apiKeysStub = ApiKeysCoroutineStub(v2alphaPublicApiChannel)
 
@@ -94,7 +94,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         internalDataProvidersStub,
         accountsStub,
         apiKeysStub,
-        certificatesStub,
+        internalCertificatesStub,
         measurementConsumersStub,
         flags.runId
       )
