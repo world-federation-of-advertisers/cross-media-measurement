@@ -42,7 +42,6 @@ message TestVideoTemplate {
 
   AgeRange age = 1;
   ViewDuration duration = 2;
-  CustomField custom = 3;
 }
 
 message ViewDuration {
@@ -50,8 +49,4 @@ message ViewDuration {
     display_name: "View Duration"
   };
   google.protobuf.Duration value = 1;
-}
-
-message CustomField {
-  string name = 1;
 }
