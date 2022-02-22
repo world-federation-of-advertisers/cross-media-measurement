@@ -1,46 +1,42 @@
-# Create Resource by CLI Tool
+# Kingdom CLI Tools
 
-This assumes that the Kingdom is deployed to a K8s cluster, either on the local by KiND or on the cloud.
+Command-line tools for Kingdom operators.
 
-Check the [README.md](../../../../../../../k8s/local/README.md) for the instruction of local deployment.
+## `CreateResource`
 
-## Setup kubectl
-If the cluster is running locally, switch to the correct context by
-```shell
-kubectl config use-context <context>
-```
-Check the current context by
-```shell
-kubectl config current-context
-```
-If the cluster is running on gcloud, follow the instruction to [configure cluster access for kubectl](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl)
+The `CreateResource` tool can be used to create resources by calling the
+internal Kingdom API.
 
-## Forward the request to the Kingdom
-List pods and find one of `gcp-kingdom-data-server-deployment`
+Running the tool with the `--help` option will provide more information on
+command-line options. You can use the `help` subcommand for help on other
+subcommands. For example, for help on the `data_provider` subcommand used for
+creating a `DataProvider` resource, pass `help data_provider` to the command.
+
+You'll need to specify the internal API target using the `--internal-api-target`
+option. See the [Port Forwarding](#port-forwarding) section below.
+
+You'll also need to specify a TLS client certificate and key using the
+`--tls-cert-file` and `--tls-key-file` options, respectively. The issuer of this
+certificate must be trusted by the Kingdom, i.e. the issuer certificate must be
+in the Kingdom's trusted certificate collection file.
+
+### Port Forwarding
+
+The internal Kingdom API server is generally not accessible outside of the K8s
+cluster. In order to call the API, you can forward its service port to your
+local machine using `kubectl`.
+
+Note: This assumes that you have `kubectl` installed and configured to point to
+the Kingdom cluster.
+
+Supposing you have the internal API server in a K8s deployment named
+`gcp-kingdom-data-server-deployment` and the service port is `8443`, the command
+would be
+
 ```shell
-kubectl get pods
-```
-Set up port forward by `kubectl`
-```shell
-kubectl port-forward gcp-kingdom-data-server-deployment-<pod-name> 8443:8443
+kubectl port-forward deployments/gcp-kingdom-data-server-deployment 8443:8443
 ```
 
-## Send requests
-Run the CLI tool with the flag `help` to check the instruction. Provide the credentials as required.
-### Usage
-Create an Account
-```shell
-create_resource account --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
-    --internal-api-cert-host localhost --internal-api-target localhost:8443
-```
-Create a MeasurementConsumer Creation Token
-```shell
-create_resource mc_creation_token --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
-    --internal-api-cert-host localhost --internal-api-target localhost:8443
-```
-Create a Data Provider
-```shell
-create_resource data_provider --tls-cert-file kingdom_tls.pem --tls-key-file kingdom_tls.key --cert-collection-file kingdom_root.pem \ 
-    --internal-api-cert-host localhost --internal-api-target localhost:8443 --certificate-der-file edp1_cs_cert.der \
-    --encryption-public-key-file edp1_enc_public.tink --encryption-public-key-signature-file edp1_cs_cert.der
-```
+You can then pass `--internal-api-target=localhost:8443` to the tool. You'll
+most likely need to specify the hostname of the Kingdom's TLS certificate using
+the `--internal-api-cert-host` option.
