@@ -28,9 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
@@ -43,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.common.Provider
@@ -77,9 +76,7 @@ private val INTERNAL_EXCHANGE = internalExchange {
 class ExchangesServiceTest {
 
   private val internalService: InternalExchangesCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {
-      onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE)
-    }
+    mockService() { onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE) }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
 

@@ -30,11 +30,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
@@ -59,8 +58,7 @@ private const val NEXT_BLOB_PATH = "just a path"
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
-  private val mockAsyncControlService: AsyncComputationControlCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val mockAsyncControlService: AsyncComputationControlCoroutineImplBase = mockService()
   private val advanceAsyncComputationRequests = mutableListOf<AsyncAdvanceComputationRequest>()
   private fun mockAsyncService() =
     runBlocking<Unit> {
