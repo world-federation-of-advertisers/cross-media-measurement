@@ -41,7 +41,6 @@ message TestVideoTemplate {
   };
 
   AgeRange age = 1;
-
   ViewDuration duration = 2;
 }
 
