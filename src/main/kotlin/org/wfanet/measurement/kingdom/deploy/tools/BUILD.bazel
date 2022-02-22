@@ -4,7 +4,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:private"])
 
 kt_jvm_library(
-    name = "create_resource_impl",
+    name = "create_resource",
     srcs = ["CreateResource.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -31,8 +31,8 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "create_resource",
+    name = "CreateResource",
     main_class = "org.wfanet.measurement.kingdom.deploy.tools.CreateResourceKt",
     tags = ["manual"],
-    runtime_deps = [":create_resource_impl"],
+    runtime_deps = [":create_resource"],
 )
