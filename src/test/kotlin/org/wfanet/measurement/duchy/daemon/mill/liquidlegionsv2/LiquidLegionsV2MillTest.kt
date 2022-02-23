@@ -51,6 +51,8 @@ import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.ReachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -310,6 +312,19 @@ private val MEASUREMENT_SPEC = measurementSpec {
 }
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
 
+private val MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH = measurementSpec {
+  nonceHashes += TEST_REQUISITION_1.nonceHash
+  nonceHashes += TEST_REQUISITION_2.nonceHash
+  nonceHashes += TEST_REQUISITION_3.nonceHash
+	reachAndFrequency = ReachAndFrequency.newBuilder().apply {
+		vidSamplingInterval = VidSamplingInterval.newBuilder().apply {
+			width = 0.5f
+		}.build()
+	}.build()
+}
+
+private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH = MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH.toByteString()
+
 private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
     path = "foo/123"
@@ -326,7 +341,7 @@ private val AGGREGATOR_COMPUTATION_DETAILS =
       kingdomComputationBuilder.apply {
         publicApiVersion = PUBLIC_API_VERSION
         measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-        measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+				measurementSpec = SERIALIZED_MEASUREMENT_SPEC
       }
       liquidLegionsV2Builder.apply {
         role = RoleInComputation.AGGREGATOR
@@ -1599,16 +1614,24 @@ class LiquidLegionsV2MillTest {
       FakeComputationsDatabase.newPartialToken(
           localId = LOCAL_ID,
           stage = EXECUTION_PHASE_TWO.toProtocolStage()
-        )
-        .build()
+      )
+			.build()
     computationStore.writeString(
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage()),
       "data"
     )
-    fakeComputationDb.addComputation(
+		val computationDetailsWithVidSamplingWidth =
+			AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+			.apply {
+				kingdomComputationBuilder.apply {
+					measurementSpec = SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH
+				}
+			}
+			.build()
+		fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      computationDetails = computationDetailsWithVidSamplingWidth,
       blobs =
         listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
       requisitions = REQUISITIONS
@@ -1651,7 +1674,7 @@ class LiquidLegionsV2MillTest {
             }
             version = 4 // claimTask + writeOutputBlob + ComputationDetails + transitionStage
             computationDetails =
-              AGGREGATOR_COMPUTATION_DETAILS
+              computationDetailsWithVidSamplingWidth
                 .toBuilder()
                 .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach }
                 .build()
@@ -1683,6 +1706,7 @@ class LiquidLegionsV2MillTest {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
             maximumFrequency = MAX_FREQUENCY
+						vidSamplingIntervalWidth = 0.5f
             liquidLegionsParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE

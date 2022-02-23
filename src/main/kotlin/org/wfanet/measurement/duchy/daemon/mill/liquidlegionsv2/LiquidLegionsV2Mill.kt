@@ -573,6 +573,8 @@ class LiquidLegionsV2Mill(
     var reach = 0L
     val (bytes, tempToken) =
       existingOutputOr(token) {
+				val measurementSpec = MeasurementSpec.parseFrom(
+					token.computationDetails.kingdomComputation.measurementSpec);
         val requestBuilder =
           CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
             localElGamalKeyPair = llv2Details.localElgamalKey
@@ -584,6 +586,7 @@ class LiquidLegionsV2Mill(
               decayRate = llv2Parameters.liquidLegionsSketch.decayRate
               size = llv2Parameters.liquidLegionsSketch.size
             }
+						vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width;
           }
         val noiseConfig = llv2Parameters.noise
         if (noiseConfig.hasReachNoiseConfig()) {
