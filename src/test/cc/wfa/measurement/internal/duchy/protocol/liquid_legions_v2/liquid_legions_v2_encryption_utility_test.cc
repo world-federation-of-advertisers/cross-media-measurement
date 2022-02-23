@@ -857,7 +857,8 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
                            encrypted_sketch, &reach_noise_parameters,
                            /*frequency_noise=*/nullptr));
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
-      kDecayRate, kLiquidLegionsSize, valid_register_count, kVidSamplingIntervalWidth);
+      kDecayRate, kLiquidLegionsSize, valid_register_count,
+      kVidSamplingIntervalWidth);
 
   EXPECT_EQ(result.reach, expected_reach);
 }
