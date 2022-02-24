@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
+import java.time.LocalDate
 import java.util.concurrent.Callable
 import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
@@ -218,6 +220,9 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   )
   private lateinit var dataProviderName: String
 
+  @Option(names = ["--next-exchange-date"], description = ["Next exchange date"], required = true)
+  private lateinit var nextExchangeDate: LocalDate
+
   @Option(
     names = ["--exchange-workflow-file"],
     description = ["Public API serialized ExchangeWorkflow"],
@@ -238,6 +243,7 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
       externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
       externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
       state = RecurringExchange.State.ACTIVE
+      nextExchangeDate = this@CreateRecurringExchangeCommand.nextExchangeDate.toProtoDate()
       details =
         recurringExchangeDetails {
           this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
