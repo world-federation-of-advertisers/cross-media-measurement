@@ -75,6 +75,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
               }
             }
             is MeasurementConsumerKey -> {}
+            is ModelProviderKey -> {}
             else -> {
               failGrpc(Status.PERMISSION_DENIED) {
                 "Caller does not have permission to get a DataProvider's Certificate"
