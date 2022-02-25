@@ -48,8 +48,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -269,7 +269,7 @@ class FrontendSimulator(
         reachAndFrequency {
           reachPrivacyParams = outputDpParams
           frequencyPrivacyParams = outputDpParams
-          vidSamplingInterval = VidSamplingInterval.newBuilder().apply { width = 1.0f }.build()
+          vidSamplingInterval = vidSamplingInterval { width = 1.0f }
         }
       this.nonceHashes += nonceHashes
     }

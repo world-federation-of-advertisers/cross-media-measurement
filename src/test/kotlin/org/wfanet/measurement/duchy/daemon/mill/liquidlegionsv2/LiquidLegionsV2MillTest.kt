@@ -50,8 +50,8 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.ReachAndFrequency
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -317,11 +317,7 @@ private val MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH = measurementSpec {
   nonceHashes += TEST_REQUISITION_2.nonceHash
   nonceHashes += TEST_REQUISITION_3.nonceHash
   reachAndFrequency =
-    ReachAndFrequency.newBuilder()
-      .apply {
-        vidSamplingInterval = VidSamplingInterval.newBuilder().apply { width = 0.5f }.build()
-      }
-      .build()
+    reachAndFrequency { vidSamplingInterval = vidSamplingInterval { width = 0.5f } }
 }
 
 private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH =
@@ -1623,14 +1619,12 @@ class LiquidLegionsV2MillTest {
       "data"
     )
     val computationDetailsWithVidSamplingWidth =
-      AGGREGATOR_COMPUTATION_DETAILS
-        .toBuilder()
-        .apply {
-          kingdomComputationBuilder.apply {
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy {
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH
           }
-        }
-        .build()
+      }
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
