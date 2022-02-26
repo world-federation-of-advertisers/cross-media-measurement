@@ -14,10 +14,9 @@
 
 package k8s
 
-import ("strings")
-
 #Kingdom: {
-	_verbose_grpc_logging: "true" | "false"
+	_verboseGrpcServerLogging: bool | *false
+	_verboseGrpcClientLogging: bool | *false
 
 	_spanner_schema_push_flags: [...string]
 	_spanner_flags: [...string]
@@ -35,36 +34,45 @@ import ("strings")
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_akid_to_principal_map_file_flag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
-	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
-	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
+	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
+	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
 	_internal_api_target_flag:    "--internal-api-target=" + (#Target & {name: "gcp-kingdom-data-server"}).target
 	_internal_api_cert_host_flag: "--internal-api-cert-host=localhost"
 
 	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
 
-	kingdom_service: [Name=_]: #GrpcService & {
+	services: [Name=_]: #GrpcService & {
 		_name:   Name
 		_system: "kingdom"
 	}
-
-	kingdom_service: {
+	services: {
 		"gcp-kingdom-data-server": {}
 		"system-api-server": _type:         "LoadBalancer"
 		"v2alpha-public-api-server": _type: "LoadBalancer"
 	}
 
-	push_spanner_schema_job: [#Job & {
-		_name:            "kingdom-push-spanner-schema"
-		_image:           _images["push-spanner-schema-container"]
-		_imagePullPolicy: _kingdom_image_pull_policy
-		_args:            [
-					"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
-		] + _spanner_schema_push_flags
-	}]
+	jobs: [Name=_]: #Job & {
+		_name: Name
+	}
+	jobs: {
+		"kingdom-push-spanner-schema": {
+			_image:           _images["push-spanner-schema-container"]
+			_imagePullPolicy: _kingdom_image_pull_policy
+			_args:            [
+						"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
+			] + _spanner_schema_push_flags
+			_jobSpec: {
+				backoffLimit: 0 // Don't retry.
+			}
+			_podSpec: {
+				restartPolicy: "Never"
+			}
+		}
+	}
 
-	kingdom_deployment: [Name=_]: #Deployment & {
-		_name:                  strings.TrimSuffix(Name, "-deployment")
+	deployments: [Name=_]: #ServerDeployment & {
+		_name:                  Name
 		_secretName:            _kingdom_secret_name
 		_system:                "kingdom"
 		_image:                 _images[_name]
@@ -75,9 +83,8 @@ import ("strings")
 		_resourceRequestCpu:    _resource_configs[_name].resourceRequestCpu
 		_resourceLimitCpu:      _resource_configs[_name].resourceLimitCpu
 	}
-
-	kingdom_deployment: {
-		"gcp-kingdom-data-server-deployment": #ServerDeployment & {
+	deployments: {
+		"gcp-kingdom-data-server": {
 			_args: [
 				_duchy_info_config_flag,
 				_duchy_id_config_flag,
@@ -89,7 +96,7 @@ import ("strings")
 			] + _spanner_flags
 		}
 
-		"system-api-server-deployment": #ServerDeployment & {
+		"system-api-server": {
 			_args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
@@ -104,7 +111,7 @@ import ("strings")
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
 
-		"v2alpha-public-api-server-deployment": #ServerDeployment & {
+		"v2alpha-public-api-server": {
 			_configMapMounts: [{
 				name: "config-files"
 			}]
@@ -125,42 +132,60 @@ import ("strings")
 		}
 	}
 
-	kingdom_internal_network_policies: [Name=_]: #NetworkPolicy & {
+	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name: Name
 	}
 	// TODO(@wangyaopw): Consider setting the spanner destination explicityly.
-	kingdom_internal_network_policies: {
-		"internal-data-server": #NetworkPolicy & {
+	networkPolicies: {
+		"internal-data-server": {
 			_app_label: "gcp-kingdom-data-server-app"
 			_sourceMatchLabels: [
 				"v2alpha-public-api-server-app",
 				"system-api-server-app",
 				"resource-setup-app",
 			]
-			_destinationMatchLabels: [] // Need to send external traffic to spanner.
+			_egresses: {
+				// Need to send external traffic to Spanner.
+				any: {}
+			}
 		}
-		"public-api-server": #NetworkPolicy & {
+		"public-api-server": {
 			_app_label: "v2alpha-public-api-server-app"
-			_sourceMatchLabels: [] // External API, allow all ingress traffic.
 			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
+			_ingresses: {
+				// External API server; allow ingress from anywhere to service port.
+				gRpc: {
+					ports: [{
+						port: #GrpcServicePort
+					}]
+				}
+			}
 		}
-		"system-api-server": #NetworkPolicy & {
+		"system-api-server": {
 			_app_label: "system-api-server-app"
-			_sourceMatchLabels: [] // External API, allow all ingress traffic.
 			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
+			_ingresses: {
+				// External API server; allow ingress from anywhere to service port.
+				gRpc: {
+					ports: [{
+						port: #GrpcServicePort
+					}]
+				}
+			}
 		}
-		"resource-setup-job": #NetworkPolicy & {
+		"resource-setup-job": {
 			_app_label: "resource-setup-app"
-			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
 			_destinationMatchLabels: [
 				"gcp-kingdom-data-server-app",
 				"v2alpha-public-api-server-app",
 			]
 		}
-		"push-spanner-schema-job": #NetworkPolicy & {
+		"push-spanner-schema-job": {
 			_app_label: "kingdom-push-spanner-schema-app"
-			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
-			_destinationMatchLabels: [] // Need to send external traffic to spanner.
+			_egresses: {
+				// Need to send external traffic to Spanner.
+				any: {}
+			}
 		}
 	}
 }

@@ -1,19 +1,14 @@
 # How to deploy a Halo Kingdom on GKE
 
-Last updated: 2022-02-10
-
-***The doc is updated to work with commit
-7fab61049e425bb0edd5fa2802290bf1722254e7. Newer changes may require some
-commands to be updated. Stay tuned.***
-
 ***Disclaimer***:
 
--   This instruction is just one way of achieving the goal, not necessarily the
-    best approach.
+-   This guide is just one way of achieving the goal, not necessarily the best
+    approach.
 -   Almost all steps can be done via either the
-    [Google Cloud Console](https://console.cloud.google.com/) UI or the GCloud
-    CLI. The doc picks the easier one for each step. But you are free to do it
-    in an alternative way.
+    [Google Cloud Console](https://console.cloud.google.com/) UI or the
+    [`gcloud` CLI](https://cloud.google.com/sdk/gcloud/reference). The doc picks
+    the easier one for each step. But you are free to do it in an alternative
+    way.
 -   All names used in this doc can be replaced with something else. We use
     specific names in the doc for ease of reference.
 -   All quotas and resource configs are just examples, adjust the quota and size
@@ -24,22 +19,19 @@ commands to be updated. Stay tuned.***
 
 ## What are we creating/deploying?
 
--   1 GCP Project
-    -   1 spanner instance
-    -   1 GKE cluster
+-   1 Cloud Spanner database
+-   1 GKE cluster
     -   1 Kubernetes secret
     -   1 Kubernetes configmap
-    -   3 Kubernetes Service
+    -   3 Kubernetes services
         -   gcp-kingdom-data-server (Cluster IP)
         -   system-api-server (External load balancer)
         -   v2alpha-public-api-server (External load balancer)
-    -   3 Kubernetes deployment
+    -   3 Kubernetes deployments
         -   gcp-kingdom-data-server-deployment
         -   system-api-server-deployment
         -   v2alpha-public-api-server-deployment
-    -   1 Kubernetes Job
-        -   kingdom-push-spanner-schema-job
-    -   4 Kubernetes NetworkPolicy
+    -   4 Kubernetes network policies
         -   internal-data-server-network-policy
         -   system-api-server-network-policy
         -   public-api-server-network-policy
@@ -49,186 +41,191 @@ commands to be updated. Stay tuned.***
 
 See [Machine Setup](machine-setup.md).
 
-## Step 1. Create and set up the GCP Project
+### Google Cloud Project quick start
+
+If you don't have an account with sufficient access to a Google Cloud project,
+you can do the following:
 
 1.  [Register](https://console.cloud.google.com/freetrial) a GCP account.
 2.  In the [Google Cloud console](https://console.cloud.google.com/), create a
-    GCP project with project name `halo kingdom demo`, and project id
-    `halo-kingdom-demo`. (The project name doesn't matter and can be changed
-    later, but the project id will be used in all our configurations and is
-    immutable, so it is better to choose a good human-readable name for the
-    project id.)
+    new Google Cloud project.
 3.  Set up Billing of the project in the Console -> Billing page.
 4.  Update the project quotas in the Console -> IAM & Admin -> Quotas page If
     necessary. (The default quota might just work since the kingdom doesn't
     consume too many resources). You can skip this step for now and come back
     later if any future operation fails due to "out of quota" errors.
 
-If you are using an existing project, make sure your account has the `writer`
-role in that project.
+### Cloud Spanner quick start
 
-## Step 2. Create Spanner instance
+If you don't have a Cloud Spanner instance in your project, you can do the
+following:
 
-Visit the GCloud console
-[spanner](https://console.cloud.google.com/spanner/instances) page.
+1.  Visit the [Spanner](https://console.cloud.google.com/spanner/instances) page
+    in Cloud Console.
+2.  Enable the `Cloud Spanner API` if you have not done so yet.
+3.  Click Create Instance
 
-1.  Enable the `Cloud Spanner API` if you haven’t done it yet.
-2.  Click Create Instance with
-    -   instance name = `halo-kingdom-demo-instance` (You can use whatever name
-        here, but usually we use "-instance" as the suffix)
-    -   regional, us-central1
-    -   Processing units = 100 (cost would be $0.09 per hour)
+    Notes:
 
-Notes:
+    *   Our `dev` configuration uses `dev-instance` as the instance name.
+    *   100 processing units is the current minimum value. This should be enough
+        to test things out, but you will likely want to adjust this depending on
+        expected load.
 
--   100 processing units is the minimum value we can choose. It should be good
-    enough before the project is fully launched and we get more traffic.
--   By default, the instance is accessible by all clusters created within this
-    GCP project.
+## Step 1. Create the database
 
-## Step 3. Prepare the docker images
+The Kingdom expects its own database within your Spanner instance.
+
+You can use the
+`//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl`
+Bazel target to generate a file with the necessary Data Definition Language
+(DDL) to create the database.
+
+```shell
+bazel build //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl
+```
+
+You can then create the `kingdom` database using the `gloud` CLI:
+
+```shell
+gcloud spanner databases create kingdom --instance=dev-instance \
+  --ddl-file=bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl
+```
+
+## Step 2. Build and push the container images
 
 In this example, we use Google Cloud
 [container-registry](https://cloud.google.com/container-registry) to store our
-docker images. Enable the Google Container Registry API in the console if you
-haven't done it. If you use other repositories, adjust the commands accordingly.
+container images within our project. Enable the Google Container Registry API in
+the console if you haven't done it. If you use other repositories, you'll need
+to adjust the commands accordingly.
 
-1.  Clone the halo
-    [cross-media-measurement](https://github.com/world-federation-of-advertisers/cross-media-measurement)
-    git repository locally, and check out the targeted commit (likely the one
-    mentioned in the beginning of the doc).
-2.  Build and push the binaries to gcr.io by running the following commands
-
-    ```shell
-    bazel run src/main/docker/push_push_spanner_schema_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-kingdom-demo
-
-    bazel run src/main/docker/push_kingdom_data_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-kingdom-demo
-
-    bazel run src/main/docker/push_kingdom_v2alpha_public_api_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-kingdom-demo
-
-    bazel run src/main/docker/push_kingdom_system_api_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-kingdom-demo
-    ```
-
-    You should see log like "Successfully pushed Docker image to
-    gcr.io/halo-kingdom- demo/setup/push-spanner-schema:latest"
-
-    or you can run
-
-    ```shell
-    bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
-      bazel run -c opt --define container_registry=gcr.io --define \
-      image_repo_prefix=halo-kingdom-demo
-    ```
-
-    Tip: If you're using [Hybrid Development](../building.md#hybrid-development)
-    for containerized builds, replace `bazel run` with
-    `tools/bazel-container-run`.
-
-    The above command builds and pushes all halo binaries one by one. You should
-    see logs like "Successfully pushed Docker image to gcr.io/halo-kingdom-
-    demo/something" multiple times.
-
-    If you see an `UNAUTHORIZED` error, run the following command and retry.
-
-    ```shell
-    gcloud auth configure-docker
-    gcloud auth login
-    ```
-
-## Step 4. Create Cluster
-
-Read the "Before you begin" section at this
-[page](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
-and finish those steps if you have not done them yet.
-
-We recommend using `gcloud init`, and choose default region as `us-central1-c`
-(or any other region you prefer)
-
-After it is done, verify it works by running
+If you haven't already registered the `gcloud` tool as your Docker credential
+helper, run
 
 ```shell
-gcloud config get-value project
+gcloud auth configure-docker
 ```
 
-You should get result
-
-```
-halo-kingdom-demo
-```
-
-Note: if you are using an existing project, you can run the following command to
-set the current project to it.
+Assuming a project named `halo-kingdom-demo`, run
 
 ```shell
-gcloud projects list
-gcloud config set project project-id
+bazel run src/main/docker/push_kingdom_data_server_image \
+  -c opt --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-kingdom-demo
+
+bazel run src/main/docker/push_kingdom_v2alpha_public_api_server_image \
+  -c opt --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-kingdom-demo
+
+bazel run src/main/docker/push_kingdom_system_api_server_image \
+  -c opt --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-kingdom-demo
 ```
 
-Enable the Kubernetes API in the console if your account hasn't done it. Run the
-following command to create the cluster
+You should see log like "Successfully pushed Docker image to
+gcr.io/halo-kingdom-demo/setup/push-spanner-schema:latest"
+
+Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
+containerized builds, replace `bazel run` with `tools/bazel-container-run`.
+
+Note: You may want to add a specific tag for the images in your container
+registry.
+
+## Step 3. Create IAM service accounts for the cluster
+
+See [GKE Cluster Configuration](cluster-config.md) for background.
+
+We'll want to
+[create a least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
+that our cluster will run under. Follow the steps in the linked guide to do
+this.
+
+We'll additionally want to create a service account that we'll use to allow the
+internal API server to access the Spanner database. See
+[Granting Cloud Spanner database access](cluster-config.md#granting-cloud-spanner-database-access)
+for how to make sure this service account has the appropriate role.
+
+## Step 4. Create the cluster
+
+The
+[Before you begin](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
+section in the *Creating a regional cluster* guide is helpful to set up some
+default configuration for the `gcloud` tool.
+
+Supposing you want to create a cluster named `halo-cmm-kingdom-demo-cluster` for
+the Kingdom, running under the `gke-cluster` service account in the
+`halo-kingdom-demo` project, the command would be
 
 ```shell
-gcloud container clusters create halo-cmm-kingdom-demo-cluster --num-nodes 2 \
-  --machine-type=e2-small --enable-autoscaling --min-nodes 1 --max-nodes 5 \
-  --enable-network-policy \
-  --scopes "https://www.googleapis.com/auth/cloud-platform"
+gcloud container clusters create halo-cmm-kingdom-demo-cluster \
+  --enable-network-policy --workload-pool=halo-kingdom-demo.svc.id.goog \
+  --service-account="gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com" \
+  --num-nodes=3 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
+  --machine-type=e2-small
 ```
 
-Note:
+Note: ~3 nodes with the `e2-small` machine type should be enough to run the
+Kingdom servers initially, but should be adjusted depending on expected load.
 
--   The kingdom only contains 3 API servers (Public API, System API and Internal
-    Data Server), the resource requirement is pretty low. Machine type
-    `e2-small` should be good enough in the early stage.
--   The "scopes" and "enable-network-policy" flags are critical for the kingdom.
-    It is recommended to specify them during cluster creation time.
-
-Run
-
-```shell
-gcloud container clusters list
-```
-
-You should get something like
-
-```
-NAME                          LOCATION      MASTER_VERSION   MASTER_IP      MACHINE_TYPE NODE_VERSION     NUM_NODES STATUS
-halo-cmm-kingdom-demo-cluster us-central1-c 1.20.10-gke.1600 34.122.232.195 e2-small     1.20.10-gke.1600 2         RUNNING
-```
-
-Finally, we connect to the above cluster in `kubectl` by running:
+After creating the cluster, we can configure `kubectl` to be able to access it
 
 ```shell
 gcloud container clusters get-credentials halo-cmm-kingdom-demo-cluster
 ```
 
-## Step 5. Create Kubernetes secrets.
+## Step 5. Create K8s service account
+
+In order to use the IAM service account that we created earlier from our
+cluster, we need to create a K8s service account and give it access to that IAM
+service account.
+
+For example, to create a K8s service account named `internal-server`, run
+
+```shell
+kubectl create serviceaccount internal-server
+```
+
+Supposing the IAM service account you created in a previous step is named
+`kingdom-internal` within the `halo-kingdom-demo` project. You'll need to allow
+the K8s service account to impersonate it
+
+```shell
+gcloud iam service-accounts add-iam-policy-binding
+  kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com \
+  --role roles/iam.workloadIdentityUser \
+  --member "serviceAccount:halo-kingdom-demo.svc.id.goog[default/internal-server]"
+```
+
+Finally, add an annotation to link the K8s service account to the IAM service
+account:
+
+```shell
+kubectl annotate serviceaccount internal-server \
+    iam.gke.io/gcp-service-account=kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com
+```
+
+## Step 6. Create K8s secret
 
 ***(Note: this step does not use any Halo code, and you don't need to do it
 within the cross-media-measurement repo.)***
 
-The kingdom binary is configured to read certificates and config files from the
-mounted Kubernetes secret volume.
+We use a K8s secret to hold sensitive information, such as private keys.
 
 First, prepare all the files we want to include in the Kubernetes secret. The
-following files are required in the kingdom
+`dev` configuration assumes the files have the following names:
 
 1.  `all_root_certs.pem`
 
-    *   This is the concatenation of root certificates of all parties that are
-        allowed to send request to the kingdom, including
-        *   all duchies
-        *   all edps
-        *   all MCs or frontends
-        *   The kingdom's own root certificate (for kingdom internal traffic)
-        *   A certificate used for health check purpose
+    This makes up the TLS trusted root CA store for the Kingdom. It's the
+    concatenation of the root CA certificates for all the entites that connect
+    to the Kingdom, including:
+
+    *   All Duchies
+    *   All EDPs
+    *   All MC reporting tools (frontends)
+    *   The Kingdom's itself (for traffic between Kingdom servers)
+    *   The health probe
 
     Supposing your root certs are all in a single folder and end with
     `_root.pem`, you can concatenate them all with a simple shell command:
@@ -239,39 +236,40 @@ following files are required in the kingdom
 
 2.  `kingdom_tls.pem`
 
-    -   This is the public key of the Kingdom's TLS certificate.
+    The Kingdom's TLS certificate.
 
 3.  `kingdom_tls.key`
 
-    -   This is the private key of the Kingdom's TLS certificate.
+    The private key for the Kingdom's TLS certificate.
 
 4.  `health_probe_tls.pem`
 
-    -   This is the public key of the TLS certificate used to do health checks
-        in the kingdom.
+    The health probe's TLS certificate.
 
 5.  `health_probe_tls.key`
 
-    -   This is the private key of the TLS certificate used to do health checks
-        in the kingdom.
+    The private key for the health probe's TLS certificate.
 
 6.  `duchy_cert_config.textproto`
+
+    Configuration mapping Duchy root certificates to the corresponding Duchy ID.
 
     -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
 
 7.  `llv2_protocol_config_config.textproto`
 
+    Configuration for the Liquid Legions v2 protocol.
+
     -   [Example](../../src/main/k8s/testing/secretfiles/llv2_protocol_config_config.textproto)
 
-***health_probe_tls.pem, health_probe_tls.key, kingdom_tls.pem and
-kingdom_tls.key are confidential to the kingdom and determined by the kingdom
-itself.*** All other files are not sensitive and need to be worked out together
-among the Kingdom and all duchy operators.
+***The private keys are confidential to the Kingdom, and are generated by the
+Kingdom's certificate authority (CA).***
 
-Second, put all above files in the same folder (anywhere in your local machine),
-and create a file with name `kustomization.yaml` and content as follows
+To generate the secret, put all above files in the same folder (on your local
+machine), and create a file with name `kustomization.yaml` with the following
+content:
 
-```shell
+```
 secretGenerator:
 - name: certs-and-configs
   files:
@@ -287,11 +285,11 @@ secretGenerator:
 and run
 
 ```shell
-kubectl apply -k path-to-the-above-folder
+kubectl apply -k <path-to-the-above-folder>
 ```
 
-Now the secret is created in the `halo-cmm-kingdom-demo-cluster`. You should be
-able to see the secret by running
+Now the secret is created in the cluster. You should be able to see the secret
+by running
 
 ```shell
 kubectl get secrets
@@ -300,38 +298,22 @@ kubectl get secrets
 We assume the name is `certs-and-configs-abcdedf` and will use it in the
 following documents.
 
-Note: there are
-[test certificates and config files](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/main/src/main/k8s/testing/secretfiles)
-checked in the cross-media-measurement repo. You can run the following command
-to create a secret for testing.
+### Secret files for testing
+
+There are some [secret files](../../src/main/k8s/testing/secretfiles) within the
+repository. These can be used to generate a secret for testing, but **must not**
+be used for production environments as doing so would be highly insecure.
 
 ```shell
 kubectl apply -k src/main/k8s/testing/secretfiles
 ```
 
-## Step 6. Update cue files.
+## Step 7. Create the K8s configMap
 
-We recommend that you modify the
-[kingdom_gke.cue](../../src/main/k8s/dev/kingdom_gke.cue) file in your local
-branch and deploy using it directly. Or you can create another version of it.
-But whatever way you do, you keep the changes locally, DO NOT COMMIT it.
-
-Update the tag variables in the beginning to match the names you choose in
-earlier steps.
-
-```
-# GloudProject:      "halo-kingdom-demo"
-# SpannerInstance:   "halo-kingdom-demo-instance"
-# ContainerRegistry: "gcr.io"
-```
-
-You can also update the memory and cpu request/limit of each pod, as well as the
-number of replicas per deployment.
-
-## Step 7. Deploy the kingdom to GKE
-
-Create an empty configmap since this is a branch new kingdom, there is no EDP
-registered in the system yet. Run
+Configuration that may frequently change is stored in a K8s configMap. The `dev`
+configuration uses one named `config-files` containing the file
+`authority_key_identifier_to_principal_map.textproto`. This file is initially
+empty.
 
 ```shell
 touch /tmp/authority_key_identifier_to_principal_map.textproto
@@ -339,39 +321,81 @@ kubectl create configmap config-files \
   --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
 ```
 
-Deploy the kingdom by running (update the parameters if you use different
-values)
+## Step 8. Create the K8s manifest
 
-```shell
-bazel run \
-  //src/main/kotlin/org/wfanet/measurement/tools:deploy_kingdom_to_gke \
-  --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
-  -- \
-  --yaml-file=kingdom_gke.yaml --cluster-name=halo-cmm-kingdom-demo-cluster \
-  --environment=dev
+Deploying the Kingdom to the cluster is generally done by applying a K8s
+manifest. You can use the `dev` configuration as a base to get started. The
+`dev` manifest is a YAML file that is generated from files written in
+[CUE](https://cuelang.org/) using Bazel rules.
+
+The main file for the `dev` Kingdom is
+[`kingdom_gke.cue`](../../src/main/k8s/dev/kingdom_gke.cue). You can modify this
+file to specify your own values for your Google Cloud project and Spanner
+instance. **Do not** push your modifications to the repository.
+
+For example,
+
+```
+# GloudProject:      "halo-kingdom-demo"
+# SpannerInstance:   "halo-kingdom-demo-instance"
 ```
 
-Now all kingdom components will be successfully deployed to your GKE cluster.
+You can also modify things such as the memory and CPU request/limit of each pod,
+as well as the number of replicas per deployment.
+
+To generate the YAML manifest from the CUE files, run the following
+(substituting your own secret name):
+
+```shell
+bazel build //src/main/k8s/dev:kingdom_gke --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg
+```
+
+You can also do your customization to the generated YAML file rather than to the
+CUE file.
+
+Note: The `dev` configuration does not specify a tag or digest for the container
+images. You likely want to change this for a production environment.
+
+## Step 9. Apply the K8s manifest
+
+If you're using a manifest generated by the `//src/main/k8s/dev:kingdom_gke`
+Bazel target, the command to apply that manifest is
+
+```shell
+kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
+```
+
+Substitute that path if you're using a different K8s manifest.
+
+Now all kingdom components should be successfully deployed to your GKE cluster.
 You can verify by running
 
 ```shell
-$ kubectl get deployments
+kubectl get deployments
+```
+
+and
+
+```shell
+kubectl get services
+```
+
+You should see something like the following:
+
+```
 NAME                                 READY UP-TO-DATE AVAILABLE AGE
 gcp-kingdom-data-server-deployment   1/1   1          1         1m
 system-api-server-deployment         1/1   1          1         1m
 v2alpha-public-api-server-deployment 1/1   1          1         1m
+```
 
-$ kubectl get services
+```
 NAME                      TYPE         CLUSTER-IP   EXTERNAL-IP  PORT(S)        AGE
 gcp-kingdom-data-server   ClusterIP    10.3.245.210 <none>       8443/TCP       14d
 kubernetes                ClusterIP    10.3.240.1   <none>       443/TCP        16d
 system-api-server         LoadBalancer 10.3.248.13  34.67.15.39  8443:30347/TCP 14d
 v2alpha-public-api-server LoadBalancer 10.3.255.191 34.132.87.22 8443:31300/TCP 14d
 ```
-
-Note: If you are not modifying the existing `kingdom_gke.cue` file, but are
-creating another cue file in the previous step, you need to update the
-`yaml-file` and `environment` args to make it work.
 
 ## Step 8. Make the Kingdom accessible on the open internet.
 
@@ -465,10 +489,11 @@ if you want to set it up.
 
 ## Q/A
 
-### Q1. How to generate the kingdom TLS Certificate?
+### Q1. How to generate the Kingdom TLS Certificate?
 
-A: You are free to use whatever tools. One option is to use the `openssl CLI`
-following these steps.
+A: You are free to use any certificate authority you wish, for example the
+Certificate Authority Service within your Google Cloud project. For testing, you
+can create a CA on your own machine using OpenSSL.
 
 1.  install the latest openssl. for example, 3.0.1 on MAC or 1.1.1l on linux.
 2.  run the following commands
@@ -532,9 +557,8 @@ Or you can use the bazel tools the halo team created following these steps.
 
 ### Q2. What if the secret files need to be updated?
 
-If the kingdom needs to onboard a new EDP or MC, the current design requires the
-kingdom to update the config files, e.g., `all_root_certs.pem`. Just redo step
-5,6,7.
+You'll need to recreate the K8s secret and update your cluster resources
+accordingly. One way to do this is to update the K8s manifest and re-apply it.
 
 ### Q3. How to test if the kingdom is working properly?
 

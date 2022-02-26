@@ -28,6 +28,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #AppName: "halo-cmms"
 
+#GrpcServicePort: 8443
+
 #ResourceConfig: {
 	replicas:              int
 	resourceRequestCpu:    string
@@ -42,11 +44,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
 }
 
-#Port: {
+#SecretMount: {
 	name:       string
-	port:       uint16
-	protocol:   "TCP" | "UDP"
-	targetPort: uint16
+	secretName: string
+	mountPath:  string | *"/var/run/secrets/files"
+}
+
+#SecretMount: {
+	name:       string
+	secretName: string
+	mountPath:  string | *"/var/run/secrets/files"
 }
 
 #ConfigMapMount: {
@@ -79,20 +86,59 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		type: _type
 		ports: [{
 			name:       "grpc-port"
-			port:       8443
+			port:       #GrpcServicePort
 			protocol:   "TCP"
-			targetPort: 8443
+			targetPort: #GrpcServicePort
 		}]
 	}
 }
 
-#Deployment: {
+#PodSpec: PodSpec={
+	_secretMounts: [...#SecretMount]
+	_configMapMounts: [...#ConfigMapMount]
+	_container: #Container & {
+		_secretMounts:    PodSpec._secretMounts
+		_configMapMounts: PodSpec._configMapMounts
+	}
+
+	restartPolicy: "Always" | "Never" | "OnFailure"
+	containers: [_container]
+	volumes: [ for secretVolume in _secretMounts {
+		name: secretVolume.name
+		secret: secretName: secretVolume.secretName
+	}] + [ for configVolume in _configMapMounts {
+		name: configVolume.name
+		configMap: name: configVolume.configMapName
+	}]
+	serviceAccountName?: string
+	nodeSelector?: [_=string]: string
+	...
+}
+
+#Container: {
+	_secretMounts: [...#SecretMount]
+	_configMapMounts: [...#ConfigMapMount]
+
+	imagePullPolicy: "IfNotPresent" | "Never" | "Always"
+	volumeMounts: [ for mount in _configMapMounts + _secretMounts {
+		name:      mount.name
+		mountPath: mount.mountPath
+		readOnly:  true
+	}]
+	readinessProbe?: {
+		exec: command: [...string]
+		periodSeconds: uint32
+	}
+	...
+}
+
+#Deployment: Deployment={
 	_name:       string
 	_replicas:   int
-	_secretName: string | *""
+	_secretName: string
 	_image:      string
 	_args: [...string]
-	_ports:           [{containerPort: 8443}] | *[]
+	_ports:           [{containerPort: #GrpcServicePort}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
 	_system:          string
@@ -103,6 +149,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceRequestMemory: string
 	_resourceLimitMemory:   string
 	_configMapMounts: [...#ConfigMapMount]
+	_podSpec: #PodSpec & {
+		_secretMounts: [{
+			name:       _name + "-files"
+			secretName: _secretName
+		}]
+		_configMapMounts: Deployment._configMapMounts
+	}
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
@@ -121,7 +174,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		selector: matchLabels: app: _name + "-app"
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: {
+			spec: _podSpec & {
 				containers: [{
 					name:  _name + "-container"
 					image: _image
@@ -140,28 +193,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 						name:  "JAVA_TOOL_OPTIONS"
 						value: _jvm_flags
 					}]
-					volumeMounts: [{
-						name:      _name + "-files"
-						mountPath: "/var/run/secrets/files"
-						readOnly:  true
-					}] + [ for configVolume in _configMapMounts {
-						name:      configVolume.name
-						mountPath: configVolume.mountPath
-						readOnly:  true
-					}]
-					readinessProbe?: {
-						exec: command: [...string]
-						periodSeconds: uint32
-					}
-				}]
-				volumes: [{
-					name: _name + "-files"
-					secret: {
-						secretName: _secretName
-					}
-				}] + [ for configVolume in _configMapMounts {
-					name: configVolume.name
-					configMap: name: configVolume.configMapName
 				}]
 				initContainers: [ for ds in _dependencies {
 					name:  "init-\(ds)"
@@ -175,12 +206,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #ServerDeployment: #Deployment & {
-	_ports: [{containerPort: 8443}]
+	_ports: [{containerPort: #GrpcServicePort}]
 	spec: template: spec: containers: [{
 		readinessProbe: {
 			exec: command: [
 				"/app/grpc_health_probe/file/grpc-health-probe",
-				"--addr=:8443",
+				"--addr=:\(#GrpcServicePort)",
 				"--tls=true",
 				"--tls-ca-cert=/var/run/secrets/files/all_root_certs.pem",
 				"--tls-client-cert=/var/run/secrets/files/health_probe_tls.pem",
@@ -204,14 +235,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_jobSpec: {
 		backoffLimit?: uint
 	}
-	_podSpec: {
-		restartPolicy: "Always" | "Never" | *"OnFailure"
-	}
-	_container: {
-		name:            _name + "-container"
-		image:           _image
-		imagePullPolicy: _imagePullPolicy
-		args:            _args
+	_podSpec: #PodSpec & {
+		if _secretName != _|_ {
+			_secretMounts: [{
+				name:       _name + "-files"
+				secretName: _secretName
+			}]
+		}
+
+		restartPolicy: string | *"OnFailure"
 	}
 
 	apiVersion: "batch/v1"
@@ -227,7 +259,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		template: {
 			metadata: labels: app: _name + "-app"
 			spec: _podSpec & {
-				containers: [_container & {
+				containers: [{
+					name:            _name + "-container"
+					image:           _image
+					imagePullPolicy: _imagePullPolicy
+					args:            _args
 					resources: requests: {
 						memory: _resourceRequestMemory
 						cpu:    _resourceRequestCpu
@@ -236,25 +272,25 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 						memory: _resourceLimitMemory
 						cpu:    _resourceLimitCpu
 					}
-					if _secretName != _|_ {
-						volumeMounts: [{
-							name:      _name + "-files"
-							mountPath: "/var/run/secrets/files"
-							readOnly:  true
-						}]
-					}
 				}]
-				if _secretName != _|_ {
-					volumes: [{
-						name: _name + "-files"
-						secret: {
-							secretName: _secretName
-						}
-					}]
-				}
 			}
 		}
 	}
+}
+
+#NetworkPolicyPort: {
+	port?:     uint32 | string
+	protocol?: "TCP" | "UDP" | "SCTP"
+}
+
+#EgressRule: {
+	to: [...]
+	ports: [...#NetworkPolicyPort]
+}
+
+#IngressRule: {
+	from: [...]
+	ports: [...#NetworkPolicyPort]
 }
 
 // NetworkPolicy allows for selectively enabling traffic between pods
@@ -268,6 +304,44 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_app_label: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
+	_ingresses: [Name=_]: #IngressRule
+	_egresses: [Name=_]:  #EgressRule
+
+	_ingresses: {
+		if len(_sourceMatchLabels) > 0 {
+			pods: {
+				from: [ for appLabel in _sourceMatchLabels {
+					podSelector: matchLabels: app: appLabel
+				}]
+			}
+		}
+	}
+	_egresses: {
+		if len(_destinationMatchLabels) > 0 {
+			pods: {
+				to: [ for appLabel in _destinationMatchLabels {
+					podSelector: matchLabels: app: appLabel
+				}]
+				ports: [{
+					protocol: "TCP"
+					port:     #GrpcServicePort
+				}]
+			}
+		}
+		dns: {
+			to: [{
+				namespaceSelector: {} // Allow DNS only inside the cluster
+				podSelector: matchLabels: "k8s-app": "kube-dns"
+			}]
+			ports: [{
+				protocol: "UDP"
+				port:     53
+			}, {
+				protocol: "TCP"
+				port:     53
+			}]
+		}
+	}
 
 	apiVersion: "networking.k8s.io/v1"
 	kind:       "NetworkPolicy"
@@ -280,32 +354,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	spec: {
 		podSelector: matchLabels: app: _app_label
 		policyTypes: ["Ingress", "Egress"]
-		ingress: [{
-			from: [ for d in _sourceMatchLabels {
-				podSelector: matchLabels: app: d
-			}]
-			ports: [{
-				protocol: "TCP"
-				port:     8443
-			}]
-		}]
-		egress: [{
-			to: [ for d in _destinationMatchLabels {
-				podSelector: matchLabels: app: d
-			}]
-		}, {
-			to: [{
-				namespaceSelector: {} // Allow DNS only inside the cluster
-				podSelector: matchLabels: "k8s-app": "kube-dns"
-			}]
-			ports: [{
-				protocol: "UDP" // To allow DNS resolution
-				port:     53
-			}, {
-				protocol: "TCP" // To allow DNS resolution
-				port:     53
-			}]
-		}]
+		ingress: [ for _, ingress in _ingresses {ingress}]
+		egress: [ for _, egress in _egresses {egress}]
 	}
 }
 

@@ -188,6 +188,12 @@ import ("strings")
 		_args:            [
 					"--databases=\(_duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
 		] + _spanner_schema_push_flags
+		_jobSpec: {
+			backoffLimit: 0 // Don't retry.
+		}
+		_podSpec: {
+			restartPolicy: "Never"
+		}
 	}]
 
 	duchy_internal_network_policy: [Name=_]: #NetworkPolicy & {
@@ -195,7 +201,7 @@ import ("strings")
 	}
 	// TODO(@wangyaopw): Consider setting GCS and spanner destinations explicityly.
 	duchy_internal_network_policy: {
-		"spanner-computations-server": #NetworkPolicy & {
+		"spanner-computations-server": {
 			_app_label: _object_prefix + "spanner-computations-server-app"
 			_sourceMatchLabels: [
 				_object_prefix + "herald-daemon-app",
@@ -203,14 +209,27 @@ import ("strings")
 				_object_prefix + "async-computation-control-server-app",
 				_object_prefix + "requisition-fulfillment-server-app",
 			]
-			_destinationMatchLabels: [] // spanner-computations-server is allowed to send traffic externally.
+			_egresses: {
+				// Need to send external traffic to Spanner.
+				any: {}
+			}
 		}
-		"requisition-fulfillment-server": #NetworkPolicy & {
+		"requisition-fulfillment-server": {
 			_app_label: _object_prefix + "requisition-fulfillment-server-app"
-			_sourceMatchLabels: [] // External API, allow all incoming traffic.
-			_destinationMatchLabels: [] // requisition-fulfillment-server is allowed to send traffic externally.
+			_ingresses: {
+				// External API server; allow ingress from anywhere to service port.
+				gRpc: {
+					ports: [{
+						port: #GrpcServicePort
+					}]
+				}
+			}
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
 		}
-		"async-computation-controls-server": #NetworkPolicy & {
+		"async-computation-controls-server": {
 			_app_label: _object_prefix + "async-computation-control-server-app"
 			_sourceMatchLabels: [
 				_object_prefix + "computation-control-server-app",
@@ -219,25 +238,41 @@ import ("strings")
 				_object_prefix + "spanner-computations-server-app",
 			]
 		}
-		"computation-control-server": #NetworkPolicy & {
+		"computation-control-server": {
 			_app_label: _object_prefix + "computation-control-server-app"
-			_sourceMatchLabels: [] // External API, allow all incoming traffic.
-			_destinationMatchLabels: [] // computation-control-server is allowed to send traffic externally.
+			_ingresses: {
+				// External API server; allow ingress from anywhere to service port.
+				gRpc: {
+					ports: [{
+						port: #GrpcServicePort
+					}]
+				}
+			}
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
 		}
-		"liquid-legions-v2-mill-daemon": #NetworkPolicy & {
+		"liquid-legions-v2-mill-daemon": {
 			_app_label: _object_prefix + "liquid-legions-v2-mill-daemon-app"
-			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
-			_destinationMatchLabels: [] // Mill is allowed to send traffic externally.
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
 		}
-		"herald-daemon": #NetworkPolicy & {
+		"herald-daemon": {
 			_app_label: _object_prefix + "herald-daemon-app"
-			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
-			_destinationMatchLabels: [] // Herald is allowed to send traffic externally.
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
 		}
-		"push-spanner-schema-job": #NetworkPolicy & {
+		"push-spanner-schema-job": {
 			_app_label: _object_prefix + "push-spanner-schema-app"
-			_sourceMatchLabels: ["NA"] // Use "NA" to reject all ingress traffic.
-			_destinationMatchLabels: [] // Need to send external traffic to spanner.
+			_egresses: {
+				// Need to send external traffic.
+				any: {}
+			}
 		}
 	}
 }
