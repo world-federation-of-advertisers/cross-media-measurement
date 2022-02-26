@@ -192,15 +192,27 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #Job: {
 	_name:            string
-	_secretName:      string | *null
+	_secretName?:     string
 	_image:           string
-	_imagePullPolicy: string | *"Always"
+	_imagePullPolicy: "IfNotPresent" | "Never" | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
 	_resourceRequestCpu:    string | *"100m"
 	_resourceLimitCpu:      string | *"200m"
 	_resourceRequestMemory: string | *"256Mi"
 	_resourceLimitMemory:   string | *"512Mi"
+	_jobSpec: {
+		backoffLimit?: uint
+	}
+	_podSpec: {
+		restartPolicy: "Always" | "Never" | *"OnFailure"
+	}
+	_container: {
+		name:            _name + "-container"
+		image:           _image
+		imagePullPolicy: _imagePullPolicy
+		args:            _args
+	}
 
 	apiVersion: "batch/v1"
 	kind:       "Job"
@@ -211,39 +223,36 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"app.kubernetes.io/part-of": #AppName
 		}
 	}
-	spec: template: {
-		metadata: labels: app: _name + "-app"
-		spec: {
-			containers: [{
-				name:  _name + "-container"
-				image: _image
-				resources: requests: {
-					memory: _resourceRequestMemory
-					cpu:    _resourceRequestCpu
-				}
-				resources: limits: {
-					memory: _resourceLimitMemory
-					cpu:    _resourceLimitCpu
-				}
-				imagePullPolicy: _imagePullPolicy
-				args:            _args
-				if _secretName != null {
-					volumeMounts: [{
-						name:      _name + "-files"
-						mountPath: "/var/run/secrets/files"
-						readOnly:  true
-					}]
-				}
-			}]
-			if _secretName != null {
-				volumes: [{
-					name: _name + "-files"
-					secret: {
-						secretName: _secretName
+	spec: _jobSpec & {
+		template: {
+			metadata: labels: app: _name + "-app"
+			spec: _podSpec & {
+				containers: [_container & {
+					resources: requests: {
+						memory: _resourceRequestMemory
+						cpu:    _resourceRequestCpu
+					}
+					resources: limits: {
+						memory: _resourceLimitMemory
+						cpu:    _resourceLimitCpu
+					}
+					if _secretName != _|_ {
+						volumeMounts: [{
+							name:      _name + "-files"
+							mountPath: "/var/run/secrets/files"
+							readOnly:  true
+						}]
 					}
 				}]
+				if _secretName != _|_ {
+					volumes: [{
+						name: _name + "-files"
+						secret: {
+							secretName: _secretName
+						}
+					}]
+				}
 			}
-			restartPolicy: "OnFailure"
 		}
 	}
 }
