@@ -1,18 +1,3 @@
-<<<<<<< HEAD
-/**
- * Copyright 2022 The Cross-Media Measurement Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License. You may obtain a copy of the License at
- * ```
- *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
- * Unless required by applicable law or agreed to in writing, software distributed under the License
- * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
- * or implied. See the License for the specific language governing permissions and limitations under
- * the License.
- */
-=======
 // Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
->>>>>>> 637139dc (Adds skeleton of privacy budget manager)
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 /**
@@ -37,18 +21,11 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * that bucket group. This aggregation may be non-linear, e.g., determining total privacy budget
  * usage is not as simple as just adding up the charges for the individual rows.
  */
-data class PrivacyBudgetLedgerEntry(
+internal data class PrivacyBudgetLedgerEntry(
   val rowId: Long,
-<<<<<<< HEAD
-  val transactionId: Long,
-  val privacyBucketGroup: PrivacyBucketGroup,
-  val privacyCharge: PrivacyCharge,
-  val repetitionCount: Int
-=======
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
   val repititionCount: Int
->>>>>>> 637139dc (Adds skeleton of privacy budget manager)
 )
 
 /** Manages the persistence of privacy budget data. */
@@ -84,14 +61,14 @@ interface PrivacyBudgetLedgerTransactionContext {
    * intersects with the given privacyBucket.
    */
   fun findIntersectingLedgerEntries(
-    privacyBucketGroup: PrivacyBucketGroup
+    val privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetLedgerEntry>
 
   /** Adds a new row to the PrivacyBudgetLedger specifying a charge to a privacy budget. */
-  fun addLedgerEntry(privacyBucketGroup: PrivacyBucketGroup, privacyCharge: PrivacyCharge)
+  fun addLedgerEntry(val privacyBucketGroup: privacyBucketGroup, val privacyCharge: privacyCharge)
 
   /** Updates a row in the PrivacyBudgetLedger. */
-  fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry)
+  fun updateLedgerEntry(val privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry)
 
   /**
    * Causes the privacy charges from a previous request to be permanently merged into the database.
@@ -102,26 +79,19 @@ interface PrivacyBudgetLedgerTransactionContext {
    * increased and the merged row can be deleted. Otherwise, the transaction ID for the merged row
    * can be set to the special transaction ID.
    */
-  fun mergePreviousTransaction(previousTransactionId: Long)
+  fun mergePreviousTransaction(val previousTransactionId: Long)
 
   /**
    * Causes the privacy charges from a previous transaction to be reversed.
    *
    * This can be implemented by deleting the rows with the previous transaction id.
    */
-  fun undoPreviousTransaction(previousTransactionId: Long)
+  fun undoPreviousTransaction(val previousTransactionId: Long)
 
   /**
    * Commits the current transaction.
    *
    * After calling this method, it is an error to call any additional methods on this instance.
-<<<<<<< HEAD
-   *
-   * @throws PrivacyBudgetManager exception if the commit operation was unsuccessful.
    */
-  fun commit()
-=======
-   */
-  fun commit(): PrivacyBudgetManagerReturnStatus
->>>>>>> 637139dc (Adds skeleton of privacy budget manager)
+  fun commit(): PrivacyBucketManagerStatus
 }
