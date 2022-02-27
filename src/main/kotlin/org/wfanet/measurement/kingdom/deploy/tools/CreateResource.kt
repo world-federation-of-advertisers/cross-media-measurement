@@ -28,12 +28,14 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
+import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Certificate
@@ -61,6 +63,7 @@ import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
 private const val API_VERSION = "v2alpha"
+private const val RECURRING_EXCHANGE_SCHEDULE = "@daily"
 
 private class ApiFlags {
   @Mixin private lateinit var internalApiFlags: InternalApiFlags
@@ -236,8 +239,11 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
     val modelProviderKey = requireNotNull(ModelProviderKey.fromName(modelProviderName))
     val dataProviderKey = requireNotNull(DataProviderKey.fromName(dataProviderName))
 
-    val serializedExchangeWorkflow = exchangeWorkflowFile.readBytes()
-    val v2AlphaExchangeWorkflow = ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
+    val v2AlphaExchangeWorkflow: ExchangeWorkflow by lazy {
+      exchangeWorkflowFile.inputStream().use { input ->
+        parseTextProto(input.bufferedReader(), exchangeWorkflow {})
+      }
+    }
 
     val recurringExchange = recurringExchange {
       externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
@@ -246,8 +252,9 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
       nextExchangeDate = this@CreateRecurringExchangeCommand.nextExchangeDate.toProtoDate()
       details =
         recurringExchangeDetails {
-          this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
+          this.externalExchangeWorkflow = v2AlphaExchangeWorkflow.toByteString()
           exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          cronSchedule = RECURRING_EXCHANGE_SCHEDULE
         }
     }
 
