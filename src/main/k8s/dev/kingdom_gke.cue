@@ -28,27 +28,27 @@ _secret_name: string @tag("secret_name")
 	resourceLimitMemory:   "512Mi"
 }
 
+// Name of K8s service account for the internal API server.
+#InternalServerServiceAccount: "internal-server"
+
 objectSets: [
-		default_deny_ingress_and_egress,
-] + [ for k in kingdom {k}]
+	default_deny_ingress_and_egress,
+	kingdom.deployments,
+	kingdom.services,
+	kingdom.networkPolicies,
+]
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
-	_spanner_schema_push_flags: [
-		"--ignore-already-existing-databases",
-		"--instance-name=" + #SpannerInstance,
-		"--project-name=" + #GloudProject,
-	]
 	_spanner_flags: [
 		"--spanner-database=kingdom",
 		"--spanner-instance=" + #SpannerInstance,
 		"--spanner-project=" + #GloudProject,
 	]
 	_images: {
-		"push-spanner-schema-container": #ContainerRegistryPrefix + "/setup/push-spanner-schema"
-		"gcp-kingdom-data-server":       #ContainerRegistryPrefix + "/kingdom/data-server"
-		"system-api-server":             #ContainerRegistryPrefix + "/kingdom/system-api"
-		"v2alpha-public-api-server":     #ContainerRegistryPrefix + "/kingdom/v2alpha-public-api"
+		"gcp-kingdom-data-server":   #ContainerRegistryPrefix + "/kingdom/data-server"
+		"system-api-server":         #ContainerRegistryPrefix + "/kingdom/system-api"
+		"v2alpha-public-api-server": #ContainerRegistryPrefix + "/kingdom/v2alpha-public-api"
 	}
 	_resource_configs: {
 		"gcp-kingdom-data-server":   #DefaultResourceConfig
@@ -56,5 +56,16 @@ kingdom: #Kingdom & {
 		"v2alpha-public-api-server": #DefaultResourceConfig
 	}
 	_kingdom_image_pull_policy: "Always"
-	_verbose_grpc_logging:      "false"
+	_verboseGrpcServerLogging:  true
+
+	deployments: {
+		"gcp-kingdom-data-server": {
+			_podSpec: {
+				serviceAccountName: #InternalServerServiceAccount
+				nodeSelector: {
+					"iam.gke.io/gke-metadata-server-enabled": "true"
+				}
+			}
+		}
+	}
 }
