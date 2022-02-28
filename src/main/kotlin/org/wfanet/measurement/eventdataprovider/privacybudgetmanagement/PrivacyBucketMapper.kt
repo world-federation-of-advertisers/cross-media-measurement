@@ -31,6 +31,5 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 internal fun privacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
-): List<PrivacyBucketGroup> {
+): List<PrivacyBucketGroup> =
   TODO("Not implemented ${measurementSpec} ${requisitionSpec}")
-}

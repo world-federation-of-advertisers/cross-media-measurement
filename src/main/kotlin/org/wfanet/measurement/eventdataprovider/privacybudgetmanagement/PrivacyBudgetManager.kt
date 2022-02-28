@@ -51,7 +51,6 @@ class PrivacyBudgetManager(
   fun chargePrivacyBudget(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
-  ): PrivacyBudgetManagerReturnStatus {
+  ): PrivacyBudgetManagerReturnStatus =
     TODO("not implemented ${requisitionSpec} ${measurementSpec}")
-  }
 }
