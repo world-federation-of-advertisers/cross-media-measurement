@@ -141,7 +141,10 @@ import ("strings")
 		}
 		"public-api-server": #NetworkPolicy & {
 			_app_label: "v2alpha-public-api-server-app"
-			_sourceMatchLabels: [] // External API, allow all ingress traffic.
+			_sourceMatchLabels: [
+				"mp-panel-exchange-daemon-app",
+				"edp-panel-exchange-daemon-app"
+			] // External API, allow all ingress traffic.
 			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
 		}
 		"system-api-server": #NetworkPolicy & {
