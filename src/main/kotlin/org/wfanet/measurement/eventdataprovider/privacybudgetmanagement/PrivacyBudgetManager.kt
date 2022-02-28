@@ -81,7 +81,12 @@ class PrivacyBudgetManager(
   ): Unit = TODO("not implemented $requisitionSpec $measurementSpec")
 =======
   ): PrivacyBudgetManagerReturnStatus {
+<<<<<<< HEAD
     throw RuntimeException("not implemented ${requisitionSpec} ${measurementSpec}")
   }
 >>>>>>> 637139dc (Adds skeleton of privacy budget manager)
+=======
+    TODO("not implemented ${requisitionSpec} ${measurementSpec}")
+	}
+>>>>>>> c42dc22c (Changes in response to comments from Steven Ware Jones)
 }
