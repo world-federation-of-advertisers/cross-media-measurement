@@ -53,6 +53,7 @@ internal fun getPrivacyBucketGroups(
 internal fun privacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
+<<<<<<< HEAD
 ): List<PrivacyBucketGroup> =
   TODO("Not implemented ${measurementSpec} ${requisitionSpec}")
 <<<<<<< HEAD
@@ -60,3 +61,6 @@ internal fun privacyBucketGroups(
 >>>>>>> 637139dc (Adds skeleton of privacy budget manager)
 =======
 >>>>>>> 9bacaf26 (More formatting changes)
+=======
+): List<PrivacyBucketGroup> = TODO("Not implemented ${measurementSpec} ${requisitionSpec}")
+>>>>>>> a2645281 (Still more formatting changes)
