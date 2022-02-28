@@ -195,6 +195,10 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
   }
 =======
     TODO("not implemented ${privacyBucketGroups} ${privacyCharges}")
+<<<<<<< HEAD
 	}
 >>>>>>> c42dc22c (Changes in response to comments from Steven Ware Jones)
+=======
+  }
+>>>>>>> 3ae47909 (Fix errors reported by formatter)
 }

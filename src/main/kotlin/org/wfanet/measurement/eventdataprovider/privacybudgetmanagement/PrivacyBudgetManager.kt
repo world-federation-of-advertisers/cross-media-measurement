@@ -87,6 +87,10 @@ class PrivacyBudgetManager(
 >>>>>>> 637139dc (Adds skeleton of privacy budget manager)
 =======
     TODO("not implemented ${requisitionSpec} ${measurementSpec}")
+<<<<<<< HEAD
 	}
 >>>>>>> c42dc22c (Changes in response to comments from Steven Ware Jones)
+=======
+  }
+>>>>>>> 3ae47909 (Fix errors reported by formatter)
 }
