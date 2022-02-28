@@ -26,6 +26,6 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
     privacyBucketGroups: List<PrivacyBucketGroup>,
     privacyCharges: List<PrivacyCharge>
   ): PrivacyBudgetManagerReturnStatus {
-    throw RuntimeException("not implemented ${privacyBucketGroups} ${privacyCharges}")
-  }
+    TODO("not implemented ${privacyBucketGroups} ${privacyCharges}")
+	}
 }

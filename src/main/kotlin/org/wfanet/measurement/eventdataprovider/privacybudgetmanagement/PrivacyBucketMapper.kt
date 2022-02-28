@@ -32,5 +32,5 @@ internal fun privacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
 ): List<PrivacyBucketGroup> {
-  throw RuntimeException("Not implemented ${measurementSpec} ${requisitionSpec}")
+  TODO("Not implemented ${measurementSpec} ${requisitionSpec}")
 }

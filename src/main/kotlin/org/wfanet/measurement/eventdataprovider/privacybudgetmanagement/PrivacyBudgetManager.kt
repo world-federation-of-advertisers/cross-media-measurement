@@ -52,6 +52,6 @@ class PrivacyBudgetManager(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ): PrivacyBudgetManagerReturnStatus {
-    throw RuntimeException("not implemented ${requisitionSpec} ${measurementSpec}")
-  }
+    TODO("not implemented ${requisitionSpec} ${measurementSpec}")
+	}
 }
