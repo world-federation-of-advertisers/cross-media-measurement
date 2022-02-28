@@ -52,5 +52,5 @@ class PrivacyBudgetManager(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ): PrivacyBudgetManagerReturnStatus =
-    TODO("not implemented ${requisitionSpec} ${measurementSpec}")
+    TODO("not implemented $requisitionSpec $measurementSpec")
 }
