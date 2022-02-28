@@ -78,6 +78,7 @@ class PrivacyBudgetManager(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
 <<<<<<< HEAD
+<<<<<<< HEAD
   ): Unit = TODO("not implemented $requisitionSpec $measurementSpec")
 =======
   ): PrivacyBudgetManagerReturnStatus {
@@ -93,4 +94,8 @@ class PrivacyBudgetManager(
 =======
   }
 >>>>>>> 3ae47909 (Fix errors reported by formatter)
+=======
+  ): PrivacyBudgetManagerReturnStatus =
+    TODO("not implemented ${requisitionSpec} ${measurementSpec}")
+>>>>>>> 9bacaf26 (More formatting changes)
 }
