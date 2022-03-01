@@ -39,3 +39,20 @@ java_binary(
     tags = ["manual"],
     runtime_deps = [":add_resource"],
 )
+
+kt_jvm_library(
+    name = "serialize_exchange_workflow",
+    srcs = ["SerializeExchangeWorkflow.kt"],
+    deps = [
+        "//src/main/proto/private_membership/batch:shared_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "SerializeExchangeWorkflow",
+    main_class = "org.wfanet.panelmatch.client.tools.SerializeExchangeWorkflowKt",
+    runtime_deps = [":serialize_exchange_workflow"],
+)
