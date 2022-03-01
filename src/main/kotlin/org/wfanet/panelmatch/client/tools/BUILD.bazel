@@ -23,8 +23,10 @@ kt_jvm_library(
     name = "add_resource",
     srcs = ["AddResource.kt"],
     deps = [
+        "//imports/java/com/google/common:tink_gcpkms",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/gcloud/gcs",
         "//src/main/kotlin/org/wfanet/panelmatch/client/tools",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
@@ -37,7 +39,10 @@ java_binary(
     name = "AddResource",
     main_class = "org.wfanet.panelmatch.client.tools.AddResourceKt",
     tags = ["manual"],
-    runtime_deps = [":add_resource"],
+    runtime_deps = [
+        ":add_resource",
+        "//imports/java/com/google/common:tink_gcpkms",
+    ],
 )
 
 kt_jvm_library(
