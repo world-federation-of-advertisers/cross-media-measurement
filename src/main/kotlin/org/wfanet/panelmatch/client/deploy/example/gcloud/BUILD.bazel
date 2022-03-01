@@ -8,12 +8,12 @@ kt_jvm_library(
     name = "gcloud",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/common:tink_gcpkms",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/gcloud",
         "//src/main/kotlin/org/wfanet/panelmatch/common/secrets",
+        "@tink_java//src/main/java/com/google/crypto/tink/integration/gcpkms:gcp_kms_client",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
@@ -23,18 +23,12 @@ kt_jvm_library(
 java_binary(
     name = "GoogleCloudExampleDaemonMain",
     main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
-    runtime_deps = [
-        ":gcloud",
-        "//imports/java/com/google/common:tink_gcpkms",
-    ],
+    runtime_deps = [":gcloud"],
 )
 
 java_image(
     name = "google_cloud_example_daemon_image",
     data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
-    runtime_deps = [
-        ":gcloud",
-        "//imports/java/com/google/common:tink_gcpkms",
-    ],
+    runtime_deps = [":gcloud"],
 )

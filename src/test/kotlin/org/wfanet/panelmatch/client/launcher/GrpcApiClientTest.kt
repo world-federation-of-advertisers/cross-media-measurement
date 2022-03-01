@@ -26,10 +26,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -55,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeStep
 import org.wfanet.measurement.api.v2alpha.exchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.panelmatch.client.common.Identity
 
@@ -96,11 +95,10 @@ private val EMPTY_CLAIM_READY_EXCHANGE_STEP_RESPONSE = claimReadyExchangeStepRes
 
 @RunWith(JUnit4::class)
 class GrpcApiClientTest {
-  private val exchangeStepsServiceMock: ExchangeStepsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless())
+  private val exchangeStepsServiceMock: ExchangeStepsCoroutineImplBase = mockService {}
 
   private val exchangeStepsAttemptsServiceMock: ExchangeStepAttemptsCoroutineImplBase =
-    mock(useConstructor = UseConstructor.parameterless()) {}
+      mockService {}
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

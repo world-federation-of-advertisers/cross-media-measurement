@@ -19,18 +19,17 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteString
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.UseConstructor.Companion.parameterless
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
-import org.mockito.kotlin.verifyZeroInteractions
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateCertificateRequest
@@ -45,6 +44,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
 import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateAuthority
 import org.wfanet.panelmatch.common.secrets.testing.TestMutableSecretMap
@@ -70,11 +70,10 @@ private val API_CERTIFICATE = certificate {
 
 @RunWith(JUnit4::class)
 class V2AlphaCertificateManagerTest {
-  private val certificatesService: CertificatesCoroutineImplBase =
-    mock(useConstructor = parameterless()) {
-      onBlocking { getCertificate(any()) }.thenReturn(API_CERTIFICATE)
-      onBlocking { createCertificate(any()) }.thenReturn(API_CERTIFICATE)
-    }
+  private val certificatesService: CertificatesCoroutineImplBase = mockService {
+    onBlocking { getCertificate(any()) }.thenReturn(API_CERTIFICATE)
+    onBlocking { createCertificate(any()) }.thenReturn(API_CERTIFICATE)
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(certificatesService) }
 
@@ -184,7 +183,7 @@ class V2AlphaCertificateManagerTest {
   }
 
   @Test
-  fun createForExchangeCacheHit() = runBlockingTest {
+  fun createForExchangeCacheHit() {
     privateKeys.underlyingMap[EXCHANGE_DATE_KEY.path] =
       signingKeys {
           certResourceName = RESOURCE_NAME
@@ -192,8 +191,10 @@ class V2AlphaCertificateManagerTest {
         }
         .toByteString()
 
-    assertThat(certificateManager.createForExchange(EXCHANGE_DATE_KEY)).isEqualTo(RESOURCE_NAME)
+    val response = runBlocking { certificateManager.createForExchange(EXCHANGE_DATE_KEY) }
+    assertThat(response).isEqualTo(RESOURCE_NAME)
 
-    verifyZeroInteractions(certificatesService)
+    verifyBlocking(certificatesService, never()) { createCertificate(any()) }
+    verifyBlocking(certificatesService, never()) { getCertificate(any()) }
   }
 }

@@ -23,13 +23,13 @@ kt_jvm_library(
     name = "add_resource",
     srcs = ["AddResource.kt"],
     deps = [
-        "//imports/java/com/google/common:tink_gcpkms",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/gcloud/gcs",
         "//src/main/kotlin/org/wfanet/panelmatch/client/tools",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
+        "@tink_java//src/main/java/com/google/crypto/tink/integration/gcpkms:gcp_kms_client",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
@@ -41,7 +41,6 @@ java_binary(
     tags = ["manual"],
     runtime_deps = [
         ":add_resource",
-        "//imports/java/com/google/common:tink_gcpkms",
     ],
 )
 
