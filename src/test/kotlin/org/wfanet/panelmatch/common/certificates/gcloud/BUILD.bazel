@@ -9,7 +9,6 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.panelmatch.common.certificates.gcloud.CertificateAuthorityTest",
     deps = [
-        "//imports/java/com/google/api:core",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/gcloud",
         "//src/main/kotlin/org/wfanet/panelmatch/common/certificates/testing",

@@ -6,7 +6,6 @@ kt_jvm_library(
     name = "gcs",
     srcs = glob(["*.kt"]),
     deps = [
-        "//imports/java/com/google/cloud/core",
         "//imports/java/com/google/common:guava",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
