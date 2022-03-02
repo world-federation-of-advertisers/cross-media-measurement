@@ -16,10 +16,17 @@ package org.wfanet.panelmatch.common.certificates.gcloud
 
 import com.google.cloud.security.privateca.v1.PublicKey as CloudPublicKey
 import com.google.cloud.security.privateca.v1.PublicKey.KeyFormat
-import com.google.protobuf.kotlin.toByteString
+import com.google.protobuf.ByteString
 import java.security.PublicKey
+import org.wfanet.measurement.common.crypto.PemWriter
 
 /** Converts a java.security.PublicKey to com.google.cloud.security.privateca.v1.PublicKey */
 fun PublicKey.toGCloudPublicKey(): CloudPublicKey {
-  return CloudPublicKey.newBuilder().setKey(encoded.toByteString()).setFormat(KeyFormat.PEM).build()
+  val publicKeyBytes =
+    ByteString.newOutput().use { output ->
+      val writer = PemWriter(output)
+      writer.write(this)
+      output.toByteString()
+    }
+  return CloudPublicKey.newBuilder().setKey(publicKeyBytes).setFormat(KeyFormat.PEM).build()
 }
