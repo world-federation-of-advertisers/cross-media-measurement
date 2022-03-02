@@ -7,10 +7,11 @@ Command-line tools for Kingdom operators.
 The `CreateResource` tool can be used to create resources by calling the
 internal Kingdom API.
 
-Running the tool with the `--help` option will provide more information on
-command-line options. You can use the `help` subcommand for help on other
-subcommands. For example, for help on the `data_provider` subcommand used for
-creating a `DataProvider` resource, pass `help data_provider` to the command.
+Running the tool with the `help` command will provide more information on
+command-line options. You can also pass another command name to the `help`
+command for usage information for that particular command. For example, for help
+on the `data-provider` command used for creating a `DataProvider` resource, pass
+`help data-provider`.
 
 You'll need to specify the internal API target using the `--internal-api-target`
 option. See the [Port Forwarding](#port-forwarding) section below.
