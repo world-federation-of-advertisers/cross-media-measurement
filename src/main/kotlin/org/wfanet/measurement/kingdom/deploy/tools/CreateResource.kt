@@ -61,6 +61,7 @@ import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
 private const val API_VERSION = "v2alpha"
+private const val RECURRING_EXCHANGE_CRON_SCHEDULE = "@daily"
 
 private class ApiFlags {
   @Mixin private lateinit var internalApiFlags: InternalApiFlags
@@ -248,6 +249,7 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
         recurringExchangeDetails {
           this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
           exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          cronSchedule = RECURRING_EXCHANGE_CRON_SCHEDULE
         }
     }
 
