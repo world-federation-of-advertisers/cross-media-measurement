@@ -224,6 +224,7 @@ private class CreateRecurringExchangeCommand : Runnable {
         recurringExchangeDetails {
           this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
           exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          cronSchedule = "@daily"
         }
     }
 
