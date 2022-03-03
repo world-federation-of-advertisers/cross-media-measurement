@@ -12,6 +12,7 @@ kt_jvm_library(
     deps = KINGDOM_INTERNAL_PROTOS + [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:error_detail",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/readers",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/writers",

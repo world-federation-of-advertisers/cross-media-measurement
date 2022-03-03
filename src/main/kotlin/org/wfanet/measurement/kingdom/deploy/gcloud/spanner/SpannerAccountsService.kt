@@ -25,12 +25,14 @@ import org.wfanet.measurement.internal.kingdom.ActivateAccountRequest
 import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenResponse
+import org.wfanet.measurement.internal.kingdom.ErrorDetail
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.GetOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.internal.kingdom.openIdRequestParams
+import org.wfanet.measurement.kingdom.deploy.common.failGrpcWithDetail
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
@@ -70,8 +72,14 @@ class SpannerAccountsService(
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Creator account not found" }
+        KingdomInternalException.Code.ACCOUNT_NOT_FOUND -> {
+          failGrpcWithDetail(
+            Status.NOT_FOUND,
+            ErrorDetail.ErrorCode.CREATOR_ACCOUNT_NOT_FOUND,
+            this.javaClass.`package`.name,
+            mapOf("creator_account_id" to request.externalCreatorAccountId.toString())
+          ) { "Creator account not found" }
+        }
         KingdomInternalException.Code.PERMISSION_DENIED ->
           failGrpc(Status.PERMISSION_DENIED) {
             "Caller does not own the owned measurement consumer"
