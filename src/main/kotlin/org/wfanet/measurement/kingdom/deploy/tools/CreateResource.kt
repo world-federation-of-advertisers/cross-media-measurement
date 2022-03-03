@@ -60,6 +60,7 @@ import picocli.CommandLine.Option
 import picocli.CommandLine.ParentCommand
 
 private const val API_VERSION = "v2alpha"
+private const val RECURRING_EXCHANGE_CRON_SCHEDULE = "@daily"
 
 private abstract class CreatePrincipalCommand : Runnable {
   @ParentCommand
@@ -224,6 +225,7 @@ private class CreateRecurringExchangeCommand : Runnable {
         recurringExchangeDetails {
           this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
           exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          cronSchedule = RECURRING_EXCHANGE_CRON_SCHEDULE
         }
     }
 
