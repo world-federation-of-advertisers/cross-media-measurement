@@ -183,13 +183,6 @@ kt_jvm_proto_library(
     deps = [":error_detail_java_proto"],
 )
 
-#proto_and_java_proto_library(
-#    name = "error_detail",
-#    deps = [
-#        "@com_google_googleapis//google/rpc:error_details_proto",
-#    ],
-#)
-
 proto_library(
     name = "llv2_protocol_config_config_proto",
     srcs = ["llv2_protocol_config_config.proto"],
