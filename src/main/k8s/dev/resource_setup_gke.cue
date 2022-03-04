@@ -37,4 +37,5 @@ resource_setup_job: #ResourceSetup & {
 	_job_image:                  #ContainerRegistryPrefix + "/loadtest/resource-setup"
 	_resource_configs:           #DefaultResourceConfig
 	_resource_setup_secret_name: _secret_name
+	_dependencies: ["gcp-kingdom-data-server"]
 }
