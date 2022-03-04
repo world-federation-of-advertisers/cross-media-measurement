@@ -14,15 +14,12 @@
 
 package org.wfanet.panelmatch.client.deploy
 
-import java.net.InetSocketAddress
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party
 import org.wfanet.measurement.common.grpc.TlsFlags
 import picocli.CommandLine
-import picocli.CommandLine.ITypeConverter
 import picocli.CommandLine.Option
-import picocli.CommandLine.TypeConversionException
 
 class ExchangeWorkflowFlags {
   @Option(names = ["--id"], description = ["Id of the provider"], required = true)
@@ -81,10 +78,9 @@ class ExchangeWorkflowFlags {
     names = ["--exchange-api-target"],
     description =
       ["Address and port for servers hosting /ExchangeSteps and /ExchangeStepAttempts services"],
-    converter = [InetSocketAddressConverter::class],
     required = true
   )
-  lateinit var exchangeApiTarget: InetSocketAddress
+  lateinit var exchangeApiTarget: String
     private set
 
   @Option(
@@ -112,16 +108,4 @@ class ExchangeWorkflowFlags {
   )
   var preProcessingFileCount by Delegates.notNull<Int>()
     private set
-
-  class InetSocketAddressConverter : ITypeConverter<InetSocketAddress> {
-    override fun convert(value: String): InetSocketAddress {
-      val pos = value.lastIndexOf(':')
-      if (pos < 0) {
-        throw TypeConversionException("Invalid format: must be 'host:port' but was '$value'")
-      }
-      val adr = value.substring(0, pos)
-      val port = value.substring(pos + 1).toInt() // invalid port shows the generic error message
-      return InetSocketAddress(adr, port)
-    }
-  }
 }

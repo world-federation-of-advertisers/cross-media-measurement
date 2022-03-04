@@ -15,7 +15,6 @@
 package org.wfanet.panelmatch.integration
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.nio.file.Path
 import java.time.Clock
