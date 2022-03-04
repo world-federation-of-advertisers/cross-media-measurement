@@ -76,7 +76,6 @@ class SpannerAccountsService(
           failGrpcWithDetail(
             Status.NOT_FOUND,
             ErrorDetail.ErrorCode.CREATOR_ACCOUNT_NOT_FOUND,
-            this.javaClass.`package`.name,
             mapOf("creator_account_id" to request.externalCreatorAccountId.toString())
           ) { "Creator account not found" }
         }

@@ -33,7 +33,6 @@ class ErrorDetailTest {
         failGrpcWithDetail(
           Status.NOT_FOUND,
           ErrorDetail.ErrorCode.API_KEY_NOT_FOUND,
-          this.javaClass.`package`.name,
           mapOf("api_key" to "123456", "retry" to "false")
         ) { "API Key Not Found" }
       }
@@ -41,7 +40,7 @@ class ErrorDetailTest {
     assertNotNull(detail)
     assertThat(detail.code).isEqualTo(ErrorDetail.ErrorCode.API_KEY_NOT_FOUND)
     assertThat(detail.info.reason).isEqualTo("API_KEY_NOT_FOUND")
-    assertThat(detail.info.domain).isEqualTo("org.wfanet.measurement.kingdom.deploy.common")
+    assertThat(detail.info.domain).isEqualTo("org.wfanet.measurement.internal.kingdom.ErrorDetail")
     val metadata = detail.info.metadataMap
     assertNotNull(metadata)
     assertThat(metadata).isEqualTo(mapOf("api_key" to "123456", "retry" to "false"))
