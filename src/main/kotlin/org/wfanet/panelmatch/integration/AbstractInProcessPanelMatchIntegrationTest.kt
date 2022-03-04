@@ -19,7 +19,6 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.privatemembership.batch.Shared
 import com.google.protobuf.ByteString
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.kotlin.toByteString
 import io.grpc.StatusException
 import java.nio.file.Path
 import java.time.Clock
@@ -27,9 +26,10 @@ import java.time.LocalDate
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -101,7 +101,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   )
 
   /** Used to validate the state of shared storage. */
-  private fun validateSharedStorageState(
+  private suspend fun validateSharedStorageState(
     specialSharedStorageSelector: PrivateStorageSelector,
     exchangeDateKey: ExchangeDateKey
   ) {
@@ -212,7 +212,6 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       provider = owner.key,
       exchangeDateKey = exchangeDateKey,
       privateDirectory = owner.privateStoragePath,
-      scope = owner.scope
     )
   }
 
@@ -237,21 +236,20 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     return PrivateStorageSelector(specialSharedStorageFactories, specialSharedStorageInfo)
   }
 
-  private fun PrivateStorageSelector.writeSharedBlob(
+  private suspend fun PrivateStorageSelector.writeSharedBlob(
     blobKey: String,
     contents: ByteString,
     exchangeDateKey: ExchangeDateKey
-  ) =
-    runBlocking(Dispatchers.IO) {
-      getStorageClient(exchangeDateKey).createBlob(blobKey, flowOf(contents))
-    }
-  private fun PrivateStorageSelector.readSharedBlob(
+  ) {
+    getStorageClient(exchangeDateKey).createBlob(blobKey, flowOf(contents))
+  }
+
+  private suspend fun PrivateStorageSelector.readSharedBlob(
     blobKey: String,
     exchangeDateKey: ExchangeDateKey
-  ): ByteString? =
-    runBlocking(Dispatchers.IO) {
-      getStorageClient(exchangeDateKey).getBlob(blobKey)?.toByteString()
-    }
+  ): ByteString? {
+    return getStorageClient(exchangeDateKey).getBlob(blobKey)?.toByteString()
+  }
 
   @Before
   fun setup() = runBlocking {
@@ -388,15 +386,15 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
       specialSharedStorageSelector.writeSharedBlob(blobKey, value, exchangeDateKey)
     }
 
-    dataProviderDaemon.run()
-    modelProviderDaemon.run()
+    val edpJob = dataProviderContext.scope.launch { dataProviderDaemon.runSuspending() }
+    val mpJob = modelProviderContext.scope.launch { modelProviderDaemon.runSuspending() }
 
     while (!isDone()) {
       delay(500)
     }
 
-    dataProviderContext.scope.cancel()
-    modelProviderContext.scope.cancel()
+    edpJob.cancelAndJoin()
+    mpJob.cancelAndJoin()
 
     validateFinalState(dataProviderDaemon, modelProviderDaemon)
 

@@ -19,7 +19,6 @@ import io.grpc.Channel
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.runBlocking
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
@@ -59,7 +58,6 @@ class ExchangeWorkflowDaemonForTest(
   provider: ResourceKey,
   private val exchangeDateKey: ExchangeDateKey,
   privateDirectory: Path,
-  override val scope: CoroutineScope,
   override val clock: Clock = Clock.systemUTC(),
   pollingInterval: Duration = Duration.ofMillis(100),
   taskTimeoutDuration: Duration = Duration.ofMinutes(2)
