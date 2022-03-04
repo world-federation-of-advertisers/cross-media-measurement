@@ -15,9 +15,7 @@
 package org.wfanet.panelmatch.client.deploy
 
 import java.time.Clock
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
@@ -66,9 +64,6 @@ abstract class ExchangeWorkflowDaemon : Runnable {
   /** Clock for ensuring future Exchanges don't execute yet. */
   abstract val clock: Clock
 
-  /** Scope in which to run the daemon loop. */
-  abstract val scope: CoroutineScope
-
   /** How to build private storage. */
   protected abstract val privateStorageFactories:
     Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory>
@@ -96,7 +91,9 @@ abstract class ExchangeWorkflowDaemon : Runnable {
     SharedStorageSelector(certificateManager, sharedStorageFactories, sharedStorageInfo)
   }
 
-  override fun run() {
+  override fun run() = runBlocking { runSuspending() }
+
+  suspend fun runSuspending() {
     val stepExecutor =
       ExchangeTaskExecutor(
         apiClient = apiClient,
@@ -114,12 +111,13 @@ abstract class ExchangeWorkflowDaemon : Runnable {
         jobLauncher = launcher
       )
 
-    scope.launch(CoroutineName("ExchangeWorkflowDaemon")) { runDaemon(exchangeStepLauncher) }
+    runDaemon(exchangeStepLauncher)
   }
 
   /** Runs [exchangeStepLauncher] in an infinite loop. */
   protected open suspend fun runDaemon(exchangeStepLauncher: ExchangeStepLauncher) {
     throttler.loopOnReady {
+      // All errors thrown inside the loop should be suppressed such that the daemon doesn't crash.
       logAndSuppressExceptionSuspend { exchangeStepLauncher.findAndRunExchangeStep() }
     }
   }
