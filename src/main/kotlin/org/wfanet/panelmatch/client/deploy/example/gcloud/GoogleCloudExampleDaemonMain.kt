@@ -78,14 +78,6 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Mixin private lateinit var caFlags: CertificateAuthorityFlags
   @Mixin private lateinit var privateCaFlags: PrivateCaFlags
 
-  @Option(
-    names = ["--recurring-exchange-id"],
-    description = ["Id of the recurring exchange"],
-    required = true
-  )
-  lateinit var recurringExchangeId: String
-    private set
-
   override val rootStorageClient: StorageClient by lazy {
     GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
   }
