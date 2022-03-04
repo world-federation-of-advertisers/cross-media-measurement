@@ -16,21 +16,16 @@ package org.wfanet.panelmatch.client.deploy.example
 
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
-import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.deploy.BlobSizeFlags
-import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.ExchangeWorkflowDaemonFromFlags
-import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
-import org.wfanet.panelmatch.common.secrets.MutableSecretMap
-import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
 
 /** Example base class for [ExchangeWorkflowDaemonFromFlags] implementations. */
 abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
   @Option(names = ["--tink-key-uri"], description = ["KMS URI for Tink"], required = true)
-  private lateinit var tinkKeyUri: String
+  protected lateinit var tinkKeyUri: String
 
   @Mixin private lateinit var blobSizeFlags: BlobSizeFlags
 
@@ -39,31 +34,6 @@ abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
 
   /** This should be customized per deployment. */
   override val pipelineOptions: PipelineOptions = PipelineOptionsFactory.create()
-
-  /** This can be customized per deployment. */
-  private val defaults by lazy {
-    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
-  }
-
-  /** This can be customized per deployment. */
-  override val validExchangeWorkflows: SecretMap
-    get() = defaults.validExchangeWorkflows
-
-  /** This can be customized per deployment. */
-  override val privateKeys: MutableSecretMap
-    get() = defaults.privateKeys
-
-  /** This can be customized per deployment. */
-  override val rootCertificates: SecretMap
-    get() = defaults.rootCertificates
-
-  /** This can be customized per deployment. */
-  override val privateStorageInfo: StorageDetailsProvider
-    get() = defaults.privateStorageInfo
-
-  /** This can be customized per deployment. */
-  override val sharedStorageInfo: StorageDetailsProvider
-    get() = defaults.sharedStorageInfo
 
   /** This can be customized per deployment. */
   override val privateStorageFactories = exampleStorageFactories
