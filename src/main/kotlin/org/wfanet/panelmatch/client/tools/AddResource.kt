@@ -15,8 +15,6 @@
 package org.wfanet.panelmatch.client.tools
 
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
-import com.google.privatemembership.batch.Shared
-import com.google.protobuf.TypeRegistry
 import com.google.protobuf.kotlin.toByteString
 import java.io.File
 import java.nio.file.Files
@@ -25,12 +23,9 @@ import java.util.Optional
 import java.util.concurrent.Callable
 import kotlin.system.exitProcess
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -39,6 +34,7 @@ import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.storage.FileSystemStorageFactory
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
+import org.wfanet.panelmatch.client.storage.gcloud.gcs.GcsStorageFactory
 import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
@@ -85,24 +81,24 @@ class CustomStorageFlags {
   }
 
   private val defaults by lazy {
-    when (storageType) {
-      PlatformCase.GCS -> {
-        // Register GcpKmsClient before setting storage folders. Set GOOGLE_APPLICATION_CREDENTIALS.
-        GcpKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
-        DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
-      }
-      PlatformCase.FILE ->
-        DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
-      else -> throw IllegalArgumentException("Unsupported storage type")
+    if (storageType == PlatformCase.GCS) {
+      // Register GcpKmsClient before setting storage folders.
+      GcpKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
     }
+    DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
   }
 
   val addResource by lazy { ConfigureResource(defaults) }
 
   /** This should be customized per deployment. */
   val privateStorageFactories:
-    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory> =
-    mapOf(PlatformCase.FILE to ::FileSystemStorageFactory)
+    Map<PlatformCase, (StorageDetails, ExchangeDateKey) -> StorageFactory> by lazy {
+    when (storageType) {
+      PlatformCase.GCS -> mapOf(PlatformCase.GCS to ::GcsStorageFactory)
+      PlatformCase.FILE -> mapOf(PlatformCase.FILE to ::FileSystemStorageFactory)
+      else -> throw IllegalArgumentException("Unsupported storage type")
+    }
+  }
 }
 
 @Command(name = "add_workflow", description = ["Adds an Exchange Workflow"])
@@ -119,7 +115,7 @@ private class AddWorkflowCommand : Callable<Int> {
 
   @Option(
     names = ["--exchange-workflow-file"],
-    description = ["Public API textproto file of an ExchangeWorkflow"],
+    description = ["Public API serialized ExchangeWorkflow"],
     required = true,
   )
   private lateinit var exchangeWorkflowFile: File
@@ -131,15 +127,9 @@ private class AddWorkflowCommand : Callable<Int> {
   )
   private lateinit var startDate: String
 
-  private val firstExchange by lazy { LocalDate.parse(startDate) }
-
   override fun call(): Int {
-    val typeRegistry = TypeRegistry.newBuilder().add(Shared.Parameters.getDescriptor()).build()
-    val exchangeWorkflow =
-      checkNotNull(Files.newInputStream(exchangeWorkflowFile.toPath()))
-        .use { input -> parseTextProto(input.bufferedReader(), exchangeWorkflow {}, typeRegistry) }
-        .copy { this.firstExchangeDate = firstExchange.toProtoDate() }
-    runBlocking { flags.addResource.addWorkflow(exchangeWorkflow, recurringExchangeId) }
+    val serializedExchangeWorkflow = exchangeWorkflowFile.readBytes().toByteString()
+    runBlocking { flags.addResource.addWorkflow(serializedExchangeWorkflow, recurringExchangeId) }
     return 0
   }
 }

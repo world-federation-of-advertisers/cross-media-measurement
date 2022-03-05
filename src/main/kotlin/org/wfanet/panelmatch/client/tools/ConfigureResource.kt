@@ -19,7 +19,6 @@ import com.google.protobuf.kotlin.toByteString
 import java.security.cert.X509Certificate
 import java.time.LocalDate
 import kotlinx.coroutines.flow.flowOf
-import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.StorageDetails
@@ -29,8 +28,8 @@ import org.wfanet.panelmatch.common.storage.StorageFactory
 
 class ConfigureResource(private val clientDefaults: DaemonStorageClientDefaults) {
 
-  suspend fun addWorkflow(exchangeWorkflow: ExchangeWorkflow, recurringExchangeId: String) {
-    clientDefaults.validExchangeWorkflows.put(recurringExchangeId, exchangeWorkflow.toByteString())
+  suspend fun addWorkflow(serializedWorkflow: ByteString, recurringExchangeId: String) {
+    clientDefaults.validExchangeWorkflows.put(recurringExchangeId, serializedWorkflow)
   }
 
   suspend fun addRootCertificates(partnerId: String, certificate: X509Certificate) {
