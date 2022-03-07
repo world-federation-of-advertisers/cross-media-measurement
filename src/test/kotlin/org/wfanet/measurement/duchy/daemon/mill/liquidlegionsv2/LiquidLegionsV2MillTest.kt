@@ -436,7 +436,7 @@ class LiquidLegionsV2MillTest {
         context.globalComputationId,
         context.externalRequisitionId,
         blobCount.getAndIncrement()
-       )
+      )
       .joinToString("/")
       .also { generatedBlobKeys.add(it) }
   }
