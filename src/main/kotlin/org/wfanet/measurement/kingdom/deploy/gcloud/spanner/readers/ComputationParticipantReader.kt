@@ -84,7 +84,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
     val measurementConsumerId: Long,
-    val measurementState: Measurement.State
+    val measurementState: Measurement.State,
+    val measurementDetails: Measurement.Details,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -120,7 +121,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       buildComputationParticipant(struct),
       struct.getLong("MeasurementId"),
       struct.getLong("MeasurementConsumerId"),
-      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
+      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber),
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant {
@@ -167,11 +169,11 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       apiVersion = measurementDetails.apiVersion
 
       buildFailureLogEntry(
-        externalMeasurementConsumerId,
-        externalMeasurementId,
-        externalDuchyId,
-        struct.getStructList("DuchyMeasurementLogEntries")
-      )
+          externalMeasurementConsumerId,
+          externalMeasurementId,
+          externalDuchyId,
+          struct.getStructList("DuchyMeasurementLogEntries")
+        )
         ?.let { failureLogEntry = it }
     }
 
@@ -235,7 +237,6 @@ suspend fun computationParticipantsInState(
   measurementId: InternalId,
   state: ComputationParticipant.State
 ): Boolean {
-
   val wrongState =
     duchyIds
       .asFlow()
