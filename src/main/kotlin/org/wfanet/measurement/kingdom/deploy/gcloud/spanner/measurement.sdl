@@ -241,7 +241,7 @@ CREATE TABLE EventGroupMetadata (
   -- wfa.measurement.internal.kingdom.EventGroupMetadata.FileDescriptorSet serialized proto.
   DescriptorDetails                       BYTES(MAX) NOT NULL,
   DescriptorDetailsJson                   STRING(MAX) NOT NULL,
-) PRIMARY KEY (EventGroupMetadataId)
+) PRIMARY KEY (EventGroupMetadataId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX EventGroupsByExternalId
