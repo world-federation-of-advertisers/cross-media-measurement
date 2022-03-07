@@ -22,26 +22,26 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-fun failGrpcWithDetail(
+fun failGrpcWithInfo(
   status: Status = Status.INVALID_ARGUMENT,
   code: ErrorCode,
   extraInfo: Map<String, String> = emptyMap(),
   provideDescription: () -> String,
 ): Nothing {
 
-  val detail = errorInfo {
+  val info = errorInfo {
     reason = code.toString()
     domain = ErrorInfo::class.qualifiedName.toString()
     metadata.putAll(extraInfo)
   }
 
   val metadata = Metadata()
-  metadata.put(ProtoUtils.keyForProto(detail), detail)
+  metadata.put(ProtoUtils.keyForProto(info), info)
 
   throw status.withDescription(provideDescription()).asRuntimeException(metadata)
 }
 
-fun getErrorDetail(error: StatusRuntimeException): ErrorInfo? {
+fun getErrorInfo(error: StatusRuntimeException): ErrorInfo? {
   val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
   return error.trailers?.get(key)
 }

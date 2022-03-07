@@ -25,22 +25,22 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
 @RunWith(JUnit4::class)
-class ErrorDetailTest {
+class ErrorInfoTest {
   @Test
-  fun `error detail correctly ships load`() {
+  fun `error info correctly ships load`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        failGrpcWithDetail(
+        failGrpcWithInfo(
           Status.NOT_FOUND,
           ErrorCode.API_KEY_NOT_FOUND,
           mapOf("api_key" to "123456", "retry" to "false")
         ) { "API Key Not Found" }
       }
-    val detail = getErrorDetail(exception)
-    assertNotNull(detail)
-    assertThat(detail.reason).isEqualTo("API_KEY_NOT_FOUND")
-    assertThat(detail.domain).isEqualTo("com.google.rpc.ErrorInfo")
-    val metadata = detail.metadataMap
+    val info = getErrorInfo(exception)
+    assertNotNull(info)
+    assertThat(info.reason).isEqualTo("API_KEY_NOT_FOUND")
+    assertThat(info.domain).isEqualTo("com.google.rpc.ErrorInfo")
+    val metadata = info.metadataMap
     assertNotNull(metadata)
     assertThat(metadata).isEqualTo(mapOf("api_key" to "123456", "retry" to "false"))
   }

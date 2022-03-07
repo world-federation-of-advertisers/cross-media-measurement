@@ -32,7 +32,7 @@ import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.internal.kingdom.openIdRequestParams
-import org.wfanet.measurement.kingdom.deploy.common.failGrpcWithDetail
+import org.wfanet.measurement.kingdom.deploy.common.failGrpcWithInfo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
@@ -73,7 +73,7 @@ class SpannerAccountsService(
     } catch (e: KingdomInternalException) {
       when (e.code) {
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND -> {
-          failGrpcWithDetail(
+          failGrpcWithInfo(
             Status.NOT_FOUND,
             ErrorCode.CREATOR_ACCOUNT_NOT_FOUND,
             mapOf("creator_account_id" to request.externalCreatorAccountId.toString())

@@ -1,12 +1,12 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "ErrorDetailTest",
+    name = "ErrorInfoTest",
     srcs = [
-        "ErrorDetailTest.kt",
+        "ErrorInfoTest.kt",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:error_detail",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:error_info",
         "@wfa_common_jvm//imports/java/io/grpc/testing",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
