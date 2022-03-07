@@ -1,0 +1,73 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/rpc/error_details.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+enum ErrorCode {
+  UNKNOWN_ERROR = 0;
+
+  /** MeasurementConsumer resource queried could not be found. */
+  MEASUREMENT_CONSUMER_NOT_FOUND = 1;
+  /** DataProvider resource queried could not be found. */
+  DATA_PROVIDER_NOT_FOUND = 2;
+  /** ModelProvider resource queried could not be found. */
+  MODEL_PROVIDER_NOT_FOUND = 3;
+  /** Duchy resource queried could not be found. */
+  DUCHY_NOT_FOUND = 4;
+  /** Measurement resource queried could not be found. */
+  MEASUREMENT_NOT_FOUND = 5;
+  /** Measurement is in an illegal state for the operation. */
+  MEASUREMENT_STATE_ILLEGAL = 6;
+  /** Certificate with the same subject key identifier (SKID) already exists.
+   */
+  CERT_SUBJECT_KEY_ID_ALREADY_EXISTS = 7;
+  /** Certificate resource queried could not be found. */
+  CERTIFICATE_NOT_FOUND = 8;
+  /** Certificate is in an illegal revocation state for the operation. */
+  CERTIFICATE_REVOCATION_STATE_ILLEGAL = 9;
+  /** Certificate is invalid and cannot be used in the creation of entities.
+   */
+  CERTIFICATE_IS_INVALID = 10;
+  /** Computation Participant should have been in another state. */
+  COMPUTATION_PARTICIPANT_STATE_ILLEGAL = 11;
+  /** Computation Participant resource queried could not be found. */
+  COMPUTATION_PARTICIPANT_NOT_FOUND = 12;
+  /** Requisition entity could not be found. */
+  REQUISITION_NOT_FOUND = 13;
+  /** Requisition is in an illegal state for the operation. */
+  REQUISITION_STATE_ILLEGAL = 14;
+  /** Account resource queried could not be found. */
+  ACCOUNT_NOT_FOUND = 15;
+  /** Account already exists with the identity. */
+  DUPLICATE_ACCOUNT_IDENTITY = 16;
+  /** Account activation state is in an illegal state for the operation. */
+  ACCOUNT_ACTIVATION_STATE_ILLEGAL = 17;
+  /** Permission is not given for the operation. */
+  PERMISSION_DENIED = 18;
+  /** Api Key resource queried could not be found. */
+  API_KEY_NOT_FOUND = 19;
+  /** EventGroup could not be found. */
+  EVENT_GROUP_NOT_FOUND = 20;
+  /** EventGroup modification args are invalid. */
+  EVENT_GROUP_INVALID_ARGS = 21;
+  /** Creator account could not be found. */
+  CREATOR_ACCOUNT_NOT_FOUND = 22;
+}

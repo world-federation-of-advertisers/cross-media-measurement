@@ -22,7 +22,7 @@ import kotlin.test.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.internal.kingdom.ErrorDetail
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 
 @RunWith(JUnit4::class)
 class ErrorDetailTest {
@@ -32,16 +32,15 @@ class ErrorDetailTest {
       assertFailsWith<StatusRuntimeException> {
         failGrpcWithDetail(
           Status.NOT_FOUND,
-          ErrorDetail.ErrorCode.API_KEY_NOT_FOUND,
+          ErrorCode.API_KEY_NOT_FOUND,
           mapOf("api_key" to "123456", "retry" to "false")
         ) { "API Key Not Found" }
       }
     val detail = getErrorDetail(exception)
     assertNotNull(detail)
-    assertThat(detail.code).isEqualTo(ErrorDetail.ErrorCode.API_KEY_NOT_FOUND)
-    assertThat(detail.info.reason).isEqualTo("API_KEY_NOT_FOUND")
-    assertThat(detail.info.domain).isEqualTo("org.wfanet.measurement.internal.kingdom.ErrorDetail")
-    val metadata = detail.info.metadataMap
+    assertThat(detail.reason).isEqualTo("API_KEY_NOT_FOUND")
+    assertThat(detail.domain).isEqualTo("com.google.rpc.ErrorInfo")
+    val metadata = detail.metadataMap
     assertNotNull(metadata)
     assertThat(metadata).isEqualTo(mapOf("api_key" to "123456", "retry" to "false"))
   }

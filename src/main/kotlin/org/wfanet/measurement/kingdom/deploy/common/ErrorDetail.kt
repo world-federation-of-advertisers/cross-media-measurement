@@ -14,29 +14,25 @@
 
 package org.wfanet.measurement.kingdom.deploy.common
 
+import com.google.rpc.ErrorInfo
 import com.google.rpc.errorInfo
 import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
-import org.wfanet.measurement.internal.kingdom.ErrorDetail
-import org.wfanet.measurement.internal.kingdom.errorDetail
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 
 fun failGrpcWithDetail(
   status: Status = Status.INVALID_ARGUMENT,
-  code: ErrorDetail.ErrorCode,
+  code: ErrorCode,
   extraInfo: Map<String, String> = emptyMap(),
   provideDescription: () -> String,
 ): Nothing {
 
-  val info = errorInfo {
+  val detail = errorInfo {
     reason = code.toString()
-    domain = ErrorDetail::class.qualifiedName.toString()
+    domain = ErrorInfo::class.qualifiedName.toString()
     metadata.putAll(extraInfo)
-  }
-  val detail = errorDetail {
-    this.code = code
-    this.info = info
   }
 
   val metadata = Metadata()
@@ -45,7 +41,7 @@ fun failGrpcWithDetail(
   throw status.withDescription(provideDescription()).asRuntimeException(metadata)
 }
 
-fun getErrorDetail(error: StatusRuntimeException): ErrorDetail? {
-  val key = ProtoUtils.keyForProto(ErrorDetail.getDefaultInstance())
+fun getErrorDetail(error: StatusRuntimeException): ErrorInfo? {
+  val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
   return error.trailers?.get(key)
 }

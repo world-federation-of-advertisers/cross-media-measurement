@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.ActivateAccountRequest
 import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenResponse
-import org.wfanet.measurement.internal.kingdom.ErrorDetail
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.GetOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
@@ -75,7 +75,7 @@ class SpannerAccountsService(
         KingdomInternalException.Code.ACCOUNT_NOT_FOUND -> {
           failGrpcWithDetail(
             Status.NOT_FOUND,
-            ErrorDetail.ErrorCode.CREATOR_ACCOUNT_NOT_FOUND,
+            ErrorCode.CREATOR_ACCOUNT_NOT_FOUND,
             mapOf("creator_account_id" to request.externalCreatorAccountId.toString())
           ) { "Creator account not found" }
         }

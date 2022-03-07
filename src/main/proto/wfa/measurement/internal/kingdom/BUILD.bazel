@@ -165,22 +165,22 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "error_detail_proto",
-    srcs = ["error_detail.proto"],
+    name = "error_code_proto",
+    srcs = ["error_code.proto"],
     deps = [
         "@com_google_googleapis//google/rpc:error_details_proto",
     ],
 )
 
 java_proto_library(
-    name = "error_detail_java_proto",
-    deps = [":error_detail_proto"],
+    name = "error_code_java_proto",
+    deps = [":error_code_proto"],
 )
 
 kt_jvm_proto_library(
-    name = "error_detail_kt_jvm_proto",
-    srcs = [":error_detail_proto"],
-    deps = [":error_detail_java_proto"],
+    name = "error_code_kt_jvm_proto",
+    srcs = [":error_code_proto"],
+    deps = [":error_code_java_proto"],
 )
 
 proto_library(
