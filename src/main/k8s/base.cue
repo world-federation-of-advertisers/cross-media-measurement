@@ -94,6 +94,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		_secretMounts:    PodSpec._secretMounts
 		_configMapMounts: PodSpec._configMapMounts
 	}
+	_dependencies: [...string]
 
 	restartPolicy: "Always" | "Never" | "OnFailure"
 	containers: [_container]
@@ -106,6 +107,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
+	initContainers: [ for ds in _dependencies {
+		name:  "init-\(ds)"
+		image: "gcr.io/google-containers/busybox:1.27"
+		command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
+	}]
 	...
 }
 
@@ -149,6 +155,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			secretName: _secretName
 		}]
 		_configMapMounts: Deployment._configMapMounts
+		_dependencies: Deployment._dependencies
 	}
 
 	apiVersion: "apps/v1"
@@ -188,11 +195,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 						value: _jvm_flags
 					}]
 				}]
-				initContainers: [ for ds in _dependencies {
-					name:  "init-\(ds)"
-					image: "gcr.io/google-containers/busybox:1.27"
-					command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
-				}]
 				restartPolicy: _restartPolicy
 			}
 		}
@@ -215,7 +217,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}}]
 }
 
-#Job: {
+#Job: Job={
 	_name:            string
 	_secretName?:     string
 	_image:           string
@@ -236,6 +238,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				secretName: _secretName
 			}]
 		}
+		_dependencies: Job._dependencies
 
 		restartPolicy: string | *"OnFailure"
 	}

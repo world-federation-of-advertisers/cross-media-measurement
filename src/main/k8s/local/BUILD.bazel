@@ -181,7 +181,9 @@ k8s_apply(
     tags = ["manual"],
 )
 
-EDP_SIMULATOR_IMAGE_IMPORTS = [":load_fake_storage_server_image"]
+EDP_SIMULATOR_IMAGE_IMPORTS = [
+    ":load_forwarded_storage_edp_simulator_runner_image",
+]
 
 kind_load_images(
     name = "load_edp_simulator_images",

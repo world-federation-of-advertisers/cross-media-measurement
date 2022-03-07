@@ -242,6 +242,10 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // The total number of frequency noise tuples should be subtracted from the
   // number of active registers before estimating reach.
   FlagCountTupleNoiseGenerationParameters frequency_noise_parameters = 8;
+  // The sampling rate to be used by the LiquidLegionsV2 protocol.
+  // This is taken from the VidSamplingInterval.width parameter in the
+  // MeasurementSpec.
+  float vid_sampling_interval_width = 9;
 }
 
 // The response of the CompleteExecutionPhaseTwoAtAggregator method.
