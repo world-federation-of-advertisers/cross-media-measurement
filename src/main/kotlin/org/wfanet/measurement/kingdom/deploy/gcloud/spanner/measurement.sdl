@@ -235,13 +235,17 @@ CREATE TABLE EventGroups (
 
 CREATE TABLE EventGroupMetadata (
   EventGroupMetadataId                    INT64 NOT NULL,
+  DataProviderId                          INT64 NOT NULL,
 
   DescriptorName                          STRING(MAX) NOT NULL,
 
   -- wfa.measurement.internal.kingdom.EventGroupMetadata.FileDescriptorSet serialized proto.
   DescriptorDetails                       BYTES(MAX) NOT NULL,
   DescriptorDetailsJson                   STRING(MAX) NOT NULL,
-) PRIMARY KEY (EventGroupMetadataId),
+
+  FOREIGN KEY (DataProviderId)
+      REFERENCES DataProviders(DataProviderId),
+) PRIMARY KEY (DataProviderId, EventGroupMetadataId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX EventGroupsByExternalId
