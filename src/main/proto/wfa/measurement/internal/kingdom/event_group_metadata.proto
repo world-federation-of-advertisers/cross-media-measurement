@@ -25,7 +25,7 @@ message EventGroupMetadata {
     pattern: "dataProviders/{ data_provider }/eventGroupMetadataDescriptors/{ event_group_metadata_descriptor }"
   };
 
-  // Name used to reference the Descriptor of the metadata.
+  // Reference name of the metadata Descriptor.
   string name = 1;
 
   // FileDescriptorSet of the original metadata proto message.
