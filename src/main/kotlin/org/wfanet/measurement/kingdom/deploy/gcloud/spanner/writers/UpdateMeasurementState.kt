@@ -18,19 +18,25 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Measurement
 
 internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
-  state: Measurement.State
+  state: Measurement.State,
+  details: Measurement.Details? = null,
 ) {
   updateMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("State" to state)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      if (details != null) {
+        set("MeasurementDetails" to details)
+        setJson("MeasurementDetailsJson" to details)
+      }
     }
     .bufferTo(transactionContext)
 }
