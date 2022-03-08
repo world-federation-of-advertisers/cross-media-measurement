@@ -22,6 +22,7 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCorou
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.panelmatch.client.common.Identity
@@ -66,6 +67,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
     val channel =
       buildMutualTlsChannel(flags.exchangeApiTarget, clientCerts, flags.exchangeApiCertHost)
         .withShutdownTimeout(flags.channelShutdownTimeout)
+        .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
 
     val certificateService = CertificatesGrpcKt.CertificatesCoroutineStub(channel)
 
