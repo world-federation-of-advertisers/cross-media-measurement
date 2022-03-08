@@ -91,6 +91,13 @@ class ExchangeWorkflowFlags {
   lateinit var exchangeApiCertHost: String
     private set
 
+  @Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+  )
+  var debugVerboseGrpcClientLogging = false
+    private set
+
   @set:CommandLine.Option(
     names = ["--preprocessing-max-byte-size"],
     defaultValue = "1000000",

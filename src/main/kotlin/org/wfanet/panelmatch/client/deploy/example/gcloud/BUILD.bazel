@@ -21,14 +21,20 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "GoogleCloudExampleDaemonMain",
-    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
-    runtime_deps = [":gcloud"],
+    name = "GoogleCloudExampleDaemon",
+    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonKt",
+    runtime_deps = [
+        ":gcloud",
+        "//imports/java/org/slf4j:simple",
+    ],
 )
 
 java_image(
     name = "google_cloud_example_daemon_image",
     data = ["@grpc_health_probe//file"],
-    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonMainKt",
-    runtime_deps = [":gcloud"],
+    main_class = "org.wfanet.panelmatch.client.deploy.example.gcloud.GoogleCloudExampleDaemonKt",
+    runtime_deps = [
+        ":gcloud",
+        "//imports/java/org/slf4j:simple",
+    ],
 )
