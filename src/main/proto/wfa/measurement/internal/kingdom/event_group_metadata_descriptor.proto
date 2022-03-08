@@ -19,15 +19,14 @@ package wfa.measurement.internal.kingdom;
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-message EventGroupMetadata {
-  option (google.api.resource) = {
-    type: "halo.wfanet.org/EventGroupMetadataDescriptor"
-    pattern: "dataProviders/{ data_provider }/eventGroupMetadataDescriptors/{ event_group_metadata_descriptor }"
-  };
+message EventGroupMetadataDescriptor {
+  fixed64 external_data_provider_id = 1;
+  fixed64 descriptor_id = 2;
 
-  // Reference name of the metadata Descriptor.
-  string name = 1;
+  message Details {
+    // FileDescriptorSet of the original metadata proto message.
+    FileDescriptorSet descriptor_set = 1;
+  }
 
-  // FileDescriptorSet of the original metadata proto message.
-  FileDescriptorSet descriptor_set = 2;
+  Details details = 3;
 }
