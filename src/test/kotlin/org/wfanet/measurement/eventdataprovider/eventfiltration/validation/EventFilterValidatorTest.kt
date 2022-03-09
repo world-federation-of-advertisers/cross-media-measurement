@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventDataProvider.eventFiltration.validation
+package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
 import com.google.api.expr.v1alpha1.Decl
 import com.google.common.truth.Truth.assertThat
@@ -25,7 +25,7 @@ import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
-import org.wfanet.measurement.eventDataProvider.eventFiltration.validation.EventFilterValidationException.Code as Code
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
 private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
 
