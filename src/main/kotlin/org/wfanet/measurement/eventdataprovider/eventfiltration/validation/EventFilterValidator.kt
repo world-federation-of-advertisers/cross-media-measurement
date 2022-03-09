@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.eventDataProvider.eventFiltration.validation
+package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
 import com.google.api.expr.v1alpha1.Expr
 import org.projectnessie.cel.Env
