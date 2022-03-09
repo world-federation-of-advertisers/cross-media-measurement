@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.util.logging.Logger
@@ -38,6 +39,7 @@ import org.wfanet.anysketch.exponentialDistribution
 import org.wfanet.anysketch.oracleDistribution
 import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
+import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -107,11 +109,10 @@ class EdpSimulator(
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
           parent = edpData.name
-          eventGroup =
-            eventGroup {
-              measurementConsumer = measurementConsumerName
-              eventGroupReferenceId = "001"
-            }
+          eventGroup = eventGroup {
+            measurementConsumer = measurementConsumerName
+            eventGroupReferenceId = "001"
+          }
         }
       )
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
@@ -169,7 +170,10 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-    val sketch = generateSketch(sketchConfig)
+
+    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
+    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
+    val sketch = generateSketch(sketchConfig, vidSamplingIntervalStart, vidSamplingIntervalWidth)
 
     sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
@@ -184,6 +188,8 @@ class EdpSimulator(
 
   private fun generateSketch(
     sketchConfig: SketchConfig,
+    vidSamplingIntervalStart: Float,
+    vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
@@ -199,8 +205,12 @@ class EdpSimulator(
         socialGrade = SocialGrade.ABC1,
         complete = Complete.COMPLETE
       )
+    val vidSampler = VidSampler(Hashing.farmHashFingerprint64())
     eventQuery.getUserVirtualIds(queryParameter).forEach {
-      anySketch.insert(it, mapOf("frequency" to 1L))
+      if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+      ) {
+        anySketch.insert(it, mapOf("frequency" to 1L))
+      }
     }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
@@ -240,12 +250,11 @@ class EdpSimulator(
       flow {
         emit(
           fulfillRequisitionRequest {
-            header =
-              header {
-                name = requisitionName
-                this.requisitionFingerprint = requisitionFingerprint
-                this.nonce = nonce
-              }
+            header = header {
+              name = requisitionName
+              this.requisitionFingerprint = requisitionFingerprint
+              this.nonce = nonce
+            }
           }
         )
         emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
@@ -316,31 +325,27 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
   return sketchConfig {
-    indexes +=
-      indexSpec {
-        name = "Index"
-        distribution =
-          distribution {
-            exponential =
-              exponentialDistribution {
-                rate = decayRate
-                numValues = maxSize
-              }
-          }
+    indexes += indexSpec {
+      name = "Index"
+      distribution = distribution {
+        exponential = exponentialDistribution {
+          rate = decayRate
+          numValues = maxSize
+        }
       }
-    values +=
-      valueSpec {
-        name = "SamplingIndicator"
-        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-        distribution =
-          distribution { uniform = uniformDistribution { numValues = samplingIndicatorSize } }
+    }
+    values += valueSpec {
+      name = "SamplingIndicator"
+      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+      distribution = distribution {
+        uniform = uniformDistribution { numValues = samplingIndicatorSize }
       }
+    }
 
-    values +=
-      valueSpec {
-        name = "Frequency"
-        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-        distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-      }
+    values += valueSpec {
+      name = "Frequency"
+      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+      distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+    }
   }
 }
