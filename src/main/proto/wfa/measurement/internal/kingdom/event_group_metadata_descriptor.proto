@@ -21,11 +21,14 @@ option java_multiple_files = true;
 
 message EventGroupMetadataDescriptor {
   fixed64 external_data_provider_id = 1;
-  fixed64 descriptor_id = 2;
+  fixed64 external_event_group_metadata_descriptor_id = 2;
 
   message Details {
+    // Version of the public API for serialized message definitions.
+    string api_version = 1;
+
     // FileDescriptorSet of the original metadata proto message.
-    FileDescriptorSet descriptor_set = 1;
+    FileDescriptorSet descriptor_set = 2;
   }
 
   Details details = 3;

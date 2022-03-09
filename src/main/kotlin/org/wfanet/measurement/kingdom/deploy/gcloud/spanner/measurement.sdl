@@ -236,8 +236,7 @@ CREATE TABLE EventGroups (
 CREATE TABLE EventGroupMetadataDescriptors (
   DataProviderId                          INT64 NOT NULL,
   EventGroupMetadataDescriptorId          INT64 NOT NULL,
-
-  DescriptorName                          STRING(MAX) NOT NULL,
+  ExternalEventGroupMetadataDescriptorId  INT64 NOT NULL,
 
   -- wfa.measurement.internal.kingdom.EventGroupMetadata.FileDescriptorSet serialized proto.
   DescriptorDetails                       BYTES(MAX) NOT NULL,
