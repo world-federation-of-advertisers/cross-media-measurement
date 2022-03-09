@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -32,10 +33,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY]
- * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
- * * [KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
- * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * * [ErrorCode.DUPLICATE_ACCOUNT_IDENTITY]
+ * * [ErrorCode.ACCOUNT_NOT_FOUND]
+ * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
+ * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
 class ActivateAccount(
   private val externalAccountId: ExternalId,
@@ -45,17 +46,17 @@ class ActivateAccount(
 ) : SimpleSpannerWriter<Account>() {
   override suspend fun TransactionScope.runTransaction(): Account {
     if (isIdentityDuplicate(issuer = issuer, subject = subject)) {
-      throw KingdomInternalException(KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY)
+      throw KingdomInternalException(ErrorCode.DUPLICATE_ACCOUNT_IDENTITY)
     }
 
     val readAccountResult = readAccount(externalAccountId)
 
     if (readAccountResult.account.activationToken != activationToken.value) {
-      throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
+      throw KingdomInternalException(ErrorCode.PERMISSION_DENIED)
     }
 
     if (readAccountResult.account.activationState == Account.ActivationState.ACTIVATED) {
-      throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
+      throw KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
     }
 
     val internalOpenIdConnectIdentityId = idGenerator.generateInternalId()
@@ -109,7 +110,7 @@ class ActivateAccount(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
 
   private suspend fun TransactionScope.readMeasurementConsumerId(
     externalMeasurementConsumerId: Long
@@ -120,7 +121,5 @@ class ActivateAccount(
         ExternalId(externalMeasurementConsumerId)
       )
       ?.measurementConsumerId
-      ?: throw KingdomInternalException(
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-      )
+      ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
 }

@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -28,8 +29,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Add an [Account] as a new owner of a [MeasurementConsumer] in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
- * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
+ * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * * [ErrorCode.ACCOUNT_NOT_FOUND]
  */
 class AddMeasurementConsumerOwner(
   private val externalAccountId: ExternalId,
@@ -50,14 +51,12 @@ class AddMeasurementConsumerOwner(
 
   private suspend fun TransactionScope.readAccountId(externalAccountId: ExternalId): InternalId =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
-      ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
 
   private suspend fun TransactionScope.readMeasurementConsumerResult(
     externalMeasurementConsumerId: ExternalId
   ): MeasurementConsumerReader.Result =
     MeasurementConsumerReader()
       .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?: throw KingdomInternalException(
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-      )
+      ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
 }
