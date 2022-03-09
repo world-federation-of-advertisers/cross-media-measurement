@@ -343,15 +343,17 @@ private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
       valueSpec {
         name = "SamplingIndicator"
         aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-        distribution = distribution {
-          uniform = uniformDistribution { numValues = samplingIndicatorSize }
-        }
+        distribution =
+          distribution {
+            uniform = uniformDistribution { numValues = samplingIndicatorSize }
+          }
       }
 
-    values += valueSpec {
-      name = "Frequency"
-      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-      distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-    }
+    values +=
+      valueSpec {
+        name = "Frequency"
+        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+        distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+      }
   }
 }
