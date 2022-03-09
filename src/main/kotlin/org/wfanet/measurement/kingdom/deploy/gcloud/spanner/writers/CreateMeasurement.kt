@@ -27,6 +27,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -35,8 +36,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
-
-private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PARAMS
 
 /**
  * Creates a measurement in the database.
@@ -61,6 +60,39 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
     }
 
+    lateinit var initialMeasurementState: Measurement.State
+    lateinit var initialRequisitionState: Requisition.State
+    // protocol has to be set for the measurement to require computation
+    return if (!measurement.details.protocolConfig.protocolCase.equals(
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+      )
+    ) {
+      initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
+      initialRequisitionState = Requisition.State.PENDING_PARAMS
+      createComputationMeasurement(
+        measurement,
+        measurementConsumerId,
+        initialMeasurementState,
+        initialRequisitionState
+      )
+    } else {
+      initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
+      initialRequisitionState = Requisition.State.UNFULFILLED
+      createDirectMeasurement(
+        measurement,
+        measurementConsumerId,
+        initialMeasurementState,
+        initialRequisitionState
+      )
+    }
+  }
+
+  private suspend fun TransactionScope.createComputationMeasurement(
+    measurement: Measurement,
+    measurementConsumerId: InternalId,
+    initialMeasurementState: Measurement.State,
+    initialRequisitionState: Requisition.State
+  ): Measurement {
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
@@ -68,13 +100,20 @@ class CreateMeasurement(private val measurement: Measurement) :
       measurementConsumerId,
       measurementId,
       externalMeasurementId,
-      externalComputationId
+      externalComputationId,
+      initialMeasurementState
     )
 
     // Insert into Requisitions for each EDP
     for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
       val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
-      insertRequisition(measurementConsumerId, measurementId, dataProviderId, dataProviderValue)
+      insertRequisition(
+        measurementConsumerId,
+        measurementId,
+        dataProviderId,
+        dataProviderValue,
+        initialRequisitionState
+      )
     }
 
     DuchyIds.entries.forEach { entry ->
@@ -84,10 +123,45 @@ class CreateMeasurement(private val measurement: Measurement) :
         InternalId(entry.internalDuchyId),
       )
     }
+
     return measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
       this.externalComputationId = externalComputationId.value
-      state = INITIAL_MEASUREMENT_STATE
+      state = initialMeasurementState
+    }
+  }
+
+  private suspend fun TransactionScope.createDirectMeasurement(
+    measurement: Measurement,
+    measurementConsumerId: InternalId,
+    initialMeasurementState: Measurement.State,
+    initialRequisitionState: Requisition.State
+  ): Measurement {
+    val measurementId: InternalId = idGenerator.generateInternalId()
+    val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
+    insertMeasurement(
+      measurementConsumerId,
+      measurementId,
+      externalMeasurementId,
+      null,
+      initialMeasurementState
+    )
+
+    // Insert into Requisitions for each EDP
+    for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
+      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
+      insertRequisition(
+        measurementConsumerId,
+        measurementId,
+        dataProviderId,
+        dataProviderValue,
+        initialRequisitionState
+      )
+    }
+
+    return measurement.copy {
+      this.externalMeasurementId = externalMeasurementId.value
+      state = initialMeasurementState
     }
   }
 
@@ -95,7 +169,8 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     externalMeasurementId: ExternalId,
-    externalComputationId: ExternalId
+    externalComputationId: ExternalId?,
+    initialMeasurementState: Measurement.State
   ) {
     val reader =
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
@@ -111,12 +186,16 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("ExternalMeasurementId" to externalMeasurementId)
-      set("ExternalComputationId" to externalComputationId)
+      if (externalComputationId != null) {
+        set("ExternalComputationId" to externalComputationId)
+      } else {
+        set("ExternalComputationId" to 0L)
+      }
       if (measurement.providedMeasurementId.isNotBlank()) {
         set("ProvidedMeasurementId" to measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)
-      set("State" to INITIAL_MEASUREMENT_STATE)
+      set("State" to initialMeasurementState)
       set("MeasurementDetails" to measurement.details)
       setJson("MeasurementDetailsJson" to measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
@@ -145,7 +224,8 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     dataProviderId: InternalId,
-    dataProviderValue: Measurement.DataProviderValue
+    dataProviderValue: Measurement.DataProviderValue,
+    initialRequisitionState: Requisition.State
   ) {
     val reader =
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
@@ -176,7 +256,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
-      set("State" to Requisition.State.PENDING_PARAMS)
+      set("State" to initialRequisitionState)
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
     }

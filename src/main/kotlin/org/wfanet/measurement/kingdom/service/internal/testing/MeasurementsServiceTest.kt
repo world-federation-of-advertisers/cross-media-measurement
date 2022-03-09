@@ -47,7 +47,9 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
@@ -60,6 +62,7 @@ import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
@@ -93,7 +96,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
     val dataProvidersService: DataProvidersCoroutineImplBase,
     val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase,
-    val accountsService: AccountsCoroutineImplBase
+    val accountsService: AccountsCoroutineImplBase,
+    val requisitionsService: RequisitionsCoroutineImplBase,
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -115,6 +119,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected lateinit var accountsService: AccountsCoroutineImplBase
     private set
 
+  protected lateinit var requisitionsService: RequisitionsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -125,6 +132,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     dataProvidersService = services.dataProvidersService
     certificatesService = services.certificatesService
     accountsService = services.accountsService
+    requisitionsService = services.requisitionsService
   }
 
   @Test
@@ -350,7 +358,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `createMeasurement succeeds`() = runBlocking {
+  fun `createMeasurement for duchy measurement succeeds`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val dataProvider = population.createDataProvider(dataProvidersService)
@@ -377,6 +385,171 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         Measurement.UPDATE_TIME_FIELD_NUMBER,
       )
       .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+  }
+
+  @Test
+  fun `createMeasurement for duchy measurement creates computation participants`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+      }
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val measurements =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter =
+              filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+              }
+            measurementView = Measurement.View.COMPUTATION
+          }
+        )
+        .toList()
+
+    assertThat(measurements[0].externalComputationId).isNotEqualTo(0L)
+    assertThat(measurements[0].computationParticipantsCount).isGreaterThan(0)
+  }
+
+  @Test
+  fun `createMeasurement for duchy measurement creates requisitions with PENDING_PARAMS state`() =
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+      }
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    requisitions.forEach { assertThat(it.state).isEqualTo(Requisition.State.PENDING_PARAMS) }
+  }
+
+  @Test
+  fun `createMeasurement for direct measurement succeeds`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+        details =
+          details.copy {
+            clearDuchyProtocolConfig()
+            clearProtocolConfig()
+          }
+      }
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+
+    assertThat(createdMeasurement.externalMeasurementId).isNotEqualTo(0L)
+    assertThat(createdMeasurement.externalComputationId).isEqualTo(0L)
+    assertThat(createdMeasurement.createTime.seconds).isGreaterThan(0L)
+    assertThat(createdMeasurement.updateTime).isEqualTo(createdMeasurement.createTime)
+    assertThat(createdMeasurement)
+      .ignoringFields(
+        Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
+        Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
+        Measurement.CREATE_TIME_FIELD_NUMBER,
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+      )
+      .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_FULFILLMENT })
+  }
+
+  @Test
+  fun `createMeasurement for direct measurement doesn't set computation id`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+        details =
+          details.copy {
+            clearDuchyProtocolConfig()
+            clearProtocolConfig()
+          }
+      }
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val retrievedMeasurement =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+          externalMeasurementId = createdMeasurement.externalMeasurementId
+        }
+      )
+
+    assertThat(retrievedMeasurement.externalComputationId).isEqualTo(0L)
+  }
+
+  @Test
+  fun `createMeasurement for direct measurement creates requisitions with UNFUlFILLED state`() =
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val measurement =
+      MEASUREMENT.copy {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+        details =
+          details.copy {
+            clearDuchyProtocolConfig()
+            clearProtocolConfig()
+          }
+      }
+
+    val createdMeasurement = measurementsService.createMeasurement(measurement)
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+              }
+          }
+        )
+        .toList()
+
+    requisitions.forEach { assertThat(it.state).isEqualTo(Requisition.State.UNFULFILLED) }
   }
 
   @Test
