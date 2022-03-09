@@ -109,10 +109,11 @@ class EdpSimulator(
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
           parent = edpData.name
-          eventGroup = eventGroup {
-            measurementConsumer = measurementConsumerName
-            eventGroupReferenceId = "001"
-          }
+          eventGroup =
+            eventGroup {
+              measurementConsumer = measurementConsumerName
+              eventGroupReferenceId = "001"
+            }
         }
       )
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
@@ -250,11 +251,12 @@ class EdpSimulator(
       flow {
         emit(
           fulfillRequisitionRequest {
-            header = header {
-              name = requisitionName
-              this.requisitionFingerprint = requisitionFingerprint
-              this.nonce = nonce
-            }
+            header =
+              header {
+                name = requisitionName
+                this.requisitionFingerprint = requisitionFingerprint
+                this.nonce = nonce
+              }
           }
         )
         emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
@@ -325,22 +327,26 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
   return sketchConfig {
-    indexes += indexSpec {
-      name = "Index"
-      distribution = distribution {
-        exponential = exponentialDistribution {
-          rate = decayRate
-          numValues = maxSize
+    indexes +=
+      indexSpec {
+        name = "Index"
+        distribution =
+          distribution {
+            exponential =
+              exponentialDistribution {
+                rate = decayRate
+                numValues = maxSize
+              }
+          }
+      }
+    values +=
+      valueSpec {
+        name = "SamplingIndicator"
+        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+        distribution = distribution {
+          uniform = uniformDistribution { numValues = samplingIndicatorSize }
         }
       }
-    }
-    values += valueSpec {
-      name = "SamplingIndicator"
-      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-      distribution = distribution {
-        uniform = uniformDistribution { numValues = samplingIndicatorSize }
-      }
-    }
 
     values += valueSpec {
       name = "Frequency"
