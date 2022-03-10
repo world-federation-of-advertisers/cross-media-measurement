@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
@@ -47,7 +48,7 @@ private val PENDING_MEASUREMENT_STATES =
  * Revokes a certificate in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [ErrorCode.CERTIFICATE_NOT_FOUND]
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
@@ -74,9 +75,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND) {
-                  " Duchy not found."
-                }
+                ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) { " Duchy not found." }
             )
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
@@ -87,7 +86,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
     val certificateResult =
       reader.execute(transactionContext).singleOrNull()
-        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND) {
           "Certificate not found."
         }
 

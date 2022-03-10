@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -39,37 +40,38 @@ class SpannerComputationParticipantsService(
       return SetParticipantRequisitionParams(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Computation participant not in CREATED state." }
-        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL ->
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) {
             "Measurement not in PENDING_REQUISITION_PARAMS state."
           }
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
-        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND ->
+        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        ErrorCode.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.FAILED_PRECONDITION) {
             "Certificate for Computation participant not found."
           }
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID ->
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.CERTIFICATE_IS_INVALID ->
           failGrpc(Status.FAILED_PRECONDITION) { "Certificate is invalid" }
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
-        KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.PERMISSION_DENIED,
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+        ErrorCode.ACCOUNT_NOT_FOUND,
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.PERMISSION_DENIED,
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
       }
     }
   }
@@ -81,30 +83,31 @@ class SpannerComputationParticipantsService(
       return FailComputationParticipant(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
-        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL ->
+        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Measurement State is Illegal" }
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
-        KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.PERMISSION_DENIED,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.ACCOUNT_NOT_FOUND,
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.PERMISSION_DENIED,
+        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
       }
     }
   }
@@ -116,30 +119,31 @@ class SpannerComputationParticipantsService(
       return ConfirmComputationParticipant(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Computation participant in illegal state." }
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
-        KingdomInternalException.Code.DUCHY_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
-        KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.PERMISSION_DENIED,
-        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.ACCOUNT_NOT_FOUND,
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.PERMISSION_DENIED,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
       }
     }
   }
