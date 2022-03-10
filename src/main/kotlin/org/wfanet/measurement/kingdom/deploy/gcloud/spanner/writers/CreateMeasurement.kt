@@ -63,7 +63,7 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     // protocol has to be set for the measurement to require computation
     return if (measurement.details.protocolConfig.protocolCase !=
-      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       createComputationMeasurement(measurement, measurementConsumerId)
     } else {
