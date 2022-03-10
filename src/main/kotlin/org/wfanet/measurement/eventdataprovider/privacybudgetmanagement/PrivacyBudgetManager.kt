@@ -37,18 +37,18 @@ class PrivacyBudgetManager(
 
   /**
    * Charges all of the privacy buckets identified by the given measurementSpec and requisitionSpec,
-   * if possible. If successful, returns a PrivacyBudgetReturnStatus with null errorMessage. If one
-   * or more of the buckets would be exceeded, then does not charge any bucket. In this case,
-   * returns a PrivacyBudgetManagerReturnStatus object with an error message and list of buckets
-   * that would overflow.
+   * if possible.
    *
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
    * range and demo groups are obtained from this.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    * sampling interval is obtained from from this.
+   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
+   * exceptions could include running out of privacy budget or a failure to commit the transaction
+   * to the database.
    */
   fun chargePrivacyBudget(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
-  ): PrivacyBudgetManagerReturnStatus = TODO("not implemented $requisitionSpec $measurementSpec")
+  ): Unit = TODO("not implemented $requisitionSpec $measurementSpec")
 }

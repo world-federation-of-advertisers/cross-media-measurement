@@ -91,6 +91,8 @@ interface PrivacyBudgetLedgerTransactionContext {
    * Commits the current transaction.
    *
    * After calling this method, it is an error to call any additional methods on this instance.
+   *
+   * @throws PrivacyBudgetManager exception if the commit operation was unsuccessful.
    */
-  fun commit(): PrivacyBudgetManagerReturnStatus
+  fun commit()
 }
