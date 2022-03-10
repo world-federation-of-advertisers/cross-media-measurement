@@ -217,7 +217,9 @@ class MeasurementReader(private val view: Measurement.View) :
 private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
   externalMeasurementId = struct.getLong("ExternalMeasurementId")
-  externalComputationId = struct.getLong("ExternalComputationId")
+  if (!struct.isNull("ExternalComputationId")) {
+    externalComputationId = struct.getLong("ExternalComputationId")
+  }
   if (!struct.isNull("ProvidedMeasurementId")) {
     providedMeasurementId = struct.getString("ProvidedMeasurementId")
   }

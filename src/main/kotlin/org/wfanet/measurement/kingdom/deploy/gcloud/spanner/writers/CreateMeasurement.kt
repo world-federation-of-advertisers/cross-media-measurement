@@ -62,9 +62,8 @@ class CreateMeasurement(private val measurement: Measurement) :
     }
 
     // protocol has to be set for the measurement to require computation
-    return if (!measurement.details.protocolConfig.protocolCase.equals(
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-      )
+    return if (measurement.details.protocolConfig.protocolCase !=
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       createComputationMeasurement(measurement, measurementConsumerId)
     } else {
@@ -165,8 +164,6 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("ExternalMeasurementId" to externalMeasurementId)
       if (externalComputationId != null) {
         set("ExternalComputationId" to externalComputationId)
-      } else {
-        set("ExternalComputationId" to 0L)
       }
       if (measurement.providedMeasurementId.isNotBlank()) {
         set("ProvidedMeasurementId" to measurement.providedMeasurementId)
