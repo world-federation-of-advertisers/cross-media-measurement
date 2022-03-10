@@ -93,8 +93,6 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
               ORDER BY Exchanges.Date DESC
               LIMIT 1
             )
-          ORDER BY NextExchangeDate
-          LIMIT 1
           """.trimIndent()
         )
         bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
