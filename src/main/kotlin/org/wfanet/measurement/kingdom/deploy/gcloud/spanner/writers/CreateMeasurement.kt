@@ -60,39 +60,23 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
     }
 
-    lateinit var initialMeasurementState: Measurement.State
-    lateinit var initialRequisitionState: Requisition.State
     // protocol has to be set for the measurement to require computation
     return if (!measurement.details.protocolConfig.protocolCase.equals(
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
       )
     ) {
-      initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
-      initialRequisitionState = Requisition.State.PENDING_PARAMS
-      createComputationMeasurement(
-        measurement,
-        measurementConsumerId,
-        initialMeasurementState,
-        initialRequisitionState
-      )
+      createComputationMeasurement(measurement, measurementConsumerId)
     } else {
-      initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
-      initialRequisitionState = Requisition.State.UNFULFILLED
-      createDirectMeasurement(
-        measurement,
-        measurementConsumerId,
-        initialMeasurementState,
-        initialRequisitionState
-      )
+      createDirectMeasurement(measurement, measurementConsumerId)
     }
   }
 
   private suspend fun TransactionScope.createComputationMeasurement(
     measurement: Measurement,
-    measurementConsumerId: InternalId,
-    initialMeasurementState: Measurement.State,
-    initialRequisitionState: Requisition.State
+    measurementConsumerId: InternalId
   ): Measurement {
+    val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
+
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
@@ -105,16 +89,12 @@ class CreateMeasurement(private val measurement: Measurement) :
     )
 
     // Insert into Requisitions for each EDP
-    for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
-      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
-      insertRequisition(
-        measurementConsumerId,
-        measurementId,
-        dataProviderId,
-        dataProviderValue,
-        initialRequisitionState
-      )
-    }
+    insertRequisitions(
+      measurementConsumerId,
+      measurementId,
+      measurement.dataProvidersMap,
+      Requisition.State.PENDING_PARAMS
+    )
 
     DuchyIds.entries.forEach { entry ->
       insertComputationParticipant(
@@ -133,10 +113,10 @@ class CreateMeasurement(private val measurement: Measurement) :
 
   private suspend fun TransactionScope.createDirectMeasurement(
     measurement: Measurement,
-    measurementConsumerId: InternalId,
-    initialMeasurementState: Measurement.State,
-    initialRequisitionState: Requisition.State
+    measurementConsumerId: InternalId
   ): Measurement {
+    val initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
+
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     insertMeasurement(
@@ -148,16 +128,12 @@ class CreateMeasurement(private val measurement: Measurement) :
     )
 
     // Insert into Requisitions for each EDP
-    for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
-      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
-      insertRequisition(
-        measurementConsumerId,
-        measurementId,
-        dataProviderId,
-        dataProviderValue,
-        initialRequisitionState
-      )
-    }
+    insertRequisitions(
+      measurementConsumerId,
+      measurementId,
+      measurement.dataProvidersMap,
+      Requisition.State.UNFULFILLED
+    )
 
     return measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
@@ -217,6 +193,24 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("State" to ComputationParticipant.State.CREATED)
       set("ParticipantDetails" to participantDetails)
       setJson("ParticipantDetailsJson" to participantDetails)
+    }
+  }
+
+  private suspend fun TransactionScope.insertRequisitions(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
+    initialRequisitionState: Requisition.State,
+  ) {
+    for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
+      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
+      insertRequisition(
+        measurementConsumerId,
+        measurementId,
+        dataProviderId,
+        dataProviderValue,
+        initialRequisitionState
+      )
     }
   }
 
