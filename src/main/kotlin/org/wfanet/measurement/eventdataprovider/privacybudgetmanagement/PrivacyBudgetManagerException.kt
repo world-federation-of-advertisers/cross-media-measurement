@@ -13,16 +13,13 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-/**
- * If the operation was successful, then errorMessage will be null. If an error occurred, then the
- * errorMessage will describe the error, and the privacyBuckets will identify the privacy buckets
- * that generated the error. For example, if the error is "Insufficient privacy budget", then the
- * privacyBuckets field will identify the buckets whose budget would be exceeded.
- */
-data class PrivacyBudgetManagerReturnStatus(
-  val errorMessage: String,
-  val privacyBuckets: List<PrivacyBucketGroup>
-) {
-  val successful
-    get() = errorMessage.isNullOrEmpty()
+enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
+  PRIVACY_BUDGET_EXCEEDED("The available privacy budget was exceeded"),
+  DATABASE_UPDATE_ERROR("An error occurred committing the update to the database")
 }
+
+/** An exception thrown by the privacy budget manager. */
+class PrivacyBudgetManagerException(
+  val errorType: PrivacyBudgetManagerExceptionType,
+  val privacyBuckets: List<PrivacyBucketGroup>
+) : Throwable(errorType.errorMessage)
