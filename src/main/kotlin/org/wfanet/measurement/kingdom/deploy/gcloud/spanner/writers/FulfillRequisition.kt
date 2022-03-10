@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -38,10 +39,10 @@ private object Params {
  * Fulfills a [Requisition].
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
- * * [KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL]
- * * [KingdomInternalException.Code.REQUISITION_NOT_FOUND]
- * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
+ * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
+ * * [ErrorCode.REQUISITION_STATE_ILLEGAL]
+ * * [ErrorCode.REQUISITION_NOT_FOUND]
+ * * [ErrorCode.DUCHY_NOT_FOUND]
  */
 class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
@@ -51,13 +52,13 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
-      throw KingdomInternalException(KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL) {
+      throw KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL) {
         "Expected ${Requisition.State.UNFULFILLED}, got $state"
       }
     }
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
-      throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL) {
+      throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
         "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $state"
       }
     }
@@ -108,7 +109,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           externalComputationId = externalComputationId,
           externalRequisitionId = externalRequisitionId
         )
-        ?: throw KingdomInternalException(KingdomInternalException.Code.REQUISITION_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND) {
           "Requisition with external Computation ID $externalComputationId and external " +
             "Requisition ID $externalRequisitionId not found"
         }
@@ -118,7 +119,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   private fun getFulfillingDuchyId(): InternalId {
     val externalDuchyId: String = request.externalFulfillingDuchyId
     return DuchyIds.getInternalId(externalDuchyId)?.let { InternalId(it) }
-      ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND) {
+      ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {
         "Duchy with external ID $externalDuchyId not found"
       }
   }
