@@ -70,7 +70,7 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
         MeasurementTypeCase.DURATION,
         MeasurementTypeCase.IMPRESSION,
-        MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET-> error("Measurement type not set.")
+        MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
     }
     Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
