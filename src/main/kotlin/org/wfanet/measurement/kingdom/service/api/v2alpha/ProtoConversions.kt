@@ -255,6 +255,8 @@ fun Measurement.toInternal(
       internalDuchyProtocolConfig =
         duchyProtocolConfig { liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig }
     }
+    MeasurementSpec.MeasurementTypeCase.DURATION,
+    MeasurementSpec.MeasurementTypeCase.IMPRESSION,
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("MeasurementType not set.")
   }
   return internalMeasurement {
