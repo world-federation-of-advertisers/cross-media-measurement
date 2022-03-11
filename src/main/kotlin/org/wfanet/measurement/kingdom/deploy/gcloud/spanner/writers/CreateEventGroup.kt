@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -43,9 +44,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalMeasurementConsumerId)
         )
         ?.measurementConsumerId
-        ?: throw KingdomInternalException(
-          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-        )
+        ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
 
     val dataProviderId =
       DataProviderReader()
@@ -54,7 +53,7 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalDataProviderId)
         )
         ?.dataProviderId
-        ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+        ?: throw KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND)
 
     return if (eventGroup.providedEventGroupId.isBlank()) {
       createNewEventGroup(dataProviderId, measurementConsumerId)

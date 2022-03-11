@@ -14,79 +14,16 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
+import org.wfanet.measurement.internal.kingdom.ErrorCode
+
 class KingdomInternalException : Exception {
-  val code: Code
+  val code: ErrorCode
 
-  constructor(code: Code) : super() {
+  constructor(code: ErrorCode) : super() {
     this.code = code
   }
 
-  constructor(code: Code, buildMessage: () -> String) : super(buildMessage()) {
+  constructor(code: ErrorCode, buildMessage: () -> String) : super(buildMessage()) {
     this.code = code
-  }
-
-  enum class Code {
-    /** MeasurementConsumer resource queried could not be found. */
-    MEASUREMENT_CONSUMER_NOT_FOUND,
-
-    /** DataProvider resource queried could not be found. */
-    DATA_PROVIDER_NOT_FOUND,
-
-    /** ModelProvider resource queried could not be found. */
-    MODEL_PROVIDER_NOT_FOUND,
-
-    /** Duchy resource queried could not be found. */
-    DUCHY_NOT_FOUND,
-
-    /** Measurement resource queried could not be found. */
-    MEASUREMENT_NOT_FOUND,
-
-    /** Measurement is in an illegal state for the operation. */
-    MEASUREMENT_STATE_ILLEGAL,
-
-    /** Certificate with the same subject key identifier (SKID) already exists. */
-    CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-
-    /** Certificate resource queried could not be found. */
-    CERTIFICATE_NOT_FOUND,
-
-    /** Certificate is in an illegal revocation state for the operation. */
-    CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-
-    /** Certificate is invalid and cannot be used in the creation of entities. */
-    CERTIFICATE_IS_INVALID,
-
-    /** Computation Participant should have been in another state. */
-    COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-
-    /** Computation Participant resource queried could not be found. */
-    COMPUTATION_PARTICIPANT_NOT_FOUND,
-
-    /** Requisition entity could not be found. */
-    REQUISITION_NOT_FOUND,
-
-    /** Requisition is in an illegal state for the operation. */
-    REQUISITION_STATE_ILLEGAL,
-
-    /** Account resource queried could not be found. */
-    ACCOUNT_NOT_FOUND,
-
-    /** Account already exists with the identity. */
-    DUPLICATE_ACCOUNT_IDENTITY,
-
-    /** Account activation state is in an illegal state for the operation. */
-    ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-
-    /** Permission is not given for the operation. */
-    PERMISSION_DENIED,
-
-    /** Api Key resource queried could not be found. */
-    API_KEY_NOT_FOUND,
-
-    /** EventGroup could not be found. */
-    EVENT_GROUP_NOT_FOUND,
-
-    /** EventGroup modification args are invalid. */
-    EVENT_GROUP_INVALID_ARGS,
   }
 }

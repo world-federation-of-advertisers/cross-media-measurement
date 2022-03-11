@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -28,8 +29,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates an account in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.PERMISSION_DENIED]
- * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
+ * * [ErrorCode.PERMISSION_DENIED]
+ * * [ErrorCode.ACCOUNT_NOT_FOUND]
  */
 class CreateAccount(
   private val externalCreatorAccountId: ExternalId?,
@@ -61,7 +62,7 @@ class CreateAccount(
                 externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
                 set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
               }
-              ?: throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
+              ?: throw KingdomInternalException(ErrorCode.PERMISSION_DENIED)
           }
         }
 
@@ -83,5 +84,5 @@ class CreateAccount(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
 }
