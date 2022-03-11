@@ -244,12 +244,6 @@ message Requisition {
 
     // Refusal information. Set when Requisition state is REFUSED.
     Refusal refusal = 6;
-
-    // Encrypted `SignedData`containing the data for a direct and volumetric
-    // measurement. Set when `Requisition` state is FULFILLED and the
-    // `measurement_spec` `measurement_type` of the Parent
-    // `Measurement` is Impression or Duration.
-    bytes encrypted_data = 7;
   }
   Details details = 10;
 
