@@ -293,7 +293,7 @@ CREATE UNIQUE NULL_FILTERED INDEX MeasurementsByProvidedId
 CREATE UNIQUE INDEX MeasurementsByExternalId
   ON Measurements(MeasurementConsumerId, ExternalMeasurementId);
 
-CREATE UNIQUE INDEX MeasurementsByExternalComputationId
+CREATE UNIQUE NULL_FILTERED INDEX MeasurementsByExternalComputationId
   ON Measurements(ExternalComputationId);
 
 -- The Requisition data is actually stored by the Duchy. The Duchy has a map
