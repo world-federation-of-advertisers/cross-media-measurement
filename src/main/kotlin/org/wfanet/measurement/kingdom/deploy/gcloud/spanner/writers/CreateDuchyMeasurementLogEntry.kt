@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
@@ -36,8 +37,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
  * Creates a DuchyMeasurementLogEntry and MeasurementLogEntry in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_NOT_FOUND]
- * * [KingdomInternalException.Code.DUCHY_NOT_FOUND]
+ * * [ErrorCode.MEASUREMENT_NOT_FOUND]
+ * * [ErrorCode.DUCHY_NOT_FOUND]
  */
 class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurementLogEntryRequest) :
   SpannerWriter<DuchyMeasurementLogEntry, DuchyMeasurementLogEntry>() {
@@ -52,12 +53,12 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
 
     val measurementIds =
       readMeasurementIds()
-        ?: throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND) {
           "Measurement for external computation ID ${request.externalComputationId} not found"
         }
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
-        ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
+        ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND)
 
     insertMeasurementLogEntry(measurementIds.measurementId, measurementIds.measurementConsumerId)
 

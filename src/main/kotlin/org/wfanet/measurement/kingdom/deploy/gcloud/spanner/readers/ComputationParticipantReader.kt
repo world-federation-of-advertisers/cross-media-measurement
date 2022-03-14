@@ -30,6 +30,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.computationParticipant
@@ -84,7 +85,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
     val computationParticipant: ComputationParticipant,
     val measurementId: Long,
     val measurementConsumerId: Long,
-    val measurementState: Measurement.State
+    val measurementState: Measurement.State,
+    val measurementDetails: Measurement.Details,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -120,7 +122,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       buildComputationParticipant(struct),
       struct.getLong("MeasurementId"),
       struct.getLong("MeasurementConsumerId"),
-      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
+      struct.getProtoEnum("MeasurementState", Measurement.State::forNumber),
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
     )
 
   private fun buildComputationParticipant(struct: Struct): ComputationParticipant {
@@ -167,11 +170,11 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       apiVersion = measurementDetails.apiVersion
 
       buildFailureLogEntry(
-        externalMeasurementConsumerId,
-        externalMeasurementId,
-        externalDuchyId,
-        struct.getStructList("DuchyMeasurementLogEntries")
-      )
+          externalMeasurementConsumerId,
+          externalMeasurementId,
+          externalDuchyId,
+          struct.getStructList("DuchyMeasurementLogEntries")
+        )
         ?.let { failureLogEntry = it }
     }
 
@@ -223,9 +226,9 @@ suspend fun readComputationParticipantState(
       listOf(column)
     )
     ?.getProtoEnum(column, ComputationParticipant.State::forNumber)
-    ?: throw KingdomInternalException(
-      KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND
-    ) { "ComputationParticipant not found $duchyId" }
+    ?: throw KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND) {
+      "ComputationParticipant not found $duchyId"
+    }
 }
 
 suspend fun computationParticipantsInState(
@@ -235,7 +238,6 @@ suspend fun computationParticipantsInState(
   measurementId: InternalId,
   state: ComputationParticipant.State
 ): Boolean {
-
   val wrongState =
     duchyIds
       .asFlow()

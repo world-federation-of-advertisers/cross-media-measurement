@@ -17,12 +17,14 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingStore) {
   /**
    * For each privacy bucket group in the list of PrivacyBucketGroups, adds each of the privacy
-   * charges to that group. If successful, returns null. If an error occurs, such as exceeding
-   * budget in one of the groups, then returns a PrivacyBudgetManagerReturnStatus object describing
-   * the error.
+   * charges to that group.
+   *
+   * @throws PrivacyBudgetManagerException if the attempt to charge the privacy bucket groups was
+   * unsuccessful. Possible causes could include exceeding available privacy budget or an inability
+   * to commit an update to the database.
    */
   fun chargePrivacyBucketGroups(
     privacyBucketGroups: Iterable<PrivacyBucketGroup>,
     privacyCharges: Iterable<PrivacyCharge>
-  ): PrivacyBudgetManagerReturnStatus = TODO("not implemented $privacyBucketGroups $privacyCharges")
+  ): Unit = TODO("not implemented $privacyBucketGroups $privacyCharges")
 }

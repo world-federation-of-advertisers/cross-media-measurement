@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Value
 import java.lang.IllegalStateException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.singleOrNull
@@ -22,8 +21,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
@@ -49,14 +48,14 @@ private val PENDING_MEASUREMENT_STATES =
  * Revokes a certificate in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [ErrorCode.CERTIFICATE_NOT_FOUND]
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
-
     val externalCertificateId = ExternalId(request.externalCertificateId)
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     val reader: BaseSpannerReader<CertificateReader.Result> =
       when (request.parentCase) {
@@ -76,9 +75,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND) {
-                  " Duchy not found."
-                }
+                ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) { " Duchy not found." }
             )
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
@@ -89,7 +86,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
     val certificateResult =
       reader.execute(transactionContext).singleOrNull()
-        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND) {
           "Certificate not found."
         }
 
@@ -173,13 +170,6 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     measurementId: InternalId,
     details: Measurement.Details
   ) {
-    transactionContext.bufferUpdateMutation("Measurements") {
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("MeasurementId" to measurementId)
-      set("State" to Measurement.State.FAILED)
-      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-      set("MeasurementDetails" to details)
-      setJson("MeasurementDetailsJson" to details)
-    }
+    updateMeasurementState(measurementConsumerId, measurementId, Measurement.State.FAILED, details)
   }
 }
