@@ -38,8 +38,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "3c570fc82d8cbe4ef9901c7b2e69a1895cba386b7a15af54d922e79f946c12fa",
-        version = "0.15.5",
+        sha256 = "1b9540ea6514f254b4ec07e05e152c55c943ff83e74376ed5fa94b6f5f5bd17e",
+        version = "0.16.0",
     )
 
     wfa_repo_archive(
@@ -51,16 +51,16 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "any_sketch",
-        version = "0.1.0",
+        version = "0.2.0",
         repo = "any-sketch",
-        sha256 = "904a3dd0b48bccbbd0b84830c85e47aa56fe1257211514bfad99a88595ce6325",
+        sha256 = "3e3c90c3e2fab73a853c3b802171cbf04178eecfd0f7e5740a3b27c515110129",
     )
 
     wfa_repo_archive(
         name = "any_sketch_java",
-        version = "0.2.0",
+        version = "0.3.0",
         repo = "any-sketch-java",
-        sha256 = "55f20dfe98c71b4fdd5068f44ea5df5d88bac51c1d24061438a8aa5ed4b853b7",
+        sha256 = "1bff87bbb99cd567c04e634a1a7bf55ca7135d626d44b226f034b3ff325de38a",
     )
 
     wfa_repo_archive(

@@ -200,7 +200,8 @@ absl::Status JoinRegistersByIndexAndMergeCounts(
 
 absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
                                       int64_t liquid_legions_size,
-                                      size_t non_empty_register_count) {
+                                      size_t non_empty_register_count,
+                                      float sampling_rate = 1.0) {
   if (liquid_legions_decay_rate <= 1.0) {
     return absl::InvalidArgumentError(absl::StrCat(
         "The decay rate should be > 1, but is ", liquid_legions_decay_rate));
@@ -212,7 +213,8 @@ absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
         non_empty_register_count, ")."));
   }
   return wfa::estimation::EstimateCardinalityLiquidLegions(
-      liquid_legions_decay_rate, liquid_legions_size, non_empty_register_count);
+      liquid_legions_decay_rate, liquid_legions_size, non_empty_register_count,
+      sampling_rate);
 }
 
 absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
@@ -907,7 +909,8 @@ CompleteExecutionPhaseTwoAtAggregator(
       int64_t reach,
       EstimateReach(request.liquid_legions_parameters().decay_rate(),
                     request.liquid_legions_parameters().size(),
-                    non_empty_register_count));
+                    non_empty_register_count,
+                    request.vid_sampling_interval_width()));
   response.set_reach(reach);
 
   response.set_elapsed_cpu_time_millis(timer.ElapsedMillis());

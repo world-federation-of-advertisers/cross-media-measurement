@@ -187,6 +187,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
             decayRate = DECAY_RATE
             size = LIQUID_LEGIONS_SIZE
           }
+          vidSamplingIntervalWidth = VID_SAMPLING_INTERVAL_WIDTH
         }
         .build()
     val completeExecutionPhaseTwoAtAggregatorResponse =
@@ -373,6 +374,7 @@ class LiquidLegionsV2EncryptionUtilityTest {
     private const val DECAY_RATE = 12.0
     private const val LIQUID_LEGIONS_SIZE = 100_000L
     private const val MAXIMUM_FREQUENCY = 10
+    private const val VID_SAMPLING_INTERVAL_WIDTH = 0.5f
 
     private const val CURVE_ID = 415L // NID_X9_62_prime256v1
     private const val MAX_COUNTER_VALUE = 10

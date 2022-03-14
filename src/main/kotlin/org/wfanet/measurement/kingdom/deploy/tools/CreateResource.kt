@@ -19,8 +19,6 @@ import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
 import java.time.LocalDate
-import java.util.concurrent.Callable
-import kotlin.system.exitProcess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountKey
@@ -28,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -54,33 +53,19 @@ import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.common.InternalApiFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
-import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.HelpCommand
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
+import picocli.CommandLine.ParentCommand
 
 private const val API_VERSION = "v2alpha"
+private const val RECURRING_EXCHANGE_CRON_SCHEDULE = "@daily"
 
-private class ApiFlags {
-  @Mixin private lateinit var internalApiFlags: InternalApiFlags
-  @Mixin private lateinit var tlsFlags: TlsFlags
-
-  val channel: Channel by lazy {
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = tlsFlags.certFile,
-        privateKeyFile = tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = tlsFlags.certCollectionFile
-      )
-
-    buildMutualTlsChannel(internalApiFlags.target, clientCerts, internalApiFlags.certHost)
-      .withVerboseLogging(true)
-  }
-}
-
-private abstract class CreatePrincipalCommand : Callable<Int> {
-  @Mixin protected lateinit var apiFlags: ApiFlags
+private abstract class CreatePrincipalCommand : Runnable {
+  @ParentCommand
+  protected lateinit var parent: CreateResource
+    private set
 
   @Option(
     names = ["--certificate-der-file"],
@@ -117,27 +102,25 @@ private abstract class CreatePrincipalCommand : Callable<Int> {
 }
 
 @Command(name = "account", description = ["Creates an Account"])
-private class CreateAccountCommand : Callable<Int> {
-  @Mixin private lateinit var apiFlags: ApiFlags
+private class CreateAccountCommand : Runnable {
+  @ParentCommand private lateinit var parent: CreateResource
 
-  override fun call(): Int {
-    val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
+  override fun run() {
+    val internalAccountsClient = AccountsCoroutineStub(parent.channel)
     val internalAccount = runBlocking { internalAccountsClient.createAccount(account {}) }
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     println("Account Name: $accountName")
     println("Activation Token: $accountActivationToken")
-
-    return 0
   }
 }
 
-@Command(name = "mc_creation_token", description = ["Create a Measurement Consumer Creation Token"])
-private class CreateMcCreationTokenCommand : Callable<Int> {
-  @Mixin lateinit var apiFlags: ApiFlags
+@Command(name = "mc-creation-token", description = ["Creates a MeasurementConsumer Creation Token"])
+private class CreateMcCreationTokenCommand : Runnable {
+  @ParentCommand private lateinit var parent: CreateResource
 
-  override fun call(): Int {
-    val internalAccountsClient = AccountsCoroutineStub(apiFlags.channel)
+  override fun run() {
+    val internalAccountsClient = AccountsCoroutineStub(parent.channel)
     val mcCreationToken = runBlocking {
       externalIdToApiId(
         internalAccountsClient.createMeasurementConsumerCreationToken(
@@ -147,14 +130,12 @@ private class CreateMcCreationTokenCommand : Callable<Int> {
       )
     }
     println("Creation Token: $mcCreationToken")
-
-    return 0
   }
 }
 
-@Command(name = "data_provider", description = ["Creates a DataProvider"])
+@Command(name = "data-provider", description = ["Creates a DataProvider"])
 private class CreateDataProviderCommand : CreatePrincipalCommand() {
-  override fun call(): Int {
+  override fun run() {
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate
 
@@ -166,21 +147,19 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
         }
     }
 
-    val dataProvidersStub = DataProvidersCoroutineStub(apiFlags.channel)
+    val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)
     val outputDataProvider =
       runBlocking(Dispatchers.IO) { dataProvidersStub.createDataProvider(dataProvider) }
 
     val apiId = externalIdToApiId(outputDataProvider.externalDataProviderId)
     val dataProviderName = DataProviderKey(apiId).toName()
     println("Data Provider Name: $dataProviderName")
-
-    return 0
   }
 }
 
-@Command(name = "model_provider", description = ["Creates a ModelProvider"])
+@Command(name = "model-provider", description = ["Creates a ModelProvider"])
 private class CreateModelProviderCommand : CreatePrincipalCommand() {
-  override fun call(): Int {
+  override fun run() {
     val modelProvider = modelProvider {
       certificate = this@CreateModelProviderCommand.certificate
 
@@ -192,20 +171,20 @@ private class CreateModelProviderCommand : CreatePrincipalCommand() {
         }
     }
 
-    val modelProvidersStub = ModelProvidersCoroutineStub(apiFlags.channel)
+    val modelProvidersStub = ModelProvidersCoroutineStub(parent.channel)
     val outputModelProvider =
       runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider) }
 
     val apiId = externalIdToApiId(outputModelProvider.externalModelProviderId)
     val modelProviderName = ModelProviderKey(apiId).toName()
     println("Model Provider Name: $modelProviderName")
-
-    return 0
   }
 }
 
-@Command(name = "recurring_exchange", description = ["Creates a RecurringExchange"])
-private class CreateRecurringExchangeCommand : Callable<Int> {
+@Command(name = "recurring-exchange", description = ["Creates a RecurringExchange"])
+private class CreateRecurringExchangeCommand : Runnable {
+  @ParentCommand private lateinit var parent: CreateResource
+
   @Option(
     names = ["--model-provider"],
     description = ["API resource name of the ModelProvider"],
@@ -230,9 +209,7 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
   )
   private lateinit var exchangeWorkflowFile: File
 
-  @Mixin private lateinit var apiFlags: ApiFlags
-
-  override fun call(): Int {
+  override fun run() {
     val modelProviderKey = requireNotNull(ModelProviderKey.fromName(modelProviderName))
     val dataProviderKey = requireNotNull(DataProviderKey.fromName(dataProviderName))
 
@@ -248,10 +225,11 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
         recurringExchangeDetails {
           this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
           exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          cronSchedule = RECURRING_EXCHANGE_CRON_SCHEDULE
         }
     }
 
-    val recurringExchangesStub = RecurringExchangesCoroutineStub(apiFlags.channel)
+    val recurringExchangesStub = RecurringExchangesCoroutineStub(parent.channel)
 
     val outputRecurringExchange =
       runBlocking(Dispatchers.IO) {
@@ -262,14 +240,13 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
 
     val apiId = externalIdToApiId(outputRecurringExchange.externalRecurringExchangeId)
     println(RecurringExchangeKey(apiId).toName())
-
-    return 0
   }
 }
 
 @Command(
-  name = "create_resource",
+  name = "CreateResource",
   description = ["Creates resources in the Kingdom"],
+  sortOptions = false,
   subcommands =
     [
       HelpCommand::class,
@@ -280,30 +257,30 @@ private class CreateRecurringExchangeCommand : Callable<Int> {
       CreateRecurringExchangeCommand::class,
     ]
 )
-class CreateResource : Callable<Int> {
-  /** Return 0 for success -- all work happens in subcommands. */
-  override fun call(): Int = 0
+private class CreateResource : Runnable {
+  @Mixin private lateinit var tlsFlags: TlsFlags
+  @Mixin private lateinit var internalApiFlags: InternalApiFlags
+
+  val channel: Channel by lazy {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = tlsFlags.certFile,
+        privateKeyFile = tlsFlags.privateKeyFile,
+        trustedCertCollectionFile = tlsFlags.certCollectionFile
+      )
+
+    buildMutualTlsChannel(internalApiFlags.target, clientCerts, internalApiFlags.certHost)
+      .withVerboseLogging(true)
+  }
+
+  override fun run() {
+    // No-op. Everything happens in subcommands.
+  }
 }
 
 /**
  * Creates resources within the Kingdom.
  *
- * Use the `help` command to see usage details:
- *
- * ```
- * $ bazel build //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:create_resource
- * $ bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/create_resource help
- * Usage: create_resource [COMMAND]
- * Creates resources in the Kingdom
- * Commands:
- *  help                Displays help information about the specified command
- *  account             Creates an Account
- *  mc_creation_token   Creates a Measurement Consumer Creation Token
- *  data_provider       Creates a DataProvider
- *  model_provider      Creates a ModelProvider
- *  recurring_exchange  Creates a RecurringExchange
- * ```
+ * Use the `help` command to see usage details.
  */
-fun main(args: Array<String>) {
-  exitProcess(CommandLine(CreateResource()).execute(*args))
-}
+fun main(args: Array<String>) = commandLineMain(CreateResource(), args)

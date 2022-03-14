@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.refusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.protocolConfig
@@ -927,6 +928,16 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
       )
+    val updatedMeasurement =
+      dataServices.measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementId = measurement.externalMeasurementId
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        }
+      )
+    assertThat(updatedMeasurement.state).isEqualTo(Measurement.State.FAILED)
+    assertThat(updatedMeasurement.details.failure.reason)
+      .isEqualTo(Measurement.Failure.Reason.REQUISITION_REFUSED)
   }
 
   @Test

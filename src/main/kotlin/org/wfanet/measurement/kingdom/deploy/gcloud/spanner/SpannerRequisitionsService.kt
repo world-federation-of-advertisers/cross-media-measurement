@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionRequest
@@ -93,27 +94,29 @@ class SpannerRequisitionsService(
     } catch (e: KingdomInternalException) {
       val status: Status =
         when (e.code) {
-          KingdomInternalException.Code.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
-          KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-          KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
-          KingdomInternalException.Code.DUCHY_NOT_FOUND -> Status.FAILED_PRECONDITION
-          KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-          KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-          KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
-          KingdomInternalException.Code.API_KEY_NOT_FOUND,
-          KingdomInternalException.Code.PERMISSION_DENIED,
-          KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
-          KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-          KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-          KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-          KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-          KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-          KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-          KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-          KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-          KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-          KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+          ErrorCode.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
+          ErrorCode.REQUISITION_STATE_ILLEGAL,
+          ErrorCode.MEASUREMENT_STATE_ILLEGAL,
+          ErrorCode.DUCHY_NOT_FOUND -> Status.FAILED_PRECONDITION
+          ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+          ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+          ErrorCode.ACCOUNT_NOT_FOUND,
+          ErrorCode.API_KEY_NOT_FOUND,
+          ErrorCode.PERMISSION_DENIED,
+          ErrorCode.MEASUREMENT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+          ErrorCode.DATA_PROVIDER_NOT_FOUND,
+          ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+          ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+          ErrorCode.CERTIFICATE_NOT_FOUND,
+          ErrorCode.CERTIFICATE_IS_INVALID,
+          ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+          ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+          ErrorCode.EVENT_GROUP_INVALID_ARGS,
+          ErrorCode.EVENT_GROUP_NOT_FOUND,
+          ErrorCode.UNKNOWN_ERROR,
+          ErrorCode.UNRECOGNIZED -> throw e
         }
       throw status.withCause(e).asRuntimeException()
     }
@@ -136,27 +139,29 @@ class SpannerRequisitionsService(
     } catch (e: KingdomInternalException) {
       val status: Status =
         when (e.code) {
-          KingdomInternalException.Code.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
-          KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-          KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL -> Status.FAILED_PRECONDITION
-          KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-          KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-          KingdomInternalException.Code.ACCOUNT_NOT_FOUND,
-          KingdomInternalException.Code.API_KEY_NOT_FOUND,
-          KingdomInternalException.Code.PERMISSION_DENIED,
-          KingdomInternalException.Code.DUCHY_NOT_FOUND,
-          KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-          KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
-          KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-          KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-          KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-          KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-          KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-          KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-          KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-          KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-          KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-          KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+          ErrorCode.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
+          ErrorCode.REQUISITION_STATE_ILLEGAL, ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
+            Status.FAILED_PRECONDITION
+          ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+          ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+          ErrorCode.ACCOUNT_NOT_FOUND,
+          ErrorCode.API_KEY_NOT_FOUND,
+          ErrorCode.PERMISSION_DENIED,
+          ErrorCode.DUCHY_NOT_FOUND,
+          ErrorCode.MEASUREMENT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+          ErrorCode.DATA_PROVIDER_NOT_FOUND,
+          ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+          ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+          ErrorCode.CERTIFICATE_NOT_FOUND,
+          ErrorCode.CERTIFICATE_IS_INVALID,
+          ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+          ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+          ErrorCode.EVENT_GROUP_INVALID_ARGS,
+          ErrorCode.EVENT_GROUP_NOT_FOUND,
+          ErrorCode.UNKNOWN_ERROR,
+          ErrorCode.UNRECOGNIZED -> throw e
         }
       throw status.withCause(e).asRuntimeException()
     }
