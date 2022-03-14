@@ -206,10 +206,10 @@ class EdpSimulator(
         socialGrade = SocialGrade.ABC1,
         complete = Complete.COMPLETE
       )
-		// Note: AnySketch can be configured to use an arbitrary fingerprinter.
-		// If it is configured to use the same fingerprinter as used here for the VidSampler,
-		// the sketches computed by AnySketch will be incorrect.  It is critical that they
-		// use different fingerprinters.
+    // Note: AnySketch can be configured to use an arbitrary fingerprinter.
+    // If it is configured to use the same fingerprinter as used here for the VidSampler,
+    // the sketches computed by AnySketch will be incorrect.  It is critical that they
+    // use different fingerprinters.
     val vidSampler = VidSampler(Hashing.farmHashFingerprint64())
     eventQuery.getUserVirtualIds(queryParameter).forEach {
       if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
