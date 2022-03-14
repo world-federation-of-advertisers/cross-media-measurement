@@ -255,8 +255,10 @@ fun Measurement.toInternal(
       internalDuchyProtocolConfig =
         duchyProtocolConfig { liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig }
     }
-    MeasurementSpec.MeasurementTypeCase.DURATION, MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
-      error("Measurement type is wrong")
+    // TODO(@tristanvuong2021) implement for type DURATION and IMPRESSION
+    MeasurementSpec.MeasurementTypeCase.DURATION,
+    MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
+      error("Conversion of the MeasurementType is not implemented")
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("MeasurementType not set.")
   }
   return internalMeasurement {

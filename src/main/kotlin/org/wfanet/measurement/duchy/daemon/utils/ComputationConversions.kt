@@ -69,7 +69,7 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
       when (v2AlphaMeasurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
         MeasurementTypeCase.DURATION, MeasurementTypeCase.IMPRESSION ->
-          error("Measurement type is wrong")
+          error("Unexpected MeasurementType for system API Computation.")
         MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
     }
