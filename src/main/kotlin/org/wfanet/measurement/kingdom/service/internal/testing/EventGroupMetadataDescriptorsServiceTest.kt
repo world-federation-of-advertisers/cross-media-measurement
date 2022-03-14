@@ -152,7 +152,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   }
 
   @Test
-  fun `createEventGroupMetadataDescriptor returns already created Descriptor for the same ProvidedEventGroupId`() =
+  fun `createEventGroupMetadataDescriptor returns already created Descriptor for the same externalEventGroupMetadataDescriptorId`() =
       runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
