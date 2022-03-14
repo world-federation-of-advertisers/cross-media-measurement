@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.ErrorCode as SpannerErrorCode
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
 import org.wfanet.measurement.common.identity.ExternalId
@@ -27,6 +27,7 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.ErrorCode as InternalErrorCode
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -83,7 +84,7 @@ class CreateCertificate(private val certificate: Certificate) :
             ExternalId(certificate.externalDataProviderId)
           )
           ?.dataProviderId
-          ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND)
+          ?: throw KingdomInternalException(InternalErrorCode.DATA_PROVIDER_NOT_FOUND)
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
         MeasurementConsumerReader()
           .readByExternalMeasurementConsumerId(
@@ -91,12 +92,10 @@ class CreateCertificate(private val certificate: Certificate) :
             ExternalId(certificate.externalMeasurementConsumerId)
           )
           ?.measurementConsumerId
-          ?: throw KingdomInternalException(
-            KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-          )
+          ?: throw KingdomInternalException(InternalErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
         DuchyIds.getInternalId(certificate.externalDuchyId)
-          ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND)
+          ?: throw KingdomInternalException(InternalErrorCode.DUCHY_NOT_FOUND)
       Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
         ModelProviderReader()
           .readByExternalModelProviderId(
@@ -104,7 +103,7 @@ class CreateCertificate(private val certificate: Certificate) :
             ExternalId(certificate.externalModelProviderId)
           )
           ?.modelProviderId
-          ?: throw KingdomInternalException(KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND)
+          ?: throw KingdomInternalException(InternalErrorCode.MODEL_PROVIDER_NOT_FOUND)
       Certificate.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of Certificate is not set")
     }
@@ -127,10 +126,8 @@ class CreateCertificate(private val certificate: Certificate) :
 
   override suspend fun handleSpannerException(e: SpannerException): Certificate? {
     when (e.errorCode) {
-      ErrorCode.ALREADY_EXISTS ->
-        throw KingdomInternalException(
-          KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS
-        )
+      SpannerErrorCode.ALREADY_EXISTS ->
+        throw KingdomInternalException(InternalErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS)
       else -> throw e
     }
   }

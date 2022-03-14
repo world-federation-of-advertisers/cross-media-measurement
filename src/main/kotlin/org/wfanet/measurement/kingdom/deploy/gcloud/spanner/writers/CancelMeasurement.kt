@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -24,8 +25,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * Cancels a [Measurement], transitioning its state to [Measurement.State.CANCELLED].
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_NOT_FOUND]
- * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
+ * * [ErrorCode.MEASUREMENT_NOT_FOUND]
+ * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
  */
 class CancelMeasurement(
   private val externalMeasurementConsumerId: ExternalId,
@@ -35,7 +36,7 @@ class CancelMeasurement(
     val (measurementConsumerId, measurementId, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalIds(transactionContext, externalMeasurementConsumerId, externalMeasurementId)
-        ?: throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND) {
           "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
             "external Measurement ID $externalMeasurementId not found"
         }
@@ -50,7 +51,7 @@ class CancelMeasurement(
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED -> {
-        throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL) {
+        throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
           "Unexpected Measurement state $state (${state.number})"
         }
       }

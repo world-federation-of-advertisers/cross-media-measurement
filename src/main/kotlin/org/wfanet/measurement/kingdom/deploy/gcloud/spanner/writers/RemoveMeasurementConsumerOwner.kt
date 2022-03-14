@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -30,9 +31,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Remove an [Account] as a new owner of a [MeasurementConsumer] from the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
- * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
- * * [KingdomInternalException.Code.PERMISSION_DENIED]
+ * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * * [ErrorCode.ACCOUNT_NOT_FOUND]
+ * * [ErrorCode.PERMISSION_DENIED]
  */
 class RemoveMeasurementConsumerOwner(
   private val externalAccountId: ExternalId,
@@ -50,7 +51,7 @@ class RemoveMeasurementConsumerOwner(
           externalMeasurementConsumerId = externalMeasurementConsumerId
         ) == null
     ) {
-      throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
+      throw KingdomInternalException(ErrorCode.PERMISSION_DENIED)
     }
 
     transactionContext.buffer(
@@ -65,14 +66,12 @@ class RemoveMeasurementConsumerOwner(
 
   private suspend fun TransactionScope.readAccountId(externalAccountId: ExternalId): InternalId =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
-      ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
 
   private suspend fun TransactionScope.readMeasurementConsumerResult(
     externalMeasurementConsumerId: ExternalId
   ): MeasurementConsumerReader.Result =
     MeasurementConsumerReader()
       .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?: throw KingdomInternalException(
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-      )
+      ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
 }
