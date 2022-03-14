@@ -24,6 +24,7 @@ import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.BucketType
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.common.storage.withPrefix
 
 class GcsStorageFactory(
   private val storageDetails: StorageDetails,
@@ -45,9 +46,10 @@ class GcsStorageFactory(
           error("Invalid bucket_type: $bucketType")
       }
     return GcsStorageClient(
-      StorageOptions.newBuilder().setProjectId(gcs.projectName).build().service,
-      bucketId
-    )
+        StorageOptions.newBuilder().setProjectId(gcs.projectName).build().service,
+        bucketId
+      )
+      .withPrefix(exchangeDateKey.path)
   }
 }
 
