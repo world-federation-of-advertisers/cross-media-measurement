@@ -68,8 +68,8 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (v2AlphaMeasurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
-        MeasurementTypeCase.DURATION,
-        MeasurementTypeCase.IMPRESSION,
+        MeasurementTypeCase.DURATION, MeasurementTypeCase.IMPRESSION ->
+          error("Measurement type is wrong")
         MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
     }
