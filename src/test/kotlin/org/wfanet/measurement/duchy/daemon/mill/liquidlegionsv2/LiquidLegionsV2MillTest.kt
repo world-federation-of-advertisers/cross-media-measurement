@@ -50,6 +50,8 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -309,6 +311,17 @@ private val MEASUREMENT_SPEC = measurementSpec {
   nonceHashes += TEST_REQUISITION_3.nonceHash
 }
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
+
+private val MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH = measurementSpec {
+  nonceHashes += TEST_REQUISITION_1.nonceHash
+  nonceHashes += TEST_REQUISITION_2.nonceHash
+  nonceHashes += TEST_REQUISITION_3.nonceHash
+  reachAndFrequency =
+    reachAndFrequency { vidSamplingInterval = vidSamplingInterval { width = 0.5f } }
+}
+
+private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH =
+  MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH.toByteString()
 
 private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
@@ -1605,10 +1618,17 @@ class LiquidLegionsV2MillTest {
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage()),
       "data"
     )
+    val computationDetailsWithVidSamplingWidth =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy {
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH
+          }
+      }
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      computationDetails = computationDetailsWithVidSamplingWidth,
       blobs =
         listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
       requisitions = REQUISITIONS
@@ -1651,7 +1671,7 @@ class LiquidLegionsV2MillTest {
             }
             version = 4 // claimTask + writeOutputBlob + ComputationDetails + transitionStage
             computationDetails =
-              AGGREGATOR_COMPUTATION_DETAILS
+              computationDetailsWithVidSamplingWidth
                 .toBuilder()
                 .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = testReach }
                 .build()
@@ -1683,6 +1703,7 @@ class LiquidLegionsV2MillTest {
             compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
             curveId = CURVE_ID
             maximumFrequency = MAX_FREQUENCY
+            vidSamplingIntervalWidth = 0.5f
             liquidLegionsParametersBuilder.apply {
               decayRate = DECAY_RATE
               size = SKETCH_SIZE

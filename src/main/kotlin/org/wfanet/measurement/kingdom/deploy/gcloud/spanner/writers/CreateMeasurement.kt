@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
@@ -42,10 +43,10 @@ private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PA
  * Creates a measurement in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
- * * [KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND]
- * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
- * * [KingdomInternalException.Code.CERTIFICATE_IS_INVALID]
+ * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * * [ErrorCode.DATA_PROVIDER_NOT_FOUND]
+ * * [ErrorCode.CERTIFICATE_NOT_FOUND]
+ * * [ErrorCode.CERTIFICATE_IS_INVALID]
  */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
@@ -105,7 +106,7 @@ class CreateMeasurement(private val measurement: Measurement) :
         )
     val measurementConsumerCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
 
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -156,7 +157,7 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     val dataProviderCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -231,9 +232,9 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
       column
     )
     ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw KingdomInternalException(
-      KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND
-    ) { "MeasurementConsumer with external ID $externalMeasurementConsumerId not found" }
+    ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND) {
+      "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
+    }
 }
 
 private suspend fun TransactionScope.readDataProviderId(
@@ -247,7 +248,7 @@ private suspend fun TransactionScope.readDataProviderId(
       column
     )
     ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw KingdomInternalException(KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND) {
+    ?: throw KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND) {
       "DataProvider with external ID $externalDataProviderId not found"
     }
 }
@@ -256,13 +257,13 @@ private suspend fun TransactionScope.readDataProviderId(
  * Returns the internal Certificate Id if the revocation state has not been set and the current time
  * is inside the valid time period.
  *
- * Throws a [KingdomInternalException.Code.CERTIFICATE_IS_INVALID] otherwise.
+ * Throws a [ErrorCode.CERTIFICATE_IS_INVALID] otherwise.
  */
 private fun validateCertificate(
   certificateResult: CertificateReader.Result,
 ): InternalId {
   if (!certificateResult.isValid) {
-    throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+    throw KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID)
   }
 
   return certificateResult.certificateId

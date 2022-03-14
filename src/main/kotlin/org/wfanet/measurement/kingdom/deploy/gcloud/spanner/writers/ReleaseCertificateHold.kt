@@ -22,6 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -33,7 +34,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * Revokes a certificate in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.CERTIFICATE_NOT_FOUND]
+ * * [ErrorCode.CERTIFICATE_NOT_FOUND]
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
  * associated active measurements if a certificate is revoked
@@ -62,9 +63,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw KingdomInternalException(KingdomInternalException.Code.DUCHY_NOT_FOUND) {
-                  " Duchy not found."
-                }
+                ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) { " Duchy not found." }
             )
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
@@ -75,7 +74,7 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
 
     val certificateResult =
       reader.execute(transactionContext).singleOrNull()
-        ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND) {
           "Certificate not found."
         }
 
@@ -92,9 +91,9 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
         }
       }
       RevocationState.REVOKED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
-        throw KingdomInternalException(
-          KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL
-        ) { "Certificate is in $certificateRevocationState state, cannot release hold." }
+        throw KingdomInternalException(ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL) {
+          "Certificate is in $certificateRevocationState state, cannot release hold."
+        }
       RevocationState.UNRECOGNIZED ->
         throw IllegalStateException("Certificate RevocationState field is unrecognized.")
     }

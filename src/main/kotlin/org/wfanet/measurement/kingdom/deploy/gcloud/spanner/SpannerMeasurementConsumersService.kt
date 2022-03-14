@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.AddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerRequest
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -54,30 +55,31 @@ class SpannerMeasurementConsumersService(
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.PERMISSION_DENIED ->
+        ErrorCode.PERMISSION_DENIED ->
           failGrpc(Status.PERMISSION_DENIED) { "Measurement Consumer creation token is not valid" }
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Account not found" }
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
+        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account not found" }
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Account has not been activated yet" }
-        KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
-        KingdomInternalException.Code.DUCHY_NOT_FOUND,
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND,
-        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
+        ErrorCode.DUCHY_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
       }
     }
   }
@@ -105,29 +107,30 @@ class SpannerMeasurementConsumersService(
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Account not found" }
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
+        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account not found" }
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
-        KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.DUCHY_NOT_FOUND,
-        KingdomInternalException.Code.PERMISSION_DENIED,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.DUCHY_NOT_FOUND,
+        ErrorCode.PERMISSION_DENIED,
+        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
       }
     }
   }
@@ -143,30 +146,31 @@ class SpannerMeasurementConsumersService(
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        KingdomInternalException.Code.ACCOUNT_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Account not found" }
-        KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND ->
+        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account not found" }
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
-        KingdomInternalException.Code.PERMISSION_DENIED ->
+        ErrorCode.PERMISSION_DENIED ->
           failGrpc(Status.FAILED_PRECONDITION) { "Account doesn't own MeasurementConsumer" }
-        KingdomInternalException.Code.API_KEY_NOT_FOUND,
-        KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY,
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.DATA_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.MODEL_PROVIDER_NOT_FOUND,
-        KingdomInternalException.Code.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        KingdomInternalException.Code.DUCHY_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_IS_INVALID,
-        KingdomInternalException.Code.MEASUREMENT_NOT_FOUND,
-        KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        KingdomInternalException.Code.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        KingdomInternalException.Code.REQUISITION_NOT_FOUND,
-        KingdomInternalException.Code.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL,
-        KingdomInternalException.Code.EVENT_GROUP_INVALID_ARGS,
-        KingdomInternalException.Code.EVENT_GROUP_NOT_FOUND -> throw e
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.DUCHY_NOT_FOUND,
+        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
       }
     }
   }

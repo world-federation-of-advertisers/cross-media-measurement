@@ -1,5 +1,12 @@
+load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//build:variables.bzl", "DUCHY_K8S_SETTINGS", "EDP_SIMULATOR_K8S_SETTINGS", "FRONTEND_SIMULATOR_K8S_SETTINGS", "KINGDOM_K8S_SETTINGS")
 load("//src/main/k8s:macros.bzl", "cue_dump")
+
+cue_library(
+    name = "base_gke",
+    srcs = ["base_gke.cue"],
+    deps = ["//src/main/k8s:base"],
+)
 
 cue_dump(
     name = "kingdom_gke",
@@ -9,6 +16,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         "//src/main/k8s:kingdom",
     ],
 )
@@ -48,6 +56,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         "//src/main/k8s:base",
         "//src/main/k8s:duchy",
     ],

@@ -14,7 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
@@ -25,32 +28,46 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  * Refuses a [Requisition].
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL]
- * * [KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL]
- * * [KingdomInternalException.Code.REQUISITION_NOT_FOUND]
+ * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
+ * * [ErrorCode.REQUISITION_STATE_ILLEGAL]
+ * * [ErrorCode.REQUISITION_NOT_FOUND]
  */
 class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
-    val (measurementConsumerId, measurementId, _, requisition) = readResult
+    val (measurementConsumerId, measurementId, _, requisition, measurementDetails) = readResult
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
-      throw KingdomInternalException(KingdomInternalException.Code.REQUISITION_STATE_ILLEGAL) {
+      throw KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL) {
         "Expected ${Requisition.State.UNFULFILLED}, got $state"
       }
     }
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
-      throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_STATE_ILLEGAL) {
+      throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
         "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $state"
       }
     }
 
     val updatedDetails = requisition.details.copy { refusal = request.refusal }
+    val updatedMeasurementDetails =
+      measurementDetails.copy {
+        failure =
+          MeasurementKt.failure {
+            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+            message =
+              "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
+          }
+      }
     updateRequisition(readResult, Requisition.State.REFUSED, updatedDetails)
-    updateMeasurementState(measurementConsumerId, measurementId, Measurement.State.FAILED)
+    updateMeasurementState(
+      measurementConsumerId,
+      measurementId,
+      Measurement.State.FAILED,
+      updatedMeasurementDetails
+    )
 
     return requisition.copy {
       this.state = Requisition.State.REFUSED
@@ -74,7 +91,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
           externalDataProviderId = externalDataProviderId,
           externalRequisitionId = externalRequisitionId
         )
-        ?: throw KingdomInternalException(KingdomInternalException.Code.REQUISITION_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND) {
           "Requisition with external DataProvider ID $externalDataProviderId and external " +
             "Requisition ID $externalRequisitionId not found"
         }
