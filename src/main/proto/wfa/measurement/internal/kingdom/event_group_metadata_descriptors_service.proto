@@ -16,22 +16,25 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/descriptor.proto";
+import "wfa/measurement/internal/kingdom/event_group_metadata_descriptor.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-message EventGroupMetadataDescriptor {
-  fixed64 external_data_provider_id = 1;
-  fixed64 external_event_group_metadata_descriptor_id = 2;
+// Internal service for persistence of EventGroupMetadataDescriptor entities.
+service EventGroupMetadataDescriptors {
+  rpc CreateEventGroupMetadataDescriptor(
+      CreateEventGroupMetadataDescriptorRequest)
+      returns (EventGroupMetadataDescriptor);
 
-  message Details {
-    // Version of the public API for serialized message definitions.
-    string api_version = 1;
+  rpc GetEventGroupMetadataDescriptor(GetEventGroupMetadataDescriptorRequest)
+      returns (EventGroupMetadataDescriptor);
+}
 
-    // FileDescriptorSet of the original metadata proto message.
-    google.protobuf.FileDescriptorSet descriptor_set = 2;
-  }
+message CreateEventGroupMetadataDescriptorRequest {
+  EventGroupMetadataDescriptor event_group_metadata_descriptor = 1;
+}
 
-  Details details = 3;
+message GetEventGroupMetadataDescriptorRequest {
+  EventGroupMetadataDescriptor event_group_metadata_descriptor = 1;
 }

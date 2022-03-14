@@ -170,11 +170,11 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
       apiVersion = measurementDetails.apiVersion
 
       buildFailureLogEntry(
-          externalMeasurementConsumerId,
-          externalMeasurementId,
-          externalDuchyId,
-          struct.getStructList("DuchyMeasurementLogEntries")
-        )
+        externalMeasurementConsumerId,
+        externalMeasurementId,
+        externalDuchyId,
+        struct.getStructList("DuchyMeasurementLogEntries")
+      )
         ?.let { failureLogEntry = it }
     }
 
