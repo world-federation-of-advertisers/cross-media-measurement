@@ -143,24 +143,21 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
           error("MeasurementType unrecognized.")
       }
     if (source.hasLiquidLegionsV2()) {
-      liquidLegionsV2 =
-        liquidLegionsV2 {
-          if (source.liquidLegionsV2.hasSketchParams()) {
-            val sourceSketchParams = source.liquidLegionsV2.sketchParams
-            sketchParams =
-              liquidLegionsSketchParams {
-                decayRate = sourceSketchParams.decayRate
-                maxSize = sourceSketchParams.maxSize
-                samplingIndicatorSize = sourceSketchParams.samplingIndicatorSize
-              }
+      liquidLegionsV2 = liquidLegionsV2 {
+        if (source.liquidLegionsV2.hasSketchParams()) {
+          val sourceSketchParams = source.liquidLegionsV2.sketchParams
+          sketchParams = liquidLegionsSketchParams {
+            decayRate = sourceSketchParams.decayRate
+            maxSize = sourceSketchParams.maxSize
+            samplingIndicatorSize = sourceSketchParams.samplingIndicatorSize
           }
-          if (source.liquidLegionsV2.hasDataProviderNoise()) {
-            dataProviderNoise =
-              source.liquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
-          }
-          ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
-          maximumFrequency = source.liquidLegionsV2.maximumFrequency
         }
+        if (source.liquidLegionsV2.hasDataProviderNoise()) {
+          dataProviderNoise = source.liquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
+        }
+        ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
+        maximumFrequency = source.liquidLegionsV2.maximumFrequency
+      }
     }
   }
 }
@@ -184,11 +181,10 @@ fun InternalMeasurement.toMeasurement(): Measurement {
           externalIdToApiId(source.externalMeasurementConsumerCertificateId)
         )
         .toName()
-    measurementSpec =
-      signedData {
-        data = source.details.measurementSpec
-        signature = source.details.measurementSpecSignature
-      }
+    measurementSpec = signedData {
+      data = source.details.measurementSpec
+      signature = source.details.measurementSpecSignature
+    }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
     protocolConfig = source.details.protocolConfig.toProtocolConfig()
@@ -196,11 +192,10 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     aggregatorCertificate = source.details.aggregatorCertificate
     encryptedResult = source.details.encryptedResult
     measurementReferenceId = source.providedMeasurementId
-    failure =
-      failure {
-        reason = source.details.failure.reason.toReason()
-        message = source.details.failure.message
-      }
+    failure = failure {
+      reason = source.details.failure.reason.toReason()
+      message = source.details.failure.message
+    }
   }
 }
 
@@ -214,11 +209,10 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
           externalIdToApiId(externalDataProviderCertificateId)
         )
         .toName()
-    dataProviderPublicKey =
-      signedData {
-        data = dataProviderValue.dataProviderPublicKey
-        signature = dataProviderPublicKeySignature
-      }
+    dataProviderPublicKey = signedData {
+      data = dataProviderValue.dataProviderPublicKey
+      signature = dataProviderPublicKeySignature
+    }
     encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
     nonceHash = dataProviderValue.nonceHash
   }
@@ -248,31 +242,30 @@ fun Measurement.toInternal(
     externalMeasurementConsumerCertificateId =
       apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
     dataProviders.putAll(dataProvidersMap)
-    details =
-      details {
-        apiVersion = Version.V2_ALPHA.string
-        measurementSpec = publicMeasurement.measurementSpec.data
-        measurementSpecSignature = publicMeasurement.measurementSpec.signature
+    details = details {
+      apiVersion = Version.V2_ALPHA.string
+      measurementSpec = publicMeasurement.measurementSpec.data
+      measurementSpecSignature = publicMeasurement.measurementSpec.signature
 
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (measurementSpecProto.measurementTypeCase) {
-          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-            protocolConfig =
-              internalProtocolConfig {
-                externalProtocolConfigId = Llv2ProtocolConfig.name
-                measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-              }
-            duchyProtocolConfig =
-              duchyProtocolConfig { liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig }
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (measurementSpecProto.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = Llv2ProtocolConfig.name
+            measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+            liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
           }
-          // No protocol for impression or duration type.
-          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-          MeasurementSpec.MeasurementTypeCase.DURATION -> {}
-          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-            error("MeasurementType not set.")
+          duchyProtocolConfig = duchyProtocolConfig {
+            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+          }
         }
+        // No protocol for impression or duration type.
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+        MeasurementSpec.MeasurementTypeCase.DURATION -> {}
+        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+          error("MeasurementType not set.")
       }
+    }
   }
 }
 

@@ -177,10 +177,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       if (results.size > listMeasurementsPageToken.pageSize) {
         val pageToken =
           listMeasurementsPageToken.copy {
-            lastMeasurement =
-              previousPageEnd {
-                externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
-              }
+            lastMeasurement = previousPageEnd {
+              externalMeasurementId = results[results.lastIndex - 1].externalMeasurementId
+            }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
       }
@@ -346,15 +345,14 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
     // get 1 more than the actual page size for deciding whether to set page token
     limit = source.pageSize + 1
     measurementView = InternalMeasurementView.DEFAULT
-    filter =
-      filter {
-        externalMeasurementConsumerId = source.externalMeasurementConsumerId
-        states += source.statesList.map { it.toInternalState() }.flatten()
-        if (source.hasLastMeasurement()) {
-          externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
-          updatedAfter = source.lastMeasurement.updateTime
-        }
+    filter = filter {
+      externalMeasurementConsumerId = source.externalMeasurementConsumerId
+      states += source.statesList.map { it.toInternalState() }.flatten()
+      if (source.hasLastMeasurement()) {
+        externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
+        updatedAfter = source.lastMeasurement.updateTime
       }
+    }
   }
 }
 
