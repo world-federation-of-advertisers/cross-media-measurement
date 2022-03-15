@@ -53,10 +53,9 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
-import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as ImternalExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
@@ -241,26 +240,7 @@ fun Measurement.toInternal(
   measurementSpecProto: MeasurementSpec
 ): InternalMeasurement {
   val publicMeasurement = this
-  val internalProtocolConfig: InternalProtocolConfig
-  val internalDuchyProtocolConfig: DuchyProtocolConfig
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  when (measurementSpecProto.measurementTypeCase) {
-    MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-      internalProtocolConfig =
-        internalProtocolConfig {
-          externalProtocolConfigId = Llv2ProtocolConfig.name
-          measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-          liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-        }
-      internalDuchyProtocolConfig =
-        duchyProtocolConfig { liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig }
-    }
-    // TODO(@tristanvuong2021) implement for type DURATION and IMPRESSION
-    MeasurementSpec.MeasurementTypeCase.DURATION,
-    MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
-      error("Conversion of the MeasurementType is not implemented")
-    MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("MeasurementType not set.")
-  }
+
   return internalMeasurement {
     providedMeasurementId = measurementReferenceId
     externalMeasurementConsumerId =
@@ -273,8 +253,25 @@ fun Measurement.toInternal(
         apiVersion = Version.V2_ALPHA.string
         measurementSpec = publicMeasurement.measurementSpec.data
         measurementSpecSignature = publicMeasurement.measurementSpec.signature
-        protocolConfig = internalProtocolConfig
-        duchyProtocolConfig = internalDuchyProtocolConfig
+
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (measurementSpecProto.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+            protocolConfig =
+              internalProtocolConfig {
+                externalProtocolConfigId = Llv2ProtocolConfig.name
+                measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+              }
+            duchyProtocolConfig =
+              duchyProtocolConfig { liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig }
+          }
+          // No protocol for impression or duration type.
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+          MeasurementSpec.MeasurementTypeCase.DURATION -> {}
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+            error("MeasurementType not set.")
+        }
       }
   }
 }
@@ -325,14 +322,14 @@ fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   }
 }
 
-fun ExchangeStepAttempt.State.toInternal(): ImternalExchangeStepAttempt.State {
+fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
   return when (this) {
     ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
       failGrpc { "Invalid State: $this" }
-    ExchangeStepAttempt.State.ACTIVE -> ImternalExchangeStepAttempt.State.ACTIVE
-    ExchangeStepAttempt.State.SUCCEEDED -> ImternalExchangeStepAttempt.State.SUCCEEDED
-    ExchangeStepAttempt.State.FAILED -> ImternalExchangeStepAttempt.State.FAILED
-    ExchangeStepAttempt.State.FAILED_STEP -> ImternalExchangeStepAttempt.State.FAILED_STEP
+    ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
+    ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
+    ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
+    ExchangeStepAttempt.State.FAILED_STEP -> InternalExchangeStepAttempt.State.FAILED_STEP
   }
 }
 
@@ -346,7 +343,7 @@ fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
   }
 }
 
-fun ImternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
+fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   val key =
     ExchangeStepAttemptKey(
       recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
@@ -385,15 +382,15 @@ private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt
   }
 }
 
-private fun ImternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
+private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
   return when (this) {
-    ImternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
-    ImternalExchangeStepAttempt.State.UNRECOGNIZED ->
+    InternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
+    InternalExchangeStepAttempt.State.UNRECOGNIZED ->
       failGrpc(Status.INTERNAL) { "Invalid State: $this" }
-    ImternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
-    ImternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
-    ImternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
-    ImternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED_STEP
+    InternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
+    InternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
+    InternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
+    InternalExchangeStepAttempt.State.FAILED_STEP -> ExchangeStepAttempt.State.FAILED_STEP
   }
 }
 

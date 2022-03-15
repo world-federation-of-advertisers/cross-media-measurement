@@ -49,7 +49,10 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
@@ -221,7 +224,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement returns measurement with resource name set`() {
+  fun `createMeasurement with RF type returns measurement with resource name set`() {
     val request = createMeasurementRequest { measurement = MEASUREMENT }
 
     val result =
@@ -240,6 +243,116 @@ class MeasurementsServiceTest {
           clearUpdateTime()
           clearExternalMeasurementId()
           details = details.copy { clearFailure() }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `createMeasurement with impression type returns measurement with resource name set`() {
+    val request = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            signedData {
+              data =
+                MEASUREMENT_SPEC
+                  .copy {
+                    clearReachAndFrequency()
+                    impression =
+                      impression {
+                        privacyParams =
+                          differentialPrivacyParams {
+                            epsilon = 1.0
+                            delta = 1.0
+                          }
+                        maximumFrequencyPerUser = 1
+                      }
+                  }
+                  .toByteString()
+              signature = UPDATE_TIME.toByteString()
+            }
+        }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
+      }
+
+    val expected = MEASUREMENT
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        INTERNAL_MEASUREMENT.copy {
+          clearUpdateTime()
+          clearExternalMeasurementId()
+          details =
+            details.copy {
+              clearFailure()
+              clearProtocolConfig()
+              clearDuchyProtocolConfig()
+              measurementSpec = request.measurement.measurementSpec.data
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `createMeasurement with duration type returns measurement with resource name set`() {
+    val request = createMeasurementRequest {
+      measurement =
+        MEASUREMENT.copy {
+          measurementSpec =
+            signedData {
+              data =
+                MEASUREMENT_SPEC
+                  .copy {
+                    clearReachAndFrequency()
+                    duration =
+                      duration {
+                        privacyParams =
+                          differentialPrivacyParams {
+                            epsilon = 1.0
+                            delta = 1.0
+                          }
+                        maximumWatchDurationPerUser = 1
+                      }
+                  }
+                  .toByteString()
+              signature = UPDATE_TIME.toByteString()
+            }
+        }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
+      }
+
+    val expected = MEASUREMENT
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        INTERNAL_MEASUREMENT.copy {
+          clearUpdateTime()
+          clearExternalMeasurementId()
+          details =
+            details.copy {
+              clearFailure()
+              clearProtocolConfig()
+              clearDuchyProtocolConfig()
+              measurementSpec = request.measurement.measurementSpec.data
+            }
         }
       )
 
@@ -362,6 +475,7 @@ class MeasurementsServiceTest {
                                       epsilon = 1.0
                                       delta = 1.0
                                     }
+                                  vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                                 }
                             }
                             .toByteString()
@@ -395,6 +509,183 @@ class MeasurementsServiceTest {
                               reachAndFrequency =
                                 reachAndFrequency {
                                   reachPrivacyParams =
+                                    differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 1.0
+                                    }
+                                  vidSamplingInterval = vidSamplingInterval { width = 1.0F }
+                                }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when RF vid sampling interval is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              reachAndFrequency =
+                                reachAndFrequency {
+                                  reachPrivacyParams =
+                                    differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 1.0
+                                    }
+                                  frequencyPrivacyParams =
+                                    differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 1.0
+                                    }
+                                }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when impression privacy params are missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              impression = impression { maximumFrequencyPerUser = 1 }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when impression max freq per user is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              impression =
+                                impression {
+                                  privacyParams =
+                                    differentialPrivacyParams {
+                                      epsilon = 1.0
+                                      delta = 1.0
+                                    }
+                                }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when duration privacy params are missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              duration = duration { maximumWatchDurationPerUser = 1 }
+                            }
+                            .toByteString()
+                        signature = UPDATE_TIME.toByteString()
+                      }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when duration watch time per user is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec =
+                      signedData {
+                        data =
+                          MEASUREMENT_SPEC
+                            .copy {
+                              clearReachAndFrequency()
+                              duration =
+                                duration {
+                                  privacyParams =
                                     differentialPrivacyParams {
                                       epsilon = 1.0
                                       delta = 1.0
@@ -1025,6 +1316,7 @@ class MeasurementsServiceTest {
               epsilon = 1.0
               delta = 1.0
             }
+          vidSamplingInterval = vidSamplingInterval { width = 1.0f }
         }
       nonceHashes += ByteString.copyFromUtf8("foo")
     }

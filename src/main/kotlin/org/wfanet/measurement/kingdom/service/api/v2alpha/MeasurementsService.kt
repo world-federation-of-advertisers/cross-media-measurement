@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
@@ -210,6 +211,10 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
   }
 }
 
+private fun DifferentialPrivacyParams.hasEpsilonAndDeltaSet(): Boolean {
+  return this.epsilon > 0 && this.delta > 0
+}
+
 /** Validates a [MeasurementSpec] for a request. */
 private fun MeasurementSpec.validate() {
   grpcRequire(!measurementPublicKey.isEmpty) { "Measurement public key is unspecified" }
@@ -221,14 +226,33 @@ private fun MeasurementSpec.validate() {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   when (measurementTypeCase) {
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-      val reachPrivacyParams = reachAndFrequency.reachPrivacyParams
-      grpcRequire(reachPrivacyParams.epsilon > 0 && reachPrivacyParams.delta > 0) {
+      grpcRequire(reachAndFrequency.reachPrivacyParams.hasEpsilonAndDeltaSet()) {
         "Reach privacy params are unspecified"
       }
 
-      val frequencyPrivacyParams = reachAndFrequency.frequencyPrivacyParams
-      grpcRequire(frequencyPrivacyParams.epsilon > 0 && frequencyPrivacyParams.delta > 0) {
+      grpcRequire(reachAndFrequency.frequencyPrivacyParams.hasEpsilonAndDeltaSet()) {
         "Frequency privacy params are unspecified"
+      }
+
+      val vidSamplingInterval = reachAndFrequency.vidSamplingInterval
+      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+    }
+    MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+      grpcRequire(impression.privacyParams.hasEpsilonAndDeltaSet()) {
+        "Impressions privacy params are unspecified"
+      }
+
+      grpcRequire(impression.maximumFrequencyPerUser > 0) {
+        "Maximum frequency per user is unspecified"
+      }
+    }
+    MeasurementSpec.MeasurementTypeCase.DURATION -> {
+      grpcRequire(duration.privacyParams.hasEpsilonAndDeltaSet()) {
+        "Duration privacy params are unspecified"
+      }
+
+      grpcRequire(duration.maximumWatchDurationPerUser > 0) {
+        "Maximum watch duration per user is unspecified"
       }
     }
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
