@@ -22,4 +22,4 @@ enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
 class PrivacyBudgetManagerException(
   val errorType: PrivacyBudgetManagerExceptionType,
   val privacyBuckets: List<PrivacyBucketGroup>
-) : Throwable(errorType.errorMessage)
+) : Exception(errorType.errorMessage)

@@ -21,6 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -31,9 +32,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates a measurement consumer in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.PERMISSION_DENIED]
- * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
- * * [KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
+ * * [ErrorCode.PERMISSION_DENIED]
+ * * [ErrorCode.ACCOUNT_NOT_FOUND]
+ * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
  */
 class CreateMeasurementConsumer(
   private val measurementConsumer: MeasurementConsumer,
@@ -59,7 +60,7 @@ class CreateMeasurementConsumer(
 
     val accountResult = readAccount(externalAccountId)
     if (accountResult.account.activationState != Account.ActivationState.ACTIVATED) {
-      throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
+      throw KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
     }
 
     transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {
@@ -107,11 +108,11 @@ class CreateMeasurementConsumer(
         transactionContext,
         measurementConsumerCreationTokenHash
       )
-      ?: throw KingdomInternalException(KingdomInternalException.Code.PERMISSION_DENIED)
+      ?: throw KingdomInternalException(ErrorCode.PERMISSION_DENIED)
 
   private suspend fun TransactionScope.readAccount(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
 }

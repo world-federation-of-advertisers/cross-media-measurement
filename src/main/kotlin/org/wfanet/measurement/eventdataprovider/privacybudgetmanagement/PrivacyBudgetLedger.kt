@@ -13,18 +13,22 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import kotlin.math.abs
+
+object PrivacyBudgetLedgerConstants {
+	/**
+   *  Two differential privacy values are considered equal if they are
+   *  within this amount of each other.
+   */
+	const val EPSILON_EPSILON = 1.0E-9
+	const val DELTA_EPSILON = 1.0E-12
+}
 
 /** Manages and updates privacy budget data. */
 internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingStore,
 																	 val maximumTotalEpsilon: Float,
 																	 val maximumTotalDelta: Float
 ) {
-	/**
-   *  Two differential privacy values are considered equal if they are
-   *  within this amount of each other.
-   */
-	val EPSILON_EPSILON = 1.0E-9
-	val DELTA_EPSILON = 1.0E-12
 
   /**
    * For each privacy bucket group in the list of PrivacyBucketGroups, adds each of the privacy
@@ -38,43 +42,49 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
     privacyBucketGroups: Iterable<PrivacyBucketGroup>,
     privacyCharges: Iterable<PrivacyCharge>
   ) {
-		privacyBucketGroupList = List<PrivacyBucketGroup>(privacyBucketGroups)
+		val privacyBucketGroupList = privacyBucketGroups.toList()
 		if (privacyBucketGroupList.size == 0) {
 			return
 		}
 
-		privacyChargesList = List<PrivacyCharge>(privacyBucketCharges)
+		val privacyChargesList = privacyCharges.toList()
 		if (privacyChargesList.size == 0) {
 			return
 		}
 
 		val context = backingStore.startTransaction()
-		var failedBucketList = List<PrivacyBucketGroup>()
+		val failedBucketList = mutableListOf<PrivacyBucketGroup>()
 		for (queryBucketGroup in privacyBucketGroupList) {
 			val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
-			if (privacyBudgetIsExceeded(matchingLedgerEntries, privacyCharges)) {
-				failedBucketList.append(queryBucketGroup)
+			if (privacyBudgetIsExceeded(matchingLedgerEntries, privacyChargesList)) {
+				failedBucketList.add(queryBucketGroup)
 			}
 		}
 		if (failedBucketList.size > 0) {
 			context.commit()
-			throw PrivacyBudgetManagerException(PRIVACY_BUDGET_EXCEEDED,
+			throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,
 																					failedBucketList)
 		}
 
 		for (queryBucketGroup in privacyBucketGroupList) {
 			val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
 			for (charge in privacyCharges) {
-				var matchingChargeFound = False
+				var matchingChargeFound = false
 				for (ledgerEntry in matchingLedgerEntries) {
 					if (charge.equals(ledgerEntry.privacyCharge)) {
-						matchingChargeFound = True
-						ledgerEntry.repetitionCount += 1
-						context.updateLedgerEntry(ledgerEntry)
+						matchingChargeFound = true
+						val newLedgerEntry = PrivacyBudgetLedgerEntry(
+							ledgerEntry.rowId,
+							ledgerEntry.transactionId,
+							ledgerEntry.privacyBucketGroup,
+							ledgerEntry.privacyCharge,
+							ledgerEntry.repetitionCount + 1
+						)
+						context.updateLedgerEntry(newLedgerEntry)
 						break
 					}
 				}
-				if (not matchingEntryFound) {
+				if (!matchingChargeFound) {
 					context.addLedgerEntry(queryBucketGroup, charge)
 				}
 			}
@@ -88,27 +98,28 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
 															val count: Int) {
 
 		fun isEquivalentTo(other: ChargeWithRepetitions): Boolean {
-			return (abs(this.epsilon - other.epsilon) < EPSILON_EPSILON) &&
-						 (abs(this.delta - other.delta) < DELTA_EPSILON)
+			return (abs(this.epsilon - other.epsilon) < PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
+						 (abs(this.delta - other.delta) < PrivacyBudgetLedgerConstants.DELTA_EPSILON)
 		}
 
 	}
 
   fun privacyBudgetIsExceeded(ledgerEntries: List<PrivacyBudgetLedgerEntry>,
-															charges: List<PrivacyBucketCharges>): Boolean {
-		val nonUniqueCharges = List<ChargeWithRepetitions>
+															charges: List<PrivacyCharge>): Boolean {
+
+		val nonUniqueCharges = mutableListOf<ChargeWithRepetitions>()
 		for (entry in ledgerEntries) {
 			nonUniqueCharges.add(ChargeWithRepetitions(entry.privacyCharge.epsilon,
 													 entry.privacyCharge.delta, entry.repetitionCount))
 		}
-		for (charge in Charges) {
-			nonUniqueCharges.add(charge.epsilon, charge.delta, 1)
+		for (charge in charges) {
+			nonUniqueCharges.add(ChargeWithRepetitions(charge.epsilon, charge.delta, 1))
 		}
 
-		var allChargesEquivalent = True
-		for (i = 1; i < nonUniqueCharges.size; i++) {
+		var allChargesEquivalent = true
+		for (i in 1..nonUniqueCharges.size-1) {
 			if (!nonUniqueCharges[0].isEquivalentTo(nonUniqueCharges[i])) {
-				allChargesEquivalent = False
+				allChargesEquivalent = false
 				break
 			}
 		}
@@ -117,12 +128,15 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
 			val nCharges = nonUniqueCharges.sumOf { it.count }
 			val advancedCompositionEpsilon =
 				totalPrivacyBudgetUsageUnderAdvancedComposition(
-					nonUniqueCharges[0].epsilon, nCharges, maximumTotalDelta)
-			return advancedCompositionEpsilon > maximumTotalEpsilon
+					PrivacyCharge(nonUniqueCharges[0].epsilon,
+												nonUniqueCharges[0].delta),
+					nCharges, maximumTotalDelta)
+			val budgetExceeded = if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon else true
+			return budgetExceeded
 		} else {
-			val totalEpsilon = nonUniqueCharges.sumOf { it.epsilon * it.count.toFloat() }
-			val totalDelta = nonUniqueCharges.sumOf { it.delta * it.count.toFloat() }
-			return (totalEpsilon > maximumTotalEpsilon) || (totalDelta > maximumTotalDelta)
+			val totalEpsilon = nonUniqueCharges.sumOf { it.epsilon.toDouble() * it.count.toDouble() }
+			val totalDelta = nonUniqueCharges.sumOf { it.delta.toDouble() * it.count.toDouble() }
+			return (totalEpsilon > maximumTotalEpsilon.toDouble()) || (totalDelta > maximumTotalDelta.toDouble())
 		}
 	}
 

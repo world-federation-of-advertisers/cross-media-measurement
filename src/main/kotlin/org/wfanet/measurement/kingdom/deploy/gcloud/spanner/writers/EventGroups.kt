@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
@@ -39,8 +40,8 @@ suspend fun checkValidCertificate(
 
   return reader.execute(transactionContext).singleOrNull()?.let {
     if (!it.isValid) {
-      throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_IS_INVALID)
+      throw KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID)
     } else it.certificateId
   }
-    ?: throw KingdomInternalException(KingdomInternalException.Code.CERTIFICATE_NOT_FOUND)
+    ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
 }

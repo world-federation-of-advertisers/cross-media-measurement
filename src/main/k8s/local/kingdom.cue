@@ -55,5 +55,6 @@ kingdom: #Kingdom & {
 		"v2alpha-public-api-server": #DefaultResourceConfig
 	}
 	_kingdom_image_pull_policy: "Never"
-	_verbose_grpc_logging:      "true"
+	_verboseGrpcServerLogging:  true
+	_verboseGrpcClientLogging:  true
 }

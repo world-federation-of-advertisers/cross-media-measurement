@@ -22,21 +22,21 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * This code is not thread safe.
  */
 class InMemoryBackingStore: PrivacyBudgetLedgerBackingStore {
-	val ledger = List<PrivacyBudgetLedgerEntry>()
-	var transactionCount = 0
+	val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+	var transactionCount = 0L
 
-	override fun startTransaction() {
+	override fun startTransaction(): InMemoryBackingStoreTransactionContext {
 		transactionCount += 1
-		return InMemoryPrivacyBackingStoreTransactionContext(ledger, transactionCount)
+		return InMemoryBackingStoreTransactionContext(ledger, transactionCount)
 	}
 }
 
-class InMemoryBackingStoreTransactionContext (val ledger: List<PrivacyBudgetLedgerEntry>,
-val transactionId: Int) : PrivacyBudgetLedgerTransactionContext {
+class InMemoryBackingStoreTransactionContext (val ledger: MutableList<PrivacyBudgetLedgerEntry>,
+override val transactionId: Long) : PrivacyBudgetLedgerTransactionContext {
 
-	var transactionLedger = List<PrivacyBudgetLedgerEntry>(ledger)
+	var transactionLedger = ledger.toMutableList()
 
-	fun findIntersectingLedgerEntries(privacyBucketGroup: PrivacyBucketGroup) {
+	override fun findIntersectingLedgerEntries(privacyBucketGroup: PrivacyBucketGroup): List<PrivacyBudgetLedgerEntry> {
 		return transactionLedger.filter {
 			privacyBucketsOverlap(privacyBucketGroup, it.privacyBucketGroup)
 		}
@@ -46,13 +46,13 @@ val transactionId: Int) : PrivacyBudgetLedgerTransactionContext {
 														bucketGroup2: PrivacyBucketGroup): Boolean {
 		if (bucketGroup2.endingDate.isBefore(bucketGroup1.startingDate) ||
 				bucketGroup1.endingDate.isBefore(bucketGroup2.startingDate)) {
-			return False
+			return false
 		}
 		if (bucketGroup1.ageGroup != bucketGroup2.ageGroup) {
-			return False
+			return false
 		}
 		if (bucketGroup1.gender != bucketGroup2.gender) {
-			return False
+			return false
 		}
 
 		// The complexity of the following code illustrates why allowing
@@ -61,7 +61,7 @@ val transactionId: Int) : PrivacyBudgetLedgerTransactionContext {
 		val vidSampleEnd2 = bucketGroup2.vidSampleStart + bucketGroup2.vidSampleWidth
 		if (vidSampleEnd1 > 1.0 && vidSampleEnd2 > 1.0) {
 			// Both intervals contain 0
-			return True
+			return true
 		}
 
 		if (vidSampleEnd1 > 1.0) {
@@ -78,9 +78,9 @@ val transactionId: Int) : PrivacyBudgetLedgerTransactionContext {
   		(bucketGroup2.vidSampleStart <= vidSampleEnd1)
 	}
 
-	fun addLedgerEntry(privacyBucketGroup: PrivacyBucketGroup, privacyCharge: PrivacyCharge) {
-		val ledgerEntry = PrivacyBucketLedgerEntry(
-			transactionLedger.size,
+	override fun addLedgerEntry(privacyBucketGroup: PrivacyBucketGroup, privacyCharge: PrivacyCharge) {
+		val ledgerEntry = PrivacyBudgetLedgerEntry(
+			transactionLedger.size.toLong(),
 			transactionId,
 			privacyBucketGroup,
 			privacyCharge,
@@ -88,24 +88,38 @@ val transactionId: Int) : PrivacyBudgetLedgerTransactionContext {
 		transactionLedger.add(ledgerEntry)
 	}
 
-	fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
-		transactionLedger[privacyBudgetLedgerEntry.rowId] = privacyBudgetLedgerEntry
+	override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
+		transactionLedger[privacyBudgetLedgerEntry.rowId.toInt()] = privacyBudgetLedgerEntry
 	}
 
-	fun mergePreviousTransaction(previousTransactionId: Long) {
-		transactionLedger.forEach {
-			if(it.transactionId == previousTransactionId) {
-				it.transactionId = 0
+	override fun mergePreviousTransaction(previousTransactionId: Long) {
+		for (i in transactionLedger.indices) {
+			if (transactionLedger[i].transactionId == previousTransactionId) {
+				transactionLedger[i] =
+					PrivacyBudgetLedgerEntry(
+						transactionLedger[i].rowId,
+						0L,
+						transactionLedger[i].privacyBucketGroup,
+						transactionLedger[i].privacyCharge,
+						transactionLedger[i].repetitionCount)
 			}
 		}
 	}
 
-	fun undoPreviousTransaction(previousTransactionId: Long) {
-		transactionLedger = transactionLedger.filter { it.transactionId != previousTransactionId }
-		transactionLedger.forEachIndexed { i, entry -> entry.rowId = i }
+	override fun undoPreviousTransaction(previousTransactionId: Long) {
+		transactionLedger = transactionLedger.filter { it.transactionId != previousTransactionId }.toMutableList()
+		for (i in transactionLedger.indices) {
+			transactionLedger[i] =
+				PrivacyBudgetLedgerEntry(
+					i.toLong(),
+					transactionLedger[i].transactionId,
+					transactionLedger[i].privacyBucketGroup,
+					transactionLedger[i].privacyCharge,
+					transactionLedger[i].repetitionCount)
+		}
 	}
 
-	fun commit() {
+	override fun commit() {
 		ledger.clear()
 		ledger.addAll(transactionLedger)
 	}

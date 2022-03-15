@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
@@ -31,7 +32,7 @@ private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
  * Sets participant details for a computationPartcipant in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.MEASUREMENT_NOT_FOUND]
+ * * [ErrorCode.MEASUREMENT_NOT_FOUND]
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   SpannerWriter<Measurement, Measurement>() {
@@ -41,7 +42,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val (measurementConsumerId, measurementId, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
-        ?: throw KingdomInternalException(KingdomInternalException.Code.MEASUREMENT_NOT_FOUND) {
+        ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND) {
           "Measurement for external computation ID ${request.externalComputationId} not found"
         }
 

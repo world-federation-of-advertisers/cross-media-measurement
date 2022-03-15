@@ -10,3 +10,15 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "InMemoryBackingStoreTest",
+    srcs = ["InMemoryBackingStoreTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStoreTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+

@@ -33,8 +33,8 @@ class Binom {
       return 0.0f
     } else if ((k == 0) || (n == k)) {
       return 1.0f
-		} else if (n - k < k) {
-			return coeff(n, n-k)
+    } else if (n - k < k) {
+      return coeff(n, n - k)
     } else if (memoizedCoeffs.containsKey(Pair(n, k))) {
       return memoizedCoeffs.get(Pair(n, k)) ?: 0.0f
     } else {

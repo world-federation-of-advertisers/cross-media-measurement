@@ -20,6 +20,7 @@ package k8s
 	_resource_setup_secret_name: string
 	_job_image:                  string
 	_job_image_pull_policy:      string | *"Always"
+	_dependencies: [...string]
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -63,6 +64,7 @@ package k8s
 		_secretName:      _resource_setup_secret_name
 		_image:           _job_image
 		_imagePullPolicy: _job_image_pull_policy
+		_dependencies:    _dependencies
 		_args:
 			_edp_cert_key_files_flags +
 			_mc_cert_key_files_flags +
@@ -70,5 +72,11 @@ package k8s
 			_duchy_cs_cert_files_flags +
 			_kingdom_public_api_flags +
 			_kingdom_internal_api_flags
+		_jobSpec: {
+			backoffLimit: 0 // Don't retry.
+		}
+		_podSpec: {
+			restartPolicy: "Never"
+		}
 	}
 }

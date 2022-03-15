@@ -8,3 +8,6 @@
 # IntelliJ projects.
 .idea/
 *.iml
+
+# VIM swap files
+*.swp

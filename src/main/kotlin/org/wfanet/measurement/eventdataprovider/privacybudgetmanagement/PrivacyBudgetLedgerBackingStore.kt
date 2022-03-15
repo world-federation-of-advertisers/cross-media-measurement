@@ -25,7 +25,7 @@ data class PrivacyBudgetLedgerEntry(
 	val transactionId: Long,
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
-  val repititionCount: Int
+  val repetitionCount: Int
 )
 
 /** Manages the persistence of privacy budget data. */

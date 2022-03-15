@@ -19,6 +19,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
@@ -28,9 +29,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * Replace an existing account identity with a new username identity in the database.
  *
  * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [KingdomInternalException.Code.ACCOUNT_NOT_FOUND]
- * * [KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY]
- * * [KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
+ * * [ErrorCode.ACCOUNT_NOT_FOUND]
+ * * [ErrorCode.DUPLICATE_ACCOUNT_IDENTITY]
+ * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
  */
 class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
   private val externalAccountId: ExternalId,
@@ -40,13 +41,13 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
 
   override suspend fun TransactionScope.runTransaction(): Account {
     if (isIdentityDuplicate(issuer = issuer, subject = subject)) {
-      throw KingdomInternalException(KingdomInternalException.Code.DUPLICATE_ACCOUNT_IDENTITY)
+      throw KingdomInternalException(ErrorCode.DUPLICATE_ACCOUNT_IDENTITY)
     }
 
     val readAccountResult = readAccount(externalAccountId)
 
     if (readAccountResult.account.activationState == Account.ActivationState.UNACTIVATED) {
-      throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
+      throw KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
     }
 
     OpenIdConnectIdentityReader()
@@ -59,9 +60,7 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
           set("Subject" to subject)
         }
       }
-      ?: throw KingdomInternalException(
-        KingdomInternalException.Code.ACCOUNT_ACTIVATION_STATE_ILLEGAL
-      )
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
 
     val source = this@ReplaceAccountIdentityWithNewOpenIdConnectIdentity
     return readAccountResult.account.copy {
@@ -87,5 +86,5 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw KingdomInternalException(KingdomInternalException.Code.ACCOUNT_NOT_FOUND)
+      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
 }

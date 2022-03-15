@@ -69,6 +69,7 @@ constexpr int kBytesPerEncryptedRegister = kBytesCipherText * 3;
 constexpr int kBytesPerFlagsCountTuple = kBytesCipherText * 4;
 constexpr int kDecayRate = 12;
 constexpr int kLiquidLegionsSize = 100 * 1000;
+constexpr float kVidSamplingIntervalWidth = 0.5;
 
 struct MpcResult {
   int64_t reach;
@@ -515,6 +516,8 @@ class TestData {
     }
     complete_execution_phase_two_at_aggregator_request.set_flag_count_tuples(
         complete_execution_phase_two_response_2.flag_count_tuples());
+    complete_execution_phase_two_at_aggregator_request
+        .set_vid_sampling_interval_width(kVidSamplingIntervalWidth);
     ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse
                          complete_execution_phase_two_at_aggregator_response,
                      CompleteExecutionPhaseTwoAtAggregator(
@@ -854,7 +857,8 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
                            encrypted_sketch, &reach_noise_parameters,
                            /*frequency_noise=*/nullptr));
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
-      kDecayRate, kLiquidLegionsSize, valid_register_count);
+      kDecayRate, kLiquidLegionsSize, valid_register_count,
+      kVidSamplingIntervalWidth);
 
   EXPECT_EQ(result.reach, expected_reach);
 }
@@ -1140,7 +1144,7 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
           encrypted_sketch, &reach_noise_parameters, &frequency_noise_params));
 
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
-      kDecayRate, kLiquidLegionsSize, 7);
+      kDecayRate, kLiquidLegionsSize, 7, kVidSamplingIntervalWidth);
 
   EXPECT_EQ(result.reach, expected_reach);
 
