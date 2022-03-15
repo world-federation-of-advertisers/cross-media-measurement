@@ -23,18 +23,14 @@ option java_multiple_files = true;
 
 // Internal service for persistence of EventGroupMetadataDescriptor entities.
 service EventGroupMetadataDescriptors {
-  rpc CreateEventGroupMetadataDescriptor(
-      CreateEventGroupMetadataDescriptorRequest)
+  rpc CreateEventGroupMetadataDescriptor(EventGroupMetadataDescriptor)
       returns (EventGroupMetadataDescriptor);
 
   rpc GetEventGroupMetadataDescriptor(GetEventGroupMetadataDescriptorRequest)
       returns (EventGroupMetadataDescriptor);
 }
 
-message CreateEventGroupMetadataDescriptorRequest {
-  EventGroupMetadataDescriptor event_group_metadata_descriptor = 1;
-}
-
 message GetEventGroupMetadataDescriptorRequest {
-  EventGroupMetadataDescriptor event_group_metadata_descriptor = 1;
+  fixed64 external_data_provider_id = 1;
+  fixed64 external_event_group_metadata_descriptor_id = 2;
 }

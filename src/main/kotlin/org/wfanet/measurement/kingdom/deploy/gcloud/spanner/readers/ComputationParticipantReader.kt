@@ -169,7 +169,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
       apiVersion = measurementDetails.apiVersion
 
-      buildFailureLogEntry(
+        buildFailureLogEntry(
           externalMeasurementConsumerId,
           externalMeasurementId,
           externalDuchyId,

@@ -34,7 +34,6 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
 
@@ -80,20 +79,15 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
     val createdDescriptor =
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        createEventGroupMetadataDescriptorRequest {
-          this.eventGroupMetadataDescriptor = eventGroupMetadataDescriptor
-        }
+        eventGroupMetadataDescriptor
       )
 
     val eventGroupMetadataDescriptorRead =
       eventGroupMetadataDescriptorService.getEventGroupMetadataDescriptor(
         getEventGroupMetadataDescriptorRequest {
-          this.eventGroupMetadataDescriptor =
-            eventGroupMetadataDescriptor {
-              externalEventGroupMetadataDescriptorId =
-                createdDescriptor.externalEventGroupMetadataDescriptorId
-              this.externalDataProviderId = externalDataProviderId
-            }
+          this.externalDataProviderId = externalDataProviderId
+          externalEventGroupMetadataDescriptorId =
+            createdDescriptor.externalEventGroupMetadataDescriptorId
         }
       )
 
@@ -106,10 +100,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
     val exception =
       assertFailsWith<StatusRuntimeException> {
         eventGroupMetadataDescriptorService.getEventGroupMetadataDescriptor(
-          getEventGroupMetadataDescriptorRequest {
-            this.eventGroupMetadataDescriptor =
-              eventGroupMetadataDescriptor { externalEventGroupMetadataDescriptorId = 1L }
-          }
+          getEventGroupMetadataDescriptorRequest { externalEventGroupMetadataDescriptorId = 1L }
         )
       }
 
@@ -131,9 +122,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
     val createdEventGroupMetadataDescriptor =
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        createEventGroupMetadataDescriptorRequest {
-          this.eventGroupMetadataDescriptor = eventGroupMetadataDescriptor
-        }
+        eventGroupMetadataDescriptor
       )
 
     assertThat(createdEventGroupMetadataDescriptor)
@@ -155,9 +144,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
     val exception =
       assertFailsWith<StatusRuntimeException> {
         eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-          createEventGroupMetadataDescriptorRequest {
-            this.eventGroupMetadataDescriptor = eventGroupMetadataDescriptor
-          }
+          eventGroupMetadataDescriptor
         )
       }
 
@@ -173,24 +160,18 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
     val createdEventGroupMetadataDescriptor =
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        createEventGroupMetadataDescriptorRequest {
-          this.eventGroupMetadataDescriptor =
-            eventGroupMetadataDescriptor {
-              this.externalDataProviderId = externalDataProviderId
-              details = DETAILS
-            }
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
         }
       )
     val secondCreatedEventGroupMetadataDescriptorAttempt =
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        createEventGroupMetadataDescriptorRequest {
-          this.eventGroupMetadataDescriptor =
-            eventGroupMetadataDescriptor {
-              this.externalDataProviderId = externalDataProviderId
-              externalEventGroupMetadataDescriptorId =
-                createdEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-              details = DETAILS
-            }
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          externalEventGroupMetadataDescriptorId =
+            createdEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+          details = DETAILS
         }
       )
 

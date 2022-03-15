@@ -40,12 +40,13 @@ class EventGroupMetadataDescriptorReader :
   BaseSpannerReader<EventGroupMetadataDescriptorReader.Result>() {
   data class Result(
     val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor,
-    val internalDescriptorId: InternalId
+    val internalDescriptorId: InternalId,
+    val internalDataProviderId: InternalId
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
 
-  /** Fills [builder], returning this [RequisitionReader] for chaining. */
+  /** Fills [builder], returning this [EventGroupMetadataDescriptorReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupMetadataDescriptorReader {
     builder.fill()
     return this
@@ -74,7 +75,6 @@ class EventGroupMetadataDescriptorReader :
   ): EventGroupMetadataDescriptorReader.Result? {
     val externalDataProviderIdParam = "externalDataProviderId"
     val externalDescriptorIdParam = "externalEventGroupMetadataDescriptorId"
-    println("ID params: " + externalDataProviderId + " " + externalDescriptorId)
 
     return fillStatementBuilder {
         appendClause(
@@ -95,7 +95,8 @@ class EventGroupMetadataDescriptorReader :
   override suspend fun translate(struct: Struct): EventGroupMetadataDescriptorReader.Result =
     EventGroupMetadataDescriptorReader.Result(
       buildEventGroupMetadataDescriptor(struct),
-      InternalId(struct.getLong("EventGroupMetadataDescriptorId"))
+      InternalId(struct.getLong("EventGroupMetadataDescriptorId")),
+      InternalId(struct.getLong("DataProviderId"))
     )
 
   private fun buildEventGroupMetadataDescriptor(struct: Struct): EventGroupMetadataDescriptor =

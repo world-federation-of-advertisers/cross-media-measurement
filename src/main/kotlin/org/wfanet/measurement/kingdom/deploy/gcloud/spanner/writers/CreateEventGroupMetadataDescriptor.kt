@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -28,23 +27,23 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class CreateEventGroupMetadataDescriptor(
-  private val request: CreateEventGroupMetadataDescriptorRequest
+  private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
 ) : SpannerWriter<EventGroupMetadataDescriptor, EventGroupMetadataDescriptor>() {
   override suspend fun TransactionScope.runTransaction(): EventGroupMetadataDescriptor {
     val dataProviderId =
       DataProviderReader()
         .readByExternalDataProviderId(
           transactionContext,
-          ExternalId(request.eventGroupMetadataDescriptor.externalDataProviderId)
+          ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
         )
         ?.dataProviderId
         ?: throw KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND)
-    return if (request.eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId == 0L) {
+    return if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId == 0L) {
       createNewEventGroupMetadataDescriptor(dataProviderId)
     } else {
       findExistingEventGroupMetadataDescriptor(
         dataProviderId,
-        request.eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+        eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
       )
         ?: createNewEventGroupMetadataDescriptor(dataProviderId)
     }
@@ -61,12 +60,11 @@ class CreateEventGroupMetadataDescriptor(
       set("EventGroupMetadataDescriptorId" to internalDescriptorId)
       set("ExternalEventGroupMetadataDescriptorId" to externalDescriptorId)
 
-      set("DescriptorDetails" to request.eventGroupMetadataDescriptor.details)
-      setJson("DescriptorDetailsJson" to request.eventGroupMetadataDescriptor.details)
+      set("DescriptorDetails" to eventGroupMetadataDescriptor.details)
+      setJson("DescriptorDetailsJson" to eventGroupMetadataDescriptor.details)
     }
 
-    return request
-      .eventGroupMetadataDescriptor
+    return eventGroupMetadataDescriptor
       .toBuilder()
       .setExternalEventGroupMetadataDescriptorId(externalDescriptorId.value)
       .build()

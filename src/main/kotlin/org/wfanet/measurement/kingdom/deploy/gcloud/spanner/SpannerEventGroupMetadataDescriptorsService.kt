@@ -18,7 +18,6 @@ import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
@@ -32,10 +31,11 @@ class SpannerEventGroupMetadataDescriptorsService(
   private val client: AsyncDatabaseClient
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun createEventGroupMetadataDescriptor(
-    request: CreateEventGroupMetadataDescriptorRequest
+    eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
   ): EventGroupMetadataDescriptor {
     try {
-      return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
+      return CreateEventGroupMetadataDescriptor(eventGroupMetadataDescriptor)
+        .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
@@ -71,8 +71,8 @@ class SpannerEventGroupMetadataDescriptorsService(
     return EventGroupMetadataDescriptorReader()
       .readByExternalIds(
         client.singleUse(),
-        request.eventGroupMetadataDescriptor.externalDataProviderId,
-        request.eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+        request.externalDataProviderId,
+        request.externalEventGroupMetadataDescriptorId
       )
       ?.eventGroupMetadataDescriptor
       ?: failGrpc(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found" }
