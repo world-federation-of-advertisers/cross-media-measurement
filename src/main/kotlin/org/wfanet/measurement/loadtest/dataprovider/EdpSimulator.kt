@@ -22,6 +22,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
+import org.projectnessie.cel.checker.Decls
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -52,10 +56,12 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.asBufferedFlow
@@ -69,7 +75,11 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 import org.wfanet.measurement.loadtest.storage.SketchStore
+
+private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -109,11 +119,10 @@ class EdpSimulator(
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
           parent = edpData.name
-          eventGroup =
-            eventGroup {
-              measurementConsumer = measurementConsumerName
-              eventGroupReferenceId = "001"
-            }
+          eventGroup = eventGroup {
+            measurementConsumer = measurementConsumerName
+            eventGroupReferenceId = "001"
+          }
         }
       )
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
@@ -171,11 +180,23 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
+<<<<<<< HEAD
 
     val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
     val sketch = generateSketch(sketchConfig, vidSamplingIntervalStart, vidSamplingIntervalWidth)
 
+=======
+    val sketch =
+      try {
+        generateSketch(sketchConfig, requisitionSpec.eventGroupsList.get(0).value.filter)
+      } catch (e: EventFilterValidationException) {
+        logger.info(
+          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter ${e.code}:${e.message}"
+        )
+        return
+      }
+>>>>>>> 4fbbe9d0 (base)
     sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
@@ -187,15 +208,22 @@ class EdpSimulator(
     )
   }
 
+<<<<<<< HEAD
   private fun generateSketch(
     sketchConfig: SketchConfig,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): Sketch {
+=======
+  private fun generateSketch(sketchConfig: SketchConfig, eventFilter: EventFilter): Sketch {
+>>>>>>> 4fbbe9d0 (base)
     logger.info("Generating Sketch...")
+    validateEventFilter(eventFilter)
+
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    // TODO(@wangyaopw): get the queryParameter from EventFilters when EventFilters is implemented.
+    // TODO(@uakyol): change EventQuery getUserVirtualIds to accept EventFilter rather than
+    // QueryParameter.
     val queryParameter =
       QueryParameter(
         edpDisplayName = edpData.displayName,
@@ -240,6 +268,29 @@ class EdpSimulator(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
+  private fun validateEventFilter(eventFilter: EventFilter) {
+
+    val typeRegistry: ProtoTypeRegistry =
+      ProtoTypeRegistry.newRegistry(
+        TestVideoTemplate.getDefaultInstance(),
+      )
+
+    val decls =
+      Decls.newVar(
+        "video_template",
+        Decls.newObjectType("$TEMPLATE_PREFIX.TestVideoTemplate"),
+      )
+
+    val env =
+      Env.newEnv(
+        EnvOption.customTypeAdapter(typeRegistry),
+        EnvOption.customTypeProvider(typeRegistry),
+        EnvOption.declarations(decls),
+      )
+
+    EventFilterValidator.validate(eventFilter.expression, env)
+  }
+
   private suspend fun fulfillRequisition(
     requisitionName: String,
     requisitionFingerprint: ByteString,
@@ -251,12 +302,11 @@ class EdpSimulator(
       flow {
         emit(
           fulfillRequisitionRequest {
-            header =
-              header {
-                name = requisitionName
-                this.requisitionFingerprint = requisitionFingerprint
-                this.nonce = nonce
-              }
+            header = header {
+              name = requisitionName
+              this.requisitionFingerprint = requisitionFingerprint
+              this.nonce = nonce
+            }
           }
         )
         emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
@@ -327,31 +377,27 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
   return sketchConfig {
-    indexes +=
-      indexSpec {
-        name = "Index"
-        distribution =
-          distribution {
-            exponential =
-              exponentialDistribution {
-                rate = decayRate
-                numValues = maxSize
-              }
-          }
+    indexes += indexSpec {
+      name = "Index"
+      distribution = distribution {
+        exponential = exponentialDistribution {
+          rate = decayRate
+          numValues = maxSize
+        }
       }
-    values +=
-      valueSpec {
-        name = "SamplingIndicator"
-        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-        distribution =
-          distribution { uniform = uniformDistribution { numValues = samplingIndicatorSize } }
+    }
+    values += valueSpec {
+      name = "SamplingIndicator"
+      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+      distribution = distribution {
+        uniform = uniformDistribution { numValues = samplingIndicatorSize }
       }
+    }
 
-    values +=
-      valueSpec {
-        name = "Frequency"
-        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-        distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-      }
+    values += valueSpec {
+      name = "Frequency"
+      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+      distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+    }
   }
 }

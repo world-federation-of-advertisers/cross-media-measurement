@@ -34,6 +34,13 @@ message AgeRange {
   Value value = 1;
 }
 
+message ViewDuration {
+  option (.wfa.measurement.api.v2alpha.event_field) = {
+    display_name: "View Duration"
+  };
+  google.protobuf.Duration value = 1;
+}
+
 message TestVideoTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     display_name: "Video Ad"
@@ -44,6 +51,7 @@ message TestVideoTemplate {
   AgeRange age = 1;
   ViewDuration duration = 2;
 }
+<<<<<<< HEAD
 
 message ViewDuration {
   option (.wfa.measurement.api.v2alpha.event_field) = {
@@ -52,3 +60,5 @@ message ViewDuration {
 
   google.protobuf.Duration value = 1;
 }
+=======
+>>>>>>> 11b9902d (base)

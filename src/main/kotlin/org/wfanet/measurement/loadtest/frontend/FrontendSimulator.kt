@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
@@ -64,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -80,6 +82,11 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
+// TODO(@uakyol): Add date, social grade, gender fields once filtration is implemented.
+private const val EVENT_FILTER_EXPRESSION = "video_template.age.value == 1"
+
+// private const val EVENT_FILTER_EXPRESSION = "video_template.age.value == AgeRange.Value.AGE_18_TO_24"
+
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -160,17 +167,16 @@ class FrontendSimulator(
       }
 
     val request = createMeasurementRequest {
-      measurement =
-        measurement {
-          measurementConsumerCertificate = measurementConsumer.certificate
-          measurementSpec =
-            signMeasurementSpec(
-              newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
-              measurementConsumerData.signingKey
-            )
-          dataProviders += dataProviderEntries
-          this.measurementReferenceId = runId
-        }
+      measurement = measurement {
+        measurementConsumerCertificate = measurementConsumer.certificate
+        measurementSpec =
+          signMeasurementSpec(
+            newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
+            measurementConsumerData.signingKey
+          )
+        dataProviders += dataProviderEntries
+        this.measurementReferenceId = runId
+      }
     }
     return measurementsClient
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -265,12 +271,11 @@ class FrontendSimulator(
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
-      reachAndFrequency =
-        reachAndFrequency {
-          reachPrivacyParams = outputDpParams
-          frequencyPrivacyParams = outputDpParams
-          vidSamplingInterval = vidSamplingInterval { width = 1.0f }
-        }
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = outputDpParams
+        frequencyPrivacyParams = outputDpParams
+        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
+      }
       this.nonceHashes += nonceHashes
     }
   }
@@ -316,11 +321,13 @@ class FrontendSimulator(
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
     val requisitionSpec = requisitionSpec {
-      eventGroups +=
-        eventGroupEntry {
-          key = eventGroup.name
-          // TODO: populate other fields when the EventGroup design is done.
-        }
+      eventGroups += eventGroupEntry {
+        key = eventGroup.name
+        value =
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            filter = eventFilter { expression = EVENT_FILTER_EXPRESSION}
+          }
+      }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
     }
