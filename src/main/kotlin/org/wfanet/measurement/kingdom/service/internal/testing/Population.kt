@@ -97,22 +97,21 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
       hashSha256(createMeasurementConsumerCreationToken(accountsService))
     return measurementConsumersService.createMeasurementConsumer(
       createMeasurementConsumerRequest {
-        measurementConsumer =
-          measurementConsumer {
-            certificate =
-              buildRequestCertificate(
-                "MC cert",
-                "MC SKID " + idGenerator.generateExternalId().value,
-                notValidBefore,
-                notValidAfter
-              )
-            details =
-              MeasurementConsumerKt.details {
-                apiVersion = API_VERSION
-                publicKey = ByteString.copyFromUtf8("MC public key")
-                publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
-              }
-          }
+        measurementConsumer = measurementConsumer {
+          certificate =
+            buildRequestCertificate(
+              "MC cert",
+              "MC SKID " + idGenerator.generateExternalId().value,
+              notValidBefore,
+              notValidAfter
+            )
+          details =
+            MeasurementConsumerKt.details {
+              apiVersion = API_VERSION
+              publicKey = ByteString.copyFromUtf8("MC public key")
+              publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
+            }
+        }
         externalAccountId = account.externalAccountId
         this.measurementConsumerCreationTokenHash = measurementConsumerCreationTokenHash
       }
@@ -186,14 +185,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             apiVersion = API_VERSION
             measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
             measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-            duchyProtocolConfig =
-              duchyProtocolConfig {
-                liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-              }
-            protocolConfig =
-              protocolConfig {
-                liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-              }
+            duchyProtocolConfig = duchyProtocolConfig {
+              liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+            }
+            protocolConfig = protocolConfig {
+              liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+            }
           }
         this.dataProviders.putAll(dataProviders)
       }

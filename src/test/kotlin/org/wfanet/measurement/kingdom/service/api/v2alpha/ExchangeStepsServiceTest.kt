@@ -115,10 +115,10 @@ private val EXCHANGE_STEP_ATTEMPT: String =
     .toName()
 
 private val CLAIM_READY_EXCHANGE_STEP_RESPONSE: ClaimReadyExchangeStepResponse =
-    claimReadyExchangeStepResponse {
-  exchangeStep = EXCHANGE_STEP
-  exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
-}
+  claimReadyExchangeStepResponse {
+    exchangeStep = EXCHANGE_STEP
+    exchangeStepAttempt = EXCHANGE_STEP_ATTEMPT
+  }
 
 private val INTERNAL_EXCHANGE_STEP: InternalExchangeStep = internalExchangeStep {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
@@ -257,11 +257,10 @@ class ExchangeStepsServiceTest {
         listExchangeSteps {
           parent = EXCHANGE_NAME
           pageToken = UPDATE_TIME.toByteArray().base64UrlEncode()
-          filter =
-            filter {
-              modelProvider = MODEL_PROVIDER
-              states += listOf(ExchangeStep.State.READY, ExchangeStep.State.READY_FOR_RETRY)
-            }
+          filter = filter {
+            modelProvider = MODEL_PROVIDER
+            states += listOf(ExchangeStep.State.READY, ExchangeStep.State.READY_FOR_RETRY)
+          }
         }
       }
 

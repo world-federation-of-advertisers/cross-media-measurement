@@ -149,11 +149,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = "wrong_external_duchy_id"
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     val exception =
@@ -183,11 +182,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = 12345L // Wrong ExternalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     val exception =
@@ -200,40 +198,39 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
 
   @Test
   fun `setParticipantRequisitionParams fails for wrong certificate for computationParticipant`() =
-      runBlocking {
-    createDuchyCertificates()
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val dataProvider = population.createDataProvider(dataProvidersService)
+    runBlocking {
+      createDuchyCertificates()
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
 
-    val measurement =
-      population.createMeasurement(
-        measurementsService,
-        measurementConsumer,
-        PROVIDED_MEASUREMENT_ID,
-        dataProvider
-      )
+      val measurement =
+        population.createMeasurement(
+          measurementsService,
+          measurementConsumer,
+          PROVIDED_MEASUREMENT_ID,
+          dataProvider
+        )
 
-    val request = setParticipantRequisitionParamsRequest {
-      externalComputationId = measurement.externalComputationId
-      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
-      externalDuchyCertificateId = 12345L // Wrong External Duchy Certificate Id
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
+      val request = setParticipantRequisitionParamsRequest {
+        externalComputationId = measurement.externalComputationId
+        externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+        externalDuchyCertificateId = 12345L // Wrong External Duchy Certificate Id
+        liquidLegionsV2 = liquidLegionsV2Details {
           elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
           elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
         }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        computationParticipantsService.setParticipantRequisitionParams(request)
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Certificate for Computation participant not found")
-  }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          computationParticipantsService.setParticipantRequisitionParams(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("Certificate for Computation participant not found")
+    }
 
   @Test
   fun `setParticipantRequisitionParams fails for revoked certificate`() = runBlocking {
@@ -254,11 +251,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     certificatesService.revokeCertificate(
@@ -303,11 +299,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = certificate.externalDuchyId
       externalDuchyCertificateId = certificate.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     val exception =
@@ -344,11 +339,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = certificate.externalDuchyId
       externalDuchyCertificateId = certificate.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     val exception =
@@ -385,11 +379,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     val exception =
@@ -422,11 +415,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     val expectedComputationParticipant = computationParticipant {
@@ -478,11 +470,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = EXTERNAL_DUCHY_IDS[0]
           externalDuchyCertificateId =
             duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-          liquidLegionsV2 =
-            liquidLegionsV2Details {
-              elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-              elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-            }
+          liquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+            elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+          }
         }
       )
 
@@ -492,11 +483,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = EXTERNAL_DUCHY_IDS[1]
           externalDuchyCertificateId =
             duchyCertificates[EXTERNAL_DUCHY_IDS[1]]!!.externalCertificateId
-          liquidLegionsV2 =
-            liquidLegionsV2Details {
-              elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-              elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-            }
+          liquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+            elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+          }
         }
       )
 
@@ -544,11 +534,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       requisitionsService
         .streamRequisitions(
           streamRequisitionsRequest {
-            filter =
-              filter {
-                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-                externalMeasurementId = measurement.externalMeasurementId
-              }
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
           }
         )
         .toList()
@@ -627,11 +616,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       requisitionsService
         .streamRequisitions(
           streamRequisitionsRequest {
-            filter =
-              filter {
-                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-                externalMeasurementId = measurement.externalMeasurementId
-              }
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
           }
         )
         .toList()
@@ -689,11 +677,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     computationParticipantsService.setParticipantRequisitionParams(request)
@@ -739,11 +726,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       externalComputationId = measurement.externalComputationId
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalDuchyCertificateId = duchyCertificates[EXTERNAL_DUCHY_IDS[0]]!!.externalCertificateId
-      liquidLegionsV2 =
-        liquidLegionsV2Details {
-          elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
-          elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
-        }
+      liquidLegionsV2 = liquidLegionsV2Details {
+        elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+        elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+      }
     }
 
     computationParticipantsService.setParticipantRequisitionParams(request)
