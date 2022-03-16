@@ -187,23 +187,25 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-<<<<<<< HEAD
 
     val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-    val sketch = generateSketch(sketchConfig, vidSamplingIntervalStart, vidSamplingIntervalWidth)
 
-=======
     val sketch =
       try {
-        generateSketch(sketchConfig, requisitionSpec.eventGroupsList.get(0).value.filter)
+        generateSketch(
+          sketchConfig,
+          requisitionSpec.eventGroupsList.get(0).value.filter,
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth
+        )
       } catch (e: EventFilterValidationException) {
         logger.info(
           "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter ${e.code}:${e.message}"
         )
         return
       }
->>>>>>> 4fbbe9d0 (base)
+
     sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
@@ -215,15 +217,12 @@ class EdpSimulator(
     )
   }
 
-<<<<<<< HEAD
   private fun generateSketch(
     sketchConfig: SketchConfig,
+    eventFilter: EventFilter,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): Sketch {
-=======
-  private fun generateSketch(sketchConfig: SketchConfig, eventFilter: EventFilter): Sketch {
->>>>>>> 4fbbe9d0 (base)
     logger.info("Generating Sketch...")
     validateEventFilter(eventFilter)
 
@@ -276,7 +275,6 @@ class EdpSimulator(
   }
 
   private fun validateEventFilter(eventFilter: EventFilter) {
-
     val decls =
       eventTemplateNames.map {
         Decls.newVar(
