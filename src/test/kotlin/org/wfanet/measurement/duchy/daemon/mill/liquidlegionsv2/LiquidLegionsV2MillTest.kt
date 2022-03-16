@@ -432,7 +432,7 @@ class LiquidLegionsV2MillTest {
       .also { generatedBlobKeys.add(it) }
   }
   private fun generateRequisitionBlobKey(context: RequisitionBlobContext): String {
-      return listOf(
+    return listOf(
         context.globalComputationId,
         context.externalRequisitionId,
         blobCount.getAndIncrement()
