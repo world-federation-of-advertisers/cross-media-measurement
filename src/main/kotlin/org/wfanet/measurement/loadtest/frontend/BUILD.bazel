@@ -19,7 +19,9 @@ kt_jvm_library(
         "FrontendSimulator.kt",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_template_type_registry",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_data_classes",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
@@ -35,6 +37,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_java_proto",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch",
         "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",

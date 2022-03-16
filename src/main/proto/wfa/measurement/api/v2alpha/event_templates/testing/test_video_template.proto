@@ -43,7 +43,7 @@ message ViewDuration {
 
 message TestVideoTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
-    display_name: "Video Ad"
+    display_name: "video_ad"
     description: "A simple Event Template for a video ad."
     name: "test_video_template"
   };

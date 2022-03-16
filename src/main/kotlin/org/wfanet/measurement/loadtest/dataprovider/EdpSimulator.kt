@@ -46,7 +46,10 @@ import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventTemplate
+import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -79,7 +82,8 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+private const val EVENT_TEMPLATE_PACKAGE_NAME =
+  "org.wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -102,7 +106,8 @@ class EdpSimulator(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
-  private val throttler: MinimumIntervalThrottler
+  private val throttler: MinimumIntervalThrottler,
+  private val eventTemplateNames: List<String> = emptyList()
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -115,6 +120,7 @@ class EdpSimulator(
 
   /** Creates an eventGroup for the MC. */
   private suspend fun createEventGroup() {
+    // val eventTemplates =
     val eventGroup =
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
@@ -122,6 +128,7 @@ class EdpSimulator(
           eventGroup = eventGroup {
             measurementConsumer = measurementConsumerName
             eventGroupReferenceId = "001"
+            eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
           }
         }
       )
@@ -270,21 +277,18 @@ class EdpSimulator(
 
   private fun validateEventFilter(eventFilter: EventFilter) {
 
-    val typeRegistry: ProtoTypeRegistry =
-      ProtoTypeRegistry.newRegistry(
-        TestVideoTemplate.getDefaultInstance(),
-      )
-
     val decls =
-      Decls.newVar(
-        "video_template",
-        Decls.newObjectType("$TEMPLATE_PREFIX.TestVideoTemplate"),
-      )
+      eventTemplateNames.map {
+        Decls.newVar(
+          EventTemplate(templateProtoTypeRegistry.getDescriptorForType(it)!!).displayName,
+          Decls.newObjectType(it),
+        )
+      }
 
     val env =
       Env.newEnv(
-        EnvOption.customTypeAdapter(typeRegistry),
-        EnvOption.customTypeProvider(typeRegistry),
+        EnvOption.customTypeAdapter(celProtoTypeRegistry),
+        EnvOption.customTypeProvider(celProtoTypeRegistry),
         EnvOption.declarations(decls),
       )
 
@@ -345,6 +349,12 @@ class EdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val templateProtoTypeRegistry: EventTemplateTypeRegistry =
+      EventTemplateTypeRegistry.createRegistryForPackagePrefix(EVENT_TEMPLATE_PACKAGE_NAME)
+    val celProtoTypeRegistry: ProtoTypeRegistry =
+      ProtoTypeRegistry.newRegistry(
+        TestVideoTemplate.getDefaultInstance(),
+      )
 
     init {
       loadLibrary(
