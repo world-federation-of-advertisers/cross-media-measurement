@@ -316,8 +316,9 @@ private val MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH = measurementSpec {
   nonceHashes += TEST_REQUISITION_1.nonceHash
   nonceHashes += TEST_REQUISITION_2.nonceHash
   nonceHashes += TEST_REQUISITION_3.nonceHash
-  reachAndFrequency =
-    reachAndFrequency { vidSamplingInterval = vidSamplingInterval { width = 0.5f } }
+  reachAndFrequency = reachAndFrequency {
+    vidSamplingInterval = vidSamplingInterval { width = 0.5f }
+  }
 }
 
 private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH =
