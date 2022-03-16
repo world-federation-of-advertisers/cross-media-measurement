@@ -55,17 +55,19 @@ data class TestRequisition(
   }
 
   fun toRequisitionMetadata(state: Requisition.State, externalDuchyId: String = "") =
-    requisitionMetadata {
-      externalKey = externalRequisitionKey {
+      requisitionMetadata {
+    externalKey =
+      externalRequisitionKey {
         externalRequisitionId = this@TestRequisition.externalRequisitionId
         requisitionFingerprint = this@TestRequisition.requisitionFingerprint
       }
-      details = requisitionDetails {
+    details =
+      requisitionDetails {
         nonceHash = this@TestRequisition.nonceHash
         if (state == Requisition.State.FULFILLED) {
           nonce = this@TestRequisition.nonce
           externalFulfillingDuchyId = externalDuchyId
         }
       }
-    }
+  }
 }

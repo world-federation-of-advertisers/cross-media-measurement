@@ -123,10 +123,11 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   eventGroupReferenceId = "aaa"
-  measurementConsumerPublicKey = signedData {
-    data = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
-    signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
-  }
+  measurementConsumerPublicKey =
+    signedData {
+      data = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
+      signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
+    }
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
   encryptedMetadata = ENCRYPTED_METADATA
@@ -143,14 +144,15 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
     )
   providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
   createTime = CREATE_TIME
-  details = details {
-    apiVersion = API_VERSION.string
-    measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
-    measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
-    vidModelLines.addAll(VID_MODEL_LINES)
-    eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
-    encryptedMetadata = ENCRYPTED_METADATA
-  }
+  details =
+    details {
+      apiVersion = API_VERSION.string
+      measurementConsumerPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY_DATA
+      measurementConsumerPublicKeySignature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIGNATURE
+      vidModelLines.addAll(VID_MODEL_LINES)
+      eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
+      encryptedMetadata = ENCRYPTED_METADATA
+    }
 }
 
 @RunWith(JUnit4::class)
@@ -599,10 +601,11 @@ class EventGroupsServiceTest {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
+        lastEventGroup =
+          previousPageEnd {
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          }
       }
       filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
@@ -620,10 +623,11 @@ class EventGroupsServiceTest {
         pageSize = request.pageSize
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
+        lastEventGroup =
+          previousPageEnd {
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID_2
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          }
       }
       nextPageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
@@ -659,10 +663,11 @@ class EventGroupsServiceTest {
       val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
+        lastEventGroup =
+          previousPageEnd {
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          }
         externalMeasurementConsumerIds += MEASUREMENT_CONSUMER_EXTERNAL_ID
       }
       filter = filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
@@ -690,10 +695,11 @@ class EventGroupsServiceTest {
       val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
+        lastEventGroup =
+          previousPageEnd {
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          }
       }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
@@ -716,10 +722,11 @@ class EventGroupsServiceTest {
   fun `listEventGroups with parent and filter with measurement consumers uses filter with both`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      filter = filter {
-        measurementConsumers += MEASUREMENT_CONSUMER_NAME
-        measurementConsumers += MEASUREMENT_CONSUMER_NAME
-      }
+      filter =
+        filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_NAME
+          measurementConsumers += MEASUREMENT_CONSUMER_NAME
+        }
     }
 
     val result =
@@ -784,10 +791,11 @@ class EventGroupsServiceTest {
   fun `listEventGroups throws PERMISSION_DENIED when mc caller doesn't match filter MC`() {
     val request = listEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      filter = filter {
-        measurementConsumers += MEASUREMENT_CONSUMER_NAME
-        measurementConsumers += "measurementConsumers/BBBAAAAAAHt"
-      }
+      filter =
+        filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_NAME
+          measurementConsumers += "measurementConsumers/BBBAAAAAAHt"
+        }
     }
 
     val exception =
@@ -878,10 +886,11 @@ class EventGroupsServiceTest {
       val listEventGroupsPageToken = listEventGroupsPageToken {
         pageSize = 2
         externalDataProviderId = 654
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
+        lastEventGroup =
+          previousPageEnd {
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          }
       }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }
@@ -904,10 +913,11 @@ class EventGroupsServiceTest {
         pageSize = 2
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
         externalMeasurementConsumerIds += 123
-        lastEventGroup = previousPageEnd {
-          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-        }
+        lastEventGroup =
+          previousPageEnd {
+            externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          }
       }
       pageToken = listEventGroupsPageToken.toByteArray().base64UrlEncode()
     }

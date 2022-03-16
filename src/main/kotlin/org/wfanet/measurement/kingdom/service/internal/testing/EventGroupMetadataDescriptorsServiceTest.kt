@@ -96,19 +96,19 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
   @Test
   fun `getEventGroupMetadataDescriptor fails for missing EventGroupMetadataDescriptor`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupMetadataDescriptorService.getEventGroupMetadataDescriptor(
-            getEventGroupMetadataDescriptorRequest { externalEventGroupMetadataDescriptorId = 1L }
-          )
-        }
+      runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupMetadataDescriptorService.getEventGroupMetadataDescriptor(
+          getEventGroupMetadataDescriptorRequest { externalEventGroupMetadataDescriptorId = 1L }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("NOT_FOUND: EventGroupMetadataDescriptor not found")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("NOT_FOUND: EventGroupMetadataDescriptor not found")
+  }
 
   @Test
   fun `createEventGroupMetadataDescriptor succeeds`() = runBlocking {
@@ -154,30 +154,30 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
   @Test
   fun `createEventGroupMetadataDescriptor returns created Descriptor for existing external ID`() =
-    runBlocking {
-      val externalDataProviderId =
-        population.createDataProvider(dataProvidersService).externalDataProviderId
+      runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-      val createdEventGroupMetadataDescriptor =
-        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-          eventGroupMetadataDescriptor {
-            this.externalDataProviderId = externalDataProviderId
-            details = DETAILS
-          }
-        )
-      val secondCreatedEventGroupMetadataDescriptorAttempt =
-        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-          eventGroupMetadataDescriptor {
-            this.externalDataProviderId = externalDataProviderId
-            externalEventGroupMetadataDescriptorId =
-              createdEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-            details = DETAILS
-          }
-        )
+    val createdEventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+    val secondCreatedEventGroupMetadataDescriptorAttempt =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          externalEventGroupMetadataDescriptorId =
+            createdEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+          details = DETAILS
+        }
+      )
 
-      assertThat(secondCreatedEventGroupMetadataDescriptorAttempt)
-        .isEqualTo(createdEventGroupMetadataDescriptor)
-    }
+    assertThat(secondCreatedEventGroupMetadataDescriptorAttempt)
+      .isEqualTo(createdEventGroupMetadataDescriptor)
+  }
 }
 
 data class EventGroupMetadataDescriptorsAndHelperServices<

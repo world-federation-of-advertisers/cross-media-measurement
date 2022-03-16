@@ -189,14 +189,15 @@ class AccountsService(
 
       activationState = source.activationState.toActivationState()
 
-      activationParams = activationParams {
-        activationToken = externalIdToApiId(source.activationToken)
-        if (source.externalOwnedMeasurementConsumerId != 0L) {
-          ownedMeasurementConsumer =
-            MeasurementConsumerKey(externalIdToApiId(source.externalOwnedMeasurementConsumerId))
-              .toName()
+      activationParams =
+        activationParams {
+          activationToken = externalIdToApiId(source.activationToken)
+          if (source.externalOwnedMeasurementConsumerId != 0L) {
+            ownedMeasurementConsumer =
+              MeasurementConsumerKey(externalIdToApiId(source.externalOwnedMeasurementConsumerId))
+                .toName()
+          }
         }
-      }
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (source.identityCase) {

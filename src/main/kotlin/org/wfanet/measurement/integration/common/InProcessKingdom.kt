@@ -106,11 +106,11 @@ class InProcessKingdom(
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's system API services")
       listOf(
-          systemComputationsService(internalMeasurementsClient),
-          systemComputationLogEntriesService(internalMeasurementLogEntriesClient),
-          systemComputationParticipantsService(internalComputationParticipantsClient),
-          systemRequisitionsService(internalRequisitionsClient)
-        )
+        systemComputationsService(internalMeasurementsClient),
+        systemComputationLogEntriesService(internalMeasurementLogEntriesClient),
+        systemComputationParticipantsService(internalComputationParticipantsClient),
+        systemRequisitionsService(internalRequisitionsClient)
+      )
         .forEach {
           addService(it.withMetadataDuchyIdentities().withVerboseLogging(verboseGrpcLogging))
         }
@@ -120,30 +120,30 @@ class InProcessKingdom(
       logger.info("Building Kingdom's public API services")
 
       listOf(
-          ApiKeysService(internalApiKeysClient)
-            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-          CertificatesService(internalCertificatesClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          DataProvidersService(internalDataProvidersClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          EventGroupsService(internalEventGroupsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          MeasurementsService(internalMeasurementsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          RequisitionsService(internalRequisitionsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          AccountsService(internalAccountsClient, redirectUri)
-            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-          MeasurementConsumersService(internalMeasurementConsumersClient)
-            .withMetadataPrincipalIdentities()
-            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
-        )
+        ApiKeysService(internalApiKeysClient)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
+        CertificatesService(internalCertificatesClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        DataProvidersService(internalDataProvidersClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        EventGroupsService(internalEventGroupsClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        MeasurementsService(internalMeasurementsClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        RequisitionsService(internalRequisitionsClient)
+          .withMetadataPrincipalIdentities()
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+        AccountsService(internalAccountsClient, redirectUri)
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
+        MeasurementConsumersService(internalMeasurementConsumersClient)
+          .withMetadataPrincipalIdentities()
+          .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
+          .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
+      )
         .forEach {
           // TODO(@wangyaopw): set up all public services to use the appropriate principal
           // interceptors.
@@ -151,13 +151,13 @@ class InProcessKingdom(
         }
 
       listOf(
-          ExchangeStepAttemptsService(
-            internalExchangeStepAttemptsClient,
-            internalExchangeStepsClient
-          ),
-          ExchangeStepsService(internalExchangeStepsClient),
-          ExchangesService(internalExchangesClient)
-        )
+        ExchangeStepAttemptsService(
+          internalExchangeStepAttemptsClient,
+          internalExchangeStepsClient
+        ),
+        ExchangeStepsService(internalExchangeStepsClient),
+        ExchangesService(internalExchangesClient)
+      )
         .forEach {
           addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
         }

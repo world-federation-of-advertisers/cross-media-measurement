@@ -230,29 +230,29 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
 
   @Test
   fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash is missing`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          apiKeysService.authenticateApiKey(authenticateApiKeyRequest {})
-        }
+      runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.authenticateApiKey(authenticateApiKeyRequest {})
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-      assertThat(exception).hasMessageThat().contains("Authentication Key hash is missing")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception).hasMessageThat().contains("Authentication Key hash is missing")
+  }
 
   @Test
   fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash doesn't match`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          apiKeysService.authenticateApiKey(
-            authenticateApiKeyRequest { authenticationKeyHash = hashSha256(1L) }
-          )
-        }
+      runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        apiKeysService.authenticateApiKey(
+          authenticateApiKeyRequest { authenticationKeyHash = hashSha256(1L) }
+        )
+      }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-      assertThat(exception).hasMessageThat().contains("Authentication Key is not valid")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception).hasMessageThat().contains("Authentication Key is not valid")
+  }
 
   @Test
   fun `authenticateApiKey throws UNAUTHENTICATED when api key has been deleted`() = runBlocking {

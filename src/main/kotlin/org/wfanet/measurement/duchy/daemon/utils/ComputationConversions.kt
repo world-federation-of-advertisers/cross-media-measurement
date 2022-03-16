@@ -186,11 +186,12 @@ fun Iterable<SystemRequisition>.toRequisitionEntries(
 ): Iterable<RequisitionEntry> {
   return map {
     requisitionEntry {
-      key = externalRequisitionKey {
-        externalRequisitionId = it.key.requisitionId
-        requisitionFingerprint =
-          computeRequisitionFingerprint(serializedMeasurementSpec, it.requisitionSpecHash)
-      }
+      key =
+        externalRequisitionKey {
+          externalRequisitionId = it.key.requisitionId
+          requisitionFingerprint =
+            computeRequisitionFingerprint(serializedMeasurementSpec, it.requisitionSpecHash)
+        }
       value = it.toDuchyRequisitionDetails()
     }
   }

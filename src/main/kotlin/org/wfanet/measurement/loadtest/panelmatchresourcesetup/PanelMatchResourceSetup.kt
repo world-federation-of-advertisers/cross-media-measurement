@@ -191,14 +191,15 @@ class PanelMatchResourceSetup(
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
     return dataProvidersStub.createDataProvider(
         internalDataProvider {
-          certificate = certificate {
-            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-            details =
-              CertificateKt.details {
-                x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-              }
-          }
+          certificate =
+            certificate {
+              notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+              notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+              details =
+                CertificateKt.details {
+                  x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+                }
+            }
           details =
             DataProviderKt.details {
               apiVersion = "2"
@@ -213,14 +214,15 @@ class PanelMatchResourceSetup(
   private suspend fun createModelProvider(): Long {
     return modelProvidersStub.createModelProvider(
         internalModelProvider {
-          certificate = certificate {
-            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-            details =
-              CertificateKt.details {
-                x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-              }
-          }
+          certificate =
+            certificate {
+              notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+              notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+              details =
+                CertificateKt.details {
+                  x509Der = ByteString.copyFromUtf8("This is a certificate der.")
+                }
+            }
           details =
             ModelProviderKt.details {
               apiVersion = "2"
@@ -242,18 +244,20 @@ class PanelMatchResourceSetup(
   ): Long {
     return recurringExchangesStub.createRecurringExchange(
         createRecurringExchangeRequest {
-          recurringExchange = internalRecurringExchange {
-            externalDataProviderId = externalDataProvider
-            externalModelProviderId = externalModelProvider
-            state = InternalRecurringExchange.State.ACTIVE
-            details = recurringExchangeDetails {
-              this.exchangeWorkflow = exchangeWorkflow.toInternal()
-              cronSchedule = exchangeSchedule
-              externalExchangeWorkflow = exchangeWorkflow.toByteString()
-              apiVersion = publicApiVersion
+          recurringExchange =
+            internalRecurringExchange {
+              externalDataProviderId = externalDataProvider
+              externalModelProviderId = externalModelProvider
+              state = InternalRecurringExchange.State.ACTIVE
+              details =
+                recurringExchangeDetails {
+                  this.exchangeWorkflow = exchangeWorkflow.toInternal()
+                  cronSchedule = exchangeSchedule
+                  externalExchangeWorkflow = exchangeWorkflow.toByteString()
+                  apiVersion = publicApiVersion
+                }
+              nextExchangeDate = exchangeDate
             }
-            nextExchangeDate = exchangeDate
-          }
         }
       )
       .externalRecurringExchangeId

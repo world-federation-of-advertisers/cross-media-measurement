@@ -51,11 +51,12 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       internalClient.createDataProvider(
         internalDataProvider {
           certificate = parseCertificateDer(dataProvider.certificateDer)
-          details = details {
-            apiVersion = API_VERSION.string
-            publicKey = dataProvider.publicKey.data
-            publicKeySignature = dataProvider.publicKey.signature
-          }
+          details =
+            details {
+              apiVersion = API_VERSION.string
+              publicKey = dataProvider.publicKey.data
+              publicKeySignature = dataProvider.publicKey.signature
+            }
         }
         // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
         // as owner.
@@ -105,9 +106,10 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
     name = DataProviderKey(dataProviderId).toName()
     certificate = DataProviderCertificateKey(dataProviderId, certificateId).toName()
     certificateDer = internalDataProvider.certificate.details.x509Der
-    publicKey = signedData {
-      data = internalDataProvider.details.publicKey
-      signature = internalDataProvider.details.publicKeySignature
-    }
+    publicKey =
+      signedData {
+        data = internalDataProvider.details.publicKey
+        signature = internalDataProvider.details.publicKeySignature
+      }
   }
 }

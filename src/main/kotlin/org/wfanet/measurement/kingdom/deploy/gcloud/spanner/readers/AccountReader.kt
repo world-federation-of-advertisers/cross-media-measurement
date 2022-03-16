@@ -73,10 +73,11 @@ class AccountReader : SpannerReader<AccountReader.Result>() {
     activationToken = struct.getLong("ActivationToken")
 
     if (!struct.isNull("Issuer")) {
-      openIdIdentity = openIdConnectIdentity {
-        this.issuer = struct.getString("Issuer")
-        this.subject = struct.getString("Subject")
-      }
+      openIdIdentity =
+        openIdConnectIdentity {
+          this.issuer = struct.getString("Issuer")
+          this.subject = struct.getString("Subject")
+        }
     }
 
     externalOwnedMeasurementConsumerIds += struct.getLongList("ExternalOwnedMeasurementConsumerIds")

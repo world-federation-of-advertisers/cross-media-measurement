@@ -86,10 +86,11 @@ class ActivateAccount(
     val source = this@ActivateAccount
     return readAccountResult.account.copy {
       activationState = Account.ActivationState.ACTIVATED
-      openIdIdentity = openIdConnectIdentity {
-        issuer = source.issuer
-        subject = source.subject
-      }
+      openIdIdentity =
+        openIdConnectIdentity {
+          issuer = source.issuer
+          subject = source.subject
+        }
       externalOwnedMeasurementConsumerIds +=
         readAccountResult.account.externalOwnedMeasurementConsumerId
     }

@@ -91,10 +91,11 @@ private val idGenerator =
 
 private const val STEP_INDEX = 1
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
-  steps += step {
-    party = ExchangeWorkflow.Party.MODEL_PROVIDER
-    stepIndex = STEP_INDEX
-  }
+  steps +=
+    step {
+      party = ExchangeWorkflow.Party.MODEL_PROVIDER
+      stepIndex = STEP_INDEX
+    }
 }
 
 private val RECURRING_EXCHANGE = recurringExchange {
@@ -102,25 +103,28 @@ private val RECURRING_EXCHANGE = recurringExchange {
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
   externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
   state = RecurringExchange.State.ACTIVE
-  details = recurringExchangeDetails {
-    cronSchedule = "@daily"
-    exchangeWorkflow = EXCHANGE_WORKFLOW
-  }
+  details =
+    recurringExchangeDetails {
+      cronSchedule = "@daily"
+      exchangeWorkflow = EXCHANGE_WORKFLOW
+    }
   nextExchangeDate = EXCHANGE_DATE
 }
 
 private val DATA_PROVIDER = dataProvider {
-  certificate = certificate {
-    notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-    notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-    details =
-      CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
-  }
-  details = details {
-    apiVersion = "2"
-    publicKey = ByteString.copyFromUtf8("This is a  public key.")
-    publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-  }
+  certificate =
+    certificate {
+      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+      details =
+        CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
+    }
+  details =
+    details {
+      apiVersion = "2"
+      publicKey = ByteString.copyFromUtf8("This is a  public key.")
+      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+    }
 }
 
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
@@ -181,11 +185,12 @@ abstract class ExchangeStepAttemptsServiceTest {
       RECURRING_EXCHANGE.copy {
         details =
           RECURRING_EXCHANGE.details.copy {
-            exchangeWorkflow = exchangeWorkflow {
-              addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
-              addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(1))
-              addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
-            }
+            exchangeWorkflow =
+              exchangeWorkflow {
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(1))
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
+              }
           }
       }
     )
@@ -259,11 +264,12 @@ abstract class ExchangeStepAttemptsServiceTest {
       RECURRING_EXCHANGE.copy {
         details =
           RECURRING_EXCHANGE.details.copy {
-            exchangeWorkflow = exchangeWorkflow {
-              addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
-              addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(3))
-              addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
-            }
+            exchangeWorkflow =
+              exchangeWorkflow {
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, emptyList())
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(3))
+                addNextStep(ExchangeWorkflow.Party.MODEL_PROVIDER, listOf(2))
+              }
           }
       }
     )
@@ -409,10 +415,11 @@ abstract class ExchangeStepAttemptsServiceTest {
             date = EXCHANGE_DATE
             stepIndex = 1
             attemptNumber = 1
-            provider = provider {
-              externalId = EXTERNAL_DATA_PROVIDER_ID
-              type = Provider.Type.DATA_PROVIDER
-            }
+            provider =
+              provider {
+                externalId = EXTERNAL_DATA_PROVIDER_ID
+                type = Provider.Type.DATA_PROVIDER
+              }
           }
         )
       }
@@ -577,9 +584,8 @@ abstract class ExchangeStepAttemptsServiceTest {
       stepIndex = STEP_INDEX
       attemptNumber = attemptNo
       state = attemptState
-      details = exchangeStepAttemptDetails {
-        debugLogEntries += debugLog { message = debugLogMessage }
-      }
+      details =
+        exchangeStepAttemptDetails { debugLogEntries += debugLog { message = debugLogMessage } }
     }
   }
 
@@ -587,10 +593,11 @@ abstract class ExchangeStepAttemptsServiceTest {
     party: ExchangeWorkflow.Party,
     prerequisites: Iterable<Int>
   ) {
-    steps += step {
-      stepIndex = this@addNextStep.steps.size + 1
-      this.party = party
-      prerequisiteStepIndices += prerequisites
-    }
+    steps +=
+      step {
+        stepIndex = this@addNextStep.steps.size + 1
+        this.party = party
+        prerequisiteStepIndices += prerequisites
+      }
   }
 }

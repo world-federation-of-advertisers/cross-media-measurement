@@ -107,10 +107,11 @@ class MeasurementConsumersServiceTest {
   @Test
   fun `create fills created resource names`() {
     val request = createMeasurementConsumerRequest {
-      measurementConsumer = measurementConsumer {
-        certificateDer = SERVER_CERTIFICATE_DER
-        publicKey = SIGNED_PUBLIC_KEY
-      }
+      measurementConsumer =
+        measurementConsumer {
+          certificateDer = SERVER_CERTIFICATE_DER
+          publicKey = SIGNED_PUBLIC_KEY
+        }
       measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
     }
 
@@ -175,10 +176,11 @@ class MeasurementConsumersServiceTest {
   @Test
   fun `create throws INVALID_ARGUMENT when creation token is missing`() {
     val request = createMeasurementConsumerRequest {
-      measurementConsumer = measurementConsumer {
-        certificateDer = SERVER_CERTIFICATE_DER
-        publicKey = SIGNED_PUBLIC_KEY
-      }
+      measurementConsumer =
+        measurementConsumer {
+          certificateDer = SERVER_CERTIFICATE_DER
+          publicKey = SIGNED_PUBLIC_KEY
+        }
     }
 
     val exception =
@@ -533,14 +535,16 @@ class MeasurementConsumersServiceTest {
     }
 
     private val INTERNAL_MEASUREMENT_CONSUMER: InternalMeasurementConsumer =
-      internalMeasurementConsumer {
-        externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
-        details = details {
+        internalMeasurementConsumer {
+      externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+      details =
+        details {
           apiVersion = Version.V2_ALPHA.string
           publicKey = SIGNED_PUBLIC_KEY.data
           publicKeySignature = SIGNED_PUBLIC_KEY.signature
         }
-        certificate = certificate {
+      certificate =
+        certificate {
           externalMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
           externalCertificateId = CERTIFICATE_ID
           subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
@@ -548,7 +552,7 @@ class MeasurementConsumersServiceTest {
           notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
           details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
         }
-      }
+    }
 
     private val MEASUREMENT_CONSUMER: MeasurementConsumer = measurementConsumer {
       val measurementConsumerId: String = externalIdToApiId(MEASUREMENT_CONSUMER_ID)
@@ -557,10 +561,11 @@ class MeasurementConsumersServiceTest {
       name = MEASUREMENT_CONSUMER_NAME
       certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
       certificateDer = INTERNAL_MEASUREMENT_CONSUMER.certificate.details.x509Der
-      publicKey = signedData {
-        data = INTERNAL_MEASUREMENT_CONSUMER.details.publicKey
-        signature = INTERNAL_MEASUREMENT_CONSUMER.details.publicKeySignature
-      }
+      publicKey =
+        signedData {
+          data = INTERNAL_MEASUREMENT_CONSUMER.details.publicKey
+          signature = INTERNAL_MEASUREMENT_CONSUMER.details.publicKeySignature
+        }
     }
 
     private val ACTIVATED_INTERNAL_ACCOUNT: Account = account {

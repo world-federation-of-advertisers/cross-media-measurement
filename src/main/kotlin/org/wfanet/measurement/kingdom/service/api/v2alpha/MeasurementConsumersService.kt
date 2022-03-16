@@ -70,14 +70,16 @@ class MeasurementConsumersService(
     val internalResponse: InternalMeasurementConsumer =
       internalClient.createMeasurementConsumer(
         createMeasurementConsumerRequest {
-          this.measurementConsumer = internalMeasurementConsumer {
-            certificate = parseCertificateDer(measurementConsumer.certificateDer)
-            details = details {
-              apiVersion = API_VERSION.string
-              publicKey = measurementConsumer.publicKey.data
-              publicKeySignature = measurementConsumer.publicKey.signature
+          this.measurementConsumer =
+            internalMeasurementConsumer {
+              certificate = parseCertificateDer(measurementConsumer.certificateDer)
+              details =
+                details {
+                  apiVersion = API_VERSION.string
+                  publicKey = measurementConsumer.publicKey.data
+                  publicKeySignature = measurementConsumer.publicKey.signature
+                }
             }
-          }
           externalAccountId = account.externalAccountId
           measurementConsumerCreationTokenHash =
             hashSha256(apiIdToExternalId(request.measurementConsumerCreationToken))
@@ -193,9 +195,10 @@ private fun InternalMeasurementConsumer.toMeasurementConsumer(): MeasurementCons
     name = MeasurementConsumerKey(measurementConsumerId).toName()
     certificate = MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
     certificateDer = internalMeasurementConsumer.certificate.details.x509Der
-    publicKey = signedData {
-      data = internalMeasurementConsumer.details.publicKey
-      signature = internalMeasurementConsumer.details.publicKeySignature
-    }
+    publicKey =
+      signedData {
+        data = internalMeasurementConsumer.details.publicKey
+        signature = internalMeasurementConsumer.details.publicKeySignature
+      }
   }
 }
