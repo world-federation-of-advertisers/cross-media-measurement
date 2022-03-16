@@ -204,22 +204,25 @@ fun buildMpcProtocolConfig(
         "Public API ProtocolConfig type doesn't match DuchyProtocolConfig type."
       }
       mpcProtocolConfig {
-        liquidLegionsV2 = liquidLegionsV2 {
-          sketchParams = liquidLegionsSketchParams {
-            decayRate = protocolConfig.liquidLegionsV2.sketchParams.decayRate
-            maxSize = protocolConfig.liquidLegionsV2.sketchParams.maxSize
+        liquidLegionsV2 =
+          liquidLegionsV2 {
+            sketchParams =
+              liquidLegionsSketchParams {
+                decayRate = protocolConfig.liquidLegionsV2.sketchParams.decayRate
+                maxSize = protocolConfig.liquidLegionsV2.sketchParams.maxSize
+              }
+            mpcNoise =
+              mpcNoise {
+                blindedHistogramNoise =
+                  duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
+                    .toSystemDifferentialPrivacyParams()
+                noiseForPublisherNoise =
+                  duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
+                    .toSystemDifferentialPrivacyParams()
+              }
+            ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
+            maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
           }
-          mpcNoise = mpcNoise {
-            blindedHistogramNoise =
-              duchyProtocolConfig.liquidLegionsV2.mpcNoise.blindedHistogramNoise
-                .toSystemDifferentialPrivacyParams()
-            noiseForPublisherNoise =
-              duchyProtocolConfig.liquidLegionsV2.mpcNoise.noiseForPublisherNoise
-                .toSystemDifferentialPrivacyParams()
-          }
-          ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
-          maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
-        }
       }
     }
     InternalDuchyProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Protocol not set")

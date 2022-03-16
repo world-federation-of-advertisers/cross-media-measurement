@@ -76,11 +76,12 @@ private val INTERNAL_REQUISITION = internalRequisition {
       nonceHash = NONCE_HASH.bytes
       nonce = NONCE
     }
-  dataProviderCertificate = internalCertificate {
-    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-    externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID
-    details = InternalCertificateKt.details { x509Der = DATA_PROVIDER_CERTIFICATE_DER }
-  }
+  dataProviderCertificate =
+    internalCertificate {
+      externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+      externalCertificateId = EXTERNAL_DATA_PROVIDER_CERTIFICATE_ID
+      details = InternalCertificateKt.details { x509Der = DATA_PROVIDER_CERTIFICATE_DER }
+    }
   parentMeasurement = InternalRequisitionKt.parentMeasurement { apiVersion = PUBLIC_API_VERSION }
 }
 

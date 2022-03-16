@@ -111,27 +111,28 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
 
     val streamExchangeStepsRequest = streamExchangeStepsRequest {
       limit = pageSize
-      filter = filter {
-        this.principal = principal
+      filter =
+        filter {
+          this.principal = principal
 
-        if (request.pageToken.isNotBlank()) {
-          updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
-        }
+          if (request.pageToken.isNotBlank()) {
+            updatedAfter = Timestamp.parseFrom(request.pageToken.base64UrlDecode())
+          }
 
-        if (request.filter.hasDataProvider()) {
-          stepProvider = DataProviderKey.fromName(request.filter.dataProvider).toProvider()
-        }
-        if (request.filter.hasModelProvider()) {
-          stepProvider = ModelProviderKey.fromName(request.filter.modelProvider).toProvider()
-        }
+          if (request.filter.hasDataProvider()) {
+            stepProvider = DataProviderKey.fromName(request.filter.dataProvider).toProvider()
+          }
+          if (request.filter.hasModelProvider()) {
+            stepProvider = ModelProviderKey.fromName(request.filter.modelProvider).toProvider()
+          }
 
-        externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)
-        if (key.hasExchangeId()) {
-          dates += LocalDate.parse(key.exchangeId).toProtoDate()
+          externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId)
+          if (key.hasExchangeId()) {
+            dates += LocalDate.parse(key.exchangeId).toProtoDate()
+          }
+          dates += request.filter.exchangeDatesList
+          states += request.filter.statesList.map { it.toInternal() }
         }
-        dates += request.filter.exchangeDatesList
-        states += request.filter.statesList.map { it.toInternal() }
-      }
     }
 
     val results: List<InternalExchangeStep> =

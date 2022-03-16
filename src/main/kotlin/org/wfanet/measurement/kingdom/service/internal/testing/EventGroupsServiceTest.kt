@@ -223,63 +223,63 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
   @Test
   fun `createEventGroup returns already created eventGroup for the same ProvidedEventGroupId`() =
-    runBlocking {
-      val externalMeasurementConsumerId =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-          .externalMeasurementConsumerId
+      runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
 
-      val externalDataProviderId =
-        population.createDataProvider(dataProvidersService).externalDataProviderId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-      val eventGroup = eventGroup {
-        this.externalDataProviderId = externalDataProviderId
-        this.externalMeasurementConsumerId = externalMeasurementConsumerId
-        providedEventGroupId = PROVIDED_EVENT_GROUP_ID
-      }
-
-      val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
-      val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(eventGroup)
-      assertThat(secondCreateEventGroupAttempt).isEqualTo(createdEventGroup)
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      providedEventGroupId = PROVIDED_EVENT_GROUP_ID
     }
+
+    val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
+    val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(eventGroup)
+    assertThat(secondCreateEventGroupAttempt).isEqualTo(createdEventGroup)
+  }
 
   @Test
   fun `createEventGroup creates new eventGroup when called without providedEventGroupId`(): Unit =
-    runBlocking {
-      val externalMeasurementConsumerId =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-          .externalMeasurementConsumerId
+      runBlocking {
+    val externalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
 
-      val externalDataProviderId =
-        population.createDataProvider(dataProvidersService).externalDataProviderId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-      val eventGroup = eventGroup {
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      details = DETAILS
+    }
+
+    eventGroupsService.createEventGroup(eventGroup)
+
+    val otherExternalMeasurementConsumerId =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+
+    val otherEventGroup =
+      eventGroup.copy {
         this.externalDataProviderId = externalDataProviderId
-        this.externalMeasurementConsumerId = externalMeasurementConsumerId
-        details = DETAILS
+        this.externalMeasurementConsumerId = otherExternalMeasurementConsumerId
       }
 
-      eventGroupsService.createEventGroup(eventGroup)
-
-      val otherExternalMeasurementConsumerId =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-          .externalMeasurementConsumerId
-
-      val otherEventGroup =
-        eventGroup.copy {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalMeasurementConsumerId = otherExternalMeasurementConsumerId
+    val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(otherEventGroup)
+    assertThat(secondCreateEventGroupAttempt)
+      .isEqualTo(
+        otherEventGroup.copy {
+          externalEventGroupId = secondCreateEventGroupAttempt.externalEventGroupId
+          createTime = secondCreateEventGroupAttempt.createTime
+          updateTime = secondCreateEventGroupAttempt.createTime
         }
-
-      val secondCreateEventGroupAttempt = eventGroupsService.createEventGroup(otherEventGroup)
-      assertThat(secondCreateEventGroupAttempt)
-        .isEqualTo(
-          otherEventGroup.copy {
-            externalEventGroupId = secondCreateEventGroupAttempt.externalEventGroupId
-            createTime = secondCreateEventGroupAttempt.createTime
-            updateTime = secondCreateEventGroupAttempt.createTime
-          }
-        )
-    }
+      )
+  }
 
   @Test
   fun `updateEventGroup fails for missing EventGroup`() = runBlocking {
@@ -626,11 +626,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter {
-              this.externalDataProviderId = externalDataProviderId
-              externalEventGroupIdAfter = eventGroups[0].externalEventGroupId
-              externalDataProviderIdAfter = eventGroups[0].externalDataProviderId
-            }
+            filter =
+              filter {
+                this.externalDataProviderId = externalDataProviderId
+                externalEventGroupIdAfter = eventGroups[0].externalEventGroupId
+                externalDataProviderIdAfter = eventGroups[0].externalDataProviderId
+              }
             limit = 1
           }
         )
@@ -710,10 +711,11 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter {
-              this.externalDataProviderId = externalDataProviderId
-              this.externalMeasurementConsumerIds += eventGroup2.externalMeasurementConsumerId
-            }
+            filter =
+              filter {
+                this.externalDataProviderId = externalDataProviderId
+                this.externalMeasurementConsumerIds += eventGroup2.externalMeasurementConsumerId
+              }
           }
         )
         .toList()

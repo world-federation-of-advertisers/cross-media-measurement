@@ -89,10 +89,11 @@ class DataProvidersServiceTest {
   @Test
   fun `create fills created resource names`() {
     val request = createDataProviderRequest {
-      dataProvider = dataProvider {
-        certificateDer = SERVER_CERTIFICATE_DER
-        publicKey = SIGNED_PUBLIC_KEY
-      }
+      dataProvider =
+        dataProvider {
+          certificateDer = SERVER_CERTIFICATE_DER
+          publicKey = SIGNED_PUBLIC_KEY
+        }
     }
 
     val createdDataProvider = runBlocking { service.createDataProvider(request) }
@@ -254,19 +255,21 @@ class DataProvidersServiceTest {
 
     private val INTERNAL_DATA_PROVIDER: InternalDataProvider = internalDataProvider {
       externalDataProviderId = DATA_PROVIDER_ID
-      details = details {
-        apiVersion = Version.V2_ALPHA.string
-        publicKey = SIGNED_PUBLIC_KEY.data
-        publicKeySignature = SIGNED_PUBLIC_KEY.signature
-      }
-      certificate = internalCertificate {
-        externalDataProviderId = DATA_PROVIDER_ID
-        externalCertificateId = CERTIFICATE_ID
-        subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
-        notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
-        notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
-        details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
-      }
+      details =
+        details {
+          apiVersion = Version.V2_ALPHA.string
+          publicKey = SIGNED_PUBLIC_KEY.data
+          publicKeySignature = SIGNED_PUBLIC_KEY.signature
+        }
+      certificate =
+        internalCertificate {
+          externalDataProviderId = DATA_PROVIDER_ID
+          externalCertificateId = CERTIFICATE_ID
+          subjectKeyIdentifier = serverCertificate.subjectKeyIdentifier!!
+          notValidBefore = serverCertificate.notBefore.toInstant().toProtoTime()
+          notValidAfter = serverCertificate.notAfter.toInstant().toProtoTime()
+          details = CertificateKt.details { x509Der = SERVER_CERTIFICATE_DER }
+        }
     }
   }
 }

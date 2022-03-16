@@ -235,13 +235,14 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     val requisitionDetails =
       requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
-    dataProviders[requisitionStruct.getLong("ExternalDataProviderId")] = dataProviderValue {
-      externalDataProviderCertificateId =
-        requisitionStruct.getLong("ExternalDataProviderCertificateId")
-      dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
-      dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
-      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
-    }
+    dataProviders[requisitionStruct.getLong("ExternalDataProviderId")] =
+      dataProviderValue {
+        externalDataProviderCertificateId =
+          requisitionStruct.getLong("ExternalDataProviderCertificateId")
+        dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+        dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
+        encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+      }
   }
 }
 

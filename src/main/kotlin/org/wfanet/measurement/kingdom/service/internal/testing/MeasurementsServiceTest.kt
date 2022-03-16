@@ -74,12 +74,12 @@ private val MEASUREMENT = measurement {
       apiVersion = API_VERSION
       measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
       measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-      duchyProtocolConfig = duchyProtocolConfig {
-        liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
-      protocolConfig = protocolConfig {
-        liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-      }
+      duchyProtocolConfig =
+        duchyProtocolConfig {
+          liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+      protocolConfig =
+        protocolConfig { liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance() }
     }
 }
 
@@ -214,29 +214,29 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails when current time is before mc certificate is valid`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(
-          measurementConsumersService,
-          accountsService,
-          notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
-          notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(
+        measurementConsumersService,
+        accountsService,
+        notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
+        notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
         )
+      }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          measurementsService.createMeasurement(
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception).hasMessageThat().contains("Certificate is invalid")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
+  }
 
   @Test
   fun `createMeasurement fails when current time is after mc certificate is valid`() = runBlocking {
@@ -295,61 +295,59 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement fails when current time is before edp certificate is valid`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider =
-        population.createDataProvider(
-          dataProvidersService,
-          notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
-          notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider =
+      population.createDataProvider(
+        dataProvidersService,
+        notValidBefore = clock.instant().plus(1L, ChronoUnit.DAYS),
+        notValidAfter = clock.instant().plus(10L, ChronoUnit.DAYS)
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+          }
         )
+      }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          measurementsService.createMeasurement(
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              dataProviders[dataProvider.externalDataProviderId] =
-                dataProvider.toDataProviderValue()
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception).hasMessageThat().contains("Certificate is invalid")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
+  }
 
   @Test
   fun `createMeasurement fails when current time is after edp certificate is valid`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val dataProvider =
-        population.createDataProvider(
-          dataProvidersService,
-          notValidBefore = clock.instant().minus(10L, ChronoUnit.DAYS),
-          notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS)
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider =
+      population.createDataProvider(
+        dataProvidersService,
+        notValidBefore = clock.instant().minus(10L, ChronoUnit.DAYS),
+        notValidAfter = clock.instant().minus(1L, ChronoUnit.DAYS)
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+            dataProviders[dataProvider.externalDataProviderId] = dataProvider.toDataProviderValue()
+          }
         )
+      }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          measurementsService.createMeasurement(
-            MEASUREMENT.copy {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              dataProviders[dataProvider.externalDataProviderId] =
-                dataProvider.toDataProviderValue()
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception).hasMessageThat().contains("Certificate is invalid")
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
+  }
 
   @Test
   fun `createMeasurement succeeds`() = runBlocking {
@@ -383,61 +381,61 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `createMeasurement returns already created measurement for the same ProvidedMeasurementId`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-      val createdMeasurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
 
-      val secondCreateMeasurementAttempt =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-      assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
-    }
+    val secondCreateMeasurementAttempt =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
+  }
 
   @Test
   fun `createMeasurement returns new measurement when called without providedMeasurementId`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-      val measurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
+    val measurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
 
-      val otherMeasurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = ""
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
+    val otherMeasurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = ""
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
 
-      assertThat(measurement.externalMeasurementId)
-        .isNotEqualTo(otherMeasurement.externalMeasurementId)
-    }
+    assertThat(measurement.externalMeasurementId)
+      .isNotEqualTo(otherMeasurement.externalMeasurementId)
+  }
 
   @Test
   fun `getMeasurementByComputationId returns created measurement`() = runBlocking {
@@ -531,24 +529,27 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             updateTime = createdMeasurement.createTime
             state = Requisition.State.PENDING_PARAMS
             dataProviderCertificate = dataProvider.certificate
-            parentMeasurement = parentMeasurement {
-              apiVersion = createdMeasurement.details.apiVersion
-              externalMeasurementConsumerCertificateId =
-                measurementConsumer.certificate.externalCertificateId
-              state = createdMeasurement.state
-              measurementSpec = createdMeasurement.details.measurementSpec
-              measurementSpecSignature = createdMeasurement.details.measurementSpecSignature
-              protocolConfig = protocolConfig {
-                liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-                measurementType = ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+            parentMeasurement =
+              parentMeasurement {
+                apiVersion = createdMeasurement.details.apiVersion
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                state = createdMeasurement.state
+                measurementSpec = createdMeasurement.details.measurementSpec
+                measurementSpecSignature = createdMeasurement.details.measurementSpecSignature
+                protocolConfig =
+                  protocolConfig {
+                    liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+                    measurementType = ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+                  }
               }
-            }
-            details = details {
-              dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-              dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-              encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-              nonceHash = dataProviderValue.nonceHash
-            }
+            details =
+              details {
+                dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+                dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+                encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+                nonceHash = dataProviderValue.nonceHash
+              }
             duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()
             duchies["Rippon"] = Requisition.DuchyValue.getDefaultInstance()
             duchies["Shoaks"] = Requisition.DuchyValue.getDefaultInstance()
@@ -668,38 +669,38 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `cancelMeasurement throws FAILED_PRECONDITION when Measurement in illegal state`() =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
-      val measurement =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-
-      measurementsService.cancelMeasurement(
-        cancelMeasurementRequest {
-          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-          externalMeasurementId = measurement.externalMeasurementId
+      runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
         }
       )
 
-      // Should fail as Measurement is already in CANCELLED state.
-      val exception =
-        assertFailsWith(StatusRuntimeException::class) {
-          measurementsService.cancelMeasurement(
-            cancelMeasurementRequest {
-              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-              externalMeasurementId = measurement.externalMeasurementId
-            }
-          )
-        }
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
+    // Should fail as Measurement is already in CANCELLED state.
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        measurementsService.cancelMeasurement(
+          cancelMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
 
   @Test
   fun `streamMeasurements returns all measurements in update time order`(): Unit = runBlocking {
@@ -738,9 +739,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService
         .streamMeasurements(
           streamMeasurementsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            }
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
           }
         )
         .toList()
@@ -780,9 +782,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService
         .streamMeasurements(
           streamMeasurementsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            }
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
           }
         )
         .toList()
@@ -820,9 +823,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val streamMeasurementsRequest = streamMeasurementsRequest {
       limit = 1
-      filter = filter {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      }
+      filter =
+        filter { externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId }
     }
 
     val measurements: List<Measurement> =
@@ -908,9 +910,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService
         .streamMeasurements(
           streamMeasurementsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
-            }
+            filter =
+              filter {
+                externalMeasurementConsumerId = measurementConsumer2.externalMeasurementConsumerId
+              }
           }
         )
         .toList()

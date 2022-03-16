@@ -104,24 +104,29 @@ private val PUBLIC_API_MEASUREMENT_SPEC =
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
 
 private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
-  liquidLegionsV2 = liquidLegionsV2 {
-    sketchParams = liquidLegionsSketchParams {
-      decayRate = 12.0
-      maxSize = 100_000
+  liquidLegionsV2 =
+    liquidLegionsV2 {
+      sketchParams =
+        liquidLegionsSketchParams {
+          decayRate = 12.0
+          maxSize = 100_000
+        }
+      mpcNoise =
+        mpcNoise {
+          blindedHistogramNoise =
+            differentialPrivacyParams {
+              epsilon = 3.1
+              delta = 3.2
+            }
+          noiseForPublisherNoise =
+            differentialPrivacyParams {
+              epsilon = 4.1
+              delta = 4.2
+            }
+        }
+      ellipticCurveId = 415
+      maximumFrequency = 10
     }
-    mpcNoise = mpcNoise {
-      blindedHistogramNoise = differentialPrivacyParams {
-        epsilon = 3.1
-        delta = 3.2
-      }
-      noiseForPublisherNoise = differentialPrivacyParams {
-        epsilon = 4.1
-        delta = 4.2
-      }
-    }
-    ellipticCurveId = 415
-    maximumFrequency = 10
-  }
 }
 
 private val AGGREGATOR_PROTOCOLS_SETUP_CONFIG =

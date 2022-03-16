@@ -67,10 +67,11 @@ class ComputationsService(
       logger.info("Streaming active global computations since $currentContinuationToken")
       streamMeasurements(currentContinuationToken)
         .onEach {
-          currentContinuationToken = streamActiveComputationsContinuationToken {
-            updateTimeSince = it.updateTime
-            lastSeenExternalComputationId = it.externalComputationId
-          }
+          currentContinuationToken =
+            streamActiveComputationsContinuationToken {
+              updateTimeSince = it.updateTime
+              lastSeenExternalComputationId = it.externalComputationId
+            }
         }
         .map { measurement ->
           StreamActiveComputationsResponse.newBuilder()

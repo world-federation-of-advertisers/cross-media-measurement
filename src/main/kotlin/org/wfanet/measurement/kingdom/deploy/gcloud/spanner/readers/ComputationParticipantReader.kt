@@ -169,7 +169,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         struct.getProtoMessage("ParticipantDetails", ComputationParticipant.Details.parser())
       apiVersion = measurementDetails.apiVersion
 
-      buildFailureLogEntry(
+        buildFailureLogEntry(
           externalMeasurementConsumerId,
           externalMeasurementId,
           externalDuchyId,
@@ -192,12 +192,13 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         .find { (_, logEntryDetails) -> logEntryDetails.hasError() }
         ?.let { (struct, logEntryDetails) ->
           duchyMeasurementLogEntry {
-            logEntry = measurementLogEntry {
-              this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-              this.externalMeasurementId = externalMeasurementId.value
-              createTime = struct.getTimestamp("CreateTime").toProto()
-              details = logEntryDetails
-            }
+            logEntry =
+              measurementLogEntry {
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+                this.externalMeasurementId = externalMeasurementId.value
+                createTime = struct.getTimestamp("CreateTime").toProto()
+                details = logEntryDetails
+              }
             this.externalDuchyId = externalDuchyId
             externalComputationLogEntryId = struct.getLong("ExternalComputationLogEntryId")
             details =

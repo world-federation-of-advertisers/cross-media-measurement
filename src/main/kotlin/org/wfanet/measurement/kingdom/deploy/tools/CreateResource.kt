@@ -221,11 +221,12 @@ private class CreateRecurringExchangeCommand : Runnable {
       externalDataProviderId = apiIdToExternalId(dataProviderKey.dataProviderId)
       state = RecurringExchange.State.ACTIVE
       nextExchangeDate = this@CreateRecurringExchangeCommand.nextExchangeDate.toProtoDate()
-      details = recurringExchangeDetails {
-        this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
-        exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
-        cronSchedule = RECURRING_EXCHANGE_CRON_SCHEDULE
-      }
+      details =
+        recurringExchangeDetails {
+          this.externalExchangeWorkflow = serializedExchangeWorkflow.toByteString()
+          exchangeWorkflow = v2AlphaExchangeWorkflow.toInternal()
+          cronSchedule = RECURRING_EXCHANGE_CRON_SCHEDULE
+        }
     }
 
     val recurringExchangesStub = RecurringExchangesCoroutineStub(parent.channel)

@@ -89,10 +89,11 @@ private val SKETCH_CONFIG =
     .build()
 private val OUTPUT_DP_PARAMS = DifferentialPrivacyParams.getDefaultInstance()
 private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
-  sketchParams = liquidLegionsSketchParams {
-    decayRate = LLV2_DECAY_RATE
-    maxSize = LLV2_MAX_SIZE
-  }
+  sketchParams =
+    liquidLegionsSketchParams {
+      decayRate = LLV2_DECAY_RATE
+      maxSize = LLV2_MAX_SIZE
+    }
   maximumFrequency = MAX_FREQUENCY
 }
 

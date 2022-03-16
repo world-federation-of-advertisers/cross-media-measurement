@@ -103,47 +103,52 @@ private val INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS =
             elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
           }
       }
-    duchyCertificate = internalCertificate {
-      externalDuchyId = DUCHY_ID
-      externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-      details = InternalCertificateKt.details { x509Der = DUCHY_CERTIFICATE_DER }
-    }
+    duchyCertificate =
+      internalCertificate {
+        externalDuchyId = DUCHY_ID
+        externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+        details = InternalCertificateKt.details { x509Der = DUCHY_CERTIFICATE_DER }
+      }
   }
 
 private val INTERNAL_COMPUTATION_PARTICIPANT_WITH_FAILURE =
   INTERNAL_COMPUTATION_PARTICIPANT.copy {
     state = InternalComputationParticipant.State.FAILED
-    failureLogEntry = duchyMeasurementLogEntry {
-      externalDuchyId = DUCHY_ID
-      logEntry = measurementLogEntry {
+    failureLogEntry =
+      duchyMeasurementLogEntry {
+        externalDuchyId = DUCHY_ID
+        logEntry =
+          measurementLogEntry {
+            details =
+              MeasurementLogEntryKt.details {
+                logMessage = DUCHY_ERROR_MESSAGE
+                error =
+                  MeasurementLogEntryKt.errorDetails {
+                    type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+                    errorTime =
+                      timestamp {
+                        seconds = 1001
+                        nanos = 2002
+                      }
+                  }
+              }
+          }
         details =
-          MeasurementLogEntryKt.details {
-            logMessage = DUCHY_ERROR_MESSAGE
-            error =
-              MeasurementLogEntryKt.errorDetails {
-                type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-                errorTime = timestamp {
-                  seconds = 1001
-                  nanos = 2002
-                }
+          DuchyMeasurementLogEntryKt.details {
+            duchyChildReferenceId = MILL_ID
+            stageAttempt =
+              DuchyMeasurementLogEntryKt.stageAttempt {
+                stage = STAGE_ATTEMPT_STAGE
+                stageName = STAGE_ATTEMPT_STAGE_NAME
+                attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
+                stageStartTime =
+                  timestamp {
+                    seconds = 100
+                    nanos = 200
+                  }
               }
           }
       }
-      details =
-        DuchyMeasurementLogEntryKt.details {
-          duchyChildReferenceId = MILL_ID
-          stageAttempt =
-            DuchyMeasurementLogEntryKt.stageAttempt {
-              stage = STAGE_ATTEMPT_STAGE
-              stageName = STAGE_ATTEMPT_STAGE_NAME
-              attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
-              stageStartTime = timestamp {
-                seconds = 100
-                nanos = 200
-              }
-            }
-        }
-    }
   }
 
 @RunWith(JUnit4::class)
@@ -193,14 +198,16 @@ class ComputationParticipantsServiceTest {
           name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
           state = ComputationParticipant.State.REQUISITION_PARAMS_SET
           updateTime = INTERNAL_COMPUTATION_PARTICIPANT.updateTime
-          requisitionParams = requisitionParams {
-            duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
-            duchyCertificateDer = DUCHY_CERTIFICATE_DER
-            liquidLegionsV2 = liquidLegionsV2 {
-              elGamalPublicKey = DUCHY_ELGAMAL_KEY
-              elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+          requisitionParams =
+            requisitionParams {
+              duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+              duchyCertificateDer = DUCHY_CERTIFICATE_DER
+              liquidLegionsV2 =
+                liquidLegionsV2 {
+                  elGamalPublicKey = DUCHY_ELGAMAL_KEY
+                  elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+                }
             }
-          }
         }
       )
     verifyProtoArgument(

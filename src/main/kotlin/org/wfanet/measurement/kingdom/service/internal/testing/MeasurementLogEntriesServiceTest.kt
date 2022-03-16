@@ -208,12 +208,13 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
-      logEntry = measurementLogEntry {
-        this.externalMeasurementId = measurement.externalMeasurementId
-        this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-        details = measurementLogEntryDetails
-        createTime = createdDuchyMeasurementLogEntry.logEntry.createTime
-      }
+      logEntry =
+        measurementLogEntry {
+          this.externalMeasurementId = measurement.externalMeasurementId
+          this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          details = measurementLogEntryDetails
+          createTime = createdDuchyMeasurementLogEntry.logEntry.createTime
+        }
       details = duchyMeasurementLogEntryDetails
     }
 
@@ -257,12 +258,13 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
       externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
-      logEntry = measurementLogEntry {
-        this.externalMeasurementId = measurement.externalMeasurementId
-        this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-        details = measurementLogEntryDetails
-        createTime = createdDuchyMeasurementLogEntry.logEntry.createTime
-      }
+      logEntry =
+        measurementLogEntry {
+          this.externalMeasurementId = measurement.externalMeasurementId
+          this.externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          details = measurementLogEntryDetails
+          createTime = createdDuchyMeasurementLogEntry.logEntry.createTime
+        }
       details = duchyMeasurementLogEntryDetails
     }
 

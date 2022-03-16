@@ -95,10 +95,11 @@ private val REQUISITION_KEY = externalRequisitionKey {
 }
 private val MEASUREMENT_SPEC = measurementSpec { nonceHashes += NONCE_HASH.bytes }
 private val COMPUTATION_DETAILS = computationDetails {
-  kingdomComputation = kingdomComputationDetails {
-    publicApiVersion = Version.V2_ALPHA.string
-    measurementSpec = MEASUREMENT_SPEC.toByteString()
-  }
+  kingdomComputation =
+    kingdomComputationDetails {
+      publicApiVersion = Version.V2_ALPHA.string
+      measurementSpec = MEASUREMENT_SPEC.toByteString()
+    }
 }
 private val REQUISITION_METADATA = requisitionMetadata {
   externalKey = REQUISITION_KEY
