@@ -23,28 +23,32 @@ class InMemoryBackingStoreTest {
 		val backingStore = InMemoryBackingStore()
 		val txContext = backingStore.startTransaction()
 
-		val bucket1 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket1 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
 																		 0.3f,
 																		 0.1f)
 
-		val bucket2 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket2 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
 																		 0.5f,
 																		 0.1f)
 
-		val bucket3 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket3 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.FEMALE,
 																		 0.3f,
 																		 0.1f)
 
-		val bucket4 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket4 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.FEMALE,
@@ -70,7 +74,8 @@ class InMemoryBackingStoreTest {
 		val backingStore = InMemoryBackingStore()
 		val txContext = backingStore.startTransaction()
 
-		val bucket1 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket1 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -108,7 +113,8 @@ class InMemoryBackingStoreTest {
 
 		val txContext = backingStore.startTransaction()
 		val txId = txContext.transactionId
-		val bucket1 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket1 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -135,7 +141,8 @@ class InMemoryBackingStoreTest {
 
 		val txContext = backingStore.startTransaction()
 		val txId = txContext.transactionId
-		val bucket1 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket1 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -160,7 +167,8 @@ class InMemoryBackingStoreTest {
 		val backingStore = InMemoryBackingStore()
 		val txContext = backingStore.startTransaction()
 
-		val bucket1 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket1 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,

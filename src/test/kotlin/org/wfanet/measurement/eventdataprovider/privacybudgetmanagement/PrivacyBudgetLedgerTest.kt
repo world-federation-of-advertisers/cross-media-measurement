@@ -23,7 +23,8 @@ class PrivacyBudgetLedgerTest {
   fun `Charge works when privacy bucket groups are empty`() {
 		val backingStore = InMemoryBackingStore()
 		val ledger = PrivacyBudgetLedger(backingStore, 1.0f, 0.01f)
-		val bucket = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket = PrivacyBucketGroup("ACME",
+																		LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -44,7 +45,8 @@ class PrivacyBudgetLedgerTest {
   fun `Charge works when charge list is empty`() {
 		val backingStore = InMemoryBackingStore()
 		val ledger = PrivacyBudgetLedger(backingStore, 1.0f, 0.01f)
-		val bucket = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket = PrivacyBucketGroup("ACME",
+																		LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -66,7 +68,8 @@ class PrivacyBudgetLedgerTest {
 		// See the second test in AdvancedCompositionTest`advanced composition`
 		val backingStore = InMemoryBackingStore()
 		val ledger = PrivacyBudgetLedger(backingStore, 21.5f, 0.06f)
-		val bucket = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket = PrivacyBucketGroup("ACME",
+																		LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -86,7 +89,8 @@ class PrivacyBudgetLedgerTest {
 	fun `Charge different values`() {
 		val backingStore = InMemoryBackingStore()
 		val ledger = PrivacyBudgetLedger(backingStore, 1.0001f, 0.01f)
-		val bucket = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket = PrivacyBucketGroup("ACME",
+																		LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
@@ -112,13 +116,15 @@ class PrivacyBudgetLedgerTest {
 	fun `Charge multiple buckets`() {
 		val backingStore = InMemoryBackingStore()
 		val ledger = PrivacyBudgetLedger(backingStore, 1.0001f, 0.01f)
-		val bucket1 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket1 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,
 																		 0.3f,
 																		 0.1f)
-		val bucket2 = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket2 = PrivacyBucketGroup("ACME",
+																		 LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.FEMALE,
@@ -152,7 +158,8 @@ class PrivacyBudgetLedgerTest {
 	fun `Charge list of values`() {
 		val backingStore = InMemoryBackingStore()
 		val ledger = PrivacyBudgetLedger(backingStore, 1.0001f, 0.01f)
-		val bucket = PrivacyBucketGroup(LocalDate.parse("2021-07-01"),
+		val bucket = PrivacyBucketGroup("ACME",
+																		LocalDate.parse("2021-07-01"),
 																		 LocalDate.parse("2021-07-01"),
 																		 AgeGroup.RANGE_35_54,
 																		 Gender.MALE,

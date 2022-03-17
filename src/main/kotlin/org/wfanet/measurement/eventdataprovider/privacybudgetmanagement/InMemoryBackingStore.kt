@@ -44,6 +44,9 @@ override val transactionId: Long) : PrivacyBudgetLedgerTransactionContext {
 
 	fun privacyBucketsOverlap(bucketGroup1: PrivacyBucketGroup,
 														bucketGroup2: PrivacyBucketGroup): Boolean {
+		if (bucketGroup1.measurementConsumerId != bucketGroup2.measurementConsumerId) {
+			return false
+		}
 		if (bucketGroup2.endingDate.isBefore(bucketGroup1.startingDate) ||
 				bucketGroup1.endingDate.isBefore(bucketGroup2.startingDate)) {
 			return false

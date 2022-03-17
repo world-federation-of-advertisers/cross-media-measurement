@@ -28,6 +28,7 @@ enum class Gender(val string: String) {
 
 /** A set of users whose privacy budget usage is being tracked as a unit. */
 data class PrivacyBucketGroup(
+	val measurementConsumerId: String,
   val startingDate: LocalDate,
   val endingDate: LocalDate,
   val ageGroup: AgeGroup,
