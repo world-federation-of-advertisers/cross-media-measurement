@@ -15,8 +15,14 @@
 package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
 import com.google.api.expr.v1alpha1.Expr
+import com.google.protobuf.Message
+import org.projectnessie.cel.Ast
 import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.Issues
+import org.projectnessie.cel.Program
+import org.projectnessie.cel.checker.Decls
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 
 /**
  * Validates an Event Filtering CEL expression according to Halo rules.
@@ -61,7 +67,7 @@ object EventFilterValidator {
     }
   }
 
-  fun failOnInvalidExpression(issues: Issues) {
+  private fun failOnInvalidExpression(issues: Issues) {
     if (issues.hasIssues()) {
       throw EventFilterValidationException(
         EventFilterValidationException.Code.INVALID_CEL_EXPRESSION,
@@ -133,14 +139,50 @@ object EventFilterValidator {
     }
   }
 
-  fun validate(celExpression: String, env: Env) {
-    val astAndIssues = env.compile(celExpression)
+  fun compile(celExpression: String, env: Env): Ast {
+    val astAndIssues =
+      try {
+        env.compile(celExpression)
+      } catch (e: Exception) {
+        throw EventFilterValidationException(
+          EventFilterValidationException.Code.INVALID_CEL_EXPRESSION,
+          e.message ?: "Compiling expression threw an unexpected exception",
+        )
+      }
     failOnInvalidExpression(astAndIssues.issues)
-    val expr = astAndIssues.ast.expr
+    val ast = astAndIssues.ast
+    val expr = ast.expr
     if (!expr.hasCallExpr()) {
       failOnSingleToplevelValue()
     }
     validateExpr(expr)
+    return ast
+  }
+
+  private fun createEnv(eventMessage: Message): Env {
+    val typeRegistry: ProtoTypeRegistry = ProtoTypeRegistry.newRegistry(eventMessage)
+    val celVariables =
+      eventMessage.descriptorForType.fields.map { field ->
+        val typeName = field.messageType.fullName
+        val defaultValue = eventMessage.getField(field) as? Message
+        checkNotNull(defaultValue) { "eventMessage field should have Message type" }
+        typeRegistry.registerMessage(defaultValue)
+        Decls.newVar(
+          field.name,
+          Decls.newObjectType(typeName),
+        )
+      }
+    return Env.newEnv(
+      EnvOption.customTypeAdapter(typeRegistry),
+      EnvOption.customTypeProvider(typeRegistry),
+      EnvOption.declarations(celVariables),
+    )
+  }
+
+  fun compileProgramWithEventMessage(celExpression: String, eventMessage: Message): Program {
+    val env = createEnv(eventMessage)
+    val ast = compile(celExpression, env)
+    return env.program(ast)
   }
 }
 

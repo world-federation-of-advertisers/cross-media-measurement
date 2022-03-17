@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.api.expr.v1alpha1.Decl
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
@@ -326,7 +327,7 @@ class EdpSimulator(
   }
 
   private fun validateEventFilter(eventFilter: EventFilter) {
-    val decls =
+    val declarations: List<Decl> =
       eventTemplateNames.map {
         Decls.newVar(
           EventTemplates.getEventTemplateForType(it)!!.name,
@@ -338,10 +339,10 @@ class EdpSimulator(
       Env.newEnv(
         EnvOption.customTypeAdapter(celProtoTypeRegistry),
         EnvOption.customTypeProvider(celProtoTypeRegistry),
-        EnvOption.declarations(decls),
+        EnvOption.declarations(declarations),
       )
 
-    EventFilterValidator.validate(eventFilter.expression, env)
+    EventFilterValidator.compile(eventFilter.expression, env)
   }
 
   private suspend fun fulfillRequisition(
