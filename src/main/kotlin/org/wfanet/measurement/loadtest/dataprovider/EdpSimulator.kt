@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.api.expr.v1alpha1.Decl
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
@@ -84,7 +85,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val EVENT_TEMPLATE_PACKAGE_NAME =
-  "org.wfanet.measurement.api.v2alpha.event_templates.testing"
+  "wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -125,11 +126,12 @@ class EdpSimulator(
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
           parent = edpData.name
-          eventGroup = eventGroup {
-            measurementConsumer = measurementConsumerName
-            eventGroupReferenceId = "001"
-            eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
-          }
+          eventGroup =
+            eventGroup {
+              measurementConsumer = measurementConsumerName
+              eventGroupReferenceId = "001"
+              eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
+            }
         }
       )
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
@@ -277,7 +279,7 @@ class EdpSimulator(
   }
 
   private fun validateEventFilter(eventFilter: EventFilter) {
-    val decls =
+    val declarations: List<Decl> =
       eventTemplateNames.map {
         Decls.newVar(
           EventTemplate(templateProtoTypeRegistry.getDescriptorForType(it)!!).name,
@@ -289,10 +291,10 @@ class EdpSimulator(
       Env.newEnv(
         EnvOption.customTypeAdapter(celProtoTypeRegistry),
         EnvOption.customTypeProvider(celProtoTypeRegistry),
-        EnvOption.declarations(decls),
+        EnvOption.declarations(declarations),
       )
 
-    EventFilterValidator.validate(eventFilter.expression, env)
+    EventFilterValidator.compile(eventFilter.expression, env)
   }
 
   private suspend fun fulfillRequisition(
@@ -306,11 +308,12 @@ class EdpSimulator(
       flow {
         emit(
           fulfillRequisitionRequest {
-            header = header {
-              name = requisitionName
-              this.requisitionFingerprint = requisitionFingerprint
-              this.nonce = nonce
-            }
+            header =
+              header {
+                name = requisitionName
+                this.requisitionFingerprint = requisitionFingerprint
+                this.nonce = nonce
+              }
           }
         )
         emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
@@ -387,27 +390,31 @@ private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
   return sketchConfig {
-    indexes += indexSpec {
-      name = "Index"
-      distribution = distribution {
-        exponential = exponentialDistribution {
-          rate = decayRate
-          numValues = maxSize
-        }
+    indexes +=
+      indexSpec {
+        name = "Index"
+        distribution =
+          distribution {
+            exponential =
+              exponentialDistribution {
+                rate = decayRate
+                numValues = maxSize
+              }
+          }
       }
-    }
-    values += valueSpec {
-      name = "SamplingIndicator"
-      aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
-      distribution = distribution {
-        uniform = uniformDistribution { numValues = samplingIndicatorSize }
+    values +=
+      valueSpec {
+        name = "SamplingIndicator"
+        aggregator = SketchConfig.ValueSpec.Aggregator.UNIQUE
+        distribution =
+          distribution { uniform = uniformDistribution { numValues = samplingIndicatorSize } }
       }
-    }
 
-    values += valueSpec {
-      name = "Frequency"
-      aggregator = SketchConfig.ValueSpec.Aggregator.SUM
-      distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-    }
+    values +=
+      valueSpec {
+        name = "Frequency"
+        aggregator = SketchConfig.ValueSpec.Aggregator.SUM
+        distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+      }
   }
 }

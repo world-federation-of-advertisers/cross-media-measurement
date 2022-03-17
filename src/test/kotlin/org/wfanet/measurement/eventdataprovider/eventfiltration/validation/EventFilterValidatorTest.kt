@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 
 @RunWith(JUnit4::class)
 class EventFilterValidatorTest {
@@ -67,7 +67,7 @@ class EventFilterValidatorTest {
   private fun assertThatFailsWithCode(celExpression: String, code: Code, env: Env = Env.newEnv()) {
     val e =
       assertFailsWith(EventFilterValidationException::class) {
-        EventFilterValidator.validate(celExpression, env)
+        EventFilterValidator.compile(celExpression, env)
       }
     assertThat(e.code).isEqualTo(code)
   }
@@ -78,8 +78,13 @@ class EventFilterValidatorTest {
   }
 
   @Test
+  fun `fails on invalid expression`() {
+    assertThatFailsWithCode("+", Code.INVALID_CEL_EXPRESSION)
+  }
+
+  @Test
   fun `works on supported operation`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "age > 30",
       env(intVar("age")),
     )
@@ -108,7 +113,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `comparing field to a list of constants is valid`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "age in [10, 20, 30]",
       env(intVar("age")),
     )
@@ -167,7 +172,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `a complex comparison works`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "age < 20 || age > 50",
       env(intVar("age")),
     )
@@ -189,7 +194,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `fields can be compared between each other`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "field1 == field2",
       env(
         intVar("field1"),
@@ -209,7 +214,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `can use valid template fields on comparison`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "bt.gender.value == 2 && vt.age.value == 1",
       envWithTestTemplateVars(
         bannerTemplateVar("bt"),
@@ -220,7 +225,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `can use template with IN operator`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "vt.age.value in [0, 1]",
       envWithTestTemplateVars(videoTemplateVar("vt"))
     )

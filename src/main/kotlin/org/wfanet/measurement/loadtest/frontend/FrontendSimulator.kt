@@ -168,16 +168,17 @@ class FrontendSimulator(
       }
 
     val request = createMeasurementRequest {
-      measurement = measurement {
-        measurementConsumerCertificate = measurementConsumer.certificate
-        measurementSpec =
-          signMeasurementSpec(
-            newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
-            measurementConsumerData.signingKey
-          )
-        dataProviders += dataProviderEntries
-        this.measurementReferenceId = runId
-      }
+      measurement =
+        measurement {
+          measurementConsumerCertificate = measurementConsumer.certificate
+          measurementSpec =
+            signMeasurementSpec(
+              newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
+              measurementConsumerData.signingKey
+            )
+          dataProviders += dataProviderEntries
+          this.measurementReferenceId = runId
+        }
     }
     return measurementsClient
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -271,11 +272,12 @@ class FrontendSimulator(
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = outputDpParams
-        frequencyPrivacyParams = outputDpParams
-        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
-      }
+      reachAndFrequency =
+        reachAndFrequency {
+          reachPrivacyParams = outputDpParams
+          frequencyPrivacyParams = outputDpParams
+          vidSamplingInterval = vidSamplingInterval { width = 1.0f }
+        }
       this.nonceHashes += nonceHashes
     }
   }
@@ -318,7 +320,7 @@ class FrontendSimulator(
    * Creates a CEL filter using Event Templates names to qualify each variable in expression.
    *
    * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
-   * org.wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
+   * wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
    */
   private suspend fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
@@ -347,13 +349,14 @@ class FrontendSimulator(
       createFilterExpression(eventGroup.getEventTemplatesList().map { it.type })
 
     val requisitionSpec = requisitionSpec {
-      eventGroups += eventGroupEntry {
-        key = eventGroup.name
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            filter = eventFilter { expression = eventFilterExpression }
-          }
-      }
+      eventGroups +=
+        eventGroupEntry {
+          key = eventGroup.name
+          value =
+            RequisitionSpecKt.EventGroupEntryKt.value {
+              filter = eventFilter { expression = eventFilterExpression }
+            }
+        }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
     }

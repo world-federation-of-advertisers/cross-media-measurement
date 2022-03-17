@@ -40,7 +40,7 @@ private val SECRET_FILES_PATH: Path =
     )
   )
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 
 val DUCHY_ID_CONFIG: DuchyIdConfig =
   loadTextProto("duchy_id_config.textproto", DuchyIdConfig.getDefaultInstance())
