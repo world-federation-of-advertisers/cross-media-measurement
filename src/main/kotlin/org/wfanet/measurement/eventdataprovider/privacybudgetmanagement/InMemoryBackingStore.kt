@@ -103,9 +103,7 @@ class InMemoryBackingStoreTransactionContext(
   }
 
   override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
-    println("The ledger is ${transactionLedger}")
     transactionLedger[privacyBudgetLedgerEntry.rowId.toInt()] = privacyBudgetLedgerEntry
-    println("The ledger is now ${transactionLedger}")
   }
 
   override fun mergePreviousTransaction(previousTransactionId: Long) {

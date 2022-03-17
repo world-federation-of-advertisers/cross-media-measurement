@@ -156,7 +156,6 @@ class PrivacyBudgetLedger(
     } else {
       val totalEpsilon = nonUniqueCharges.sumOf { it.epsilon.toDouble() * it.count.toDouble() }
       val totalDelta = nonUniqueCharges.sumOf { it.delta.toDouble() * it.count.toDouble() }
-      println("totalEpsilon = ${totalEpsilon}, totalDelta = ${totalDelta}")
       return (totalEpsilon > maximumTotalEpsilon.toDouble()) ||
         (totalDelta > maximumTotalDelta.toDouble())
     }
