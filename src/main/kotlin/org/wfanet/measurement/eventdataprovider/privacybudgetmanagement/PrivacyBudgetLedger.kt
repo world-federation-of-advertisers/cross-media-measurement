@@ -25,7 +25,7 @@ object PrivacyBudgetLedgerConstants {
 }
 
 /** Manages and updates privacy budget data. */
-internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingStore,
+class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingStore,
 																	 val maximumTotalEpsilon: Float,
 																	 val maximumTotalDelta: Float
 ) {
@@ -104,7 +104,17 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
 
 	}
 
-  fun privacyBudgetIsExceeded(ledgerEntries: List<PrivacyBudgetLedgerEntry>,
+	/**
+   * Tests whether a given privacy bucket is exceeded.
+   *
+   * @param ledgerEntries is a list of PrivacyBudgetLedgerEntries that all
+   *   refer to the same underlying privacy bucket.
+   * @param charges is a list of charges that are to be added to this
+   *   privacy bucket.
+   * @return true if adding the charges would cause the total privacy
+   *   budget usage for this bucket to be exceeded.
+   */
+  private fun privacyBudgetIsExceeded(ledgerEntries: List<PrivacyBudgetLedgerEntry>,
 															charges: List<PrivacyCharge>): Boolean {
 
 		val nonUniqueCharges = mutableListOf<ChargeWithRepetitions>()
@@ -136,6 +146,7 @@ internal class PrivacyBudgetLedger(val backingStore: PrivacyBudgetLedgerBackingS
 		} else {
 			val totalEpsilon = nonUniqueCharges.sumOf { it.epsilon.toDouble() * it.count.toDouble() }
 			val totalDelta = nonUniqueCharges.sumOf { it.delta.toDouble() * it.count.toDouble() }
+			println("totalEpsilon = ${totalEpsilon}, totalDelta = ${totalDelta}")
 			return (totalEpsilon > maximumTotalEpsilon.toDouble()) || (totalDelta > maximumTotalDelta.toDouble())
 		}
 	}
