@@ -24,6 +24,7 @@ import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
@@ -37,6 +38,12 @@ class EventFilterValidatorTest {
   private val booleanVar = { name: String -> Decls.newVar(name, Decls.Bool) }
   private val intVar = { name: String -> Decls.newVar(name, Decls.Int) }
   private val stringVar = { name: String -> Decls.newVar(name, Decls.String) }
+  private fun bannerTemplateVar(name: String): Decl {
+    return Decls.newVar(
+      name,
+      Decls.newObjectType("$TEMPLATE_PREFIX.TestBannerTemplate"),
+    )
+  }
   private fun videoTemplateVar(name: String): Decl {
     return Decls.newVar(
       name,
@@ -44,9 +51,10 @@ class EventFilterValidatorTest {
     )
   }
 
-  private fun envWithTestVideoTemplate(vararg vars: Decl): Env {
+  private fun envWithTestTemplateVars(vararg vars: Decl): Env {
     var typeRegistry: ProtoTypeRegistry =
       ProtoTypeRegistry.newRegistry(
+        TestBannerTemplate.getDefaultInstance(),
         TestVideoTemplate.getDefaultInstance(),
       )
     return Env.newEnv(
@@ -195,15 +203,18 @@ class EventFilterValidatorTest {
     assertThatFailsWithCode(
       "vt.date == 10",
       Code.INVALID_CEL_EXPRESSION,
-      envWithTestVideoTemplate(videoTemplateVar("vt"))
+      envWithTestTemplateVars(videoTemplateVar("vt"))
     )
   }
 
   @Test
   fun `can use valid template fields on comparison`() {
     EventFilterValidator.validate(
-      "vt.age.value == 1",
-      envWithTestVideoTemplate(videoTemplateVar("vt"))
+      "bt.gender.value == 2 && vt.age.value == 1",
+      envWithTestTemplateVars(
+        bannerTemplateVar("bt"),
+        videoTemplateVar("vt"),
+      )
     )
   }
 
@@ -211,7 +222,7 @@ class EventFilterValidatorTest {
   fun `can use template with IN operator`() {
     EventFilterValidator.validate(
       "vt.age.value in [0, 1]",
-      envWithTestVideoTemplate(videoTemplateVar("vt"))
+      envWithTestTemplateVars(videoTemplateVar("vt"))
     )
   }
 }
