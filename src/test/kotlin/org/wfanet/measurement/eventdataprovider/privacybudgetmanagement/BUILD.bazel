@@ -32,4 +32,3 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
-

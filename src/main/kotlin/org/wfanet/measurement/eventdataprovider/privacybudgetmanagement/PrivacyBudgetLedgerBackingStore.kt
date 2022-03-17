@@ -22,7 +22,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  */
 data class PrivacyBudgetLedgerEntry(
   val rowId: Long,
-	val transactionId: Long,
+  val transactionId: Long,
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
   val repetitionCount: Int
