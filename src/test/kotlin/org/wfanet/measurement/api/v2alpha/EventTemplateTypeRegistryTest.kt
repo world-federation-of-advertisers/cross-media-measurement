@@ -19,7 +19,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
-private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.event_templates.testing"
+private const val PACKAGE_NAME = "wfanet.measurement.api.v2alpha.event_templates.testing"
 private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
 private const val BANNER_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestBannerTemplate"
 private const val VIDEO_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestVideoTemplate"
@@ -53,7 +53,7 @@ class EventTemplateTypeRegistryTest {
   @Test
   fun `loadTemplate() loads subpackages`() {
     val typeRegistry =
-      EventTemplateTypeRegistry.createRegistryForPackagePrefix("org.wfanet.measurement.api.v2alpha")
+      EventTemplateTypeRegistry.createRegistryForPackagePrefix("wfanet.measurement.api.v2alpha")
 
     assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME)).isNotNull()
     assertThat(typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME)).isNotNull()

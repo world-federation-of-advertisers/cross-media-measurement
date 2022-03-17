@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,30 +16,13 @@ syntax = "proto3";
 
 package org.wfa.measurement.api.v2alpha.event_templates.testing;
 
-import "wfa/measurement/api/v2alpha/event_annotations.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/test_banner_template.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/test_video_template.proto";
 
 option java_package = "wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
-message Gender {
-  option (.wfa.measurement.api.v2alpha.event_field) = {
-    display_name: "Gender"
-  };
-
-  enum Value {
-    GENDER_UNKOWN = 0;
-    GENDER_MALE = 1;
-    GENDER_FEMALE = 2;
-  }
-  Value value = 1;
-}
-
-message TestBannerTemplate {
-  option (.wfa.measurement.api.v2alpha.event_template) = {
-    name: "test_banner_template"
-    display_name: "Banner Ad"
-    description: "A simple Event Template for a banner ad."
-  };
-
-  Gender gender = 1;
+message TestEvent {
+  optional TestVideoTemplate video_ad = 1;
+  optional TestBannerTemplate banner_ad = 2;
 }
