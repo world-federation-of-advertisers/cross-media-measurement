@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.api.expr.v1alpha1.Decl
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
@@ -82,8 +83,8 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val EVENT_TEMPLATE_CLASS_NAME =
@@ -326,7 +327,7 @@ class EdpSimulator(
   }
 
   private fun validateEventFilter(eventFilter: EventFilter) {
-    val decls =
+    val declarations: List<Decl> =
       eventTemplateNames.map {
         Decls.newVar(
           EventTemplates.getEventTemplateForType(it)!!.name,
@@ -338,10 +339,10 @@ class EdpSimulator(
       Env.newEnv(
         EnvOption.customTypeAdapter(celProtoTypeRegistry),
         EnvOption.customTypeProvider(celProtoTypeRegistry),
-        EnvOption.declarations(decls),
+        EnvOption.declarations(declarations),
       )
 
-    EventFilterValidator.validate(eventFilter.expression, env)
+    EventFilters.compile(eventFilter.expression, env)
   }
 
   private suspend fun fulfillRequisition(
