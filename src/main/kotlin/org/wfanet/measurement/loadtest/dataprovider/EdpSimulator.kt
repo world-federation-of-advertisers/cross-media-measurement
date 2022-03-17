@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.api.expr.v1alpha1.Decl
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
@@ -82,36 +83,36 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val EVENT_TEMPLATE_CLASS_NAME =
-  "wfanet.measurement.api.v2alpha.event_templates.testing"
+    "wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
-  /** The EDP's public API resource name. */
-  val name: String,
-  /** The EDP's display name. */
-  val displayName: String,
-  /** The EDP's consent signaling encryption key. */
-  val encryptionKey: PrivateKeyHandle,
-  /** The EDP's consent signaling signing key. */
-  val signingKey: SigningKeyHandle
+    /** The EDP's public API resource name. */
+    val name: String,
+    /** The EDP's display name. */
+    val displayName: String,
+    /** The EDP's consent signaling encryption key. */
+    val encryptionKey: PrivateKeyHandle,
+    /** The EDP's consent signaling signing key. */
+    val signingKey: SigningKeyHandle
 )
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
-  private val edpData: EdpData,
-  private val measurementConsumerName: String,
-  private val certificatesStub: CertificatesCoroutineStub,
-  private val eventGroupsStub: EventGroupsCoroutineStub,
-  private val requisitionsStub: RequisitionsCoroutineStub,
-  private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
-  private val sketchStore: SketchStore,
-  private val eventQuery: EventQuery,
-  private val throttler: MinimumIntervalThrottler,
-  private val eventTemplateNames: List<String> = emptyList()
+    private val edpData: EdpData,
+    private val measurementConsumerName: String,
+    private val certificatesStub: CertificatesCoroutineStub,
+    private val eventGroupsStub: EventGroupsCoroutineStub,
+    private val requisitionsStub: RequisitionsCoroutineStub,
+    private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
+    private val sketchStore: SketchStore,
+    private val eventQuery: EventQuery,
+    private val throttler: MinimumIntervalThrottler,
+    private val eventTemplateNames: List<String> = emptyList()
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -125,16 +126,15 @@ class EdpSimulator(
   /** Creates an eventGroup for the MC. */
   private suspend fun createEventGroup() {
     val eventGroup =
-      eventGroupsStub.createEventGroup(
-        createEventGroupRequest {
-          parent = edpData.name
-          eventGroup = eventGroup {
-            measurementConsumer = measurementConsumerName
-            eventGroupReferenceId = "001"
-            eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
-          }
-        }
-      )
+        eventGroupsStub.createEventGroup(
+            createEventGroupRequest {
+              parent = edpData.name
+              eventGroup = eventGroup {
+                measurementConsumer = measurementConsumerName
+                eventGroupReferenceId = "001"
+                eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
+              }
+            })
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
   }
 
@@ -151,85 +151,74 @@ class EdpSimulator(
       logger.info("Processing requisition ${requisition.name}...")
 
       val measurementConsumerCertificate =
-        certificatesStub.getCertificate(
-          getCertificateRequest { name = requisition.measurementConsumerCertificate }
-        )
+          certificatesStub.getCertificate(
+              getCertificateRequest { name = requisition.measurementConsumerCertificate })
 
       val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
       val measurementConsumerCertificateX509 =
-        readCertificate(measurementConsumerCertificate.x509Der)
+          readCertificate(measurementConsumerCertificate.x509Der)
       if (!verifyMeasurementSpec(
           measurementSpecSignature = requisition.measurementSpec.signature,
           measurementSpec = measurementSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
-        )
-      ) {
+      )) {
         logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec.")
         refuseRequisition(
-          requisition.name,
-          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
-          "Invalid measurementSpec"
-        )
+            requisition.name,
+            Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+            "Invalid measurementSpec")
       }
 
       val requisitionFingerprint = computeRequisitionFingerprint(requisition)
       val signedRequisitionSpec: SignedData =
-        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
+          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
       if (!verifyRequisitionSpec(
           requisitionSpecSignature = signedRequisitionSpec.signature,
           requisitionSpec = requisitionSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
           measurementSpec = measurementSpec,
-        )
-      ) {
+      )) {
         logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec.")
         refuseRequisition(
-          requisition.name,
-          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
-          "Invalid requisitionSpec"
-        )
+            requisition.name,
+            Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+            "Invalid requisitionSpec")
       }
 
-      if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
-      ) {
+      if (requisition.protocolConfig.protocolCase !=
+          ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2) {
         logger.info(
-          "Skipping requisition ${requisition.name}, only LIQUID_LEGIONS_V2 is supported..."
-        )
+            "Skipping requisition ${requisition.name}, only LIQUID_LEGIONS_V2 is supported...")
         // TODO(@tristanvuong): fulfill direct measurements
         continue
       } else {
         fulfillRequisitionForReachAndFrequencyMeasurement(
-          requisition,
-          measurementSpec,
-          requisitionFingerprint,
-          requisitionSpec
-        )
+            requisition, measurementSpec, requisitionFingerprint, requisitionSpec)
       }
     }
   }
 
   private suspend fun refuseRequisition(
-    requisitionName: String,
-    justification: Requisition.Refusal.Justification,
-    message: String
+      requisitionName: String,
+      justification: Requisition.Refusal.Justification,
+      message: String
   ): Requisition {
     return requisitionsStub.refuseRequisition(
-      refuseRequisitionRequest {
-        name = requisitionName
-        refusal = refusal {
-          this.justification = justification
-          this.message = message
-        }
-      }
-    )
+        refuseRequisitionRequest {
+          name = requisitionName
+          refusal = refusal {
+            this.justification = justification
+            this.message = message
+          }
+        })
   }
 
   private fun generateSketch(
-    sketchConfig: SketchConfig,
-    eventFilter: EventFilter,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float
+      sketchConfig: SketchConfig,
+      eventFilter: EventFilter,
+      vidSamplingIntervalStart: Float,
+      vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
     if (eventFilter.expression.isNotBlank()) {
@@ -241,19 +230,18 @@ class EdpSimulator(
     // TODO(@uakyol): change EventQuery getUserVirtualIds to accept EventFilter rather than
     // QueryParameter.
     val queryParameter =
-      QueryParameter(
-        edpDisplayName = edpData.displayName,
-        beginDate = "2021-03-01",
-        endDate = "2021-03-28",
-        sex = Sex.FEMALE,
-        ageGroup = null,
-        socialGrade = SocialGrade.ABC1,
-        complete = Complete.COMPLETE
-      )
+        QueryParameter(
+            edpDisplayName = edpData.displayName,
+            beginDate = "2021-03-01",
+            endDate = "2021-03-28",
+            sex = Sex.FEMALE,
+            ageGroup = null,
+            socialGrade = SocialGrade.ABC1,
+            complete = Complete.COMPLETE)
     val vidSampler = VidSampler(Hashing.farmHashFingerprint64())
     eventQuery.getUserVirtualIds(queryParameter).forEach {
-      if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      ) {
+      if (vidSampler.vidIsInSamplingBucket(
+          it, vidSamplingIntervalStart, vidSamplingIntervalWidth)) {
         anySketch.insert(it, mapOf("frequency" to 1L))
       }
     }
@@ -261,127 +249,117 @@ class EdpSimulator(
   }
 
   private fun encryptSketch(
-    sketch: Sketch,
-    combinedPublicKey: AnySketchElGamalPublicKey,
-    protocolConfig: ProtocolConfig.LiquidLegionsV2
+      sketch: Sketch,
+      combinedPublicKey: AnySketchElGamalPublicKey,
+      protocolConfig: ProtocolConfig.LiquidLegionsV2
   ): Flow<ByteString> {
     logger.info("Encrypting Sketch...")
     val request =
-      EncryptSketchRequest.newBuilder()
-        .apply {
-          this.sketch = sketch
-          elGamalKeys = combinedPublicKey
-          curveId = protocolConfig.ellipticCurveId.toLong()
-          maximumValue = protocolConfig.maximumFrequency
-          destroyedRegisterStrategy =
-            EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY // for LL_V2 protocol
-          // TODO(wangyaopw): add publisher noise
-        }
-        .build()
+        EncryptSketchRequest.newBuilder()
+            .apply {
+              this.sketch = sketch
+              elGamalKeys = combinedPublicKey
+              curveId = protocolConfig.ellipticCurveId.toLong()
+              maximumValue = protocolConfig.maximumFrequency
+              destroyedRegisterStrategy =
+                  EncryptSketchRequest.DestroyedRegisterStrategy.FLAGGED_KEY // for LL_V2 protocol
+              // TODO(wangyaopw): add publisher noise
+            }
+            .build()
     val response =
-      EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
+        EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
 
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
   private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
-    requisition: Requisition,
-    measurementSpec: MeasurementSpec,
-    requisitionFingerprint: ByteString,
-    requisitionSpec: RequisitionSpec
+      requisition: Requisition,
+      measurementSpec: MeasurementSpec,
+      requisitionFingerprint: ByteString,
+      requisitionSpec: RequisitionSpec
   ) {
     val combinedPublicKey =
-      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
+        requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
 
     val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
 
     val sketch =
-      try {
-        generateSketch(
-          sketchConfig,
-          requisitionSpec.eventGroupsList[0].value.filter,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
-        )
-      } catch (e: EventFilterValidationException) {
-        logger.log(
-          Level.WARNING,
-          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
-          e
-        )
-        return
-      }
+        try {
+          generateSketch(
+              sketchConfig,
+              requisitionSpec.eventGroupsList[0].value.filter,
+              vidSamplingIntervalStart,
+              vidSamplingIntervalWidth)
+        } catch (e: EventFilterValidationException) {
+          logger.log(
+              Level.WARNING, "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter", e)
+          return
+        }
 
     sketchStore.write(requisition, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
-      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
+        encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
     fulfillRequisition(
-      requisition.name,
-      requisitionFingerprint,
-      requisitionSpec.nonce,
-      sketchChunks
-    )
+        requisition.name, requisitionFingerprint, requisitionSpec.nonce, sketchChunks)
   }
 
   private fun validateEventFilter(eventFilter: EventFilter) {
-    val decls =
-      eventTemplateNames.map {
-        Decls.newVar(
-          EventTemplates.getEventTemplateForType(it)!!.name,
-          Decls.newObjectType(it),
-        )
-      }
+    val declarations: List<Decl> =
+        eventTemplateNames.map {
+          Decls.newVar(
+              EventTemplates.getEventTemplateForType(it)!!.name,
+              Decls.newObjectType(it),
+          )
+        }
 
     val env =
-      Env.newEnv(
-        EnvOption.customTypeAdapter(celProtoTypeRegistry),
-        EnvOption.customTypeProvider(celProtoTypeRegistry),
-        EnvOption.declarations(decls),
-      )
+        Env.newEnv(
+            EnvOption.customTypeAdapter(celProtoTypeRegistry),
+            EnvOption.customTypeProvider(celProtoTypeRegistry),
+            EnvOption.declarations(declarations),
+        )
 
-    EventFilterValidator.validate(eventFilter.expression, env)
+    EventFilters.compile(eventFilter.expression, env)
   }
 
   private suspend fun fulfillRequisition(
-    requisitionName: String,
-    requisitionFingerprint: ByteString,
-    nonce: Long,
-    data: Flow<ByteString>
+      requisitionName: String,
+      requisitionFingerprint: ByteString,
+      nonce: Long,
+      data: Flow<ByteString>
   ) {
     logger.info("Fulfilling requisition $requisitionName...")
     requisitionFulfillmentStub.fulfillRequisition(
-      flow {
-        emit(
-          fulfillRequisitionRequest {
-            header = header {
-              name = requisitionName
-              this.requisitionFingerprint = requisitionFingerprint
-              this.nonce = nonce
-            }
-          }
-        )
-        emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
-      }
-    )
+        flow {
+          emit(
+              fulfillRequisitionRequest {
+                header = header {
+                  name = requisitionName
+                  this.requisitionFingerprint = requisitionFingerprint
+                  this.nonce = nonce
+                }
+              })
+          emitAll(
+              data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
+        })
   }
 
   private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {
     logger.info("Getting combined public key...")
     val listOfKeys = this.duchiesList.map { it.getElGamalKey() }
     val request =
-      CombineElGamalPublicKeysRequest.newBuilder()
-        .also {
-          it.curveId = curveId.toLong()
-          it.addAllElGamalKeys(listOfKeys)
-        }
-        .build()
+        CombineElGamalPublicKeysRequest.newBuilder()
+            .also {
+              it.curveId = curveId.toLong()
+              it.addAllElGamalKeys(listOfKeys)
+            }
+            .build()
 
     return CombineElGamalPublicKeysResponse.parseFrom(
-        SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray())
-      )
-      .elGamalKeys
+            SketchEncrypterAdapter.CombineElGamalPublicKeys(request.toByteArray()))
+        .elGamalKeys
   }
 
   private suspend fun getRequisitions(): List<Requisition> {
@@ -399,25 +377,16 @@ class EdpSimulator(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     val celProtoTypeRegistry: ProtoTypeRegistry =
-      ProtoTypeRegistry.newRegistry(
-        TestVideoTemplate.getDefaultInstance(),
-      )
+        ProtoTypeRegistry.newRegistry(
+            TestVideoTemplate.getDefaultInstance(),
+        )
 
     init {
       loadLibrary(
-        name = "sketch_encrypter_adapter",
-        directoryPath =
-          Paths.get(
-            "any_sketch_java",
-            "src",
-            "main",
-            "java",
-            "org",
-            "wfanet",
-            "anysketch",
-            "crypto"
-          )
-      )
+          name = "sketch_encrypter_adapter",
+          directoryPath =
+              Paths.get(
+                  "any_sketch_java", "src", "main", "java", "org", "wfanet", "anysketch", "crypto"))
     }
   }
 }
@@ -425,11 +394,11 @@ class EdpSimulator(
 private fun Requisition.DuchyEntry.getElGamalKey(): AnySketchElGamalPublicKey {
   val key = ElGamalPublicKey.parseFrom(this.value.liquidLegionsV2.elGamalPublicKey.data)
   return AnySketchElGamalPublicKey.newBuilder()
-    .also {
-      it.generator = key.generator
-      it.element = key.element
-    }
-    .build()
+      .also {
+        it.generator = key.generator
+        it.element = key.element
+      }
+      .build()
 }
 
 private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
