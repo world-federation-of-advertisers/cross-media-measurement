@@ -72,12 +72,11 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       this.externalComputationLogEntryId = externalComputationLogEntryId.value
       details = request.details
       externalDuchyId = request.externalDuchyId
-      logEntry =
-        measurementLogEntry {
-          details = request.measurementLogEntryDetails
-          externalMeasurementId = measurementIds.externalMeasurementId.value
-          externalMeasurementConsumerId = measurementIds.externalMeasurementConsumerId.value
-        }
+      logEntry = measurementLogEntry {
+        details = request.measurementLogEntryDetails
+        externalMeasurementId = measurementIds.externalMeasurementId.value
+        externalMeasurementConsumerId = measurementIds.externalMeasurementConsumerId.value
+      }
     }
   }
 
