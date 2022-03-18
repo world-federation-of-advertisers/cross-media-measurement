@@ -140,7 +140,7 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
         InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
-          error("MeasurementType unrecognized.")
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementType unrecognized." }
       }
     if (source.hasLiquidLegionsV2()) {
       liquidLegionsV2 = liquidLegionsV2 {
@@ -187,7 +187,11 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    if (source.details.protocolConfig.protocolCase !=
+        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    }
     state = source.state.toState()
     aggregatorCertificate = source.details.aggregatorCertificate
     encryptedResult = source.details.encryptedResult
@@ -263,7 +267,7 @@ fun Measurement.toInternal(
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
         MeasurementSpec.MeasurementTypeCase.DURATION -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-          error("MeasurementType not set.")
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementType not set." }
       }
     }
   }

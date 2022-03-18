@@ -54,7 +54,6 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val API_AUTHENTICATION_KEY = "authentication key"
-private const val RUN_ID = "run id"
 private const val BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val REQUISITION_ONE = "requisition_one"
 private const val REQUISITION_TWO = "requisition_two"
@@ -89,11 +88,10 @@ private val SKETCH_CONFIG =
     .build()
 private val OUTPUT_DP_PARAMS = DifferentialPrivacyParams.getDefaultInstance()
 private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
-  sketchParams =
-    liquidLegionsSketchParams {
-      decayRate = LLV2_DECAY_RATE
-      maxSize = LLV2_MAX_SIZE
-    }
+  sketchParams = liquidLegionsSketchParams {
+    decayRate = LLV2_DECAY_RATE
+    maxSize = LLV2_MAX_SIZE
+  }
   maximumFrequency = MAX_FREQUENCY
 }
 
@@ -154,8 +152,7 @@ class FrontendSimulatorImplTest {
         measurementsStub,
         requisitionsStub,
         measurementConsumersStub,
-        sketchStore,
-        RUN_ID
+        sketchStore
       )
 
     assertThat(frontendSimulator.getExpectedResult("foo", LIQUID_LEGIONS_V2_PROTOCOL_CONFIG))

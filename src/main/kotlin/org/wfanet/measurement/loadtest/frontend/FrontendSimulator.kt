@@ -48,6 +48,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -101,28 +103,31 @@ class FrontendSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val sketchStore: SketchStore,
-  private val runId: String
+  private val sketchStore: SketchStore
 ) {
 
-  /** A sequence of operations done in the simulator. */
-  suspend fun process() {
+  /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
+  suspend fun executeReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val createdMeasurement = createMeasurement(measurementConsumer)
-    logger.info("Created measurement ${createdMeasurement.name}.")
+    val createdReachAndFrequencyMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
+    logger.info(
+      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+    )
 
     // Get the CMMS computed result and compare it with the expected result.
-    var mpcResult = getResult(createdMeasurement.name)
+    var mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
     while (mpcResult == null) {
       logger.info("Computation not done yet, wait for another 30 seconds.")
       delay(Duration.ofSeconds(30).toMillis())
-      mpcResult = getResult(createdMeasurement.name)
+      mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
     }
     logger.info("Got computed result from Kingdom: $mpcResult")
 
-    val liquidLegionV2Protocol = createdMeasurement.protocolConfig.liquidLegionsV2
-    val expectedResult = getExpectedResult(createdMeasurement.name, liquidLegionV2Protocol)
+    val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
+    val expectedResult =
+      getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
 
     assertDpResultsEqual(
@@ -131,6 +136,28 @@ class FrontendSimulator(
       liquidLegionV2Protocol.maximumFrequency.toLong()
     )
     logger.info("Computed result is equal to the expected result. Correctness Test passes.")
+  }
+
+  /** A sequence of operations done in the simulator involving an impression measurement. */
+  suspend fun executeImpression(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdImpressionMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
+    logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
+
+    // TODO(@tristanvuong): get result and compare it to the expected result
+  }
+
+  /** A sequence of operations done in the simulator involving a duration measurement. */
+  suspend fun executeDuration(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdDurationMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
+    logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
+
+    // TODO(@tristanvuong): get results and compare it to the expected result
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
@@ -148,8 +175,12 @@ class FrontendSimulator(
     }
   }
 
-  /** Creates a Measurement on behave of the [MeasurementConsumer]. */
-  private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
+  /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
+  private suspend fun createMeasurement(
+    measurementConsumer: MeasurementConsumer,
+    runId: String,
+    newMeasurementSpec: (data: ByteString, nonceHashes: MutableList<ByteString>) -> MeasurementSpec
+  ): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
@@ -160,17 +191,16 @@ class FrontendSimulator(
       }
 
     val request = createMeasurementRequest {
-      measurement =
-        measurement {
-          measurementConsumerCertificate = measurementConsumer.certificate
-          measurementSpec =
-            signMeasurementSpec(
-              newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
-              measurementConsumerData.signingKey
-            )
-          dataProviders += dataProviderEntries
-          this.measurementReferenceId = runId
-        }
+      measurement = measurement {
+        measurementConsumerCertificate = measurementConsumer.certificate
+        measurementSpec =
+          signMeasurementSpec(
+            newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
+            measurementConsumerData.signingKey
+          )
+        dataProviders += dataProviderEntries
+        this.measurementReferenceId = runId
+      }
     }
     return measurementsClient
       .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -178,7 +208,7 @@ class FrontendSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getResult(measurementName: String): Result? {
+  private suspend fun getComputedResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -259,18 +289,45 @@ class FrontendSimulator(
       .getMeasurementConsumer(request)
   }
 
-  private fun newMeasurementSpec(
+  private fun newReachAndFrequencyMeasurementSpec(
     serializedMeasurementPublicKey: ByteString,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
-      reachAndFrequency =
-        reachAndFrequency {
-          reachPrivacyParams = outputDpParams
-          frequencyPrivacyParams = outputDpParams
-          vidSamplingInterval = vidSamplingInterval { width = 1.0f }
-        }
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = outputDpParams
+        frequencyPrivacyParams = outputDpParams
+        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
+      }
+      this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newImpressionMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      impression = impression {
+        privacyParams = outputDpParams
+        maximumFrequencyPerUser = 1
+      }
+      this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newDurationMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      duration = duration {
+        privacyParams = outputDpParams
+        maximumWatchDurationPerUser = 1
+      }
       this.nonceHashes += nonceHashes
     }
   }
@@ -316,11 +373,10 @@ class FrontendSimulator(
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
     val requisitionSpec = requisitionSpec {
-      eventGroups +=
-        eventGroupEntry {
-          key = eventGroup.name
-          // TODO: populate other fields when the EventGroup design is done.
-        }
+      eventGroups += eventGroupEntry {
+        key = eventGroup.name
+        // TODO: populate other fields when the EventGroup design is done.
+      }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
     }

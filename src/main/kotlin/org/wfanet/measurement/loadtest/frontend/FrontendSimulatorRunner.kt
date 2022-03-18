@@ -74,7 +74,8 @@ abstract class FrontendSimulatorRunner : Runnable {
 
     runBlocking {
       // Runs the frontend simulator.
-      FrontendSimulator(
+      val frontendSimulator =
+        FrontendSimulator(
           measurementConsumerData,
           outputDpParams,
           dataProvidersStub,
@@ -82,10 +83,17 @@ abstract class FrontendSimulatorRunner : Runnable {
           measurementsStub,
           requisitionsStub,
           measurementConsumersStub,
-          SketchStore(storageClient),
-          flags.runId
+          SketchStore(storageClient)
         )
-        .process()
+
+      frontendSimulator.executeReachAndFrequency(flags.runIds[0])
+      if (flags.runIds.size >= 3) {
+        frontendSimulator.executeImpression(flags.runIds[1])
+        frontendSimulator.executeDuration(flags.runIds[2])
+      } else {
+        frontendSimulator.executeImpression(flags.runIds[0] + "-2")
+        frontendSimulator.executeDuration(flags.runIds[0] + "-3")
+      }
     }
   }
 }
