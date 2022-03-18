@@ -86,7 +86,6 @@ private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 private const val EVENT_TEMPLATE_PACKAGE_NAME =
   "org.wfanet.measurement.api.v2alpha.event_templates.testing"
-private const val EVENT_FILTER_EXPRESSION = "video_template."
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -159,8 +158,6 @@ class FrontendSimulator(
   /** Creates a Measurement on behave of the [MeasurementConsumer]. */
   private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
-    logger.info("GROUPPPPPSSSSSS!!!!!!!!" + eventGroups)
-    logger.info(eventGroups.get(0).getEventTemplatesList().get(0).type)
 
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
@@ -331,7 +328,7 @@ class FrontendSimulator(
         }
         "${eventGroupTemplateNameMap.get(it.key)}.${it.value}"
       }
-      .reduce { acc, string -> acc + "&&" + string }
+      .reduce { acc, string -> acc + " && " + string }
   }
 
   private suspend fun createDataProviderEntry(
@@ -340,9 +337,10 @@ class FrontendSimulator(
     nonce: Long
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
+
     val eventFilterExpression =
       createFilterExpression(eventGroup.getEventTemplatesList().map { it.type })
-    logger.info("WHOOOOOOOOOOOOOO" + eventFilterExpression)
+
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {
         key = eventGroup.name
