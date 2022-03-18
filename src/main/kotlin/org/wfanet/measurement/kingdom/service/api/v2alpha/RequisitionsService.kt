@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
@@ -73,8 +74,6 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
-private val FULFILLED_RESPONSE =
-  FulfillDirectRequisitionResponse.newBuilder().apply { state = State.FULFILLED }.build()
 
 class RequisitionsService(
   private val internalRequisitionStub: RequisitionsCoroutineStub,
@@ -232,7 +231,7 @@ class RequisitionsService(
       }
     )
 
-    return FULFILLED_RESPONSE
+    return fulfillDirectRequisitionResponse { state = State.FULFILLED }
   }
 }
 
