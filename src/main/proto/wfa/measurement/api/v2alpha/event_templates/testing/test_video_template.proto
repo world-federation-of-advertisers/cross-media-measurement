@@ -38,6 +38,7 @@ message TestVideoTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     display_name: "Video Ad"
     description: "A simple Event Template for a video ad."
+      name : "test_video_template"
   };
 
   AgeRange age = 1;
