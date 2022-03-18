@@ -41,7 +41,7 @@ class InProcessEdpSimulator(
   private val storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
-  private val eventTemplateNames : List<String>
+  private val eventTemplateNames: List<String>
 ) {
 
   private val backgroundScope = CoroutineScope(Dispatchers.Default)

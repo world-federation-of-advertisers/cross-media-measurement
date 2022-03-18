@@ -109,7 +109,7 @@ class FrontendSimulator(
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val sketchStore: SketchStore,
   private val runId: String,
-  private val eventTemplatesToFiltersMap: Map<String, String>
+  private val eventTemplatesToFiltersMap: Map<String, String> = emptyMap()
 ) {
 
   /** A sequence of operations done in the simulator. */
