@@ -38,6 +38,7 @@ message ViewDuration {
   option (.wfa.measurement.api.v2alpha.event_field) = {
     display_name: "View Duration"
   };
+
   google.protobuf.Duration value = 1;
 }
 
@@ -51,4 +52,3 @@ message TestVideoTemplate {
   AgeRange age = 1;
   ViewDuration duration = 2;
 }
-
