@@ -278,7 +278,7 @@ class EdpSimulator(
     val decls =
       eventTemplateNames.map {
         Decls.newVar(
-          EventTemplate(templateProtoTypeRegistry.getDescriptorForType(it)!!).displayName,
+          EventTemplate(templateProtoTypeRegistry.getDescriptorForType(it)!!).name,
           Decls.newObjectType(it),
         )
       }

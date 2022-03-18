@@ -318,7 +318,7 @@ class FrontendSimulator(
   private suspend fun createFilterExpression(registeredEventTemplates: List<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
       registeredEventTemplates
-        .map { it to EventTemplate(typeRegistry.getDescriptorForType(it)!!).displayName }
+        .map { it to EventTemplate(typeRegistry.getDescriptorForType(it)!!).name }
         .toMap()
 
     return eventTemplatesToFiltersMap
