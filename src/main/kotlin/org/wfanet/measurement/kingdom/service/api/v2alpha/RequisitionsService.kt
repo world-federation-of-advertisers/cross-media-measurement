@@ -55,13 +55,14 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
 import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -72,6 +73,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
+private val FULFILLED_RESPONSE =
+  FulfillDirectRequisitionResponse.newBuilder().apply { state = State.FULFILLED }.build()
 
 class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub,
                           private val callIdentityProvider: () -> Provider = ::getProviderFromContext) :
@@ -205,7 +208,7 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
         "Resource name unspecified or invalid."
       }
     grpcRequire(request.nonce != 0L) { "nonce unspecified" }
-
+    grpcRequireNotNull(request.encryptedData) { "encrypted_data must be provided" }
     // Ensure that the caller is the data_provider who owns this requisition.
     val caller = callIdentityProvider()
     if (caller.type != Provider.Type.DATA_PROVIDER ||
@@ -216,10 +219,17 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
       }
     }
 
-    val externalRequisitionKey = externalRequisitionKey {
-      externalRequisitionId = key.requisitionId
-      requisitionFingerprint = request.requisitionFingerprint
-    }
+    internalRequisitionStub.fulfillRequisition(
+      fulfillRequisitionRequest {
+        this.requisitionType = FulfillRequisitionRequest.RequisitionType.DIRECT
+        this.externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        this.externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        this.encryptedData = request.encryptedData
+        this.nonce = request.nonce
+      }
+    )
+
+    return FULFILLED_RESPONSE
   }
 }
 

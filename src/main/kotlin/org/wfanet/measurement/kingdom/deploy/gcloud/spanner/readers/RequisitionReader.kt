@@ -181,6 +181,9 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     /** Builds a [Requisition] from [struct]. */
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
+      if (isDirectRequisition(struct)) {
+        buildDirectRequisition(struct, struct);
+      }
       val participantStructs =
         struct.getStructList("ComputationParticipants").associateBy {
           val duchyId = it.getLong("DuchyId")
@@ -215,6 +218,24 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       for ((externalDuchyId, participantStruct) in participantStructs) {
         duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
+      dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
+      parentMeasurement = buildParentMeasurement(measurementStruct)
+    }
+
+    private fun isDirectRequisition(measurement: Struct): Boolean {
+      val parentMeasurement = buildParentMeasurement(measurement)
+      return !parentMeasurement.hasProtocolConfig()
+    }
+
+    private fun buildDirectRequisition(measurementStruct: Struct, requisitionStruct: Struct) = requisition {
+      externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
+      externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
+      externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
+      externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
+      updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
+      state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
+      details =
+        requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
       parentMeasurement = buildParentMeasurement(measurementStruct)
     }

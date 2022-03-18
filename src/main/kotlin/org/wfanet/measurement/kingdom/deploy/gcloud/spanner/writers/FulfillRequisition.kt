@@ -46,7 +46,12 @@ private object Params {
 class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
-    val readResult: RequisitionReader.Result = readRequisition()
+    val readResult: RequisitionReader.Result
+    readResult = if (request.requisitionType == FulfillRequisitionRequest.RequisitionType.DIRECT) {
+      readDirectRequisition()
+    } else {
+      readRequisition()
+    }
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
 
     val state = requisition.state
@@ -62,7 +67,12 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       }
     }
 
-    val updatedDetails = requisition.details.copy { nonce = request.nonce }
+    val updatedDetails = requisition.details.copy {
+      nonce = request.nonce
+      if (request.requisitionType == FulfillRequisitionRequest.RequisitionType.DIRECT) {
+        encryptedData = request.encryptedData
+      }
+    }
 
     val nonFulfilledRequisitionIds =
       readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
@@ -75,12 +85,12 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       } else {
         null
       }
-
+    val fulfillDuchyId = if (request.requisitionType == FulfillRequisitionRequest.RequisitionType.DIRECT) null else getFulfillingDuchyId()
     updateRequisition(
       readResult,
       Requisition.State.FULFILLED,
       updatedDetails,
-      getFulfillingDuchyId()
+      fulfillDuchyId
     )
 
     return requisition.copy {
@@ -110,6 +120,24 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         )
         ?: throw KingdomInternalException(KingdomInternalException.Code.REQUISITION_NOT_FOUND) {
           "Requisition with external Computation ID $externalComputationId and external " +
+            "Requisition ID $externalRequisitionId not found"
+        }
+    return readResult
+  }
+
+  private suspend fun TransactionScope.readDirectRequisition(): RequisitionReader.Result {
+    val externalDataProviderId = request.externalDataProviderId
+    val externalRequisitionId = request.externalRequisitionId
+
+    val readResult: RequisitionReader.Result =
+      RequisitionReader()
+        .readByExternalDataProviderId(
+          transactionContext,
+          externalDataProviderId = externalDataProviderId,
+          externalRequisitionId = externalRequisitionId
+        )
+        ?: throw KingdomInternalException(KingdomInternalException.Code.REQUISITION_NOT_FOUND) {
+          "Requisition with external DataProvider ID $externalDataProviderId and external " +
             "Requisition ID $externalRequisitionId not found"
         }
     return readResult

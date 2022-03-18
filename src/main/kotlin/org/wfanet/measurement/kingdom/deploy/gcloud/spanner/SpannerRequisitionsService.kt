@@ -80,12 +80,17 @@ class SpannerRequisitionsService(
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
     with(request) {
-      grpcRequire(externalComputationId != 0L) { "external_computation_id not specified" }
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
-      grpcRequire(externalFulfillingDuchyId.isNotEmpty()) {
-        "external_fulfilling_duchy_id not specified"
-      }
       grpcRequire(nonce != 0L) { "nonce not specified" }
+      if (requisitionType == FulfillRequisitionRequest.RequisitionType.DIRECT) {
+        grpcRequire(!encryptedData.isEmpty) {"encrypted_data is empty"}
+        grpcRequire(externalDataProviderId != 0L) { "data_provider_id not specified" }
+      } else {
+        grpcRequire(externalComputationId != 0L) { "external_computation_id not specified" }
+        grpcRequire(externalFulfillingDuchyId.isNotEmpty()) {
+          "external_fulfilling_duchy_id not specified"
+        }
+      }
     }
 
     try {
