@@ -120,19 +120,19 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     externalRequisitionId: Long,
   ): Result? {
     return fillStatementBuilder {
-        appendClause(
-          """
+      appendClause(
+        """
           WHERE
             ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
             AND ExternalMeasurementId = @${Params.EXTERNAL_MEASUREMENT_ID}
             AND ExternalMeasurementConsumerId = @${Params.EXTERNAL_MEASUREMENT_CONSUMER_ID}
           """.trimIndent()
-        )
-        bind(Params.EXTERNAL_MEASUREMENT_CONSUMER_ID to externalMeasurementConsumerId)
-        bind(Params.EXTERNAL_MEASUREMENT_ID to externalMeasurementId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
-        appendClause("LIMIT 1")
-      }
+      )
+      bind(Params.EXTERNAL_MEASUREMENT_CONSUMER_ID to externalMeasurementConsumerId)
+      bind(Params.EXTERNAL_MEASUREMENT_ID to externalMeasurementId)
+      bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
+      appendClause("LIMIT 1")
+    }
       .execute(readContext)
       .singleOrNull()
   }
@@ -143,16 +143,16 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     externalRequisitionId: Long,
   ): Result? {
     return fillStatementBuilder {
-        appendClause(
-          """
+      appendClause(
+        """
           WHERE
             ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
             AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
           """.trimIndent()
-        )
-        bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
-      }
+      )
+      bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
+      bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
+    }
       .execute(readContext)
       .singleOrNull()
   }
@@ -163,16 +163,16 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     externalRequisitionId: Long
   ): Result? {
     return fillStatementBuilder {
-        appendClause(
-          """
+      appendClause(
+        """
           WHERE
             ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
             AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
           """.trimIndent()
-        )
-        bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
-      }
+      )
+      bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
+      bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
+    }
       .execute(readContext)
       .singleOrNull()
   }
@@ -181,9 +181,6 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     /** Builds a [Requisition] from [struct]. */
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
-      if (isDirectRequisition(struct)) {
-        buildDirectRequisition(struct, struct);
-      }
       val participantStructs =
         struct.getStructList("ComputationParticipants").associateBy {
           val duchyId = it.getLong("DuchyId")
@@ -202,7 +199,9 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
       externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
       externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
-      externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      if (!measurementStruct.isNull("ExternalComputationId")) {
+        externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      }
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
@@ -218,24 +217,6 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       for ((externalDuchyId, participantStruct) in participantStructs) {
         duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
-      dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
-      parentMeasurement = buildParentMeasurement(measurementStruct)
-    }
-
-    private fun isDirectRequisition(measurement: Struct): Boolean {
-      val parentMeasurement = buildParentMeasurement(measurement)
-      return !parentMeasurement.hasProtocolConfig()
-    }
-
-    private fun buildDirectRequisition(measurementStruct: Struct, requisitionStruct: Struct) = requisition {
-      externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
-      externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
-      externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
-      externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
-      updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
-      state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
-      details =
-        requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
       parentMeasurement = buildParentMeasurement(measurementStruct)
     }

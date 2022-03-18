@@ -40,6 +40,7 @@ class SpannerRequisitionsService(
   private val client: AsyncDatabaseClient
 ) : RequisitionsCoroutineImplBase() {
 
+  // TODO: Adapt for direct Requisition
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
     return RequisitionReader()
       .readByExternalId(

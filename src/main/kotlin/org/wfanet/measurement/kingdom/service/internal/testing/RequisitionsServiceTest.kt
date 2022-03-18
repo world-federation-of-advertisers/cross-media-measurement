@@ -1066,7 +1066,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `direct fulfillRequisition returns FULFILLED Requisition`() = runBlocking {
     val provider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
-      population.createDirectMeasurement(
+      population.createMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
