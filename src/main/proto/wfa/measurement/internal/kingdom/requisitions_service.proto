@@ -71,15 +71,31 @@ message StreamRequisitionsRequest {
 }
 
 message FulfillRequisitionRequest {
+  // Only used for default requisition
   fixed64 external_computation_id = 1;
+
   fixed64 external_requisition_id = 2;
 
   // The human-friendly external ID of the Duchy that marked this `Requisition`
   // as `FULFILLED`.
+  // Only used for default requisition
   string external_fulfilling_duchy_id = 3;
 
   // Cryptographic nonce from the `RequisitionSpec`.
   fixed64 nonce = 4;
+
+  // Encrypted `SignedData`containing the data for a direct and volumetric
+  // measurement.
+  // Only used for direct requisition.
+  bytes encrypted_data = 5;
+
+  enum RequisitionType {
+    DEFAULT = 0;
+    DIRECT = 1;
+  }
+  RequisitionType requisition_type = 6;
+  // Only used for direct requisition
+  fixed64 external_data_provider_id = 7;
 }
 
 message RefuseRequisitionRequest {
