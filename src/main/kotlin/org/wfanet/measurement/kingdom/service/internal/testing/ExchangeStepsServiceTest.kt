@@ -100,11 +100,10 @@ private val idGenerator =
 private const val STEP_INDEX = 1
 
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
-  steps +=
-    step {
-      party = ExchangeWorkflow.Party.MODEL_PROVIDER
-      stepIndex = STEP_INDEX
-    }
+  steps += step {
+    party = ExchangeWorkflow.Party.MODEL_PROVIDER
+    stepIndex = STEP_INDEX
+  }
 }
 
 private val RECURRING_EXCHANGE = recurringExchange {
@@ -112,11 +111,10 @@ private val RECURRING_EXCHANGE = recurringExchange {
   externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
   externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
   state = RecurringExchange.State.ACTIVE
-  details =
-    recurringExchangeDetails {
-      cronSchedule = "@daily"
-      exchangeWorkflow = EXCHANGE_WORKFLOW
-    }
+  details = recurringExchangeDetails {
+    cronSchedule = "@daily"
+    exchangeWorkflow = EXCHANGE_WORKFLOW
+  }
   nextExchangeDate = EXCHANGE_DATE
 }
 
@@ -129,19 +127,17 @@ private val EXCHANGE_STEP = exchangeStep {
 }
 
 private val DATA_PROVIDER = dataProvider {
-  certificate =
-    certificate {
-      notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-      notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-      details =
-        CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
-    }
-  details =
-    details {
-      apiVersion = "2"
-      publicKey = ByteString.copyFromUtf8("This is a  public key.")
-      publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-    }
+  certificate = certificate {
+    notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+    notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+    details =
+      CertificateKt.details { x509Der = ByteString.copyFromUtf8("This is a certificate der.") }
+  }
+  details = details {
+    apiVersion = "2"
+    publicKey = ByteString.copyFromUtf8("This is a  public key.")
+    publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
+  }
 }
 
 @RunWith(JUnit4::class)
@@ -218,11 +214,10 @@ abstract class ExchangeStepsServiceTest {
     val response =
       exchangeStepsService.claimReadyExchangeStep(
         claimReadyExchangeStepRequest {
-          provider =
-            provider {
-              externalId = EXTERNAL_DATA_PROVIDER_ID
-              type = Provider.Type.DATA_PROVIDER
-            }
+          provider = provider {
+            externalId = EXTERNAL_DATA_PROVIDER_ID
+            type = Provider.Type.DATA_PROVIDER
+          }
         }
       )
 
@@ -299,9 +294,10 @@ abstract class ExchangeStepsServiceTest {
   }
 
   @Test
-  fun `claimReadyExchangeStepRequest without any step`() = runBlocking {
-    // TODO(yunyeng): Add test once underlying services complete.
-  }
+  fun `claimReadyExchangeStepRequest without any step`() =
+    runBlocking {
+      // TODO(yunyeng): Add test once underlying services complete.
+    }
 
   @Test
   fun `claimReadyExchangeStep creates multiple Exchanges`() = runBlocking {
@@ -390,11 +386,10 @@ abstract class ExchangeStepsServiceTest {
       externalRecurringExchangeId = EXTERNAL_RECURRING_EXCHANGE_ID
       date = EXCHANGE_DATE
       stepIndex = 1
-      provider =
-        provider {
-          externalId = 555L
-          type = Provider.Type.DATA_PROVIDER
-        }
+      provider = provider {
+        externalId = 555L
+        type = Provider.Type.DATA_PROVIDER
+      }
     }
 
     val exception =
@@ -412,16 +407,14 @@ abstract class ExchangeStepsServiceTest {
       exchangeStepsService
         .streamExchangeSteps(
           streamExchangeStepsRequest {
-            filter =
-              filter {
-                stepProvider =
-                  provider {
-                    externalId = EXTERNAL_DATA_PROVIDER_ID
-                    type = Provider.Type.DATA_PROVIDER
-                  }
-                principal = PROVIDER
-                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
+            filter = filter {
+              stepProvider = provider {
+                externalId = EXTERNAL_DATA_PROVIDER_ID
+                type = Provider.Type.DATA_PROVIDER
               }
+              principal = PROVIDER
+              externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
+            }
           }
         )
         .toList()
@@ -438,12 +431,11 @@ abstract class ExchangeStepsServiceTest {
       exchangeStepsService
         .streamExchangeSteps(
           streamExchangeStepsRequest {
-            filter =
-              filter {
-                stepProvider = PROVIDER
-                principal = PROVIDER
-                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
-              }
+            filter = filter {
+              stepProvider = PROVIDER
+              principal = PROVIDER
+              externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
+            }
           }
         )
         .toList()
@@ -469,11 +461,10 @@ abstract class ExchangeStepsServiceTest {
       exchangeStepsService
         .streamExchangeSteps(
           streamExchangeStepsRequest {
-            filter =
-              filter {
-                principal = PROVIDER
-                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
-              }
+            filter = filter {
+              principal = PROVIDER
+              externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
+            }
           }
         )
         .toList()
@@ -484,11 +475,10 @@ abstract class ExchangeStepsServiceTest {
         EXCHANGE_STEP.copy {
           state = ExchangeStep.State.BLOCKED
           stepIndex = 2
-          provider =
-            provider {
-              type = Provider.Type.DATA_PROVIDER
-              externalId = EXTERNAL_DATA_PROVIDER_ID
-            }
+          provider = provider {
+            type = Provider.Type.DATA_PROVIDER
+            externalId = EXTERNAL_DATA_PROVIDER_ID
+          }
         },
         EXCHANGE_STEP.copy {
           state = ExchangeStep.State.BLOCKED
@@ -508,11 +498,10 @@ abstract class ExchangeStepsServiceTest {
       exchangeStepsService
         .streamExchangeSteps(
           streamExchangeStepsRequest {
-            filter =
-              filter {
-                principal = PROVIDER
-                externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
-              }
+            filter = filter {
+              principal = PROVIDER
+              externalRecurringExchangeIds += EXTERNAL_RECURRING_EXCHANGE_ID
+            }
             limit = 1
           }
         )
@@ -529,24 +518,21 @@ abstract class ExchangeStepsServiceTest {
 
   private suspend fun createRecurringExchangeWithMultipleSteps() {
     val workflow = exchangeWorkflow {
-      steps +=
-        step {
-          party = ExchangeWorkflow.Party.MODEL_PROVIDER
-          stepIndex = 1
-        }
-      steps +=
-        step {
-          party = ExchangeWorkflow.Party.DATA_PROVIDER
-          stepIndex = 2
-          prerequisiteStepIndices += 1
-        }
-      steps +=
-        step {
-          party = ExchangeWorkflow.Party.MODEL_PROVIDER
-          stepIndex = 3
-          prerequisiteStepIndices += 1
-          prerequisiteStepIndices += 2
-        }
+      steps += step {
+        party = ExchangeWorkflow.Party.MODEL_PROVIDER
+        stepIndex = 1
+      }
+      steps += step {
+        party = ExchangeWorkflow.Party.DATA_PROVIDER
+        stepIndex = 2
+        prerequisiteStepIndices += 1
+      }
+      steps += step {
+        party = ExchangeWorkflow.Party.MODEL_PROVIDER
+        stepIndex = 3
+        prerequisiteStepIndices += 1
+        prerequisiteStepIndices += 2
+      }
     }
     createRecurringExchange(
       RECURRING_EXCHANGE.copy { details = details.copy { exchangeWorkflow = workflow } }

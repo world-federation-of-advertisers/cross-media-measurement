@@ -244,11 +244,10 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       if (results.size > listEventGroupsPageToken.pageSize) {
         val pageToken =
           listEventGroupsPageToken.copy {
-            lastEventGroup =
-              previousPageEnd {
-                externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-                externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
-              }
+            lastEventGroup = previousPageEnd {
+              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+              externalEventGroupId = results[results.lastIndex - 1].externalEventGroupId
+            }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
       }
@@ -277,11 +276,10 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
           .toName()
     }
     if (!details.measurementConsumerPublicKey.isEmpty) {
-      measurementConsumerPublicKey =
-        signedData {
-          data = details.measurementConsumerPublicKey
-          signature = details.measurementConsumerPublicKeySignature
-        }
+      measurementConsumerPublicKey = signedData {
+        data = details.measurementConsumerPublicKey
+        signature = details.measurementConsumerPublicKeySignature
+      }
     }
     vidModelLines += details.vidModelLinesList
     eventTemplates.addAll(
@@ -315,20 +313,18 @@ private fun EventGroup.toInternal(
     }
 
     providedEventGroupId = eventGroupReferenceId
-    details =
-      details {
-        apiVersion = API_VERSION.string
-        measurementConsumerPublicKey = this@toInternal.measurementConsumerPublicKey.data
-        measurementConsumerPublicKeySignature =
-          this@toInternal.measurementConsumerPublicKey.signature
-        vidModelLines += this@toInternal.vidModelLinesList
-        eventTemplates.addAll(
-          this@toInternal.eventTemplatesList.map { event ->
-            EventGroupKt.eventTemplate { fullyQualifiedType = event.type }
-          }
-        )
-        encryptedMetadata = this@toInternal.encryptedMetadata
-      }
+    details = details {
+      apiVersion = API_VERSION.string
+      measurementConsumerPublicKey = this@toInternal.measurementConsumerPublicKey.data
+      measurementConsumerPublicKeySignature = this@toInternal.measurementConsumerPublicKey.signature
+      vidModelLines += this@toInternal.vidModelLinesList
+      eventTemplates.addAll(
+        this@toInternal.eventTemplatesList.map { event ->
+          EventGroupKt.eventTemplate { fullyQualifiedType = event.type }
+        }
+      )
+      encryptedMetadata = this@toInternal.encryptedMetadata
+    }
   }
 }
 
@@ -400,12 +396,11 @@ private fun ListEventGroupsPageToken.toStreamEventGroupsRequest(): StreamEventGr
   return streamEventGroupsRequest {
     // get 1 more than the actual page size for deciding whether or not to set page token
     limit = source.pageSize + 1
-    filter =
-      filter {
-        externalDataProviderId = source.externalDataProviderId
-        externalMeasurementConsumerIds += source.externalMeasurementConsumerIdsList
-        externalDataProviderIdAfter = source.lastEventGroup.externalDataProviderId
-        externalEventGroupIdAfter = source.lastEventGroup.externalEventGroupId
-      }
+    filter = filter {
+      externalDataProviderId = source.externalDataProviderId
+      externalMeasurementConsumerIds += source.externalMeasurementConsumerIdsList
+      externalDataProviderIdAfter = source.lastEventGroup.externalDataProviderId
+      externalEventGroupIdAfter = source.lastEventGroup.externalEventGroupId
+    }
   }
 }

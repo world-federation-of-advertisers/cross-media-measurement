@@ -159,10 +159,9 @@ class PublicKeysServiceTest {
 
 private val PUBLIC_KEY: PublicKey = publicKey {
   name = DATA_PROVIDERS_PUBLIC_KEY_NAME
-  publicKey =
-    signedData {
-      data = ByteString.copyFromUtf8("1")
-      signature = ByteString.copyFromUtf8("1")
-    }
+  publicKey = signedData {
+    data = ByteString.copyFromUtf8("1")
+    signature = ByteString.copyFromUtf8("1")
+  }
   certificate = DATA_PROVIDERS_CERTIFICATE_NAME
 }

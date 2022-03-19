@@ -109,11 +109,10 @@ class AccountsServiceTest {
   @Test
   fun `createAccount returns unactivated account`() {
     val request = createAccountRequest {
-      account =
-        account {
-          activationParams =
-            AccountKt.activationParams { ownedMeasurementConsumer = MEASUREMENT_CONSUMER_NAME }
-        }
+      account = account {
+        activationParams =
+          AccountKt.activationParams { ownedMeasurementConsumer = MEASUREMENT_CONSUMER_NAME }
+      }
     }
 
     val result = runBlocking { client.withIdToken(generateIdToken()).createAccount(request) }
@@ -133,10 +132,9 @@ class AccountsServiceTest {
   @Test
   fun `createAccount throws INVALID_ARGUMENT when owned measurement consumer name is invalid`() {
     val request = createAccountRequest {
-      account =
-        account {
-          activationParams = AccountKt.activationParams { ownedMeasurementConsumer = "43254" }
-        }
+      account = account {
+        activationParams = AccountKt.activationParams { ownedMeasurementConsumer = "43254" }
+      }
     }
 
     val exception =
@@ -233,34 +231,34 @@ class AccountsServiceTest {
 
   @Test
   fun `replaceAccountIdentity with openIdConnectidentity type returns account with same type`() =
-      runBlocking {
-    val newIdToken = generateIdToken()
-    val request = replaceAccountIdentityRequest {
-      name = ACCOUNT_NAME
-      openId =
-        ReplaceAccountIdentityRequestKt.openIdConnectCredentials {
-          identityBearerToken = newIdToken
-        }
+    runBlocking {
+      val newIdToken = generateIdToken()
+      val request = replaceAccountIdentityRequest {
+        name = ACCOUNT_NAME
+        openId =
+          ReplaceAccountIdentityRequestKt.openIdConnectCredentials {
+            identityBearerToken = newIdToken
+          }
+      }
+
+      val result = client.withIdToken(generateIdToken()).replaceAccountIdentity(request)
+
+      assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
+
+      val openIdConnectIdentity =
+        AccountsService.validateIdToken(
+          idToken = newIdToken,
+          redirectUri = REDIRECT_URI,
+          internalAccountsStub = internalClient
+        )
+      verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::replaceAccountIdentity)
+        .isEqualTo(
+          internalReplaceAccountIdentityRequest {
+            externalAccountId = EXTERNAL_ACCOUNT_ID
+            identity = openIdConnectIdentity
+          }
+        )
     }
-
-    val result = client.withIdToken(generateIdToken()).replaceAccountIdentity(request)
-
-    assertThat(result).isEqualTo(ACTIVATED_ACCOUNT)
-
-    val openIdConnectIdentity =
-      AccountsService.validateIdToken(
-        idToken = newIdToken,
-        redirectUri = REDIRECT_URI,
-        internalAccountsStub = internalClient
-      )
-    verifyProtoArgument(internalAccountsMock, AccountsCoroutineImplBase::replaceAccountIdentity)
-      .isEqualTo(
-        internalReplaceAccountIdentityRequest {
-          externalAccountId = EXTERNAL_ACCOUNT_ID
-          identity = openIdConnectIdentity
-        }
-      )
-  }
 
   @Test
   fun `replaceAccountIdentity throws INVALID_ARGUMENT when resource name is missing`() {
@@ -444,11 +442,10 @@ private val ACTIVATED_ACCOUNT: Account = account {
   name = ACCOUNT_NAME
   creator = CREATOR_ACCOUNT_NAME
   activationState = Account.ActivationState.ACTIVATED
-  openId =
-    openIdConnectIdentity {
-      issuer = ISSUER
-      subject = SUBJECT
-    }
+  openId = openIdConnectIdentity {
+    issuer = ISSUER
+    subject = SUBJECT
+  }
 }
 
 private val UNACTIVATED_INTERNAL_ACCOUNT: InternalAccount = internalAccount {

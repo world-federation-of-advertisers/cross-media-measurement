@@ -87,11 +87,10 @@ class ComputationsServiceTest {
   fun `get computation token`() = runBlocking {
     val id = "1234"
     val requisitionMetadata = requisitionMetadata {
-      externalKey =
-        externalRequisitionKey {
-          externalRequisitionId = "1234"
-          requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
-        }
+      externalKey = externalRequisitionKey {
+        externalRequisitionId = "1234"
+        requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
+      }
     }
     fakeDatabase.addComputation(
       globalId = id,
@@ -103,11 +102,10 @@ class ComputationsServiceTest {
     val expectedToken = computationToken {
       localComputationId = 1234
       globalComputationId = "1234"
-      computationStage =
-        computationStage {
-          liquidLegionsSketchAggregationV2 =
-            LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
-        }
+      computationStage = computationStage {
+        liquidLegionsSketchAggregationV2 =
+          LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE
+      }
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS
       requisitions += requisitionMetadata
     }
@@ -187,16 +185,14 @@ class ComputationsServiceTest {
     val request = updateComputationDetailsRequest {
       token = tokenAtStart
       details = newComputationDetails
-      requisitions +=
-        requisitionEntry {
-          key = requisition1Key
-          value = requisitionDetails1
-        }
-      requisitions +=
-        requisitionEntry {
-          key = requisition2Key
-          value = requisitionDetails2
-        }
+      requisitions += requisitionEntry {
+        key = requisition1Key
+        value = requisitionDetails1
+      }
+      requisitions += requisitionEntry {
+        key = requisition2Key
+        value = requisitionDetails2
+      }
     }
 
     assertThat(fakeService.updateComputationDetails(request))
@@ -207,16 +203,14 @@ class ComputationsServiceTest {
             computationDetails = newComputationDetails
 
             requisitions.clear()
-            requisitions +=
-              requisitionMetadata {
-                externalKey = requisition1Key
-                details = requisitionDetails1
-              }
-            requisitions +=
-              requisitionMetadata {
-                externalKey = requisition2Key
-                details = requisitionDetails2
-              }
+            requisitions += requisitionMetadata {
+              externalKey = requisition1Key
+              details = requisitionDetails1
+            }
+            requisitions += requisitionMetadata {
+              externalKey = requisition2Key
+              details = requisitionDetails2
+            }
           }
           .toUpdateComputationDetailsResponse()
       )
