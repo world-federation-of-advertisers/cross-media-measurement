@@ -86,14 +86,9 @@ abstract class FrontendSimulatorRunner : Runnable {
           SketchStore(storageClient)
         )
 
-      frontendSimulator.executeReachAndFrequency(flags.runIds[0])
-      if (flags.runIds.size >= 3) {
-        frontendSimulator.executeImpression(flags.runIds[1])
-        frontendSimulator.executeDuration(flags.runIds[2])
-      } else {
-        frontendSimulator.executeImpression(flags.runIds[0] + "-2")
-        frontendSimulator.executeDuration(flags.runIds[0] + "-3")
-      }
+      frontendSimulator.executeReachAndFrequency(flags.runId + "-reach/frequency")
+      frontendSimulator.executeImpression(flags.runId + "-impression")
+      frontendSimulator.executeDuration(flags.runId + "-duration")
     }
   }
 }

@@ -140,7 +140,7 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
         InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
-          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementType unrecognized." }
+          error("MeasurementType unrecognized.")
       }
     if (source.hasLiquidLegionsV2()) {
       liquidLegionsV2 = liquidLegionsV2 {
@@ -267,7 +267,7 @@ fun Measurement.toInternal(
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
         MeasurementSpec.MeasurementTypeCase.DURATION -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementType not set." }
+          error("MeasurementType not set.")
       }
     }
   }

@@ -186,12 +186,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       val eventGroupList = pollForEventGroups()
       assertThat(eventGroupList).isNotNull()
 
-      // Runs the frontend simulator, which will
-      //   1. create a measurement.
-      //   2. keep polling from the kingdom until the measurement is done.
-      //   3. read raw sketches and compute the expected result.
-      //   4. assert that the computed result is equal to the expected result (within error
-      // tolerance)
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
       FrontendSimulator(
           MeasurementConsumerData(
             mcResourceName,
@@ -217,12 +212,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       val eventGroupList = pollForEventGroups()
       assertThat(eventGroupList).isNotNull()
 
-      // Runs the frontend simulator, which will
-      //   1. create a measurement.
-      //   2. keep polling from the kingdom until the measurement is done.
-      //   3. compute the expected result.
-      //   4. assert that the computed result is equal to the expected result (within error
-      // tolerance)
+      // Use frontend simulator to create an impression measurement and verify its result.
       FrontendSimulator(
           MeasurementConsumerData(
             mcResourceName,
@@ -248,12 +238,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       val eventGroupList = pollForEventGroups()
       assertThat(eventGroupList).isNotNull()
 
-      // Runs the frontend simulator, which will
-      //   1. create a measurement.
-      //   2. keep polling from the kingdom until the measurement is done.
-      //   3. compute the expected result.
-      //   4. assert that the computed result is equal to the expected result (within error
-      // tolerance)
+      // Use frontend simulator to create a duration measurement and verify its result.
       FrontendSimulator(
           MeasurementConsumerData(
             mcResourceName,

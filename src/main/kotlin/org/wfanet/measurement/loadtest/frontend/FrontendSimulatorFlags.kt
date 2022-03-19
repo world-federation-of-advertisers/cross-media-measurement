@@ -83,18 +83,14 @@ class FrontendSimulatorFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--run-ids"],
+    names = ["--run-id"],
     description = ["Unique identifier of the run, if not set, timestamp will be used."],
     required = false
   )
-  var runIds: List<String> =
-    List(3) {
-      val formatter = DateTimeFormatter.ofPattern("yyyy-MM-ddHH-mm-ss-SSS").withZone(ZoneOffset.UTC)
-
-      val curTime = Instant.now()
-
-      formatter.format(curTime.plusSeconds(it.toLong()))
-    }
+  var runId: String =
+    DateTimeFormatter.ofPattern("yyyy-MM-ddHH-mm-ss-SSS")
+      .withZone(ZoneOffset.UTC)
+      .format(Instant.now())
     private set
 
   @CommandLine.Option(
