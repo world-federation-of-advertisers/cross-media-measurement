@@ -109,7 +109,7 @@ class FrontendSimulator(
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val sketchStore: SketchStore,
   private val runId: String,
-  private val eventTemplatesToFiltersMap: Map<String, String> = emptyMap()
+  private val eventTemplateFilters: Map<String, String> = emptyMap()
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -315,13 +315,19 @@ class FrontendSimulator(
       .getDataProvider(request)
   }
 
-  private suspend fun createFilterExpression(registeredEventTemplates: List<String>): String {
+  /**
+   * Creates a CEL filter using Event Templates names to qualify each variable in expression.
+   *
+   * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
+   * org.wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
+   */
+  private suspend fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
       registeredEventTemplates
         .map { it to EventTemplate(typeRegistry.getDescriptorForType(it)!!).name }
         .toMap()
 
-    return eventTemplatesToFiltersMap
+    return eventTemplateFilters
       .map {
         if (!eventGroupTemplateNameMap.containsKey(it.key)) {
           error("EventGroup is not registered to the template ${it.key}")

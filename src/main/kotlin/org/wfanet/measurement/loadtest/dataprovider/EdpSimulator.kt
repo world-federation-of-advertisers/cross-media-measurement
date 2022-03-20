@@ -120,7 +120,6 @@ class EdpSimulator(
 
   /** Creates an eventGroup for the MC. */
   private suspend fun createEventGroup() {
-    // val eventTemplates =
     val eventGroup =
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
@@ -201,7 +200,7 @@ class EdpSimulator(
         )
       } catch (e: EventFilterValidationException) {
         logger.info(
-          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter ${e.code}:${e.message}"
+          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter $e"
         )
         return
       }
