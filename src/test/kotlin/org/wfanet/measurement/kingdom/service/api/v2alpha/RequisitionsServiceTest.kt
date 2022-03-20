@@ -703,7 +703,7 @@ class RequisitionsServiceTest {
   }
 
   @Test
-  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when id is unspecified`() = runBlocking {
+  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is unspecified`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       encryptedData = REQUISITION_ENCRYPTED_DATA
       requisitionFingerprint = REQUISITION_FINGERPRINT

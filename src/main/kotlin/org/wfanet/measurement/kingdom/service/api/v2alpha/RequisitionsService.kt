@@ -223,11 +223,11 @@ class RequisitionsService(
 
     internalRequisitionStub.fulfillRequisition(
       fulfillRequisitionRequest {
-        this.requisitionType = FulfillRequisitionRequest.RequisitionType.DIRECT
-        this.externalRequisitionId = apiIdToExternalId(key.requisitionId)
-        this.externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        this.encryptedData = request.encryptedData
-        this.nonce = request.nonce
+        requisitionType = FulfillRequisitionRequest.RequisitionType.DIRECT
+        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        encryptedData = request.encryptedData
+        nonce = request.nonce
       }
     )
 
