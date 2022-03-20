@@ -36,9 +36,9 @@ message Gender {
 
 message TestBannerTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "test_banner_template"
     display_name: "Banner Ad"
     description: "A simple Event Template for a banner ad."
-    name: "test_banner_template"
   };
 
   Gender gender = 1;
