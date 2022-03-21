@@ -44,11 +44,10 @@ class RequisitionsService(
         internalFulfillRequisitionRequest {
           externalRequisitionId = apiIdToExternalId(requisitionKey.requisitionId)
           nonce = request.nonce
-          computedParams =
-            computedRequisitionParams {
-              externalComputationId = apiIdToExternalId(requisitionKey.computationId)
-              externalFulfillingDuchyId = duchyIdentityProvider().id
-            }
+          computedParams = computedRequisitionParams {
+            externalComputationId = apiIdToExternalId(requisitionKey.computationId)
+            externalFulfillingDuchyId = duchyIdentityProvider().id
+          }
         }
       )
     return internalResponse.toSystemRequisition()

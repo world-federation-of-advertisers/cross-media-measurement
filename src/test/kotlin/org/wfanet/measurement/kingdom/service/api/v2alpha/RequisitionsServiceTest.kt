@@ -686,11 +686,10 @@ class RequisitionsServiceTest {
         internalFulfillRequisitionRequest {
           externalRequisitionId = EXTERNAL_REQUISITION_ID
           nonce = NONCE
-          directParams =
-            directRequisitionParams {
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              encryptedData = REQUISITION_ENCRYPTED_DATA
-            }
+          directParams = directRequisitionParams {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
         }
       )
 
@@ -715,20 +714,20 @@ class RequisitionsServiceTest {
 
   @Test
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when encrypted_data is empty`() =
-      runBlocking {
-    val request = fulfillDirectRequisitionRequest {
-      name = INVALID_REQUISITION_NAME
-      requisitionFingerprint = REQUISITION_FINGERPRINT
-      nonce = NONCE
-    }
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.fulfillDirectRequisition(request) }
-        }
+    runBlocking {
+      val request = fulfillDirectRequisitionRequest {
+        name = INVALID_REQUISITION_NAME
+        requisitionFingerprint = REQUISITION_FINGERPRINT
+        nonce = NONCE
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            runBlocking { service.fulfillDirectRequisition(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   @Test
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when id is invalid`() = runBlocking {

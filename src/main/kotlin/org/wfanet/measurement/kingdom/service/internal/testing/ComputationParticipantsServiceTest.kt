@@ -551,11 +551,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         fulfillRequisitionRequest {
           externalRequisitionId = requisition.externalRequisitionId
           this.nonce = nonce
-          computedParams =
-            computedRequisitionParams {
-              externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = duchyId
-            }
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchyId
+          }
         }
       )
     }
@@ -636,11 +635,10 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         fulfillRequisitionRequest {
           externalRequisitionId = requisition.externalRequisitionId
           this.nonce = nonce
-          computedParams =
-            computedRequisitionParams {
-              externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = duchyId
-            }
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchyId
+          }
         }
       )
     }

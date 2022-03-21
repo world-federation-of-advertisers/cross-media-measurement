@@ -139,11 +139,10 @@ class RequisitionsServiceTest {
         internalFulfillRequisitionRequest {
           externalRequisitionId = EXTERNAL_REQUISITION_ID
           nonce = NONCE
-          computedParams =
-            computedRequisitionParams {
-              externalComputationId = EXTERNAL_COMPUTATION_ID
-              externalFulfillingDuchyId = DUCHY_ID
-            }
+          computedParams = computedRequisitionParams {
+            externalComputationId = EXTERNAL_COMPUTATION_ID
+            externalFulfillingDuchyId = DUCHY_ID
+          }
         }
       )
   }
