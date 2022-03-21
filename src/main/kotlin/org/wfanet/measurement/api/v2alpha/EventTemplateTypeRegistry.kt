@@ -14,11 +14,11 @@
 
 package org.wfanet.measurement.api.v2alpha
 
+import com.google.common.reflect.ClassPath
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
-import org.reflections.Reflections
-import org.reflections.scanners.Scanners.SubTypes
+import java.lang.reflect.Constructor
 
 class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
 
@@ -31,22 +31,24 @@ class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
   }
 
   companion object {
+    /**
+     * Creates a Type Registry for all Messages in a classpath @prefix. All utilized templates
+     * should be included in this classpath.
+     */
     fun createRegistryForPackagePrefix(prefix: String): EventTemplateTypeRegistry {
-
       val registryBuilder = TypeRegistry.newBuilder()
-      val reflections = Reflections(prefix, SubTypes.filterResultsBy { true })
-      val classes: Set<Class<out Message>> = reflections.getSubTypesOf(Message::class.java)
+      val classes =
+        ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClassesRecursive(prefix)
       for (c in classes) {
         try {
-          val constructor = c.getDeclaredConstructor()
+          val constructor = c.load().getDeclaredConstructor() as Constructor<out Message>
           constructor.isAccessible = true
           val descriptor: Descriptor = constructor.newInstance().descriptorForType
           if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
             registryBuilder.add(descriptor)
           }
-        } catch (e: InstantiationException) {}
+        } catch (e: NoSuchMethodException) {} catch (e: ClassCastException) {}
       }
-
       return EventTemplateTypeRegistry(registryBuilder.build())
     }
   }
