@@ -28,6 +28,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -36,8 +37,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
-
-private val INITIAL_MEASUREMENT_STATE = Measurement.State.PENDING_REQUISITION_PARAMS
 
 /**
  * Creates a measurement in the database.
@@ -62,6 +61,22 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
     }
 
+    // protocol has to be set for the measurement to require computation
+    return if (measurement.details.protocolConfig.protocolCase !=
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      createComputationMeasurement(measurement, measurementConsumerId)
+    } else {
+      createDirectMeasurement(measurement, measurementConsumerId)
+    }
+  }
+
+  private suspend fun TransactionScope.createComputationMeasurement(
+    measurement: Measurement,
+    measurementConsumerId: InternalId
+  ): Measurement {
+    val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
+
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
@@ -69,14 +84,17 @@ class CreateMeasurement(private val measurement: Measurement) :
       measurementConsumerId,
       measurementId,
       externalMeasurementId,
-      externalComputationId
+      externalComputationId,
+      initialMeasurementState
     )
 
     // Insert into Requisitions for each EDP
-    for ((externalDataProviderId, dataProviderValue) in measurement.dataProvidersMap) {
-      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
-      insertRequisition(measurementConsumerId, measurementId, dataProviderId, dataProviderValue)
-    }
+    insertRequisitions(
+      measurementConsumerId,
+      measurementId,
+      measurement.dataProvidersMap,
+      Requisition.State.PENDING_PARAMS
+    )
 
     DuchyIds.entries.forEach { entry ->
       insertComputationParticipant(
@@ -85,10 +103,41 @@ class CreateMeasurement(private val measurement: Measurement) :
         InternalId(entry.internalDuchyId),
       )
     }
+
     return measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
       this.externalComputationId = externalComputationId.value
-      state = INITIAL_MEASUREMENT_STATE
+      state = initialMeasurementState
+    }
+  }
+
+  private suspend fun TransactionScope.createDirectMeasurement(
+    measurement: Measurement,
+    measurementConsumerId: InternalId
+  ): Measurement {
+    val initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
+
+    val measurementId: InternalId = idGenerator.generateInternalId()
+    val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
+    insertMeasurement(
+      measurementConsumerId,
+      measurementId,
+      externalMeasurementId,
+      null,
+      initialMeasurementState
+    )
+
+    // Insert into Requisitions for each EDP
+    insertRequisitions(
+      measurementConsumerId,
+      measurementId,
+      measurement.dataProvidersMap,
+      Requisition.State.UNFULFILLED
+    )
+
+    return measurement.copy {
+      this.externalMeasurementId = externalMeasurementId.value
+      state = initialMeasurementState
     }
   }
 
@@ -96,7 +145,8 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     externalMeasurementId: ExternalId,
-    externalComputationId: ExternalId
+    externalComputationId: ExternalId?,
+    initialMeasurementState: Measurement.State
   ) {
     val reader =
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
@@ -112,12 +162,14 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("ExternalMeasurementId" to externalMeasurementId)
-      set("ExternalComputationId" to externalComputationId)
+      if (externalComputationId != null) {
+        set("ExternalComputationId" to externalComputationId)
+      }
       if (measurement.providedMeasurementId.isNotBlank()) {
         set("ProvidedMeasurementId" to measurement.providedMeasurementId)
       }
       set("CertificateId" to measurementConsumerCertificateId)
-      set("State" to INITIAL_MEASUREMENT_STATE)
+      set("State" to initialMeasurementState)
       set("MeasurementDetails" to measurement.details)
       setJson("MeasurementDetailsJson" to measurement.details)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
@@ -142,11 +194,30 @@ class CreateMeasurement(private val measurement: Measurement) :
     }
   }
 
+  private suspend fun TransactionScope.insertRequisitions(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
+    initialRequisitionState: Requisition.State,
+  ) {
+    for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
+      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
+      insertRequisition(
+        measurementConsumerId,
+        measurementId,
+        dataProviderId,
+        dataProviderValue,
+        initialRequisitionState
+      )
+    }
+  }
+
   private suspend fun TransactionScope.insertRequisition(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     dataProviderId: InternalId,
-    dataProviderValue: Measurement.DataProviderValue
+    dataProviderValue: Measurement.DataProviderValue,
+    initialRequisitionState: Requisition.State
   ) {
     val reader =
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
@@ -177,7 +248,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       set("ExternalRequisitionId" to externalRequisitionId)
       set("DataProviderCertificateId" to dataProviderCertificateId)
-      set("State" to Requisition.State.PENDING_PARAMS)
+      set("State" to initialRequisitionState)
       set("RequisitionDetails" to details)
       setJson("RequisitionDetailsJson" to details)
     }

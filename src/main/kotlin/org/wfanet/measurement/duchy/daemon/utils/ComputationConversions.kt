@@ -68,6 +68,8 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (v2AlphaMeasurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
+        MeasurementTypeCase.DURATION, MeasurementTypeCase.IMPRESSION ->
+          error("Unexpected MeasurementType for system API Computation.")
         MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> error("Measurement type not set.")
       }
     }
@@ -186,12 +188,11 @@ fun Iterable<SystemRequisition>.toRequisitionEntries(
 ): Iterable<RequisitionEntry> {
   return map {
     requisitionEntry {
-      key =
-        externalRequisitionKey {
-          externalRequisitionId = it.key.requisitionId
-          requisitionFingerprint =
-            computeRequisitionFingerprint(serializedMeasurementSpec, it.requisitionSpecHash)
-        }
+      key = externalRequisitionKey {
+        externalRequisitionId = it.key.requisitionId
+        requisitionFingerprint =
+          computeRequisitionFingerprint(serializedMeasurementSpec, it.requisitionSpecHash)
+      }
       value = it.toDuchyRequisitionDetails()
     }
   }

@@ -26,14 +26,13 @@ private const val VIDEO_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestVideoTemplate"
 
 @RunWith(JUnit4::class)
 class EventTemplateTypeRegistryTest {
+
   @Test
   fun `loadTemplate() template contains correct fields`() {
     val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
 
-    assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME)?.fields).isEmpty()
-    assertThat(
-        typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME)?.fields?.map { field -> field.name }
-      )
+    assertThat(templateFieldList(typeRegistry, BANNER_TEMPLATE_NAME)).containsExactly("gender")
+    assertThat(templateFieldList(typeRegistry, VIDEO_TEMPLATE_NAME))
       .containsExactly("age", "duration")
   }
 
@@ -62,4 +61,12 @@ class EventTemplateTypeRegistryTest {
 
   private fun EventTemplateTypeRegistry.getEventTemplateForType(messageType: String) =
     getDescriptorForType(messageType)?.options?.getExtension(EventAnnotations.eventTemplate)
+
+  private fun templateFieldList(
+    typeRegistry: EventTemplateTypeRegistry,
+    templateName: String
+  ): List<String> =
+    checkNotNull(
+      typeRegistry.getDescriptorForType(templateName)?.fields?.map { field -> field.name }
+    )
 }

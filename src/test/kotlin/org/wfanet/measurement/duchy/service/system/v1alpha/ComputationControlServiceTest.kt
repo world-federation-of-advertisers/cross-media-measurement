@@ -96,16 +96,15 @@ class ComputationControlServiceTest {
     mockAsyncService()
     bavaria = DuchyIdentity(BAVARIA)
     carinthia = DuchyIdentity(CARINTHIA)
-    senderContext =
-      SenderContext { duchyIdProvider ->
-        service =
-          ComputationControlService(
-            AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
-            computationStore,
-            duchyIdProvider
-          )
-        service
-      }
+    senderContext = SenderContext { duchyIdProvider ->
+      service =
+        ComputationControlService(
+          AsyncComputationControlCoroutineStub(grpcTestServerRule.channel),
+          computationStore,
+          duchyIdProvider
+        )
+      service
+    }
   }
 
   @Test

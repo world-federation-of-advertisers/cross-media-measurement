@@ -199,7 +199,9 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
       externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
       externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
-      externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      if (!measurementStruct.isNull("ExternalComputationId")) {
+        externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      }
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
