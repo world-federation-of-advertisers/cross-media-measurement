@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
@@ -617,10 +618,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val response =
       service.fulfillRequisition(
         fulfillRequisitionRequest {
-          externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
-          externalFulfillingDuchyId = "Buck"
           nonce = NONCE_1
+          computedParams =
+            computedRequisitionParams {
+              externalComputationId = measurement.externalComputationId
+              externalFulfillingDuchyId = "Buck"
+            }
         }
       )
 
@@ -676,20 +680,26 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         .toList()
     service.fulfillRequisition(
       fulfillRequisitionRequest {
-        externalComputationId = measurement.externalComputationId
         externalRequisitionId = requisitions[0].externalRequisitionId
-        externalFulfillingDuchyId = "Buck"
         nonce = NONCE_1
+        computedParams =
+          computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = "Buck"
+          }
       }
     )
 
     val response =
       service.fulfillRequisition(
         fulfillRequisitionRequest {
-          externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisitions[1].externalRequisitionId
-          externalFulfillingDuchyId = "Rippon"
           nonce = NONCE_2
+          computedParams =
+            computedRequisitionParams {
+              externalComputationId = measurement.externalComputationId
+              externalFulfillingDuchyId = "Rippon"
+            }
         }
       )
 
@@ -726,10 +736,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
           fulfillRequisitionRequest {
-            externalComputationId = measurement.externalComputationId
             externalRequisitionId = nonExistantExternalRequisitionId.value
-            externalFulfillingDuchyId = "Buck"
             nonce = NONCE_1
+            computedParams =
+              computedRequisitionParams {
+                externalComputationId = measurement.externalComputationId
+                externalFulfillingDuchyId = "Buck"
+              }
           }
         )
       }
@@ -768,10 +781,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
           fulfillRequisitionRequest {
-            externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
-            externalFulfillingDuchyId = nonExistantExternalDuchyId
             nonce = NONCE_1
+            computedParams =
+              computedRequisitionParams {
+                externalComputationId = measurement.externalComputationId
+                externalFulfillingDuchyId = nonExistantExternalDuchyId
+              }
           }
         )
       }
@@ -810,10 +826,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
           fulfillRequisitionRequest {
-            externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
-            externalFulfillingDuchyId = "Buck"
             nonce = NONCE_1
+            computedParams =
+              computedRequisitionParams {
+                externalComputationId = measurement.externalComputationId
+                externalFulfillingDuchyId = "Buck"
+              }
           }
         )
       }
@@ -860,9 +879,12 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
           fulfillRequisitionRequest {
-            externalComputationId = measurement.externalComputationId
             externalRequisitionId = requisition.externalRequisitionId
-            externalFulfillingDuchyId = "Buck"
+            computedParams =
+              computedRequisitionParams {
+                externalComputationId = measurement.externalComputationId
+                externalFulfillingDuchyId = "Buck"
+              }
           }
         )
       }

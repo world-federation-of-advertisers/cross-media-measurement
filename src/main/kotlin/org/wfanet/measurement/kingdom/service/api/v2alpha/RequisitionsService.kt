@@ -56,7 +56,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
-import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -223,11 +223,13 @@ class RequisitionsService(
 
     internalRequisitionStub.fulfillRequisition(
       fulfillRequisitionRequest {
-        requisitionType = FulfillRequisitionRequest.RequisitionType.DIRECT
         externalRequisitionId = apiIdToExternalId(key.requisitionId)
-        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        encryptedData = request.encryptedData
         nonce = request.nonce
+        directParams =
+          directRequisitionParams {
+            externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+            encryptedData = request.encryptedData
+          }
       }
     )
 

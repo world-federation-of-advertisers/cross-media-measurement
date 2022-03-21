@@ -35,12 +35,13 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.CertificateKt as InternalCertificateKt
-import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest as InternalFulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as InternalRequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
@@ -136,14 +137,15 @@ class RequisitionsServiceTest {
         InternalRequisitionsCoroutineService::fulfillRequisition
       )
       .isEqualTo(
-        InternalFulfillRequisitionRequest.newBuilder()
-          .apply {
-            externalComputationId = EXTERNAL_COMPUTATION_ID
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
-            externalFulfillingDuchyId = DUCHY_ID
-            nonce = NONCE
-          }
-          .build()
+        internalFulfillRequisitionRequest {
+          externalRequisitionId = EXTERNAL_REQUISITION_ID
+          nonce = NONCE
+          computedParams =
+            computedRequisitionParams {
+              externalComputationId = EXTERNAL_COMPUTATION_ID
+              externalFulfillingDuchyId = DUCHY_ID
+            }
+        }
       )
   }
 

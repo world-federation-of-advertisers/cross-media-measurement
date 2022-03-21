@@ -71,6 +71,7 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -693,9 +694,12 @@ class RequisitionsServiceTest {
       .isEqualTo(
         internalFulfillRequisitionRequest {
           externalRequisitionId = EXTERNAL_REQUISITION_ID
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
           nonce = NONCE
-          encryptedData = REQUISITION_ENCRYPTED_DATA
+          directParams =
+            directRequisitionParams {
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
         }
       )
 
