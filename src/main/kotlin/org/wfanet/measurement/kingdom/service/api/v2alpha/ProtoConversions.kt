@@ -418,7 +418,14 @@ fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
           step
             .inputLabelsMap
             .values
-            .flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }
+            .flatMap { value ->
+              val indices = labelsMap.getOrDefault(value, emptyList())
+              require(step.hasCopyFromPreviousExchangeStep() || index !in indices) {
+                "Step ${step.stepCase} with index $index cannot be its own prerequisite"
+              }
+              indices
+            }
+            .filter { it != index }
             .toSet()
       }
     }
