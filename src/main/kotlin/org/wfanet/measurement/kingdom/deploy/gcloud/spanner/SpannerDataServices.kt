@@ -32,6 +32,7 @@ class SpannerDataServices(
       SpannerCertificatesService(idGenerator, client),
       SpannerDataProvidersService(idGenerator, client),
       SpannerModelProvidersService(idGenerator, client),
+      SpannerEventGroupMetadataDescriptorsService(idGenerator, client),
       SpannerEventGroupsService(idGenerator, client),
       SpannerMeasurementConsumersService(idGenerator, client),
       SpannerMeasurementsService(idGenerator, client),
