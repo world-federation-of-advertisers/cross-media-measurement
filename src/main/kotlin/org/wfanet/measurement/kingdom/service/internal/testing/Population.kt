@@ -211,6 +211,43 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
+  suspend fun createDirectMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+  ): Measurement {
+    return measurementsService.createMeasurement(
+      measurement {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        this.providedMeasurementId = providedMeasurementId
+        externalMeasurementConsumerCertificateId =
+          measurementConsumer.certificate.externalCertificateId
+        details =
+          MeasurementKt.details {
+            apiVersion = API_VERSION
+            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+          }
+        this.dataProviders.putAll(dataProviders)
+      }
+    )
+  }
+
+  suspend fun createDirectMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    vararg dataProviders: DataProvider
+  ): Measurement {
+    return createDirectMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() }
+    )
+  }
+
   suspend fun createDuchyCertificate(
     certificatesService: CertificatesCoroutineImplBase,
     externalDuchyId: String,

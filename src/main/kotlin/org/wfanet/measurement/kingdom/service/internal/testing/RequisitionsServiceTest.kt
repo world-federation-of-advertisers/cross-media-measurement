@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -38,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
@@ -63,6 +65,7 @@ private const val RANDOM_SEED = 1L
 private const val NONCE_1 = 3127743798281582205L
 private const val NONCE_2 = -7004399847946251733L
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+private val REQUISITION_ENCRYPTED_DATA = ByteString.copyFromUtf8("foo")
 
 private val REFUSAL = refusal {
   justification = Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
@@ -870,6 +873,50 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `direct fulfillRequisition returns FULFILLED Requisition`() = runBlocking {
+    val provider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createDirectMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService
+        ),
+        "direct_measurement",
+        provider,
+      )
+
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .first()
+
+    val response =
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisition.externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisition.externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
+        }
+      )
+
+    assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
+    assertThat(response.details.nonce).isEqualTo(NONCE_1)
+    assertThat(response.details.encryptedData).isEqualTo(REQUISITION_ENCRYPTED_DATA)
+    assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
   }
 
   @Test

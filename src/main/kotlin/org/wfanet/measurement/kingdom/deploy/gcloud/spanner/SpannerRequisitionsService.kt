@@ -82,13 +82,20 @@ class SpannerRequisitionsService(
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
     with(request) {
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
-      grpcRequire(computedParams.externalComputationId != 0L) {
-        "external_computation_id not specified"
-      }
-      grpcRequire(computedParams.externalFulfillingDuchyId.isNotEmpty()) {
-        "external_fulfilling_duchy_id not specified"
-      }
       grpcRequire(nonce != 0L) { "nonce not specified" }
+      if (request.hasComputedParams()) {
+        grpcRequire(computedParams.externalComputationId != 0L) {
+          "external_computation_id not specified"
+        }
+        grpcRequire(computedParams.externalFulfillingDuchyId.isNotEmpty()) {
+          "external_fulfilling_duchy_id not specified"
+        }
+      } else if (request.hasDirectParams()) {
+        grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data is empty" }
+        grpcRequire(directParams.externalDataProviderId != 0L) { "data_provider_id not specified" }
+      } else {
+        failGrpc(Status.INVALID_ARGUMENT) { "params field not set" }
+      }
     }
 
     try {
