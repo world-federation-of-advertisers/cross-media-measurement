@@ -224,11 +224,10 @@ class RequisitionsService(
       fulfillRequisitionRequest {
         externalRequisitionId = apiIdToExternalId(key.requisitionId)
         nonce = request.nonce
-        directParams =
-          directRequisitionParams {
-            externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-            encryptedData = request.encryptedData
-          }
+        directParams = directRequisitionParams {
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+          encryptedData = request.encryptedData
+        }
       }
     )
 
