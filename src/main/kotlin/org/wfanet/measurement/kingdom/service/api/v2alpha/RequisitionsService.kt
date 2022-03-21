@@ -149,11 +149,10 @@ class RequisitionsService(
       if (results.size > listRequisitionsPageToken.pageSize) {
         val pageToken =
           listRequisitionsPageToken.copy {
-            lastRequisition =
-              previousPageEnd {
-                externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-                externalRequisitionId = results[results.lastIndex - 1].externalRequisitionId
-              }
+            lastRequisition = previousPageEnd {
+              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+              externalRequisitionId = results[results.lastIndex - 1].externalRequisitionId
+            }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
       }
@@ -263,11 +262,10 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
         )
         .toName()
-    measurementSpec =
-      signedData {
-        data = parentMeasurement.measurementSpec
-        signature = parentMeasurement.measurementSpecSignature
-      }
+    measurementSpec = signedData {
+      data = parentMeasurement.measurementSpec
+      signature = parentMeasurement.measurementSpecSignature
+    }
     protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
@@ -277,22 +275,20 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
         )
         .toName()
-    dataProviderPublicKey =
-      signedData {
-        data = details.dataProviderPublicKey
-        signature = details.dataProviderPublicKeySignature
-      }
+    dataProviderPublicKey = signedData {
+      data = details.dataProviderPublicKey
+      signature = details.dataProviderPublicKeySignature
+    }
     nonce = details.nonce
 
     duchies += duchiesMap.entries.map(Map.Entry<String, DuchyValue>::toDuchyEntry)
 
     state = this@toRequisition.state.toRequisitionState()
     if (state == State.REFUSED) {
-      refusal =
-        refusal {
-          justification = details.refusal.justification.toRefusalJustification()
-          message = details.refusal.message
-        }
+      refusal = refusal {
+        justification = details.refusal.justification.toRefusalJustification()
+        message = details.refusal.message
+      }
     }
   }
 }
@@ -352,15 +348,12 @@ private fun DuchyValue.toDuchyEntryValue(): DuchyEntry.Value {
     duchyCertificate = externalIdToApiId(externalDuchyCertificateId)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (value.protocolCase) {
-      DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 ->
-        liquidLegionsV2 =
-          liquidLegionsV2 {
-            elGamalPublicKey =
-              signedData {
-                data = value.liquidLegionsV2.elGamalPublicKey
-                signature = value.liquidLegionsV2.elGamalPublicKeySignature
-              }
+      DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 -> liquidLegionsV2 = liquidLegionsV2 {
+          elGamalPublicKey = signedData {
+            data = value.liquidLegionsV2.elGamalPublicKey
+            signature = value.liquidLegionsV2.elGamalPublicKeySignature
           }
+        }
       DuchyValue.ProtocolCase.PROTOCOL_NOT_SET -> {}
     }
   }

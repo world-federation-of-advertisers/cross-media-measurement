@@ -148,16 +148,15 @@ class ResourceSetup(
       )
 
     val request = createMeasurementConsumerRequest {
-      measurementConsumer =
-        measurementConsumer {
-          certificateDer = measurementConsumerContent.signingKey.certificate.encoded.toByteString()
-          publicKey =
-            signEncryptionPublicKey(
-              measurementConsumerContent.encryptionPublicKey,
-              measurementConsumerContent.signingKey
-            )
-          displayName = measurementConsumerContent.displayName
-        }
+      measurementConsumer = measurementConsumer {
+        certificateDer = measurementConsumerContent.signingKey.certificate.encoded.toByteString()
+        publicKey =
+          signEncryptionPublicKey(
+            measurementConsumerContent.encryptionPublicKey,
+            measurementConsumerContent.signingKey
+          )
+        displayName = measurementConsumerContent.displayName
+      }
       measurementConsumerCreationToken = mcCreationToken
     }
     val measurementConsumer =
