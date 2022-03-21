@@ -24,6 +24,9 @@ data class EventTemplate(val descriptor: Descriptors.Descriptor) {
       throw IllegalArgumentException("Descriptor does not have EventTemplate annotation")
     }
   }
+
+  val name: String by lazy { descriptor.options.getExtension(EventAnnotations.eventTemplate).name }
+
   val displayName: String by lazy {
     descriptor.options.getExtension(EventAnnotations.eventTemplate).displayName
   }
