@@ -403,10 +403,10 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
   }
 
 fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
-  val labelsMap = mutableMapOf<String, MutableSet<Int>>()
+  val labelsMap = mutableMapOf<String, MutableSet<Pair<String, Int>>>()
   for ((index, step) in stepsList.withIndex()) {
     for (outputLabel in step.outputLabelsMap.values) {
-      labelsMap.getOrPut(outputLabel) { mutableSetOf() }.add(index)
+      labelsMap.getOrPut(outputLabel) { mutableSetOf() }.add(step.stepId to index)
     }
   }
   val internalSteps =
@@ -418,7 +418,18 @@ fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
           step
             .inputLabelsMap
             .values
-            .flatMap { value -> labelsMap.getOrDefault(value, emptyList()) }
+            .flatMap { value ->
+              val prerequisites = labelsMap.getOrDefault(value, emptyList())
+              prerequisites.forEach { (stepId, stepIndex) ->
+                require(step.hasCopyFromPreviousExchangeStep() || stepIndex < index) {
+                  "Step ${step.stepId} with index $index cannot depend on step $stepId with" +
+                    " index $stepIndex. To depend on another step, the index must be greater than" +
+                    " the prerequisite step"
+                }
+              }
+              prerequisites.map { it.second }
+            }
+            .filter { it < index }
             .toSet()
       }
     }
