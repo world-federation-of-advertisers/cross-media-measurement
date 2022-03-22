@@ -83,18 +83,24 @@ class SpannerRequisitionsService(
     with(request) {
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
       grpcRequire(nonce != 0L) { "nonce not specified" }
-      if (request.hasComputedParams()) {
-        grpcRequire(computedParams.externalComputationId != 0L) {
-          "external_computation_id not specified"
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (request.paramsCase) {
+        FulfillRequisitionRequest.ParamsCase.COMPUTED_PARAMS -> {
+          grpcRequire(computedParams.externalComputationId != 0L) {
+            "external_computation_id not specified"
+          }
+          grpcRequire(computedParams.externalFulfillingDuchyId.isNotEmpty()) {
+            "external_fulfilling_duchy_id not specified"
+          }
         }
-        grpcRequire(computedParams.externalFulfillingDuchyId.isNotEmpty()) {
-          "external_fulfilling_duchy_id not specified"
+        FulfillRequisitionRequest.ParamsCase.DIRECT_PARAMS -> {
+          grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data is empty" }
+          grpcRequire(directParams.externalDataProviderId != 0L) {
+            "data_provider_id not specified"
+          }
         }
-      } else if (request.hasDirectParams()) {
-        grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data is empty" }
-        grpcRequire(directParams.externalDataProviderId != 0L) { "data_provider_id not specified" }
-      } else {
-        failGrpc(Status.INVALID_ARGUMENT) { "params field not set" }
+        FulfillRequisitionRequest.ParamsCase.PARAMS_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) { "params field not set" }
       }
     }
 
