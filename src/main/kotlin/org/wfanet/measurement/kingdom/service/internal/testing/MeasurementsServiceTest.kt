@@ -1091,6 +1091,41 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamMeasurements with computation view doesn't include direct measurements`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          details =
+            details.copy {
+              clearProtocolConfig()
+              clearDuchyProtocolConfig()
+            }
+        }
+      )
+
+      val measurements: List<Measurement> =
+        measurementsService
+          .streamMeasurements(
+            streamMeasurementsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+              measurementView = Measurement.View.COMPUTATION
+            }
+          )
+          .toList()
+
+      assertThat(measurements).isEmpty()
+    }
+
+  @Test
   fun `streamMeasurements respects states`(): Unit = runBlocking {
     val measurementConsumer1 =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)

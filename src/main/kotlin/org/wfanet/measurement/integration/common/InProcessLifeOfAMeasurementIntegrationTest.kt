@@ -133,6 +133,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
+  private lateinit var frontendSimulator: FrontendSimulator
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -163,6 +164,23 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
           )
           .name
       }
+
+    frontendSimulator =
+      FrontendSimulator(
+        MeasurementConsumerData(
+          mcResourceName,
+          MC_ENTITY_CONTENT.signingKey,
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
+        ),
+        OUTPUT_DP_PARAMS,
+        publicDataProvidersClient,
+        publicEventGroupsClient,
+        publicMeasurementsClient,
+        publicRequisitionsClient,
+        publicMeasurementConsumersClient,
+        SketchStore(storageClient)
+      )
   }
 
   @Before
@@ -187,22 +205,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       assertThat(eventGroupList).isNotNull()
 
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
-      FrontendSimulator(
-          MeasurementConsumerData(
-            mcResourceName,
-            MC_ENTITY_CONTENT.signingKey,
-            loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
-            apiAuthenticationKey
-          ),
-          OUTPUT_DP_PARAMS,
-          publicDataProvidersClient,
-          publicEventGroupsClient,
-          publicMeasurementsClient,
-          publicRequisitionsClient,
-          publicMeasurementConsumersClient,
-          SketchStore(storageClient)
-        )
-        .executeReachAndFrequency("1234")
+      frontendSimulator.executeReachAndFrequency("1234")
     }
 
   @Test
@@ -213,22 +216,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       assertThat(eventGroupList).isNotNull()
 
       // Use frontend simulator to create an impression measurement and verify its result.
-      FrontendSimulator(
-          MeasurementConsumerData(
-            mcResourceName,
-            MC_ENTITY_CONTENT.signingKey,
-            loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
-            apiAuthenticationKey
-          ),
-          OUTPUT_DP_PARAMS,
-          publicDataProvidersClient,
-          publicEventGroupsClient,
-          publicMeasurementsClient,
-          publicRequisitionsClient,
-          publicMeasurementConsumersClient,
-          SketchStore(storageClient)
-        )
-        .executeImpression("1234")
+      frontendSimulator.executeImpression("1234")
     }
 
   @Test
@@ -239,22 +227,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       assertThat(eventGroupList).isNotNull()
 
       // Use frontend simulator to create a duration measurement and verify its result.
-      FrontendSimulator(
-          MeasurementConsumerData(
-            mcResourceName,
-            MC_ENTITY_CONTENT.signingKey,
-            loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
-            apiAuthenticationKey
-          ),
-          OUTPUT_DP_PARAMS,
-          publicDataProvidersClient,
-          publicEventGroupsClient,
-          publicMeasurementsClient,
-          publicRequisitionsClient,
-          publicMeasurementConsumersClient,
-          SketchStore(storageClient)
-        )
-        .executeDuration("1234")
+      frontendSimulator.executeDuration("1234")
     }
 
   private suspend fun pollForEventGroups() {

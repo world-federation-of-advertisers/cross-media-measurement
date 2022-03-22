@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.frontend
 
 import io.grpc.ManagedChannel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -86,9 +87,9 @@ abstract class FrontendSimulatorRunner : Runnable {
           SketchStore(storageClient)
         )
 
-      frontendSimulator.executeReachAndFrequency(flags.runId + "-reach/frequency")
-      frontendSimulator.executeImpression(flags.runId + "-impression")
-      frontendSimulator.executeDuration(flags.runId + "-duration")
+      launch { frontendSimulator.executeReachAndFrequency(flags.runId + "-reach_frequency") }
+      launch { frontendSimulator.executeImpression(flags.runId + "-impression") }
+      launch { frontendSimulator.executeDuration(flags.runId + "-duration") }
     }
   }
 }
