@@ -29,7 +29,7 @@ class StreamMeasurements(
 ) : SimpleSpannerQuery<MeasurementReader.Result>() {
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
-      appendWhereClause(requestFilter, view)
+      appendWhereClause(requestFilter)
       when (view) {
         Measurement.View.COMPUTATION ->
           appendClause("ORDER BY UpdateTime ASC, ExternalComputationId ASC")
@@ -43,12 +43,9 @@ class StreamMeasurements(
       }
     }
 
-  private fun Statement.Builder.appendWhereClause(
-    filter: StreamMeasurementsRequest.Filter,
-    view: Measurement.View
-  ) {
+  private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
-    if (view == Measurement.View.COMPUTATION) {
+    if (filter.excludeDirectMeasurements) {
       conjuncts.add("ExternalComputationId IS NOT NULL")
     }
 
