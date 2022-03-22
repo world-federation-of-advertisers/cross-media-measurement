@@ -112,44 +112,41 @@ private val INVALID_REQUISITION_NAME = "requisitions/AAAAAAAAAHs"
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
 private val EXTERNAL_REQUISITION_ID =
-  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
+    apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.requisitionId)
 private val EXTERNAL_DATA_PROVIDER_ID =
-  apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
+    apiIdToExternalId(RequisitionKey.fromName(REQUISITION_NAME)!!.dataProviderId)
 private val EXTERNAL_MEASUREMENT_ID =
-  apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
+    apiIdToExternalId(MeasurementKey.fromName(MEASUREMENT_NAME)!!.measurementId)
 private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
-  apiIdToExternalId(
-    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-  )
+    apiIdToExternalId(
+        MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId)
 
 private val REQUISITION_ENCRYPTED_DATA = ByteString.copyFromUtf8("foo")
 private val REQUISITION_FINGERPRINT = ByteString.copyFromUtf8("bar")
 private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
 
 private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
-  setOf(
-    InternalRequisition.State.UNFULFILLED,
-    InternalRequisition.State.FULFILLED,
-    InternalRequisition.State.REFUSED
-  )
+    setOf(
+        InternalRequisition.State.UNFULFILLED,
+        InternalRequisition.State.FULFILLED,
+        InternalRequisition.State.REFUSED)
 
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase =
-    mockService() {
-      onBlocking { refuseRequisition(any()) }
-        .thenReturn(
-          INTERNAL_REQUISITION.copy {
-            state = InternalState.REFUSED
-            details = details {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
-            }
-          }
-        )
-    }
+      mockService() {
+        onBlocking { refuseRequisition(any()) }
+            .thenReturn(
+                INTERNAL_REQUISITION.copy {
+                  state = InternalState.REFUSED
+                  details = details {
+                    refusal =
+                        InternalRequisitionKt.refusal {
+                          justification = InternalRefusal.Justification.UNFULFILLABLE
+                        }
+                  }
+                })
+      }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalRequisitionMock) }
 
@@ -163,14 +160,14 @@ class RequisitionsServiceTest {
   @Test
   fun `listRequisitions with parent uses filter with parent`() {
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
     val request = listRequisitionsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.listRequisitions(request) }
-      }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listRequisitions(request) }
+        }
 
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
@@ -178,23 +175,22 @@ class RequisitionsServiceTest {
     }
 
     val streamRequisitionRequest =
-      captureFirst<StreamRequisitionsRequest> {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
+        captureFirst<StreamRequisitionsRequest> {
+          verify(internalRequisitionMock).streamRequisitions(capture())
+        }
 
     assertThat(streamRequisitionRequest)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        streamRequisitionsRequest {
-          limit = DEFAULT_LIMIT + 1
-          filter =
-            StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              states += VISIBLE_REQUISITION_STATES
-            }
-        }
-      )
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+            streamRequisitionsRequest {
+              limit = DEFAULT_LIMIT + 1
+              filter =
+                  StreamRequisitionsRequestKt.filter {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                    states += VISIBLE_REQUISITION_STATES
+                  }
+            })
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
@@ -202,7 +198,7 @@ class RequisitionsServiceTest {
   @Test
   fun `listRequisitions with page token returns next page`() = runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
     val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
@@ -221,9 +217,9 @@ class RequisitionsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.listRequisitions(request) }
-      }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listRequisitions(request) }
+        }
 
     val expected = listRequisitionsResponse {
       requisitions += REQUISITION
@@ -241,84 +237,82 @@ class RequisitionsServiceTest {
     }
 
     val streamRequisitionRequest =
-      captureFirst<StreamRequisitionsRequest> {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
+        captureFirst<StreamRequisitionsRequest> {
+          verify(internalRequisitionMock).streamRequisitions(capture())
+        }
 
     assertThat(streamRequisitionRequest)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        streamRequisitionsRequest {
-          limit = 3
-          filter =
-            StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              states += InternalState.UNFULFILLED
-              externalDataProviderIdAfter = EXTERNAL_DATA_PROVIDER_ID
-              externalRequisitionIdAfter = EXTERNAL_REQUISITION_ID
-            }
-        }
-      )
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+            streamRequisitionsRequest {
+              limit = 3
+              filter =
+                  StreamRequisitionsRequestKt.filter {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                    states += InternalState.UNFULFILLED
+                    externalDataProviderIdAfter = EXTERNAL_DATA_PROVIDER_ID
+                    externalRequisitionIdAfter = EXTERNAL_REQUISITION_ID
+                  }
+            })
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
   fun `listRequisitions with more results remaining returns response with next page token`() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+      runBlocking {
+        whenever(internalRequisitionMock.streamRequisitions(any()))
+            .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION))
 
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        pageSize = 1
-      }
-
-      val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.listRequisitions(request) }
-        }
-
-      val expected = listRequisitionsResponse {
-        requisitions += REQUISITION
-        val requisitionPageToken = listRequisitionsPageToken {
+        val request = listRequisitionsRequest {
+          parent = DATA_PROVIDER_NAME
           pageSize = 1
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          lastRequisition = previousPageEnd {
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
+        }
+
+        val result =
+            withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+              runBlocking { service.listRequisitions(request) }
+            }
+
+        val expected = listRequisitionsResponse {
+          requisitions += REQUISITION
+          val requisitionPageToken = listRequisitionsPageToken {
+            pageSize = 1
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            lastRequisition = previousPageEnd {
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
           }
+          nextPageToken = requisitionPageToken.toByteArray().base64UrlEncode()
         }
-        nextPageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+
+        val streamRequisitionsRequest =
+            captureFirst<StreamRequisitionsRequest> {
+              verify(internalRequisitionMock).streamRequisitions(capture())
+            }
+
+        assertThat(streamRequisitionsRequest)
+            .ignoringRepeatedFieldOrder()
+            .isEqualTo(
+                streamRequisitionsRequest {
+                  limit = 2
+                  filter =
+                      StreamRequisitionsRequestKt.filter {
+                        externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                        externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                        states += VISIBLE_REQUISITION_STATES
+                      }
+                })
+
+        assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
       }
-
-      val streamRequisitionsRequest =
-        captureFirst<StreamRequisitionsRequest> {
-          verify(internalRequisitionMock).streamRequisitions(capture())
-        }
-
-      assertThat(streamRequisitionsRequest)
-        .ignoringRepeatedFieldOrder()
-        .isEqualTo(
-          streamRequisitionsRequest {
-            limit = 2
-            filter =
-              StreamRequisitionsRequestKt.filter {
-                externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-                states += VISIBLE_REQUISITION_STATES
-              }
-          }
-        )
-
-      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-    }
 
   @Test
   fun `listRequisitions with parent and filter containing measurement uses filter with both`() {
     whenever(internalRequisitionMock.streamRequisitions(any()))
-      .thenReturn(flowOf(INTERNAL_REQUISITION))
+        .thenReturn(flowOf(INTERNAL_REQUISITION))
 
     val request = listRequisitionsRequest {
       parent = DATA_PROVIDER_NAME
@@ -326,150 +320,149 @@ class RequisitionsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.listRequisitions(request) }
-      }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listRequisitions(request) }
+        }
 
     val expected = listRequisitionsResponse { requisitions += REQUISITION }
 
     val streamRequisitionsRequest =
-      captureFirst<StreamRequisitionsRequest> {
-        verify(internalRequisitionMock).streamRequisitions(capture())
-      }
+        captureFirst<StreamRequisitionsRequest> {
+          verify(internalRequisitionMock).streamRequisitions(capture())
+        }
 
     assertThat(streamRequisitionsRequest)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        streamRequisitionsRequest {
-          limit = DEFAULT_LIMIT + 1
-          filter =
-            StreamRequisitionsRequestKt.filter {
-              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-              externalMeasurementId = EXTERNAL_MEASUREMENT_ID
-              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-              states += VISIBLE_REQUISITION_STATES
-            }
-        }
-      )
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+            streamRequisitionsRequest {
+              limit = DEFAULT_LIMIT + 1
+              filter =
+                  StreamRequisitionsRequestKt.filter {
+                    externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+                    externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+                    externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                    states += VISIBLE_REQUISITION_STATES
+                  }
+            })
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
   @Test
   fun `listRequisitions throws INVALID ARGUMENT when mc caller doesn't match mc in page token `() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION))
+      runBlocking {
+        whenever(internalRequisitionMock.streamRequisitions(any()))
+            .thenReturn(flowOf(INTERNAL_REQUISITION))
 
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        val requisitionPageToken = listRequisitionsPageToken {
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          externalMeasurementConsumerId = 456
-          externalMeasurementId = EXTERNAL_MEASUREMENT_ID
-          lastRequisition = previousPageEnd {
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
+        val request = listRequisitionsRequest {
+          parent = DATA_PROVIDER_NAME
+          val requisitionPageToken = listRequisitionsPageToken {
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalMeasurementConsumerId = 456
+            externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+            lastRequisition = previousPageEnd {
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
           }
+          pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+          filter = filter { measurement = MEASUREMENT_NAME }
         }
-        pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
-        filter = filter { measurement = MEASUREMENT_NAME }
-      }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-            runBlocking { service.listRequisitions(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+        val exception =
+            assertFailsWith<StatusRuntimeException> {
+              withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+                runBlocking { service.listRequisitions(request) }
+              }
+            }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      }
 
   @Test
   fun `listRequisitions throws INVALID ARGUMENT when measurement filter doesn't match `() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION))
+      runBlocking {
+        whenever(internalRequisitionMock.streamRequisitions(any()))
+            .thenReturn(flowOf(INTERNAL_REQUISITION))
 
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        val requisitionPageToken = listRequisitionsPageToken {
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
-          externalMeasurementId = 456
-          lastRequisition = previousPageEnd {
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
+        val request = listRequisitionsRequest {
+          parent = DATA_PROVIDER_NAME
+          val requisitionPageToken = listRequisitionsPageToken {
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+            externalMeasurementId = 456
+            lastRequisition = previousPageEnd {
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
           }
+          pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+          filter = filter { measurement = MEASUREMENT_NAME }
         }
-        pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
-        filter = filter { measurement = MEASUREMENT_NAME }
-      }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-            runBlocking { service.listRequisitions(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+        val exception =
+            assertFailsWith<StatusRuntimeException> {
+              withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+                runBlocking { service.listRequisitions(request) }
+              }
+            }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      }
 
   @Test
   fun `listRequisitions throws INVALID ARGUMENT when edp caller doesn't match edp in token `() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION))
+      runBlocking {
+        whenever(internalRequisitionMock.streamRequisitions(any()))
+            .thenReturn(flowOf(INTERNAL_REQUISITION))
 
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        val requisitionPageToken = listRequisitionsPageToken {
-          externalDataProviderId = 456
-          lastRequisition = previousPageEnd {
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+        val request = listRequisitionsRequest {
+          parent = DATA_PROVIDER_NAME
+          val requisitionPageToken = listRequisitionsPageToken {
+            externalDataProviderId = 456
+            lastRequisition = previousPageEnd {
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
           }
+          pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
         }
-        pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+
+        val exception =
+            assertFailsWith<StatusRuntimeException> {
+              withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+                runBlocking { service.listRequisitions(request) }
+              }
+            }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-            runBlocking { service.listRequisitions(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
 
   @Test
   fun `listRequisitions throws INVALID ARGUMENT when states don't match states in page token `() =
-    runBlocking {
-      whenever(internalRequisitionMock.streamRequisitions(any()))
-        .thenReturn(flowOf(INTERNAL_REQUISITION))
+      runBlocking {
+        whenever(internalRequisitionMock.streamRequisitions(any()))
+            .thenReturn(flowOf(INTERNAL_REQUISITION))
 
-      val request = listRequisitionsRequest {
-        parent = DATA_PROVIDER_NAME
-        val requisitionPageToken = listRequisitionsPageToken {
-          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-          states += State.UNFULFILLED
-          lastRequisition = previousPageEnd {
-            externalRequisitionId = EXTERNAL_REQUISITION_ID
+        val request = listRequisitionsRequest {
+          parent = DATA_PROVIDER_NAME
+          val requisitionPageToken = listRequisitionsPageToken {
             externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            states += State.UNFULFILLED
+            lastRequisition = previousPageEnd {
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+            }
           }
+          pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+          filter = filter { states += State.REFUSED }
         }
-        pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
-        filter = filter { states += State.REFUSED }
-      }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-            runBlocking { service.listRequisitions(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+        val exception =
+            assertFailsWith<StatusRuntimeException> {
+              withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+                runBlocking { service.listRequisitions(request) }
+              }
+            }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      }
 
   @Test
   fun `listRequisitions throws PERMISSION_DENIED when mc caller doesn't match`() {
@@ -479,11 +472,11 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
-          runBlocking { service.listRequisitions(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+            runBlocking { service.listRequisitions(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
@@ -495,11 +488,11 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
-          runBlocking { service.listRequisitions(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+            runBlocking { service.listRequisitions(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
@@ -511,44 +504,48 @@ class RequisitionsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          runBlocking { service.listRequisitions(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+            runBlocking { service.listRequisitions(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
   fun `listRequisitions throws UNAUTHENTICATED when no principal is not found`() {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME }) }
-      }
+        assertFailsWith<StatusRuntimeException> {
+          runBlocking {
+            service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME })
+          }
+        }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
   fun `listRequisitions throws INVALID_ARGUMENT when only wildcard parent`() {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME })
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking {
+              service.listRequisitions(listRequisitionsRequest { parent = WILDCARD_NAME })
+            }
           }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `listRequisitions throws INVALID_ARGUMENT when parent is invalid`() {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.listRequisitions(listRequisitionsRequest { parent = "adsfasdf" }) }
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking {
+              service.listRequisitions(listRequisitionsRequest { parent = "adsfasdf" })
+            }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
@@ -557,7 +554,9 @@ class RequisitionsServiceTest {
     val request = refuseRequisitionRequest { name = REQUISITION_NAME }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.refuseRequisition(request) } }
+        assertFailsWith<StatusRuntimeException> {
+          runBlocking { service.refuseRequisition(request) }
+        }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
@@ -566,11 +565,11 @@ class RequisitionsServiceTest {
     val request = refuseRequisitionRequest { name = REQUISITION_NAME }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
-          runBlocking { service.refuseRequisition(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+            runBlocking { service.refuseRequisition(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
@@ -579,52 +578,51 @@ class RequisitionsServiceTest {
     val request = refuseRequisitionRequest { name = REQUISITION_NAME }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
-          runBlocking { service.refuseRequisition(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+            runBlocking { service.refuseRequisition(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
   fun `refuseRequisition throws INVALID_ARGUMENT when name is missing`() {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.refuseRequisition(refuseRequisitionRequest {}) }
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            runBlocking { service.refuseRequisition(refuseRequisitionRequest {}) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `refuseRequisition throws INVALID_ARGUMENT when refusal details are missing`() {
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.refuseRequisition(refuseRequisitionRequest { name = REQUISITION_NAME })
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            runBlocking {
+              service.refuseRequisition(refuseRequisitionRequest { name = REQUISITION_NAME })
+            }
           }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
   fun `refuseRequisition with refusal returns the updated requisition`() = runBlocking {
     whenever(internalRequisitionMock.refuseRequisition(any()))
-      .thenReturn(
-        INTERNAL_REQUISITION.copy {
-          state = InternalState.REFUSED
-          details = details {
-            refusal =
-              InternalRequisitionKt.refusal {
-                justification = InternalRefusal.Justification.UNFULFILLABLE
+        .thenReturn(
+            INTERNAL_REQUISITION.copy {
+              state = InternalState.REFUSED
+              details = details {
+                refusal =
+                    InternalRequisitionKt.refusal {
+                      justification = InternalRefusal.Justification.UNFULFILLABLE
+                    }
               }
-          }
-        }
-      )
+            })
 
     val request = refuseRequisitionRequest {
       name = REQUISITION_NAME
@@ -632,26 +630,25 @@ class RequisitionsServiceTest {
     }
 
     val result =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking { service.refuseRequisition(request) }
-      }
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.refuseRequisition(request) }
+        }
 
     val expected =
-      REQUISITION.copy {
-        state = State.REFUSED
-        refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
-      }
+        REQUISITION.copy {
+          state = State.REFUSED
+          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+        }
 
     verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        internalRefuseRequisitionRequest {
-          refusal =
-            InternalRequisitionKt.refusal {
-              justification = InternalRefusal.Justification.UNFULFILLABLE
-            }
-        }
-      )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+            internalRefuseRequisitionRequest {
+              refusal =
+                  InternalRequisitionKt.refusal {
+                    justification = InternalRefusal.Justification.UNFULFILLABLE
+                  }
+            })
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
@@ -659,12 +656,11 @@ class RequisitionsServiceTest {
   @Test
   fun `fulfillDirectRequisition fulfills the requisition`() = runBlocking {
     whenever(internalRequisitionMock.fulfillRequisition(any()))
-      .thenReturn(
-        INTERNAL_REQUISITION.copy {
-          state = InternalState.FULFILLED
-          details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
-        }
-      )
+        .thenReturn(
+            INTERNAL_REQUISITION.copy {
+              state = InternalState.FULFILLED
+              details = details { encryptedData = REQUISITION_ENCRYPTED_DATA }
+            })
 
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
@@ -674,24 +670,23 @@ class RequisitionsServiceTest {
     }
 
     val result =
-      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-        runBlocking { service.fulfillDirectRequisition(request) }
-      }
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.fulfillDirectRequisition(request) }
+        }
 
     val expected = fulfillDirectRequisitionResponse { state = State.FULFILLED }
 
     verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::fulfillRequisition)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        internalFulfillRequisitionRequest {
-          externalRequisitionId = EXTERNAL_REQUISITION_ID
-          nonce = NONCE
-          directParams = directRequisitionParams {
-            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
-            encryptedData = REQUISITION_ENCRYPTED_DATA
-          }
-        }
-      )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+            internalFulfillRequisitionRequest {
+              externalRequisitionId = EXTERNAL_REQUISITION_ID
+              nonce = NONCE
+              directParams = directRequisitionParams {
+                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                encryptedData = REQUISITION_ENCRYPTED_DATA
+              }
+            })
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
@@ -699,38 +694,40 @@ class RequisitionsServiceTest {
   @Test
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is unspecified`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
+      // No name
       encryptedData = REQUISITION_ENCRYPTED_DATA
       requisitionFingerprint = REQUISITION_FINGERPRINT
       nonce = NONCE
     }
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.fulfillDirectRequisition(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when encrypted_data is empty`() =
-    runBlocking {
-      val request = fulfillDirectRequisitionRequest {
-        name = INVALID_REQUISITION_NAME
-        requisitionFingerprint = REQUISITION_FINGERPRINT
-        nonce = NONCE
-      }
-      val exception =
         assertFailsWith<StatusRuntimeException> {
           withDataProviderPrincipal(DATA_PROVIDER_NAME) {
             runBlocking { service.fulfillDirectRequisition(request) }
           }
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
-  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when id is invalid`() = runBlocking {
+  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when encrypted_data is empty`() =
+      runBlocking {
+        val request = fulfillDirectRequisitionRequest {
+          name = REQUISITION_NAME
+          // No encrypted_data
+          requisitionFingerprint = REQUISITION_FINGERPRINT
+          nonce = NONCE
+        }
+        val exception =
+            assertFailsWith<StatusRuntimeException> {
+              withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+                runBlocking { service.fulfillDirectRequisition(request) }
+              }
+            }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      }
+
+  @Test
+  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is invalid`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = INVALID_REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
@@ -738,11 +735,11 @@ class RequisitionsServiceTest {
       nonce = NONCE
     }
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.fulfillDirectRequisition(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            runBlocking { service.fulfillDirectRequisition(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
@@ -754,11 +751,11 @@ class RequisitionsServiceTest {
       requisitionFingerprint = REQUISITION_FINGERPRINT
     }
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking { service.fulfillDirectRequisition(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+            runBlocking { service.fulfillDirectRequisition(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
@@ -770,11 +767,11 @@ class RequisitionsServiceTest {
       requisitionFingerprint = REQUISITION_FINGERPRINT
     }
     val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
-          runBlocking { service.fulfillDirectRequisition(request) }
+        assertFailsWith<StatusRuntimeException> {
+          withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+            runBlocking { service.fulfillDirectRequisition(request) }
+          }
         }
-      }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
@@ -811,26 +808,24 @@ class RequisitionsServiceTest {
 
     private val REQUISITION: Requisition = requisition {
       name =
-        RequisitionKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-            externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId)
-          )
-          .toName()
+          RequisitionKey(
+                  externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
+                  externalIdToApiId(INTERNAL_REQUISITION.externalRequisitionId))
+              .toName()
 
       measurement =
-        MeasurementKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId)
-          )
-          .toName()
+          MeasurementKey(
+                  externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
+                  externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementId))
+              .toName()
       measurementConsumerCertificate =
-        MeasurementConsumerCertificateKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
-            externalIdToApiId(
-              INTERNAL_REQUISITION.parentMeasurement.externalMeasurementConsumerCertificateId
-            )
-          )
-          .toName()
+          MeasurementConsumerCertificateKey(
+                  externalIdToApiId(INTERNAL_REQUISITION.externalMeasurementConsumerId),
+                  externalIdToApiId(
+                      INTERNAL_REQUISITION
+                          .parentMeasurement
+                          .externalMeasurementConsumerCertificateId))
+              .toName()
       measurementSpec = signedData {
         data = INTERNAL_REQUISITION.parentMeasurement.measurementSpec
         signature = INTERNAL_REQUISITION.parentMeasurement.measurementSpecSignature
@@ -840,11 +835,11 @@ class RequisitionsServiceTest {
         liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
       }
       dataProviderCertificate =
-        DataProviderCertificateKey(
-            externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
-            externalIdToApiId(INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId)
-          )
-          .toName()
+          DataProviderCertificateKey(
+                  externalIdToApiId(INTERNAL_REQUISITION.externalDataProviderId),
+                  externalIdToApiId(
+                      INTERNAL_REQUISITION.dataProviderCertificate.externalCertificateId))
+              .toName()
       dataProviderPublicKey = signedData {
         data = INTERNAL_REQUISITION.details.dataProviderPublicKey
         signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
