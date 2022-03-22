@@ -29,16 +29,20 @@ class PanelMatchResourceSetupFlags {
 
   @CommandLine.Option(
     names = ["--kingdom-internal-api-target"],
-    description = ["Address and port of the Kingdom's internal APIs"],
-    required = true
+    description = ["gRPC target (authority) of the Kingdom internal API server"],
+    required = true,
   )
   lateinit var kingdomInternalApiTarget: String
     private set
 
   @CommandLine.Option(
     names = ["--kingdom-internal-api-cert-host"],
-    description = ["The expected hostname in the kingdom InternalApiServer's TLS certificate."],
-    required = true
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom internal API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-internal-api-target.",
+      ],
+    required = false,
   )
   lateinit var kingdomInternalApiCertHost: String
     private set
