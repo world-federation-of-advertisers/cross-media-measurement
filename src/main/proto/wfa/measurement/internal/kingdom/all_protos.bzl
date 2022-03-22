@@ -21,6 +21,7 @@ KINGDOM_INTERNAL_SERVICE_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:computation_participants_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:data_providers_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:event_groups_service_kt_jvm_grpc_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:exchanges_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempts_service_kt_jvm_grpc_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_grpc_proto",
