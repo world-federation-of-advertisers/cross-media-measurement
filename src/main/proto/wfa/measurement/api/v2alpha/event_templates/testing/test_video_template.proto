@@ -47,7 +47,6 @@ message TestVideoTemplate {
     name: "test_video_template"
     display_name: "Video Ad"
     description: "A simple Event Template for a video ad."
-    name: "test_video_template"
   };
 
   AgeRange age = 1;

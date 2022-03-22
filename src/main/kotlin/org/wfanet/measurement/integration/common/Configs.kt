@@ -66,12 +66,12 @@ val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 
 /**
- * TODO(@uakyol): Add [date], [socialGrade], [gender] fields once filtration is implemented.
- *
  * Values of this map are anded to create the event filter to be sent to the EDPs.
  *
  * For purposes of this simulation, all of the EDPs register the same templates and receive the same
  * filter from the MC.
+ *
+ * TODO(@uakyol): Add [date], [socialGrade], [gender] fields once filtration is implemented.
  */
 val EVENT_TEMPLATES_TO_FILTERS_MAP = mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
 const val MC_DISPLAY_NAME = "mc"

@@ -39,7 +39,6 @@ message TestBannerTemplate {
     name: "test_banner_template"
     display_name: "Banner Ad"
     description: "A simple Event Template for a banner ad."
-    name: "test_banner_template"
   };
 
   Gender gender = 1;

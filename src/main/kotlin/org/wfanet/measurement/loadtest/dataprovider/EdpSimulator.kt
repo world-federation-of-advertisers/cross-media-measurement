@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -199,8 +200,10 @@ class EdpSimulator(
           vidSamplingIntervalWidth
         )
       } catch (e: EventFilterValidationException) {
-        logger.info(
-          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter $e"
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
+          e
         )
         return
       }
