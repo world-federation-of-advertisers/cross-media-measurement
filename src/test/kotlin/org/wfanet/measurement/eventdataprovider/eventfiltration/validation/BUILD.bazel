@@ -5,10 +5,9 @@ kt_jvm_test(
     srcs = ["EventFilterValidatorTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidatorTest",
     deps = [
-        "//imports/java/org/projectnessie/cel:cel-core",
-        "//imports/java/org/projectnessie/cel:cel-generated-pb",
-        "//imports/java/org/projectnessie/cel:cel-tools",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/validation:event_filter_validator",
+        "//imports/java/com/google:cel-generated-pb",
+        "//imports/java/org/projectnessie/cel:core",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/validation",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",

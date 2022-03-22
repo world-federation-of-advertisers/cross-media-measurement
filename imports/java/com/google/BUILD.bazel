@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "cel-generated-pb",
+    actual = "@maven//:org_projectnessie_cel_cel_generated_pb",
+)
