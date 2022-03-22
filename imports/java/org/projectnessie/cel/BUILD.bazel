@@ -1,16 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
 alias(
-    name = "cel-tools",
-    actual = "@maven//:org_projectnessie_cel_cel_tools",
-)
-
-alias(
-    name = "cel-core",
+    name = "core",
     actual = "@maven//:org_projectnessie_cel_cel_core",
-)
-
-alias(
-    name = "cel-generated-pb",
-    actual = "@maven//:org_projectnessie_cel_cel_generated_pb",
 )
