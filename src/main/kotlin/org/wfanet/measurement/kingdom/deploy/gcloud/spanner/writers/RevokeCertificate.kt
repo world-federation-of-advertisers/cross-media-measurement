@@ -102,7 +102,6 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             externalMeasurementConsumerId = request.externalMeasurementConsumerId
             externalMeasurementConsumerCertificateId = request.externalCertificateId
             states += PENDING_MEASUREMENT_STATES
-            excludeDirectMeasurements = false
           }
 
         StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {

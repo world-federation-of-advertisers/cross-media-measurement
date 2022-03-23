@@ -359,7 +359,7 @@ class ComputationsServiceTest {
           )
         updatedAfter = timestamp { seconds = updatedAfterSeconds }
         externalComputationIdAfter = lastSeenExternalComputationId
-        excludeDirectMeasurements = true
+        externalDuchyId = DUCHY_ID
       }
     }
 

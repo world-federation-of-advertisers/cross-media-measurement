@@ -352,7 +352,6 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
         externalMeasurementIdAfter = source.lastMeasurement.externalMeasurementId
         updatedAfter = source.lastMeasurement.updateTime
       }
-      excludeDirectMeasurements = false
     }
   }
 }

@@ -250,31 +250,39 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   fillMeasurementCommon(struct)
 
-  val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
-  val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
-  val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
+  if (!struct.isNull("ExternalComputationId")) {
+    val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
+    val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+    val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
 
-  // Map of external Duchy ID to ComputationParticipant struct.
-  val participantStructs: Map<String, Struct> =
-    struct.getStructList("ComputationParticipants").associateBy {
-      val duchyId = it.getLong("DuchyId")
-      checkNotNull(DuchyIds.getExternalId(duchyId)) { "Duchy with internal ID $duchyId not found" }
+    // Map of external Duchy ID to ComputationParticipant struct.
+    val participantStructs: Map<String, Struct> =
+      struct.getStructList("ComputationParticipants").associateBy {
+        val duchyId = it.getLong("DuchyId")
+        checkNotNull(DuchyIds.getExternalId(duchyId)) {
+          "Duchy with internal ID $duchyId not found"
+        }
+      }
+
+    for ((externalDuchyId, participantStruct) in participantStructs) {
+      computationParticipants +=
+        ComputationParticipantReader.buildComputationParticipant(
+          externalMeasurementConsumerId = externalMeasurementConsumerId,
+          externalMeasurementId = externalMeasurementId,
+          externalDuchyId = externalDuchyId,
+          externalComputationId = externalComputationId,
+          measurementDetails = details,
+          struct = participantStruct
+        )
     }
 
-  for ((externalDuchyId, participantStruct) in participantStructs) {
-    computationParticipants +=
-      ComputationParticipantReader.buildComputationParticipant(
-        externalMeasurementConsumerId = externalMeasurementConsumerId,
-        externalMeasurementId = externalMeasurementId,
-        externalDuchyId = externalDuchyId,
-        externalComputationId = externalComputationId,
-        measurementDetails = details,
-        struct = participantStruct
-      )
-  }
-
-  for (requisitionStruct in struct.getStructList("Requisitions")) {
-    requisitions +=
-      RequisitionReader.buildRequisition(struct, requisitionStruct, participantStructs)
+    for (requisitionStruct in struct.getStructList("Requisitions")) {
+      requisitions +=
+        RequisitionReader.buildRequisition(struct, requisitionStruct, participantStructs)
+    }
+  } else {
+    for (requisitionStruct in struct.getStructList("Requisitions")) {
+      requisitions += RequisitionReader.buildRequisition(struct, requisitionStruct, mapOf())
+    }
   }
 }

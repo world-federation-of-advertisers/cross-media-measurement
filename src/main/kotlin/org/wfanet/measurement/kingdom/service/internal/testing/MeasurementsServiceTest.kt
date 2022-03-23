@@ -1021,21 +1021,22 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamMeasurements excludes direct measurements when filter set to true`(): Unit =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+  fun `streamMeasurements with duchy filter only returns measurements with duchy as participant`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
-      val measurement1 =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
 
+    val measurement2 =
       measurementsService.createMeasurement(
         MEASUREMENT.copy {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
@@ -1050,66 +1051,23 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
 
-      val streamMeasurementsRequest = streamMeasurementsRequest {
-        limit = 2
-        filter = filter {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          excludeDirectMeasurements = true
-        }
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalDuchyId = EXTERNAL_DUCHY_IDS[0]
       }
-
-      val measurements: List<Measurement> =
-        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
-
-      assertThat(measurements).hasSize(1)
-      assertThat(measurements).contains(measurement1)
+      measurementView = Measurement.View.COMPUTATION
     }
 
-  @Test
-  fun `streamMeasurements doesn't exclude direct measurements when filter set to false`(): Unit =
-    runBlocking {
-      val measurementConsumer =
-        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurements: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
-      val measurement1 =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-          }
-        )
-
-      val measurement2 =
-        measurementsService.createMeasurement(
-          MEASUREMENT.copy {
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
-            externalMeasurementConsumerCertificateId =
-              measurementConsumer.certificate.externalCertificateId
-            details =
-              details.copy {
-                clearProtocolConfig()
-                clearDuchyProtocolConfig()
-              }
-          }
-        )
-
-      val streamMeasurementsRequest = streamMeasurementsRequest {
-        limit = 2
-        filter = filter {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          excludeDirectMeasurements = false
-        }
-      }
-
-      val measurements: List<Measurement> =
-        measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
-
-      assertThat(measurements).hasSize(2)
-      assertThat(measurements).containsExactly(measurement1, measurement2)
-    }
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements[0].externalMeasurementId).isEqualTo(measurement1.externalMeasurementId)
+    assertThat(measurements[0].externalMeasurementId)
+      .isNotEqualTo(measurement2.externalMeasurementId)
+  }
 
   @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {

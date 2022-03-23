@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.transform
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -23,10 +25,10 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 class StreamMeasurements(
-  view: Measurement.View,
-  requestFilter: StreamMeasurementsRequest.Filter,
-  limit: Int = 0
-) : SimpleSpannerQuery<MeasurementReader.Result>() {
+  val view: Measurement.View,
+  val requestFilter: StreamMeasurementsRequest.Filter,
+  val limit: Int = 0
+) : SpannerQuery<MeasurementReader.Result, MeasurementReader.Result>() {
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
@@ -45,9 +47,6 @@ class StreamMeasurements(
 
   private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
-    if (filter.excludeDirectMeasurements) {
-      conjuncts.add("ExternalComputationId IS NOT NULL")
-    }
 
     if (filter.externalMeasurementConsumerId != 0L) {
       conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM")
@@ -101,6 +100,24 @@ class StreamMeasurements(
 
     appendClause("WHERE ")
     append(conjuncts.joinToString(" AND "))
+  }
+
+  override fun Flow<MeasurementReader.Result>.transform(): Flow<MeasurementReader.Result> {
+    val originalFlow = this
+    return if (requestFilter.externalDuchyId.isBlank()) {
+      originalFlow
+    } else {
+      originalFlow.transform { value: MeasurementReader.Result ->
+        if (value.measurement.computationParticipantsList.isNotEmpty()) {
+          for (computationParticipant in value.measurement.computationParticipantsList) {
+            if (computationParticipant.externalDuchyId == requestFilter.externalDuchyId) {
+              emit(value)
+              break
+            }
+          }
+        }
+      }
+    }
   }
 
   companion object {

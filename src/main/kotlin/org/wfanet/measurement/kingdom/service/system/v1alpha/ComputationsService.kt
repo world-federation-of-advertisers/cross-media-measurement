@@ -109,7 +109,7 @@ class ComputationsService(
         updatedAfter = continuationToken.updateTimeSince
         externalComputationIdAfter = continuationToken.lastSeenExternalComputationId
         states += STATES_SUBSCRIBED
-        excludeDirectMeasurements = true
+        externalDuchyId = duchyIdentityProvider().id
       }
       measurementView = Measurement.View.COMPUTATION
     }
