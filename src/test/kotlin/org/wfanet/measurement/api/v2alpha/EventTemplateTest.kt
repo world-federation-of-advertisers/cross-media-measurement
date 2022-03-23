@@ -29,6 +29,7 @@ class EventTemplateTest {
   fun `populated fields contain correct values`() {
     val eventTemplate = EventTemplate(TestVideoTemplate.getDescriptor())
 
+    assertThat(eventTemplate.name).isEqualTo("test_video_template")
     assertThat(eventTemplate.displayName).isEqualTo("Video Ad")
     assertThat(eventTemplate.description).isEqualTo("A simple Event Template for a video ad.")
     assertThat(eventTemplate.eventFields).contains(EventField(AgeRange.getDescriptor()))

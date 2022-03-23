@@ -148,11 +148,10 @@ class ComputationTokenProtoQuery(
         .getStructList("Requisitions")
         .map {
           requisitionMetadata {
-            externalKey =
-              externalRequisitionKey {
-                externalRequisitionId = it.getString("ExternalRequisitionId")
-                requisitionFingerprint = it.getBytesAsByteString("RequisitionFingerprint")
-              }
+            externalKey = externalRequisitionKey {
+              externalRequisitionId = it.getString("ExternalRequisitionId")
+              requisitionFingerprint = it.getBytesAsByteString("RequisitionFingerprint")
+            }
             path = it.getString("PathToBlob")
             details = it.getProtoMessage("RequisitionDetails", RequisitionDetails.parser())
           }
