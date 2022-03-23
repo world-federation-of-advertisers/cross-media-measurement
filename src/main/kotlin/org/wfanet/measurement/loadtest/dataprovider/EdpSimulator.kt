@@ -148,14 +148,10 @@ class EdpSimulator(
         )
       ) {
         logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec.")
-        requisitionsStub.refuseRequisition(
-          refuseRequisitionRequest {
-            name = requisition.name
-            refusal = refusal {
-              justification = Requisition.Refusal.Justification.SPECIFICATION_INVALID
-              message = "Invalid measurementSpec"
-            }
-          }
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          "Invalid measurementSpec"
         )
       }
 
@@ -171,14 +167,10 @@ class EdpSimulator(
         )
       ) {
         logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec.")
-        requisitionsStub.refuseRequisition(
-          refuseRequisitionRequest {
-            name = requisition.name
-            refusal = refusal {
-              justification = Requisition.Refusal.Justification.SPECIFICATION_INVALID
-              message = "Invalid requisitionSpec"
-            }
-          }
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          "Invalid requisitionSpec"
         )
       }
 
@@ -190,28 +182,30 @@ class EdpSimulator(
         // TODO(@tristanvuong): fulfill direct measurements
         continue
       } else {
-        val combinedPublicKey =
-          requisition.getCombinedPublicKey(
-            requisition.protocolConfig.liquidLegionsV2.ellipticCurveId
-          )
-        val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-
-        val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-        val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-        val sketch =
-          generateSketch(sketchConfig, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-
-        sketchStore.write(requisition.name, sketch.toByteString())
-        val sketchChunks: Flow<ByteString> =
-          encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
-        fulfillRequisition(
-          requisition.name,
+        fulfillRequisitionForComputedMeasurement(
+          requisition,
+          measurementSpec,
           requisitionFingerprint,
-          requisitionSpec.nonce,
-          sketchChunks
+          requisitionSpec
         )
       }
     }
+  }
+
+  private suspend fun refuseRequisition(
+    requisitionName: String,
+    justification: Requisition.Refusal.Justification,
+    message: String
+  ): Requisition {
+    return requisitionsStub.refuseRequisition(
+      refuseRequisitionRequest {
+        name = requisitionName
+        refusal = refusal {
+          this.justification = justification
+          this.message = message
+        }
+      }
+    )
   }
 
   private fun generateSketch(
@@ -265,6 +259,31 @@ class EdpSimulator(
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
 
     return response.encryptedSketch.asBufferedFlow(1024)
+  }
+
+  private suspend fun fulfillRequisitionForComputedMeasurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionFingerprint: ByteString,
+    requisitionSpec: RequisitionSpec
+  ) {
+    val combinedPublicKey =
+      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
+    val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
+
+    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
+    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
+    val sketch = generateSketch(sketchConfig, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+
+    sketchStore.write(requisition.name, sketch.toByteString())
+    val sketchChunks: Flow<ByteString> =
+      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
+    fulfillRequisition(
+      requisition.name,
+      requisitionFingerprint,
+      requisitionSpec.nonce,
+      sketchChunks
+    )
   }
 
   private suspend fun fulfillRequisition(

@@ -215,8 +215,8 @@ class FrontendSimulator(
         .getMeasurement(getMeasurementRequest { name = measurementName })
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
-      logger.info("Failure reason: " + measurement.failure.reason)
-      logger.info("Failure message: " + measurement.failure.message)
+      logger.warning("Failure reason: " + measurement.failure.reason)
+      logger.warning("Failure message: " + measurement.failure.message)
     }
     return if (measurement.state == Measurement.State.SUCCEEDED) {
       val signedResult =
