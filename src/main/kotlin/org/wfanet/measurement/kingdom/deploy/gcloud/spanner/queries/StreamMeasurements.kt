@@ -20,15 +20,14 @@ import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 class StreamMeasurements(
-  val view: Measurement.View,
-  val requestFilter: StreamMeasurementsRequest.Filter,
-  val limit: Int = 0
+  private val view: Measurement.View,
+  private val requestFilter: StreamMeasurementsRequest.Filter,
+  private val limit: Int = 0
 ) : SpannerQuery<MeasurementReader.Result, MeasurementReader.Result>() {
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
@@ -111,20 +110,13 @@ class StreamMeasurements(
     } else {
       originalFlow.filter { value: MeasurementReader.Result ->
         value.measurement.computationParticipantsList.isNotEmpty() &&
-          isDuchyInComputationParticipantsList(value.measurement.computationParticipantsList)
+          value
+            .measurement
+            .computationParticipantsList
+            .map { it.externalDuchyId }
+            .contains(requestFilter.externalDuchyId)
       }
     }
-  }
-
-  private fun isDuchyInComputationParticipantsList(
-    computationParticipantsList: List<ComputationParticipant>
-  ): Boolean {
-    computationParticipantsList.forEach {
-      if (it.externalDuchyId == requestFilter.externalDuchyId) {
-        return true
-      }
-    }
-    return false
   }
 
   companion object {
