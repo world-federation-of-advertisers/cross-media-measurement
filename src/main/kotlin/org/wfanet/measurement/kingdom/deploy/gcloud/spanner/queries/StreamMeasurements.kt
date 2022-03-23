@@ -110,9 +110,8 @@ class StreamMeasurements(
       originalFlow
     } else {
       originalFlow.filter { value: MeasurementReader.Result ->
-        with(value.measurement.computationParticipantsList) {
-          this.isNotEmpty() && isDuchyInComputationParticipantsList(this)
-        }
+        value.measurement.computationParticipantsList.isNotEmpty() &&
+          isDuchyInComputationParticipantsList(value.measurement.computationParticipantsList)
       }
     }
   }
