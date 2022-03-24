@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -122,8 +123,8 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 
-private val REQUISITION_ENCRYPTED_DATA = ByteString.copyFromUtf8("foo")
-private val REQUISITION_FINGERPRINT = ByteString.copyFromUtf8("bar")
+private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
+private val REQUISITION_FINGERPRINT = "bar".toByteStringUtf8()
 private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
 
 private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
@@ -699,6 +700,7 @@ class RequisitionsServiceTest {
   @Test
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is unspecified`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
+      // No name
       encryptedData = REQUISITION_ENCRYPTED_DATA
       requisitionFingerprint = REQUISITION_FINGERPRINT
       nonce = NONCE
@@ -716,7 +718,8 @@ class RequisitionsServiceTest {
   fun `fulfillDirectRequisition throw INVALID_ARGUMENT when encrypted_data is empty`() =
     runBlocking {
       val request = fulfillDirectRequisitionRequest {
-        name = INVALID_REQUISITION_NAME
+        name = REQUISITION_NAME
+        // No encrypted_data
         requisitionFingerprint = REQUISITION_FINGERPRINT
         nonce = NONCE
       }
@@ -730,7 +733,7 @@ class RequisitionsServiceTest {
     }
 
   @Test
-  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when id is invalid`() = runBlocking {
+  fun `fulfillDirectRequisition throw INVALID_ARGUMENT when name is invalid`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = INVALID_REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA

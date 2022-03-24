@@ -75,6 +75,7 @@ message FulfillRequisitionRequest {
   // Cryptographic nonce from the `RequisitionSpec`.
   fixed64 nonce = 2;
 
+  // Requisition parameters for a Computed Measurement
   message ComputedRequisitionParams {
     fixed64 external_computation_id = 1;
     // The human-friendly external ID of the Duchy that marked this
@@ -82,6 +83,7 @@ message FulfillRequisitionRequest {
     string external_fulfilling_duchy_id = 2;
   }
 
+  // Requisition parameters for a Direct Measurement
   message DirectRequisitionParams {
     fixed64 external_data_provider_id = 1;
     // Encrypted `SignedData`containing the data for a direct and volumetric

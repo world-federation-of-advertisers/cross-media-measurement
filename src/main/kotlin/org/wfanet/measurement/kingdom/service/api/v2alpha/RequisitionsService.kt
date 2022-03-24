@@ -209,7 +209,7 @@ class RequisitionsService(
         "Resource name unspecified or invalid."
       }
     grpcRequire(request.nonce != 0L) { "nonce unspecified" }
-    grpcRequireNotNull(request.encryptedData) { "encrypted_data must be provided" }
+    grpcRequire(!request.encryptedData.isEmpty) { "encrypted_data must be provided" }
     // Ensure that the caller is the data_provider who owns this requisition.
     val caller = callIdentityProvider()
     if (caller.type != Provider.Type.DATA_PROVIDER ||
