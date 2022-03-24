@@ -876,8 +876,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
-  fun `direct fulfillRequisition returns FULFILLED Requisition`() = runBlocking {
-    val provider = population.createDataProvider(dataServices.dataProvidersService)
+  fun `direct fulfillRequisition transitions Requisition state`() = runBlocking {
     val measurement =
       population.createDirectMeasurement(
         dataServices.measurementsService,
@@ -886,7 +885,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.accountsService
         ),
         "direct_measurement",
-        provider,
+        population.createDataProvider(dataServices.dataProvidersService),
       )
 
     val requisition =
@@ -917,6 +916,91 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     assertThat(response.details.nonce).isEqualTo(NONCE_1)
     assertThat(response.details.encryptedData).isEqualTo(REQUISITION_ENCRYPTED_DATA)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
+  }
+
+  @Test
+  fun `direct fulfillRequisition transitions Measurement state when all others fulfilled`() =
+    runBlocking {
+      val measurement =
+        population.createDirectMeasurement(
+          dataServices.measurementsService,
+          population.createMeasurementConsumer(
+            dataServices.measurementConsumersService,
+            dataServices.accountsService
+          ),
+          "direct_measurement",
+          population.createDataProvider(dataServices.dataProvidersService),
+          population.createDataProvider(dataServices.dataProvidersService),
+        )
+
+      val requisitions =
+        service
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+            }
+          )
+          .toList()
+
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisitions[0].externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisitions[0].externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
+        }
+      )
+      val response =
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalRequisitionId = requisitions[1].externalRequisitionId
+            nonce = NONCE_1
+            directParams = directRequisitionParams {
+              externalDataProviderId = requisitions[1].externalDataProviderId
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
+          }
+        )
+
+      assertThat(response.parentMeasurement.state)
+        .isEqualTo(Measurement.State.PENDING_PARTICIPANT_CONFIRMATION)
+    }
+
+  @Test
+  fun `direct fulfillRequisition thorws NOT_FOUND if requisition not found`() = runBlocking {
+    val provider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createDirectMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService
+        ),
+        "direct_measurement",
+        provider
+      )
+
+    val nonExistantExternalRequisitionId = idGenerator.generateExternalId()
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalRequisitionId = nonExistantExternalRequisitionId.value
+            nonce = NONCE_1
+            directParams = directRequisitionParams {
+              externalDataProviderId = provider.externalDataProviderId
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test

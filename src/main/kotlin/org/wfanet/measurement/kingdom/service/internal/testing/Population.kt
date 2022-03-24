@@ -168,6 +168,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return modelProvider
   }
 
+  // Create Computation Measurement
   suspend fun createMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
@@ -197,6 +198,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     )
   }
 
+  // Create Computation Measurement
   suspend fun createMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
