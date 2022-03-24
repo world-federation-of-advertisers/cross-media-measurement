@@ -14,7 +14,15 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
+import com.google.rpc.ErrorInfo
+import com.google.rpc.errorInfo
+import io.grpc.Metadata
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
+
+const val KEY_MEASUREMENT_CONSUMER_ID = "measurement_consumer_id"
 
 class KingdomInternalException : Exception {
   val code: ErrorCode
@@ -27,3 +35,51 @@ class KingdomInternalException : Exception {
     this.code = code
   }
 }
+
+fun throwRuntimeException(
+  status: Status = Status.INVALID_ARGUMENT,
+  code: ErrorCode,
+  context: Map<String, String> = emptyMap(),
+  provideDescription: () -> String) {
+
+  val info = errorInfo {
+    reason = code.toString()
+    domain = ErrorInfo::class.qualifiedName.toString()
+    metadata.putAll(context)
+  }
+
+  val metadata = Metadata()
+  metadata.put(ProtoUtils.keyForProto(info), info)
+
+  throw status.withDescription(provideDescription()).asRuntimeException(metadata)
+}
+
+fun getErrorInfo(error: StatusRuntimeException): ErrorInfo? {
+  val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
+  return error.trailers?.get(key)
+}
+
+private fun addIdToErrorContext(details: Map<String, String>, id: String) {
+
+}
+
+private fun addNameToErrorContext(details: Map<String, String>, name: String) {
+
+}
+
+private fun addStateToErrorContext(details: Map<String, String>, state: Int) {
+
+}
+
+fun throwMeasurementConsumerNotFound(id: String, provideDescription: () -> String) {
+  val details: Map<String, String> = emptyMap()
+  addIdToErrorContext(details, id)
+  throwRuntimeException(
+    Status.FAILED_PRECONDITION,
+    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+    details,
+    provideDescription
+  )
+}
+
+
