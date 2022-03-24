@@ -81,9 +81,11 @@ class SpannerRequisitionsService(
 
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
     with(request) {
-      grpcRequire(externalComputationId != 0L) { "external_computation_id not specified" }
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
-      grpcRequire(externalFulfillingDuchyId.isNotEmpty()) {
+      grpcRequire(computedParams.externalComputationId != 0L) {
+        "external_computation_id not specified"
+      }
+      grpcRequire(computedParams.externalFulfillingDuchyId.isNotEmpty()) {
         "external_fulfilling_duchy_id not specified"
       }
       grpcRequire(nonce != 0L) { "nonce not specified" }
