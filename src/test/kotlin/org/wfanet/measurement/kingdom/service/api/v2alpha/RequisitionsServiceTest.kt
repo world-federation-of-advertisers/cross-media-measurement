@@ -16,8 +16,8 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -122,8 +122,8 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
 
-private val REQUISITION_ENCRYPTED_DATA = ByteString.copyFromUtf8("foo")
-private val REQUISITION_FINGERPRINT = ByteString.copyFromUtf8("bar")
+private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
+private val REQUISITION_FINGERPRINT = "bar".toByteStringUtf8()
 private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
 
 private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
