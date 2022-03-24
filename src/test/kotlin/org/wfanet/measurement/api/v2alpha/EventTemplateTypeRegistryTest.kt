@@ -20,53 +20,53 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 private const val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.event_templates.testing"
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
-private const val BANNER_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestBannerTemplate"
-private const val VIDEO_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestVideoTemplate"
+private const val CLASS_PATH = "wfa.measurement.api.v2alpha.event_templates.testing"
+private const val BANNER_TEMPLATE_NAME = "TestBannerTemplate"
+private const val VIDEO_TEMPLATE_NAME = "TestVideoTemplate"
 
 @RunWith(JUnit4::class)
 class EventTemplateTypeRegistryTest {
 
   @Test
   fun `loadTemplate() template contains correct fields`() {
-    val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
+    EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME, CLASS_PATH)
 
-    assertThat(templateFieldList(typeRegistry, BANNER_TEMPLATE_NAME)).containsExactly("gender")
-    assertThat(templateFieldList(typeRegistry, VIDEO_TEMPLATE_NAME))
-      .containsExactly("age", "duration")
+    assertThat(templateFieldList(BANNER_TEMPLATE_NAME)).containsExactly("gender")
+    assertThat(templateFieldList(VIDEO_TEMPLATE_NAME)).containsExactly("age", "duration")
   }
 
   @Test
   fun `loadTemplate() template contains correct custom options`() {
-    val typeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
+    EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME, CLASS_PATH)
 
-    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME)?.displayName)
-      .isEqualTo("Banner Ad")
-    assertThat(typeRegistry.getEventTemplateForType(BANNER_TEMPLATE_NAME)?.description)
+    assertThat(getEventTemplateForType(BANNER_TEMPLATE_NAME)?.displayName).isEqualTo("Banner Ad")
+    assertThat(getEventTemplateForType(BANNER_TEMPLATE_NAME)?.description)
       .isEqualTo("A simple Event Template for a banner ad.")
-    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME)?.displayName)
-      .isEqualTo("Video Ad")
-    assertThat(typeRegistry.getEventTemplateForType(VIDEO_TEMPLATE_NAME)?.description)
+    assertThat(getEventTemplateForType(VIDEO_TEMPLATE_NAME)?.displayName).isEqualTo("Video Ad")
+    assertThat(getEventTemplateForType(VIDEO_TEMPLATE_NAME)?.description)
       .isEqualTo("A simple Event Template for a video ad.")
   }
 
   @Test
   fun `loadTemplate() loads subpackages`() {
-    val typeRegistry =
-      EventTemplateTypeRegistry.createRegistryForPackagePrefix("org.wfanet.measurement.api.v2alpha")
+    EventTemplateTypeRegistry.createRegistryForPackagePrefix(
+      "org.wfanet.measurement.api.v2alpha",
+      CLASS_PATH
+    )
 
-    assertThat(typeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME)).isNotNull()
-    assertThat(typeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME)).isNotNull()
+    assertThat(EventTemplateTypeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME)).isNotNull()
+    assertThat(EventTemplateTypeRegistry.getDescriptorForType(VIDEO_TEMPLATE_NAME)).isNotNull()
   }
 
-  private fun EventTemplateTypeRegistry.getEventTemplateForType(messageType: String) =
-    getDescriptorForType(messageType)?.options?.getExtension(EventAnnotations.eventTemplate)
+  private fun getEventTemplateForType(messageName: String) =
+    EventTemplateTypeRegistry.getDescriptorForType(messageName)
+      ?.options
+      ?.getExtension(EventAnnotations.eventTemplate)
 
-  private fun templateFieldList(
-    typeRegistry: EventTemplateTypeRegistry,
-    templateName: String
-  ): List<String> =
+  private fun templateFieldList(templateName: String): List<String> =
     checkNotNull(
-      typeRegistry.getDescriptorForType(templateName)?.fields?.map { field -> field.name }
+      EventTemplateTypeRegistry.getDescriptorForType(templateName)?.fields?.map { field ->
+        field.name
+      }
     )
 }

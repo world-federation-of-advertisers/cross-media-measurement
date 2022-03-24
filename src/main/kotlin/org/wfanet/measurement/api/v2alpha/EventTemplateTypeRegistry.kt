@@ -18,38 +18,42 @@ import com.google.common.reflect.ClassPath
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Message
 import com.google.protobuf.TypeRegistry
-import java.lang.reflect.Constructor
 
-class EventTemplateTypeRegistry(private val registry: TypeRegistry) {
-
-  /**
-   * Returns the Descriptor for a fully qualified message type. Returns null if message is not
-   * found.
-   */
-  fun getDescriptorForType(messageType: String): Descriptor? {
-    return registry.find(messageType)
-  }
-
+class EventTemplateTypeRegistry() {
   companion object {
+    lateinit var classPath: String
+    lateinit var registry: TypeRegistry
     /**
-     * Creates a Type Registry for all Messages in a classpath @prefix. All utilized templates
-     * should be included in this classpath.
+     * Creates a Type Registry for all [Message]s in a package [packageName] with class path
+     * [classPath]. Note that [packageName] refers to the package of the proto file, while
+     * [classPath] refers to the path of the generated Java files (classes).
      */
-    fun createRegistryForPackagePrefix(prefix: String): EventTemplateTypeRegistry {
+    fun createRegistryForPackagePrefix(packageName: String, classPath: String): TypeRegistry {
+      this.classPath = classPath
       val registryBuilder = TypeRegistry.newBuilder()
       val classes =
-        ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClassesRecursive(prefix)
+        ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClassesRecursive(packageName)
       for (c in classes) {
-        try {
-          val constructor = c.load().getDeclaredConstructor() as Constructor<out Message>
-          constructor.isAccessible = true
-          val descriptor: Descriptor = constructor.newInstance().descriptorForType
-          if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
-            registryBuilder.add(descriptor)
-          }
-        } catch (e: NoSuchMethodException) {} catch (e: ClassCastException) {}
+        val clazz = c.load()
+        if (!Message::class.java.isAssignableFrom(clazz)) {
+          continue
+        }
+        val descriptor: Descriptor = clazz.getMethod("getDescriptor").invoke(null) as Descriptor
+        if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
+          registryBuilder.add(descriptor)
+        }
       }
-      return EventTemplateTypeRegistry(registryBuilder.build())
+      registry = registryBuilder.build()
+
+      return registry
+    }
+
+    /**
+     * Returns the Descriptor for a fully qualified message type. Returns null if message is not
+     * found.
+     */
+    fun getDescriptorForType(messageName: String): Descriptor? {
+      return registry.find(classPath + "." + messageName)
     }
   }
 }
