@@ -61,6 +61,8 @@ message GetComputationRequest {
 
 // Request message for `StreamActiveComputations` method.
 message StreamActiveComputationsRequest {
+  // TODO(@tristanvuong): Add duchy name as additional field
+
   // If empty, streams from the least recently updated Computation.
   string continuation_token = 1;
 }

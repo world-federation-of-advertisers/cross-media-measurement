@@ -30,7 +30,8 @@ import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequ
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
-import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
@@ -103,17 +104,15 @@ class ComputationsService(
   private fun streamMeasurements(
     continuationToken: StreamActiveComputationsContinuationToken
   ): Flow<Measurement> {
-    val request =
-      StreamMeasurementsRequest.newBuilder()
-        .apply {
-          filterBuilder.apply {
-            updatedAfter = continuationToken.updateTimeSince
-            externalComputationIdAfter = continuationToken.lastSeenExternalComputationId
-            addAllStates(STATES_SUBSCRIBED)
-          }
-          measurementView = Measurement.View.COMPUTATION
-        }
-        .build()
+    val request = streamMeasurementsRequest {
+      filter = filter {
+        updatedAfter = continuationToken.updateTimeSince
+        externalComputationIdAfter = continuationToken.lastSeenExternalComputationId
+        states += STATES_SUBSCRIBED
+        externalDuchyId = duchyIdentityProvider().id
+      }
+      measurementView = Measurement.View.COMPUTATION
+    }
     return measurementsClient.streamMeasurements(request)
   }
 

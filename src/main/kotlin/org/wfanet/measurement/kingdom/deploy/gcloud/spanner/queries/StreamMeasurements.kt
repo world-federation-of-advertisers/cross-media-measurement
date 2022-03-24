@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -23,10 +25,10 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 class StreamMeasurements(
-  view: Measurement.View,
-  requestFilter: StreamMeasurementsRequest.Filter,
-  limit: Int = 0
-) : SimpleSpannerQuery<MeasurementReader.Result>() {
+  private val view: Measurement.View,
+  private val requestFilter: StreamMeasurementsRequest.Filter,
+  private val limit: Int = 0
+) : SpannerQuery<MeasurementReader.Result, MeasurementReader.Result>() {
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
       appendWhereClause(requestFilter)
@@ -45,6 +47,7 @@ class StreamMeasurements(
 
   private fun Statement.Builder.appendWhereClause(filter: StreamMeasurementsRequest.Filter) {
     val conjuncts = mutableListOf<String>()
+
     if (filter.externalMeasurementConsumerId != 0L) {
       conjuncts.add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM")
       bind(EXTERNAL_MEASUREMENT_CONSUMER_ID_PARAM to filter.externalMeasurementConsumerId)
@@ -97,6 +100,23 @@ class StreamMeasurements(
 
     appendClause("WHERE ")
     append(conjuncts.joinToString(" AND "))
+  }
+
+  override fun Flow<MeasurementReader.Result>.transform(): Flow<MeasurementReader.Result> {
+    // TODO(@tristanvuong): determine how to do this in the SQL query instead
+    val originalFlow = this
+    return if (requestFilter.externalDuchyId.isBlank()) {
+      originalFlow
+    } else {
+      originalFlow.filter { value: MeasurementReader.Result ->
+        value.measurement.computationParticipantsList.isNotEmpty() &&
+          value
+            .measurement
+            .computationParticipantsList
+            .map { it.externalDuchyId }
+            .contains(requestFilter.externalDuchyId)
+      }
+    }
   }
 
   companion object {
