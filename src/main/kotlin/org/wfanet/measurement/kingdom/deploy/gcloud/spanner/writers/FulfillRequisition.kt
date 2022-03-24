@@ -85,7 +85,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     )
 
     return requisition.copy {
-      externalFulfillingDuchyId = request.externalFulfillingDuchyId
+      if (request.hasComputedParams()) {
+        externalFulfillingDuchyId = request.computedParams.externalFulfillingDuchyId
+      }
       this.state = Requisition.State.FULFILLED
       details = updatedDetails
       if (updatedMeasurementState != null) {
@@ -99,8 +101,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
-    val externalComputationId = request.externalComputationId
     val externalRequisitionId = request.externalRequisitionId
+    val externalComputationId = request.computedParams.externalComputationId
 
     val readResult: RequisitionReader.Result =
       RequisitionReader()
@@ -117,7 +119,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   }
 
   private fun getFulfillingDuchyId(): InternalId {
-    val externalDuchyId: String = request.externalFulfillingDuchyId
+    val externalDuchyId: String = request.computedParams.externalFulfillingDuchyId
     return DuchyIds.getInternalId(externalDuchyId)?.let { InternalId(it) }
       ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {
         "Duchy with external ID $externalDuchyId not found"

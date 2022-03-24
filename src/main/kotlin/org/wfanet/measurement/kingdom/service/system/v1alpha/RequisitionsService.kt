@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
 import org.wfanet.measurement.system.v1alpha.FulfillRequisitionRequest
@@ -41,10 +42,12 @@ class RequisitionsService(
     val internalResponse =
       internalRequisitionsClient.fulfillRequisition(
         internalFulfillRequisitionRequest {
-          externalComputationId = apiIdToExternalId(requisitionKey.computationId)
           externalRequisitionId = apiIdToExternalId(requisitionKey.requisitionId)
-          externalFulfillingDuchyId = duchyIdentityProvider().id
           nonce = request.nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = apiIdToExternalId(requisitionKey.computationId)
+            externalFulfillingDuchyId = duchyIdentityProvider().id
+          }
         }
       )
     return internalResponse.toSystemRequisition()

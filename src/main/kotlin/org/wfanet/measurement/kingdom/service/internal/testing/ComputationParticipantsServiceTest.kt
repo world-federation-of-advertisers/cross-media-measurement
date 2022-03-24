@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -548,10 +549,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
       requisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
-          externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
-          externalFulfillingDuchyId = duchyId
           this.nonce = nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchyId
+          }
         }
       )
     }
@@ -630,10 +633,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
       requisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
-          externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
-          externalFulfillingDuchyId = duchyId
           this.nonce = nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchyId
+          }
         }
       )
     }
