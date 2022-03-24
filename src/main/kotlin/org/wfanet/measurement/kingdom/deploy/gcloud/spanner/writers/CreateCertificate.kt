@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ErrorCode as InternalErrorCode
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -84,7 +85,8 @@ class CreateCertificate(private val certificate: Certificate) :
             ExternalId(certificate.externalDataProviderId)
           )
           ?.dataProviderId
-          ?: throw KingdomInternalException(InternalErrorCode.DATA_PROVIDER_NOT_FOUND)
+        // ?: throw KingdomInternalException(InternalErrorCode.DATA_PROVIDER_NOT_FOUND)
+        ?: throw DataProviderNotFound(certificate.externalDataProviderId)
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
         MeasurementConsumerReader()
           .readByExternalMeasurementConsumerId(
