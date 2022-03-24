@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
