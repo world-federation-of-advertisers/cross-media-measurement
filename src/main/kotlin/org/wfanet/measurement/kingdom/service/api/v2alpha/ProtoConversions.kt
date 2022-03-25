@@ -187,7 +187,11 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    if (source.details.protocolConfig.protocolCase !=
+        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    }
     state = source.state.toState()
     aggregatorCertificate = source.details.aggregatorCertificate
     encryptedResult = source.details.encryptedResult
