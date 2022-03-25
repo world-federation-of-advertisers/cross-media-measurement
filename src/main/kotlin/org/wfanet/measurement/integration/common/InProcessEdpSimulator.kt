@@ -41,6 +41,7 @@ class InProcessEdpSimulator(
   private val storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
+  private val eventTemplateNames: List<String>
 ) {
 
   private val backgroundScope = CoroutineScope(Dispatchers.Default)
@@ -72,6 +73,7 @@ class InProcessEdpSimulator(
             eventQuery =
               RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+            eventTemplateNames = eventTemplateNames,
           )
           .process()
       }
