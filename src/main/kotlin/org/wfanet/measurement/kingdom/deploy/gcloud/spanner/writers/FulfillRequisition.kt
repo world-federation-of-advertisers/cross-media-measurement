@@ -75,10 +75,11 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
     val updatedMeasurementState: Measurement.State? =
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
+        val nextState =
+          if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+          else Measurement.State.SUCCEEDED
         // All other Requisitions are already FULFILLED, so update Measurement state.
-        Measurement.State.PENDING_PARTICIPANT_CONFIRMATION.also {
-          updateMeasurementState(measurementConsumerId, measurementId, it)
-        }
+        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
       } else {
         null
       }

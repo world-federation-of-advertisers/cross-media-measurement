@@ -967,30 +967,28 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
 
-      assertThat(response.parentMeasurement.state)
-        .isEqualTo(Measurement.State.PENDING_PARTICIPANT_CONFIRMATION)
+      assertThat(response.parentMeasurement.state).isEqualTo(Measurement.State.SUCCEEDED)
     }
 
   @Test
   fun `direct fulfillRequisition thorws NOT_FOUND if requisition not found`() = runBlocking {
     val provider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement =
-      population.createDirectMeasurement(
-        dataServices.measurementsService,
-        population.createMeasurementConsumer(
-          dataServices.measurementConsumersService,
-          dataServices.accountsService
-        ),
-        "direct_measurement",
-        provider
-      )
+    population.createDirectMeasurement(
+      dataServices.measurementsService,
+      population.createMeasurementConsumer(
+        dataServices.measurementConsumersService,
+        dataServices.accountsService
+      ),
+      "direct_measurement",
+      provider
+    )
 
-    val nonExistantExternalRequisitionId = idGenerator.generateExternalId()
+    val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
     val exception =
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
           fulfillRequisitionRequest {
-            externalRequisitionId = nonExistantExternalRequisitionId.value
+            externalRequisitionId = nonExistentExternalRequisitionId.value
             nonce = NONCE_1
             directParams = directRequisitionParams {
               externalDataProviderId = provider.externalDataProviderId
