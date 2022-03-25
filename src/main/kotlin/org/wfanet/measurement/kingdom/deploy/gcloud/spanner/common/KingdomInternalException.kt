@@ -22,17 +22,54 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-const val KEY_MEASUREMENT_CONSUMER_ID = "measurement_consumer_id"
+const val CONTEXT_KEY_ID = "id"
+const val CONTEXT_KEY_NAME = "NAME"
+const val CONTEXT_KEY_STATE = "STATE"
+
+
+/* Throw internal exceptions with reserved parameters
+
+Throw internal exception:
+throwMeasurementConsumerNotFound(id="123") { "measurement_consumer not existing" }
+
+Catch internal exception and throw Grpc runtime exception to the client:
+catch(e: KingdomInternalException) {
+  when(e) {
+    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
+          e.throwRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" }
+    else -> {}
+  }
+}
+
+The client receive the Grpc runtime exception and check reason and context:
+catch(e: StatusRuntimeException) {
+   val info = e.getErrorInfo()
+   if(info.notNull() && info.reason = MEASUREMENT_CONSUMER_NOT_FOUND.getName()) {
+       val measurementConsumerId = info.metadata["id"]
+       blame(measurementConsumerId)
+   }
+}
+ */
 
 class KingdomInternalException : Exception {
   val code: ErrorCode
+  lateinit var context: Map<String, String>
 
-  constructor(code: ErrorCode) : super() {
+  constructor(code: ErrorCode, context: Map<String, String> = emptyMap()) : super() {
     this.code = code
+    this.context = context
   }
 
-  constructor(code: ErrorCode, buildMessage: () -> String) : super(buildMessage()) {
+  constructor(code: ErrorCode, context: Map<String, String> = emptyMap(), buildMessage: () -> String) : super(buildMessage()) {
     this.code = code
+    this.context = context
+  }
+
+  fun throwRuntimeException(
+    status: Status = Status.INVALID_ARGUMENT,
+    provideDescription: () -> String) {
+
+    throwRuntimeException(status, code, context, provideDescription)
   }
 }
 
@@ -54,32 +91,33 @@ fun throwRuntimeException(
   throw status.withDescription(provideDescription()).asRuntimeException(metadata)
 }
 
-fun getErrorInfo(error: StatusRuntimeException): ErrorInfo? {
+fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
   val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
-  return error.trailers?.get(key)
+  return trailers?.get(key)
 }
 
-private fun addIdToErrorContext(details: Map<String, String>, id: String) {
-
+fun StatusRuntimeException.getErrorContext(): Map<String, String> {
+  val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
+  return trailers?.get(key)?.metadataMap ?: emptyMap()
 }
 
-private fun addNameToErrorContext(details: Map<String, String>, name: String) {
 
+private fun addIdToErrorContext(details: MutableMap<String, String>, id: String) {
+  details[CONTEXT_KEY_ID] = id
 }
 
-private fun addStateToErrorContext(details: Map<String, String>, state: Int) {
+private fun addNameToErrorContext(details: MutableMap<String, String>, name: String) {
+  details[CONTEXT_KEY_NAME] = name
+}
 
+private fun addStateToErrorContext(details: MutableMap<String, String>, state: Int) {
+  details[CONTEXT_KEY_STATE] = state.toString()
 }
 
 fun throwMeasurementConsumerNotFound(id: String, provideDescription: () -> String) {
-  val details: Map<String, String> = emptyMap()
-  addIdToErrorContext(details, id)
-  throwRuntimeException(
-    Status.FAILED_PRECONDITION,
-    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-    details,
-    provideDescription
-  )
+  val context = mutableMapOf<String, String>()
+  addIdToErrorContext(context, id)
+  throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, context) { provideDescription() }
 }
 
 
