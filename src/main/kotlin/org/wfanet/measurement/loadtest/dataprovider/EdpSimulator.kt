@@ -232,7 +232,9 @@ class EdpSimulator(
     vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
-    validateEventFilter(eventFilter)
+    if (eventFilter.expression.isNotBlank()) {
+      validateEventFilter(eventFilter)
+    }
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 

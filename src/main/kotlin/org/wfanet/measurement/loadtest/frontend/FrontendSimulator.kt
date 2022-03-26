@@ -386,20 +386,24 @@ class FrontendSimulator(
    * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
    * org.wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
    */
-  private suspend fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
+  private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
-      registeredEventTemplates
-        .map { it to EventTemplate(typeRegistry.getDescriptorForType(it)!!).name }
-        .toMap()
+      registeredEventTemplates.associateWith {
+        EventTemplate(typeRegistry.getDescriptorForType(it)!!).name
+      }
+
+    if (eventTemplateFilters.isEmpty()) {
+      return ""
+    }
 
     return eventTemplateFilters
       .map {
         if (!eventGroupTemplateNameMap.containsKey(it.key)) {
           error("EventGroup is not registered to the template ${it.key}")
         }
-        "${eventGroupTemplateNameMap.get(it.key)}.${it.value}"
+        "${eventGroupTemplateNameMap[it.key]}.${it.value}"
       }
-      .reduce { acc, string -> acc + " && " + string }
+      .reduce { acc, string -> "$acc && $string" }
   }
 
   private suspend fun createDataProviderEntry(
@@ -410,7 +414,7 @@ class FrontendSimulator(
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
 
     val eventFilterExpression =
-      createFilterExpression(eventGroup.getEventTemplatesList().map { it.type })
+      createFilterExpression(eventGroup.eventTemplatesList.map { it.type })
 
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {
