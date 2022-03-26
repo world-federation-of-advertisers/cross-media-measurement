@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-// TODO(@wangyaopw): Switch to use EventTemplate, EventFields after they are implemented.
+// TODO(@uakyol): Switch to use EventTemplate, EventFields after they are implemented.
 enum class Sex(val string: String) {
   MALE("M"),
   FEMALE("F")

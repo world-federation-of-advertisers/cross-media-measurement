@@ -96,7 +96,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         displayName = it,
         storageClient = storageClient,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannel = duchies[1].publicApiChannel
+        duchyPublicApiChannel = duchies[1].publicApiChannel,
+        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
       )
     }
   }
@@ -179,7 +180,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicMeasurementsClient,
         publicRequisitionsClient,
         publicMeasurementConsumersClient,
-        SketchStore(storageClient)
+        SketchStore(storageClient),
+        EVENT_TEMPLATES_TO_FILTERS_MAP
       )
   }
 

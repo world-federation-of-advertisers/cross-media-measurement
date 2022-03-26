@@ -59,7 +59,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
       throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
-        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $state"
+        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
       }
     }
 
