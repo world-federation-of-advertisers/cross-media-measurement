@@ -291,7 +291,7 @@ class EdpSimulator(
     val combinedPublicKey =
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-    
+
     val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
 
@@ -299,7 +299,7 @@ class EdpSimulator(
       try {
         generateSketch(
           sketchConfig,
-          requisitionSpec.eventGroupsList.get(0).value.filter,
+          requisitionSpec.eventGroupsList[0].value.filter,
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth
         )

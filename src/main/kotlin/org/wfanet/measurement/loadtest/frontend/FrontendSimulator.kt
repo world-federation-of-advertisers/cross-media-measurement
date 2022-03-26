@@ -109,7 +109,7 @@ class FrontendSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val sketchStore: SketchStore
+  private val sketchStore: SketchStore,
   /** Map of event template names to filter expressions. */
   private val eventTemplateFilters: Map<String, String> = emptyMap()
 ) {
