@@ -540,6 +540,82 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
+  fun `getRequisition returns expected direct requisition`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val dataProviderValue = dataProvider.toDataProviderValue()
+    val measurement =
+      population.createDirectMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService
+        ),
+        "direct_measurement",
+        dataProvider,
+      )
+
+    val listedRequisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .first()
+
+    val requisition =
+      service.getRequisition(
+        getRequisitionRequest {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+          this.externalRequisitionId = externalRequisitionId
+        }
+      )
+
+    val expectedRequisition = requisition {
+      externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+      externalMeasurementId = measurement.externalMeasurementId
+      this.externalDataProviderId = externalDataProviderId
+      this.externalRequisitionId = externalRequisitionId
+      // externalComputationId unset
+      state = Requisition.State.UNFULFILLED
+      details =
+        RequisitionKt.details {
+          dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+          nonceHash = dataProviderValue.nonceHash
+        }
+      dataProviderCertificate = dataProvider.certificate
+      parentMeasurement = parentMeasurement {
+        apiVersion = measurement.details.apiVersion
+        externalMeasurementConsumerCertificateId =
+          measurement.externalMeasurementConsumerCertificateId
+        measurementSpec = measurement.details.measurementSpec
+        measurementSpecSignature = measurement.details.measurementSpecSignature
+        state = Measurement.State.PENDING_REQUISITION_PARAMS
+        // Protocal unset
+      }
+    }
+    assertThat(requisition)
+      .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
+      .isEqualTo(expectedRequisition)
+    assertThat(requisition.duchiesMap)
+      .containsExactly(
+        "Buck",
+        Requisition.DuchyValue.getDefaultInstance(),
+        "Rippon",
+        Requisition.DuchyValue.getDefaultInstance(),
+        "Shoaks",
+        Requisition.DuchyValue.getDefaultInstance()
+      )
+    assertThat(requisition).isEqualTo(listedRequisition)
+  }
+
+  @Test
   fun `getRequisitionByDataProviderId returns requisition`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
