@@ -24,24 +24,24 @@ class EventTemplateTypeRegistry() {
     lateinit var classPath: String
     lateinit var registry: TypeRegistry
     /**
-     * Creates a Type Registry for all [Message]s in a package [packageName] with class path
-     * [classPath]. Note that [packageName] refers to the package of the proto file, while
-     * [classPath] refers to the path of the generated Java files (classes).
+     * Creates a Type Registry for all [Message]s with class path [classPath]. The [classPath]
+     * should contain all the templates that intend to be referenced.
      */
-    fun createRegistryForPackagePrefix(packageName: String, classPath: String): TypeRegistry {
-      this.classPath = classPath
+    fun createRegistryForClassPath(): TypeRegistry {
       val registryBuilder = TypeRegistry.newBuilder()
-      val classes =
-        ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClassesRecursive(packageName)
+      val classes = ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClasses()
       for (c in classes) {
-        val clazz = c.load()
-        if (!Message::class.java.isAssignableFrom(clazz)) {
-          continue
-        }
-        val descriptor: Descriptor = clazz.getMethod("getDescriptor").invoke(null) as Descriptor
-        if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
-          registryBuilder.add(descriptor)
-        }
+        try {
+          val clazz = c.load()
+          if (!Message::class.java.isAssignableFrom(clazz)) {
+            continue
+          }
+
+          val descriptor: Descriptor = clazz.getMethod("getDescriptor").invoke(null) as Descriptor
+          if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
+            registryBuilder.add(descriptor)
+          }
+        } catch (e: Exception) {} catch (e: Error) {}
       }
       registry = registryBuilder.build()
 
@@ -49,11 +49,11 @@ class EventTemplateTypeRegistry() {
     }
 
     /**
-     * Returns the Descriptor for a fully qualified message type. Returns null if message is not
-     * found.
+     * Returns the Descriptor for a fully qualified message type [messageName]. Returns null if
+     * message is not found.
      */
     fun getDescriptorForType(messageName: String): Descriptor? {
-      return registry.find(classPath + "." + messageName)
+      return registry.find(messageName)
     }
   }
 }

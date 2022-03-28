@@ -24,20 +24,16 @@ private const val BANNER_TEMPLATE_NAME = "$CLASS_PATH.TestBannerTemplate"
 private const val VIDEO_TEMPLATE_NAME = "$CLASS_PATH.TestVideoTemplate"
 
 @RunWith(JUnit4::class)
-class EventTemplateTypeRegistryTest {
+class EventTemplatesTest {
 
   @Test
-  fun `loadTemplate() template contains correct fields`() {
-    EventTemplateTypeRegistry.createRegistryForClassPath()
-
-    assertThat(templateFieldList(BANNER_TEMPLATE_NAME)).containsExactly("gender")
-    assertThat(templateFieldList(VIDEO_TEMPLATE_NAME)).containsExactly("age", "duration")
+  fun `initializeTypeRegistry() contains correct templates`() {
+    assertThat(templateFieldList(BANNER_TEMPLATE_NAME)).containsExactly("Gender")
+    assertThat(templateFieldList(VIDEO_TEMPLATE_NAME)).containsExactly("Age Range", "View Duration")
   }
 
   @Test
   fun `loadTemplate() template contains correct custom options`() {
-    EventTemplateTypeRegistry.createRegistryForClassPath()
-
     assertThat(getEventTemplateForType(BANNER_TEMPLATE_NAME)?.displayName).isEqualTo("Banner Ad")
     assertThat(getEventTemplateForType(BANNER_TEMPLATE_NAME)?.description)
       .isEqualTo("A simple Event Template for a banner ad.")
@@ -47,14 +43,10 @@ class EventTemplateTypeRegistryTest {
   }
 
   private fun getEventTemplateForType(messageName: String) =
-    EventTemplateTypeRegistry.getDescriptorForType(messageName)
-      ?.options
-      ?.getExtension(EventAnnotations.eventTemplate)
+    EventTemplates.getEventTemplateForType(messageName)
 
-  private fun templateFieldList(templateName: String): List<String> =
+  private fun templateFieldList(messageName: String): List<String> =
     checkNotNull(
-      EventTemplateTypeRegistry.getDescriptorForType(templateName)?.fields?.map { field ->
-        field.name
-      }
+      getEventTemplateForType(messageName)?.eventFields?.map { field -> field.displayName }
     )
 }
