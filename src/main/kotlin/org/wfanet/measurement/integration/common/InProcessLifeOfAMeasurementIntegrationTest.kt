@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
@@ -117,6 +118,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   }
   private val publicMeasurementConsumersClient by lazy {
     PublicMeasurementConsumersCoroutineStub(kingdom.publicApiChannel)
+  }
+  private val publicCertificatesClient by lazy {
+    PublicCertificatesCoroutineStub(kingdom.publicApiChannel)
   }
   private val publicEventGroupsClient by lazy {
     PublicEventGroupsCoroutineStub(kingdom.publicApiChannel)
@@ -217,6 +221,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicMeasurementsClient,
         publicRequisitionsClient,
         publicMeasurementConsumersClient,
+        publicCertificatesClient,
         SketchStore(storageClient),
         "1234",
         EVENT_TEMPLATES_TO_FILTERS_MAP

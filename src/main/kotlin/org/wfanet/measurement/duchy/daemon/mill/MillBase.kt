@@ -223,14 +223,13 @@ abstract class MillBase(
   /** Sends measurement result to the kingdom's system computationsService. */
   protected suspend fun sendResultToKingdom(
     globalId: String,
-    certificate: X509Certificate,
+    certificate: Certificate,
     resultPublicKey: ByteString,
     encryptedResult: ByteString
   ) {
     val request = setComputationResultRequest {
       name = ComputationKey(globalId).toName()
-      // TODO(wangyaopw): set the cert resourceName when it is added to the protos.
-      aggregatorCertificate = ByteString.copyFrom(certificate.encoded)
+      aggregatorCertificate = certificate.name
       this.resultPublicKey = resultPublicKey
       this.encryptedResult = encryptedResult
     }

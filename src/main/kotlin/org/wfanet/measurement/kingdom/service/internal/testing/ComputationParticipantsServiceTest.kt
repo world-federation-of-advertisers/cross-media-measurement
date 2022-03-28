@@ -693,7 +693,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementsService.setMeasurementResult(
       setMeasurementResultRequest {
         externalComputationId = measurement.externalComputationId
-        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+        externalAggregatorDuchyId = request.externalDuchyId
+        externalAggregatorCertificateId = request.externalDuchyCertificateId
         resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
         encryptedResult = ByteString.copyFromUtf8("encryptedResult")
       }
