@@ -84,7 +84,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         null
       }
 
-    val fulfillDuchyId = if (request.hasComputedParams()) getFulfillingDuchyId() else null
+    val fulfillDuchyId = if (request.hasComputedParams()) getFulfillDuchyId() else null
     updateRequisition(readResult, Requisition.State.FULFILLED, updatedDetails, fulfillDuchyId)
 
     return requisition.copy {
@@ -132,7 +132,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     }
   }
 
-  private fun getFulfillingDuchyId(): InternalId {
+  private fun getFulfillDuchyId(): InternalId {
     val externalDuchyId: String = request.computedParams.externalFulfillingDuchyId
     return DuchyIds.getInternalId(externalDuchyId)?.let { InternalId(it) }
       ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {

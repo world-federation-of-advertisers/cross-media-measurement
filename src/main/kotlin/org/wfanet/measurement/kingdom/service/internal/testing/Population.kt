@@ -168,12 +168,12 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     return modelProvider
   }
 
-  // Create Computation Measurement
-  suspend fun createMeasurement(
+  private suspend fun createMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
+    details: Measurement.Details
   ): Measurement {
     return measurementsService.createMeasurement(
       measurement {
@@ -181,31 +181,46 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         this.providedMeasurementId = providedMeasurementId
         externalMeasurementConsumerCertificateId =
           measurementConsumer.certificate.externalCertificateId
-        details =
-          MeasurementKt.details {
-            apiVersion = API_VERSION
-            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-            duchyProtocolConfig = duchyProtocolConfig {
-              liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-            }
-            protocolConfig = protocolConfig {
-              liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-            }
-          }
+        this.details = details
         this.dataProviders.putAll(dataProviders)
       }
     )
   }
 
-  // Create Computation Measurement
-  suspend fun createMeasurement(
+  suspend fun createComputedMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+  ): Measurement {
+    val details =
+      MeasurementKt.details {
+        apiVersion = API_VERSION
+        measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+        measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
+        duchyProtocolConfig = duchyProtocolConfig {
+          liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+        protocolConfig = protocolConfig {
+          liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        }
+      }
+    return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders,
+      details
+    )
+  }
+
+  suspend fun createComputedMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
     vararg dataProviders: DataProvider
   ): Measurement {
-    return createMeasurement(
+    return createComputedMeasurement(
       measurementsService,
       measurementConsumer,
       providedMeasurementId,
@@ -219,20 +234,18 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     providedMeasurementId: String,
     dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
   ): Measurement {
-    return measurementsService.createMeasurement(
-      measurement {
-        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        this.providedMeasurementId = providedMeasurementId
-        externalMeasurementConsumerCertificateId =
-          measurementConsumer.certificate.externalCertificateId
-        details =
-          MeasurementKt.details {
-            apiVersion = API_VERSION
-            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-          }
-        this.dataProviders.putAll(dataProviders)
+    val details =
+      MeasurementKt.details {
+        apiVersion = API_VERSION
+        measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+        measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
       }
+    return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders,
+      details
     )
   }
 

@@ -94,7 +94,7 @@ class SpannerRequisitionsService(
           }
         }
         FulfillRequisitionRequest.ParamsCase.DIRECT_PARAMS -> {
-          grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data is empty" }
+          grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data not specified" }
           grpcRequire(directParams.externalDataProviderId != 0L) {
             "data_provider_id not specified"
           }
