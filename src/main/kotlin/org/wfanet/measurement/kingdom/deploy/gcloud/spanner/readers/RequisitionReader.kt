@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -181,16 +182,16 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     /** Builds a [Requisition] from [struct]. */
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
-      val participantStructs =
+      val participantStructs = if (isComputedMeasurement(struct))
         struct.getStructList("ComputationParticipants").associateBy {
           val duchyId = it.getLong("DuchyId")
           checkNotNull(DuchyIds.getExternalId(duchyId)) {
             "Duchy with internal ID $duchyId not found"
           }
         }
+      else emptyMap()
       return buildRequisition(struct, struct, participantStructs)
     }
-
     fun buildRequisition(
       measurementStruct: Struct,
       requisitionStruct: Struct,
@@ -205,18 +206,20 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
-      if (state == Requisition.State.FULFILLED) {
-        val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
-        externalFulfillingDuchyId =
-          checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
-            "External ID not found for fulfilling Duchy $fulfillingDuchyId"
-          }
+      if (isComputedMeasurement(measurementStruct)) {
+        if (state == Requisition.State.FULFILLED) {
+          val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
+          externalFulfillingDuchyId =
+            checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
+              "External ID not found for fulfilling Duchy $fulfillingDuchyId"
+            }
+        }
+        for ((externalDuchyId, participantStruct) in participantStructs) {
+          duchies[externalDuchyId] = buildDuchyValue(participantStruct)
+        }
       }
       details =
         requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
-      for ((externalDuchyId, participantStruct) in participantStructs) {
-        duchies[externalDuchyId] = buildDuchyValue(participantStruct)
-      }
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
       parentMeasurement = buildParentMeasurement(measurementStruct)
     }
@@ -253,6 +256,12 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       measurementSpecSignature = measurementDetails.measurementSpecSignature
       protocolConfig = measurementDetails.protocolConfig
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
+    }
+
+    private fun isComputedMeasurement(struct: Struct): Boolean {
+      val measurementDetails =
+        struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
+      return measurementDetails.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     }
   }
 }

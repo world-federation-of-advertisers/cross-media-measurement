@@ -551,7 +551,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           dataServices.accountsService
         ),
         "direct_measurement",
-        dataProvider,
+        mapOf(dataProvider.externalDataProviderId to dataProviderValue)
       )
 
     val listedRequisition =
@@ -571,16 +571,15 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         getRequisitionRequest {
           externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
           externalMeasurementId = measurement.externalMeasurementId
-          this.externalRequisitionId = externalRequisitionId
+          externalRequisitionId = listedRequisition.externalRequisitionId
         }
       )
 
     val expectedRequisition = requisition {
       externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
       externalMeasurementId = measurement.externalMeasurementId
-      this.externalDataProviderId = externalDataProviderId
-      this.externalRequisitionId = externalRequisitionId
-      // externalComputationId unset
+      externalDataProviderId = dataProvider.externalDataProviderId
+      this.externalRequisitionId = listedRequisition.externalRequisitionId
       state = Requisition.State.UNFULFILLED
       details =
         RequisitionKt.details {
@@ -596,22 +595,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           measurement.externalMeasurementConsumerCertificateId
         measurementSpec = measurement.details.measurementSpec
         measurementSpecSignature = measurement.details.measurementSpecSignature
-        state = Measurement.State.PENDING_REQUISITION_PARAMS
-        // Protocal unset
+        state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
+        protocolConfig = protocolConfig {}
       }
     }
     assertThat(requisition)
       .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
       .isEqualTo(expectedRequisition)
-    assertThat(requisition.duchiesMap)
-      .containsExactly(
-        "Buck",
-        Requisition.DuchyValue.getDefaultInstance(),
-        "Rippon",
-        Requisition.DuchyValue.getDefaultInstance(),
-        "Shoaks",
-        Requisition.DuchyValue.getDefaultInstance()
-      )
     assertThat(requisition).isEqualTo(listedRequisition)
   }
 
