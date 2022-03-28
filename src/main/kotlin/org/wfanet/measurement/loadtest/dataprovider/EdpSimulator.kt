@@ -49,8 +49,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplate
-import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -83,8 +82,8 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-private const val EVENT_TEMPLATE_PACKAGE_NAME =
-  "org.wfanet.measurement.api.v2alpha.event_templates.testing"
+private const val EVENT_TEMPLATE_CLASS_NAME =
+  "wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -280,7 +279,7 @@ class EdpSimulator(
     val decls =
       eventTemplateNames.map {
         Decls.newVar(
-          EventTemplate(templateProtoTypeRegistry.getDescriptorForType(it)!!).name,
+          EventTemplates.getEventTemplateForType(it)!!.name,
           Decls.newObjectType(it),
         )
       }
@@ -349,8 +348,6 @@ class EdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val templateProtoTypeRegistry: EventTemplateTypeRegistry =
-      EventTemplateTypeRegistry.createRegistryForPackagePrefix(EVENT_TEMPLATE_PACKAGE_NAME)
     val celProtoTypeRegistry: ProtoTypeRegistry =
       ProtoTypeRegistry.newRegistry(
         TestVideoTemplate.getDefaultInstance(),
