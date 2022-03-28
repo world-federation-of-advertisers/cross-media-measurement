@@ -48,6 +48,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.refusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
@@ -307,6 +308,59 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         }
       )
   }
+
+  @Test
+  fun `streamRequisitions only includes measurements with some states when filter set`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService
+        )
+      val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+      val measurement1 =
+        population.createMeasurement(
+          dataServices.measurementsService,
+          measurementConsumer,
+          "measurement 1",
+          dataProvider
+        )
+      val measurement2 =
+        population.createMeasurement(
+          dataServices.measurementsService,
+          measurementConsumer,
+          "measurement 2",
+          dataProvider
+        )
+      dataServices.measurementsService.cancelMeasurement(
+        cancelMeasurementRequest {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementId = measurement2.externalMeasurementId
+        }
+      )
+
+      val requisitions: List<Requisition> =
+        service
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                measurementStates += Measurement.State.PENDING_REQUISITION_PARAMS
+              }
+            }
+          )
+          .toList()
+
+      assertThat(requisitions)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(
+          requisition {
+            externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+            externalMeasurementId = measurement1.externalMeasurementId
+            externalDataProviderId = dataProvider.externalDataProviderId
+          }
+        )
+    }
 
   @Test
   fun `streamRequisitions respects updated_after`(): Unit = runBlocking {

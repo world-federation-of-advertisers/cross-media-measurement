@@ -54,7 +54,8 @@ import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -68,6 +69,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -139,7 +141,9 @@ class EdpSimulator(
   private suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisition = getRequisition()
-    if (requisition == null) {
+    if (requisition == null ||
+        requisition.measurementState != Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+    ) {
       logger.info("No unfulfilled requisition. Polling again later...")
       return
     }
@@ -336,13 +340,13 @@ class EdpSimulator(
   }
 
   private suspend fun getRequisition(): Requisition? {
-    val request =
-      ListRequisitionsRequest.newBuilder()
-        .apply {
-          parent = edpData.name
-          filterBuilder.addStates(Requisition.State.UNFULFILLED)
-        }
-        .build()
+    val request = listRequisitionsRequest {
+      parent = edpData.name
+      filter = filter {
+        states += Requisition.State.UNFULFILLED
+        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+      }
+    }
 
     return requisitionsStub.listRequisitions(request).requisitionsList.firstOrNull()
   }
