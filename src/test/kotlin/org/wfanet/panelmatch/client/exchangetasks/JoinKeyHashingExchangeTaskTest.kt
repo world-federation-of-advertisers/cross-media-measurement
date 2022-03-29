@@ -25,7 +25,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.privatemembership.JniQueryPreparer
 import org.wfanet.panelmatch.client.privatemembership.LookupKeyAndId
@@ -51,9 +50,9 @@ class JoinKeyHashingExchangeTaskTest {
   private val queryPreparer = JniQueryPreparer()
   private val saltedJoinKeys = queryPreparer.prepareLookupKeys(PEPPER, PLAINTEXT_JOIN_KEYS)
 
-  private val blobOfPepper = runBlocking { storage.createBlob("mp-pepper", PEPPER) }
+  private val blobOfPepper = runBlocking { storage.writeBlob("mp-pepper", PEPPER) }
   private val blobOfJoinKeys = runBlocking {
-    storage.createBlob(
+    storage.writeBlob(
       "join-keys",
       joinKeyAndIdCollection { joinKeyAndIds += PLAINTEXT_JOIN_KEYS }.toByteString()
     )

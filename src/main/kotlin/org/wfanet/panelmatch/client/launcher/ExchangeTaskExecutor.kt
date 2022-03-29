@@ -23,7 +23,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.CustomIOExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
@@ -35,7 +34,6 @@ import org.wfanet.panelmatch.client.logger.getAndClearTaskLog
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.loggerFor
-import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 
 private const val DONE_TASKS_PATH: String = "done-tasks"
 
@@ -70,7 +68,7 @@ class ExchangeTaskExecutor(
     }
   }
 
-  private fun readInputs(step: Step, privateStorage: StorageClient): Map<String, Blob> {
+  private suspend fun readInputs(step: Step, privateStorage: StorageClient): Map<String, Blob> {
     return step.inputLabelsMap.mapValues { (label, blobKey) ->
       requireNotNull(privateStorage.getBlob(blobKey)) {
         "Missing blob key '$blobKey' for input label '$label'"
@@ -88,7 +86,7 @@ class ExchangeTaskExecutor(
         requireNotNull(step.outputLabelsMap[genericLabel]) {
           "Missing $genericLabel in outputLabels for step: $step"
         }
-      privateStorage.createOrReplaceBlob(blobKey, flow)
+      privateStorage.writeBlob(blobKey, flow)
     }
   }
 
@@ -126,14 +124,14 @@ class ExchangeTaskExecutor(
     }
   }
 
-  private fun isAlreadyComplete(step: Step, privateStorage: StorageClient): Boolean {
+  private suspend fun isAlreadyComplete(step: Step, privateStorage: StorageClient): Boolean {
     return privateStorage.getBlob("$DONE_TASKS_PATH/${step.stepId}") != null
   }
 
   private suspend fun writeDoneBlob(step: Step, privateStorage: StorageClient) {
     // TODO: write the state into the blob.
     //   This will prevent re-execution of tasks that failed.
-    privateStorage.createBlob("$DONE_TASKS_PATH/${step.stepId}", ByteString.EMPTY)
+    privateStorage.writeBlob("$DONE_TASKS_PATH/${step.stepId}", ByteString.EMPTY)
   }
 
   companion object {

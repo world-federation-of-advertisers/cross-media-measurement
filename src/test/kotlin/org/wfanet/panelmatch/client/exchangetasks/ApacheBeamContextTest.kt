@@ -31,7 +31,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.map
@@ -66,7 +65,7 @@ class ApacheBeamContextTest : BeamTestBase() {
   @Test
   fun readBlob() = runBlockingTest {
     val inputLabels = mapOf(LABEL to BLOB_KEY)
-    val inputBlobs = mapOf(LABEL to storageClient.createBlob(BLOB_KEY, BLOB_CONTENTS))
+    val inputBlobs = mapOf(LABEL to storageClient.writeBlob(BLOB_KEY, BLOB_CONTENTS))
     val context =
       ApacheBeamContext(pipeline, mapOf(), mapOf(), inputLabels, inputBlobs, storageFactory)
 
@@ -76,7 +75,7 @@ class ApacheBeamContextTest : BeamTestBase() {
   @Test
   fun readBlobAsPCollection() = runBlockingTest {
     val inputLabels = mapOf(LABEL to BLOB_KEY)
-    val inputBlobs = mapOf(LABEL to storageClient.createBlob(BLOB_KEY, BLOB_CONTENTS))
+    val inputBlobs = mapOf(LABEL to storageClient.writeBlob(BLOB_KEY, BLOB_CONTENTS))
     val context =
       ApacheBeamContext(pipeline, mapOf(), mapOf(), inputLabels, inputBlobs, storageFactory)
 
@@ -88,15 +87,15 @@ class ApacheBeamContextTest : BeamTestBase() {
   fun readShardedFile() = runBlockingTest {
     val inputLabels = mapOf(LABEL to BLOB_KEY)
     val inputBlobs =
-      mapOf(LABEL to storageClient.createBlob(BLOB_KEY, "foo-*-of-3".toByteStringUtf8()))
+      mapOf(LABEL to storageClient.writeBlob(BLOB_KEY, "foo-*-of-3".toByteStringUtf8()))
 
     val shard0Contents = serializeStringsAsProtos("a", "bc", "def")
     val shard1Contents = serializeStringsAsProtos("xy")
     val shard2Contents = serializeStringsAsProtos("z")
 
-    storageClient.createBlob("foo-0-of-3", shard0Contents)
-    storageClient.createBlob("foo-1-of-3", shard1Contents)
-    storageClient.createBlob("foo-2-of-3", shard2Contents)
+    storageClient.writeBlob("foo-0-of-3", shard0Contents)
+    storageClient.writeBlob("foo-1-of-3", shard1Contents)
+    storageClient.writeBlob("foo-2-of-3", shard2Contents)
 
     val context =
       ApacheBeamContext(pipeline, mapOf(), mapOf(), inputLabels, inputBlobs, storageFactory)

@@ -54,6 +54,6 @@ class ConfigureResource(private val clientDefaults: DaemonStorageClientDefaults)
     val privateStorageSelector =
       PrivateStorageSelector(privateStorageFactories, clientDefaults.privateStorageInfo)
     val exchangeDateKey = ExchangeDateKey(recurringExchangeId, date)
-    privateStorageSelector.getStorageClient(exchangeDateKey).createBlob(blobKey, flowOf(contents))
+    privateStorageSelector.getStorageClient(exchangeDateKey).writeBlob(blobKey, flowOf(contents))
   }
 }

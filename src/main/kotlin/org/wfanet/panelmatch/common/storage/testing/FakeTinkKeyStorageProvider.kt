@@ -14,22 +14,23 @@
 
 package org.wfanet.panelmatch.common.storage.testing
 
+import org.wfanet.measurement.common.crypto.KeyBlobStore
 import org.wfanet.measurement.common.crypto.KeyStorageProvider
 import org.wfanet.measurement.common.crypto.PrivateKeyStore as CryptoPrivateKeyStore
+import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.Store
 
 // TODO: Get rid of this class and use a fake KMS Client with its own Key URI prefix
-class FakeTinkKeyStorageProvider : KeyStorageProvider<TinkPrivateKeyHandle> {
+class FakeTinkKeyStorageProvider : KeyStorageProvider<TinkKeyId, TinkPrivateKeyHandle> {
   override fun makeKmsStorageClient(storageClient: StorageClient, keyUri: String): StorageClient {
     return storageClient
   }
 
   override fun makeKmsPrivateKeyStore(
-    store: Store<String>,
+    store: KeyBlobStore,
     keyUri: String
-  ): CryptoPrivateKeyStore<TinkPrivateKeyHandle> {
-    return FakePrivateKeyStore(store)
+  ): CryptoPrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle> {
+    return FakePrivateKeyStore()
   }
 }

@@ -19,7 +19,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.Labe
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.read
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.storage.toByteString
@@ -46,18 +45,18 @@ class CopyToSharedStorageTask(
     val manifestBytes = blob.toByteString()
     val shardedFileName = ShardedFileName(manifestBytes.toStringUtf8())
 
-    destination.createBlob(destinationBlobKey, manifestBytes)
+    destination.writeBlob(destinationBlobKey, manifestBytes)
 
     for (shardName in shardedFileName.fileNames) {
       readBlob(shardName).copyExternally(shardName)
     }
   }
 
-  private fun readBlob(blobKey: String): Blob {
+  private suspend fun readBlob(blobKey: String): Blob {
     return requireNotNull(source.getBlob(blobKey)) { "Missing blob with key: $blobKey" }
   }
 
   private suspend fun Blob.copyExternally(destinationBlobKey: String) {
-    destination.createBlob(destinationBlobKey, read())
+    destination.writeBlob(destinationBlobKey, read())
   }
 }

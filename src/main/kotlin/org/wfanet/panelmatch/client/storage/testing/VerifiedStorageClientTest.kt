@@ -30,7 +30,7 @@ abstract class VerifiedStorageClientTest {
 
   @Test
   fun writeThenRead() = runBlockingTest {
-    storage.createBlob(KEY, VALUE)
+    storage.writeBlob(KEY, VALUE)
     assertThat(storage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
   }
 
@@ -41,8 +41,8 @@ abstract class VerifiedStorageClientTest {
 
   @Test
   fun writeSameKeyTwice() = runBlockingTest {
-    storage.createBlob(KEY, "a-different-value".toByteStringUtf8())
-    storage.createBlob(KEY, VALUE)
+    storage.writeBlob(KEY, "a-different-value".toByteStringUtf8())
+    storage.writeBlob(KEY, VALUE)
     assertThat(storage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
   }
 }

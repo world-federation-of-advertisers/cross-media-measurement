@@ -15,13 +15,11 @@
 package org.wfanet.panelmatch.common.storage.testing
 
 import org.wfanet.measurement.common.crypto.PrivateKeyStore as CryptoPrivateKeyStore
+import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
-import org.wfanet.measurement.storage.Store
 
-internal class FakePrivateKeyStore(private val store: Store<String>) :
-  CryptoPrivateKeyStore<TinkPrivateKeyHandle> {
-
-  override suspend fun read(keyId: String): TinkPrivateKeyHandle? {
+internal class FakePrivateKeyStore : CryptoPrivateKeyStore<TinkKeyId, TinkPrivateKeyHandle> {
+  override suspend fun read(keyId: TinkKeyId): TinkPrivateKeyHandle? {
     TODO("Not yet implemented")
   }
 

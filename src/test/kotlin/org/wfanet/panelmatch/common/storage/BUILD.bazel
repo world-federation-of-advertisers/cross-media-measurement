@@ -17,22 +17,3 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
-
-kt_jvm_test(
-    name = "CreateOrReplaceBlobTest",
-    timeout = "short",
-    srcs = ["CreateOrReplaceBlobTest.kt"],
-    test_class = "org.wfanet.panelmatch.common.storage.CreateOrReplaceBlobTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/panelmatch/common",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/storage",
-        "//src/main/kotlin/org/wfanet/panelmatch/common/testing",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
-    ],
-)

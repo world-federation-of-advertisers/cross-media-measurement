@@ -25,14 +25,11 @@ class PrefixedStorageClient(private val delegate: StorageClient, private val pre
     require(!prefix.endsWith('/'))
   }
 
-  override val defaultBufferSizeBytes: Int
-    get() = delegate.defaultBufferSizeBytes
-
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
-    return delegate.createBlob(applyPrefix(blobKey), content)
+  override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
+    return delegate.writeBlob(applyPrefix(blobKey), content)
   }
 
-  override fun getBlob(blobKey: String): StorageClient.Blob? {
+  override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
     return delegate.getBlob(applyPrefix(blobKey))
   }
 
