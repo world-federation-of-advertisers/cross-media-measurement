@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.duchy;
 
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
+import "wfa/measurement/internal/duchy/computation_token.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -29,6 +30,10 @@ service AsyncComputationControl {
   // the computation determines to which stage the computation is advance.
   rpc AdvanceComputation(AdvanceComputationRequest)
       returns (AdvanceComputationResponse) {}
+
+  // Returns the output blob metadata for the current computation stage.
+  rpc GetOutputBlobMetadata(GetOutputBlobMetadataRequest)
+      returns (ComputationStageBlobMetadata) {}
 }
 
 // Request to record an expected output of the current computation stage and
@@ -40,12 +45,19 @@ message AdvanceComputationRequest {
   // succeed if the actual stage does not match, but there will not be any
   // changes to the data for the computation in the database.
   ComputationStage computation_stage = 2;
+  // The ID of the output blob to record as written.
+  int64 blob_id = 3;
   // The path of the blob newly added.
-  string blob_path = 3;
-  // The origin of the data, i.e., which duchy it comes from.
-  string data_origin = 4;
+  string blob_path = 4;
 }
 
 message AdvanceComputationResponse {
   // Deliberately empty
+}
+
+message GetOutputBlobMetadataRequest {
+  // Global identifier of the computation.
+  string global_computation_id = 1;
+  // The origin of the data, i.e., which duchy it comes from.
+  string data_origin = 2;
 }

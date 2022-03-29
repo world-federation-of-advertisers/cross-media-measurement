@@ -19,9 +19,9 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "LiquidLegionsSketchAggregationV2ContextTest",
-    srcs = ["LiquidLegionsSketchAggregationV2ContextTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.service.internal.computationcontrol.LiquidLegionsSketchAggregationV2ContextTest",
+    name = "LiquidLegionsV2StagesTest",
+    srcs = ["LiquidLegionsV2StagesTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.service.internal.computationcontrol.LiquidLegionsV2StagesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
