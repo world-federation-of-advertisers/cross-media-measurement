@@ -428,7 +428,7 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
       }
 
       grpcRequire(
-        states.containsAll(measurementsStatesList) &&
+        measurementStates.containsAll(measurementsStatesList) &&
           measurementsStatesList.containsAll(measurementStates)
       ) { "Arguments must be kept the same when using a page token" }
 
