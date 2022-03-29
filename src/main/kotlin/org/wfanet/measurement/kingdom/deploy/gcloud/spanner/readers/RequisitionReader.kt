@@ -182,14 +182,15 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     /** Builds a [Requisition] from [struct]. */
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
-      val participantStructs = if (isComputedMeasurement(struct))
-        struct.getStructList("ComputationParticipants").associateBy {
-          val duchyId = it.getLong("DuchyId")
-          checkNotNull(DuchyIds.getExternalId(duchyId)) {
-            "Duchy with internal ID $duchyId not found"
+      val participantStructs =
+        if (isComputedMeasurement(struct))
+          struct.getStructList("ComputationParticipants").associateBy {
+            val duchyId = it.getLong("DuchyId")
+            checkNotNull(DuchyIds.getExternalId(duchyId)) {
+              "Duchy with internal ID $duchyId not found"
+            }
           }
-        }
-      else emptyMap()
+        else emptyMap()
       return buildRequisition(struct, struct, participantStructs)
     }
     fun buildRequisition(
@@ -261,7 +262,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     private fun isComputedMeasurement(struct: Struct): Boolean {
       val measurementDetails =
         struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-      return measurementDetails.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+      return measurementDetails.protocolConfig.protocolCase !=
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     }
   }
 }
