@@ -14,10 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
@@ -237,6 +239,22 @@ class CertificateReader(private val parentType: ParentType) :
       revocationState =
         struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
       details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
+    }
+
+    suspend fun getCertificateId(
+      txn: AsyncDatabaseClient.TransactionContext,
+      duchyId: InternalId,
+      externalDuchyCertificateId: ExternalId
+    ): InternalId? {
+      val struct =
+        txn.readRowUsingIndex(
+          "DuchyCertificates",
+          "DuchyCertificatesByExternalId",
+          Key.of(duchyId.value, externalDuchyCertificateId.value),
+          "CertificateId"
+        )
+          ?: return null
+      return InternalId(struct.getLong("CertificateId"))
     }
   }
 }
