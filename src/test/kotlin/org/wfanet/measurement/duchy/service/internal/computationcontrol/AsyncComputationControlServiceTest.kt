@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.duchy.service.internal.computationcontrol
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -23,6 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -36,14 +39,20 @@ import org.wfanet.measurement.duchy.service.internal.computations.toRecordOutput
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationStageDetails
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
+import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 
 @RunWith(JUnit4::class)
 class AsyncComputationControlServiceTest {
@@ -51,7 +60,7 @@ class AsyncComputationControlServiceTest {
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationsService) }
 
-  private val fakeService: AsyncComputationControlService by lazy {
+  private val service: AsyncComputationControlService by lazy {
     AsyncComputationControlService(ComputationsCoroutineStub(grpcTestServerRule.channel))
   }
 
@@ -103,11 +112,12 @@ class AsyncComputationControlServiceTest {
       val (recordBlobRequests, advanceComputationRequests) =
         mockComputationsServiceCalls(tokenToWrite, tokenToAdvance)
 
-      fakeService.advanceComputation(
+      service.advanceComputation(
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
             computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            blobId = 1L
             blobPath = BLOB_KEY
           }
           .build()
@@ -170,12 +180,12 @@ class AsyncComputationControlServiceTest {
     val (recordBlobRequests, advanceComputationRequests) =
       mockComputationsServiceCalls(tokenBeforeRecord, tokenAfterRecord)
 
-    fakeService.advanceComputation(
+    service.advanceComputation(
       AdvanceComputationRequest.newBuilder()
         .apply {
           globalComputationId = COMPUTATION_ID
           computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-          dataOrigin = "bob"
+          blobId = 1L
           blobPath = BLOB_KEY
         }
         .build()
@@ -227,12 +237,12 @@ class AsyncComputationControlServiceTest {
       val (recordBlobRequests, advanceComputationRequests) =
         mockComputationsServiceCalls(tokenBeforeRecord, tokenAfterRecord)
 
-      fakeService.advanceComputation(
+      service.advanceComputation(
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
             computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-            dataOrigin = "bob"
+            blobId = 1L
             blobPath = BLOB_KEY
           }
           .build()
@@ -280,11 +290,12 @@ class AsyncComputationControlServiceTest {
       val (recordBlobRequests, advanceComputationRequests) =
         mockComputationsServiceCalls(tokenOfAlreadyRecordedOutput, tokenOfAlreadyRecordedOutput)
 
-      fakeService.advanceComputation(
+      service.advanceComputation(
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
             computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+            blobId = 1L
             blobPath = BLOB_KEY
           }
           .build()
@@ -321,7 +332,7 @@ class AsyncComputationControlServiceTest {
     val (recordBlobRequests, advanceComputationRequests) =
       mockComputationsServiceCalls(tokenOfAlreadyRecordedOutput, tokenOfAlreadyRecordedOutput)
 
-    fakeService.advanceComputation(
+    service.advanceComputation(
       AdvanceComputationRequest.newBuilder()
         .apply {
           globalComputationId = COMPUTATION_ID
@@ -345,7 +356,7 @@ class AsyncComputationControlServiceTest {
     assertFailsWith<StatusRuntimeException>(
       message = "INVALID_ARGUMENT: Actual stage from computation ($actualStage) did not match"
     ) {
-      fakeService.advanceComputation(
+      service.advanceComputation(
         AdvanceComputationRequest.newBuilder()
           .apply {
             globalComputationId = COMPUTATION_ID
@@ -356,6 +367,100 @@ class AsyncComputationControlServiceTest {
     }
     assertThat(recordBlobRequests).isEmpty()
     assertThat(advanceComputationRequests).isEmpty()
+  }
+
+  @Test
+  fun `getBlobOutputMetadata returns by origin Duchy in LLv2 WAIT_SETUP_PHASE_INPUTS`() {
+    val token = computationToken {
+      computationStage = Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+      blobs += newPassThroughBlobMetadata(0L, "pass-through-blob")
+      blobs += newEmptyOutputBlobMetadata(1L)
+      blobs += newEmptyOutputBlobMetadata(2L)
+      stageSpecificDetails = computationStageDetails {
+        liquidLegionsV2 =
+          LiquidLegionsSketchAggregationV2Kt.stageDetails {
+            waitSetupPhaseInputsDetails =
+              LiquidLegionsSketchAggregationV2Kt.waitSetupPhaseInputsDetails {
+                externalDuchyLocalBlobId["Buck"] = 1L
+                externalDuchyLocalBlobId["Rippon"] = 2L
+              }
+          }
+      }
+    }
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+    }
+
+    val blobMetadata = runBlocking {
+      service.getOutputBlobMetadata(
+        getOutputBlobMetadataRequest {
+          globalComputationId = COMPUTATION_ID
+          dataOrigin = "Buck"
+        }
+      )
+    }
+
+    assertThat(blobMetadata)
+      .isEqualTo(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.OUTPUT
+          blobId = 1L
+        }
+      )
+  }
+
+  @Test
+  fun `getBlobOutputMetadata returns single output blob in LLv2 WAIT_EXECUTION_PHASE_INPUTS`() {
+    val token = computationToken {
+      computationStage = Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
+      blobs += newInputBlobMetadata(0L, "input-blob")
+      blobs += newEmptyOutputBlobMetadata(1L)
+      stageSpecificDetails = computationStageDetails {
+        liquidLegionsV2 = LiquidLegionsSketchAggregationV2Kt.stageDetails {}
+      }
+    }
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+    }
+
+    val blobMetadata = runBlocking {
+      service.getOutputBlobMetadata(
+        getOutputBlobMetadataRequest {
+          globalComputationId = COMPUTATION_ID
+          dataOrigin = "Buck"
+        }
+      )
+    }
+
+    assertThat(blobMetadata)
+      .isEqualTo(
+        computationStageBlobMetadata {
+          dependencyType = ComputationBlobDependency.OUTPUT
+          blobId = 1L
+        }
+      )
+  }
+
+  @Test
+  fun `getBlobOutputMetadata throws FAILED_PRECONDITION in unexpected LLv2 stage`() {
+    val token = computationToken { computationStage = Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
+    mockComputationsService.stub {
+      onBlocking { getComputationToken(any()) }.thenReturn(token.toGetComputationTokenResponse())
+    }
+
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> {
+        service.getOutputBlobMetadata(
+          getOutputBlobMetadataRequest {
+            globalComputationId = COMPUTATION_ID
+            dataOrigin = "Buck"
+          }
+        )
+      }
+    }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains(Stage.EXECUTION_PHASE_ONE.name)
   }
 
   companion object {

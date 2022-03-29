@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -38,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
@@ -63,6 +65,7 @@ private const val RANDOM_SEED = 1L
 private const val NONCE_1 = 3127743798281582205L
 private const val NONCE_2 = -7004399847946251733L
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
 
 private val REFUSAL = refusal {
   justification = Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
@@ -127,7 +130,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val dataProvider1 = population.createDataProvider(dataServices.dataProvidersService)
     val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
     val measurement1 =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -135,13 +138,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataProvider2
       )
     val measurement2 =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 2",
         dataProvider1
       )
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
@@ -194,14 +197,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
       val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
       val measurement =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           dataServices.measurementsService,
           measurementConsumer,
           "measurement",
           dataProvider
         )
 
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement2",
@@ -266,14 +269,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val dataProvider1 = population.createDataProvider(dataServices.dataProvidersService)
     val dataProvider2 = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 1",
         dataProvider1,
         dataProvider2
       )
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 2",
@@ -317,20 +320,20 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement1 =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 1",
         dataProvider
       )
     val measurement2 =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         "measurement 2",
         dataProvider
       )
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 3",
@@ -367,14 +370,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.accountsService
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 1",
       dataProvider
     )
 
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 2",
@@ -404,14 +407,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataServices.accountsService
       )
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 1",
       dataProvider
     )
 
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       measurementConsumer,
       "measurement 2",
@@ -464,7 +467,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val dataProviderValue = dataProvider.toDataProviderValue()
     val providedMeasurementId = "measurement"
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         measurementConsumer,
         providedMeasurementId,
@@ -540,7 +543,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `getRequisitionByDataProviderId returns requisition`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -575,7 +578,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   @Test
   fun `fulfillRequisition transitions Requisition state`() = runBlocking {
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -637,7 +640,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   @Test
   fun `fulfillRequisition transitions Measurement state when all others fulfilled`() = runBlocking {
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -708,7 +711,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `fulfillRequisition throws NOT_FOUND if Requisition not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -740,7 +743,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `fulfillRequisition throws FAILED_PRECONDITION if Duchy not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -783,7 +786,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `fulfillRequisition throws FAILED_PRECONDITION if Measurement in illegal state`() =
     runBlocking {
       val measurement =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
@@ -825,7 +828,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   @Test
   fun `fulfillRequisition throws INVALID_ARGUMENT when signature not specified`() = runBlocking {
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -873,9 +876,135 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
+  fun `direct fulfillRequisition transitions Requisition state`() = runBlocking {
+    val measurement =
+      population.createDirectMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService
+        ),
+        "direct_measurement",
+        population.createDataProvider(dataServices.dataProvidersService),
+      )
+
+    val requisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .first()
+
+    val response =
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisition.externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisition.externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
+        }
+      )
+
+    assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
+    assertThat(response.details.nonce).isEqualTo(NONCE_1)
+    assertThat(response.details.encryptedData).isEqualTo(REQUISITION_ENCRYPTED_DATA)
+    assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
+  }
+
+  @Test
+  fun `direct fulfillRequisition transitions Measurement state when all others fulfilled`() =
+    runBlocking {
+      val measurement =
+        population.createDirectMeasurement(
+          dataServices.measurementsService,
+          population.createMeasurementConsumer(
+            dataServices.measurementConsumersService,
+            dataServices.accountsService
+          ),
+          "direct_measurement",
+          population.createDataProvider(dataServices.dataProvidersService),
+          population.createDataProvider(dataServices.dataProvidersService),
+        )
+
+      val requisitions =
+        service
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+            }
+          )
+          .toList()
+
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisitions[0].externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisitions[0].externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
+        }
+      )
+      val response =
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalRequisitionId = requisitions[1].externalRequisitionId
+            nonce = NONCE_1
+            directParams = directRequisitionParams {
+              externalDataProviderId = requisitions[1].externalDataProviderId
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
+          }
+        )
+
+      assertThat(response.parentMeasurement.state).isEqualTo(Measurement.State.SUCCEEDED)
+    }
+
+  @Test
+  fun `direct fulfillRequisition throws NOT_FOUND if requisition not found`() = runBlocking {
+    val provider = population.createDataProvider(dataServices.dataProvidersService)
+    population.createDirectMeasurement(
+      dataServices.measurementsService,
+      population.createMeasurementConsumer(
+        dataServices.measurementConsumersService,
+        dataServices.accountsService
+      ),
+      "direct_measurement",
+      provider
+    )
+
+    val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        service.fulfillRequisition(
+          fulfillRequisitionRequest {
+            externalRequisitionId = nonExistentExternalRequisitionId.value
+            nonce = NONCE_1
+            directParams = directRequisitionParams {
+              externalDataProviderId = provider.externalDataProviderId
+              encryptedData = REQUISITION_ENCRYPTED_DATA
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
   fun `refuseRequisition transitions Requisition and Measurement states`() = runBlocking {
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         dataServices.measurementsService,
         population.createMeasurementConsumer(
           dataServices.measurementConsumersService,
@@ -945,7 +1074,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `refuseRequisition throws FAILED_PRECONDITION if Measurement in illegal state`() =
     runBlocking {
       val measurement =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,
@@ -984,7 +1113,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   @Test
   fun `refuseRequisition throws NOT_FOUND if Requisition not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    population.createMeasurement(
+    population.createComputedMeasurement(
       dataServices.measurementsService,
       population.createMeasurementConsumer(
         dataServices.measurementConsumersService,
@@ -1013,7 +1142,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun `refuseRequisition throws INVALID_ARGUMENT when refusal justification not specified`() =
     runBlocking {
       val measurement =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           dataServices.measurementsService,
           population.createMeasurementConsumer(
             dataServices.measurementConsumersService,

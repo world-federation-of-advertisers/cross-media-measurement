@@ -381,14 +381,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurementOne =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         "measurement one",
         dataProvider
       )
     val measurementTwo =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         "measurement two",
@@ -511,9 +511,17 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurementOne =
-      population.createMeasurement(measurementsService, measurementConsumer, "measurement one")
+      population.createComputedMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement one"
+      )
     val measurementTwo =
-      population.createMeasurement(measurementsService, measurementConsumer, "measurement two")
+      population.createComputedMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement two"
+      )
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
         externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
@@ -626,9 +634,17 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val measurementOne =
-      population.createMeasurement(measurementsService, measurementConsumer, "measurement one")
+      population.createComputedMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement one"
+      )
     val measurementTwo =
-      population.createMeasurement(measurementsService, measurementConsumer, "measurement two")
+      population.createComputedMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement two"
+      )
     measurementsService.cancelMeasurement(
       cancelMeasurementRequest {
         externalMeasurementConsumerId = measurementTwo.externalMeasurementConsumerId
