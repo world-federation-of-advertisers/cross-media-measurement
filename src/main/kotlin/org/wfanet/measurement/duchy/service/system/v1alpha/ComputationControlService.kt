@@ -86,7 +86,8 @@ class ComputationControlService(
       )
 
     val stage = header.stageExpectingInput()
-    val blob = computationStore.write(ComputationBlobContext(globalId, stage), content)
+    val blob =
+      computationStore.write(ComputationBlobContext(globalId, stage, blobMetadata.blobId), content)
     asyncComputationControlClient.advanceComputation(
       advanceComputationRequest {
         globalComputationId = globalId

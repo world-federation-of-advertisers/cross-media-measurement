@@ -208,7 +208,7 @@ class EdpSimulator(
         return
       }
 
-    sketchStore.write(requisition.name, sketch.toByteString())
+    sketchStore.write(requisition, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
     fulfillRequisition(
