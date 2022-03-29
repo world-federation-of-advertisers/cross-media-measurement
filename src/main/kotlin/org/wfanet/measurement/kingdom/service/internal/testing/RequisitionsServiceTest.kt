@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
@@ -65,7 +65,7 @@ private const val RANDOM_SEED = 1L
 private const val NONCE_1 = 3127743798281582205L
 private const val NONCE_2 = -7004399847946251733L
 private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
-private val REQUISITION_ENCRYPTED_DATA = ByteString.copyFromUtf8("foo")
+private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
 
 private val REFUSAL = refusal {
   justification = Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
