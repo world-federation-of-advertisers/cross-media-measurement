@@ -48,7 +48,6 @@ object EventTemplates {
    * message is not found.
    */
   fun getEventTemplateForType(messageName: String): EventTemplate? {
-    println("messageName " + messageName)
     val descriptor = typeRegistry.find(messageName) ?: return null
 
     return EventTemplate(descriptor)
