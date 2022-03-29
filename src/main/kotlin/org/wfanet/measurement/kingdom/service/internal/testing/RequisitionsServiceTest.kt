@@ -642,6 +642,42 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
+  fun `getRequisitionByDataProviderId returns direct requisition`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
+    val measurement =
+      population.createDirectMeasurement(
+        dataServices.measurementsService,
+        population.createMeasurementConsumer(
+          dataServices.measurementConsumersService,
+          dataServices.accountsService
+        ),
+        "measurement",
+        dataProvider
+      )
+    val listedRequisition =
+      service
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalMeasurementId = measurement.externalMeasurementId
+            }
+          }
+        )
+        .first()
+    val externalRequisitionId = listedRequisition.externalRequisitionId
+
+    val requisition =
+      service.getRequisitionByDataProviderId(
+        getRequisitionByDataProviderIdRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          this.externalRequisitionId = externalRequisitionId
+        }
+      )
+    assertThat(requisition).isEqualTo(listedRequisition)
+  }
+
+  @Test
   fun `fulfillRequisition transitions Requisition state`() = runBlocking {
     val measurement =
       population.createComputedMeasurement(
@@ -982,6 +1018,16 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     assertThat(response.details.nonce).isEqualTo(NONCE_1)
     assertThat(response.details.encryptedData).isEqualTo(REQUISITION_ENCRYPTED_DATA)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
+    assertThat(response)
+      .isEqualTo(
+        service.getRequisition(
+          getRequisitionRequest {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalRequisitionId = requisition.externalRequisitionId
+          }
+        )
+      )
   }
 
   @Test
@@ -1034,6 +1080,16 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         )
 
       assertThat(response.parentMeasurement.state).isEqualTo(Measurement.State.SUCCEEDED)
+      assertThat(response)
+        .isEqualTo(
+          service.getRequisition(
+            getRequisitionRequest {
+              externalMeasurementId = measurement.externalMeasurementId
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalRequisitionId = requisitions[1].externalRequisitionId
+            }
+          )
+        )
     }
 
   @Test
