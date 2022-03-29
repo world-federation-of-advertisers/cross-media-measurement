@@ -182,22 +182,23 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
     }
 
   @Test
-  fun `updateEventGroupMetadataDescriptor fails for missing EventGroupMetadataDescriptor`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        eventGroupMetadataDescriptorService.updateEventGroupMetadataDescriptor(
-          updateEventGroupMetadataDescriptorRequest {
-            this.eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
-              this.externalDataProviderId = 1L
-              details = DETAILS
+  fun `updateEventGroupMetadataDescriptor fails for missing EventGroupMetadataDescriptor`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupMetadataDescriptorService.updateEventGroupMetadataDescriptor(
+            updateEventGroupMetadataDescriptorRequest {
+              this.eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+                this.externalDataProviderId = 1L
+                details = DETAILS
+              }
             }
-          }
-        )
-      }
+          )
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("EventGroupMetadataDescriptor not found")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("EventGroupMetadataDescriptor not found")
+    }
 
   @Test
   fun `updateEventGroupMetadataDescriptor succeeds`(): Unit = runBlocking {
@@ -216,7 +217,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
     val modifyEventGroupMetadataDescriptor =
       createdEventGroupMetadataDescriptor.copy {
-        details = details { apiVersion = "alternate version"}
+        details = details { apiVersion = "alternate version" }
       }
 
     val updatedEventGroupMetadataDescriptor =

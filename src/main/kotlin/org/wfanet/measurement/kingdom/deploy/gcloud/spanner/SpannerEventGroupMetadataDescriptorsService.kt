@@ -90,9 +90,7 @@ class SpannerEventGroupMetadataDescriptorsService(
     } catch (e: KingdomInternalException) {
       when (e.code) {
         ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) {
-            "EventGroupMetadataDescriptor not found"
-          }
+          failGrpc(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found" }
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.CERTIFICATE_IS_INVALID,
