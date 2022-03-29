@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.service.system.v1alpha
 
 import com.google.protobuf.ByteString
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.ConsumedFlowItem
@@ -27,8 +26,9 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
-import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
+import org.wfanet.measurement.internal.duchy.advanceComputationRequest
+import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
@@ -77,23 +77,23 @@ class ComputationControlService(
     content: Flow<ByteString>,
     globalId: String
   ) {
-    // TODO: maybe early reject the request, e.g., by checking if a computation with this id
-    //  exists.
-    val stage = header.stageExpectingInput()
-    val blob = computationStore.write(ComputationBlobContext(globalId, stage), content)
-    val advanceAsyncComputationRequest =
-      AsyncAdvanceComputationRequest.newBuilder()
-        .apply {
+    val blobMetadata =
+      asyncComputationControlClient.getOutputBlobMetadata(
+        getOutputBlobMetadataRequest {
           globalComputationId = globalId
-          computationStage = stage
-          blobPath = blob.blobKey
           dataOrigin = duchyIdentityProvider().id
         }
-        .build()
-    asyncComputationControlClient.advanceComputation(advanceAsyncComputationRequest)
-  }
+      )
 
-  companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    val stage = header.stageExpectingInput()
+    val blob = computationStore.write(ComputationBlobContext(globalId, stage), content)
+    asyncComputationControlClient.advanceComputation(
+      advanceComputationRequest {
+        globalComputationId = globalId
+        computationStage = stage
+        blobId = blobMetadata.blobId
+        blobPath = blob.blobKey
+      }
+    )
   }
 }
