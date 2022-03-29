@@ -23,10 +23,6 @@ object EventTemplates {
   private val typeRegistry: TypeRegistry
 
   init {
-    typeRegistry = initializeTypeRegistry()
-  }
-
-  private fun initializeTypeRegistry(): TypeRegistry {
     val registryBuilder = TypeRegistry.newBuilder()
     val classes = ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClasses()
     for (c in classes) {
@@ -40,10 +36,11 @@ object EventTemplates {
         if (descriptor.options.hasExtension(EventAnnotations.eventTemplate)) {
           registryBuilder.add(descriptor)
         }
-      } catch (e: Exception) {} catch (e: Error) {}
+      } catch (e: Exception) {} catch (e: NoClassDefFoundError) {} catch (
+        e: UnsupportedClassVersionError) {}
     }
 
-    return registryBuilder.build()
+    typeRegistry = registryBuilder.build()
   }
 
   /**
@@ -51,6 +48,9 @@ object EventTemplates {
    * message is not found.
    */
   fun getEventTemplateForType(messageName: String): EventTemplate? {
-    return EventTemplate(typeRegistry.find(messageName))
+    println("messageName " + messageName)
+    val descriptor = typeRegistry.find(messageName) ?: return null
+
+    return EventTemplate(descriptor)
   }
 }

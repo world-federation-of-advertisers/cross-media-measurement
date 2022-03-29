@@ -83,8 +83,6 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
-private const val EVENT_TEMPLATE_CLASS_NAME =
-  "wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class MeasurementConsumerData(
   // The MC's public API resource name

@@ -19,9 +19,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
-private const val CLASS_PATH = "wfa.measurement.api.v2alpha.event_templates.testing"
-private const val BANNER_TEMPLATE_NAME = "$CLASS_PATH.TestBannerTemplate"
-private const val VIDEO_TEMPLATE_NAME = "$CLASS_PATH.TestVideoTemplate"
+private const val PROTO_PACKAGE = "wfa.measurement.api.v2alpha.event_templates.testing"
+private const val BANNER_TEMPLATE_NAME = "$PROTO_PACKAGE.TestBannerTemplate"
+private const val VIDEO_TEMPLATE_NAME = "$PROTO_PACKAGE.TestVideoTemplate"
 
 @RunWith(JUnit4::class)
 class EventTemplatesTest {
