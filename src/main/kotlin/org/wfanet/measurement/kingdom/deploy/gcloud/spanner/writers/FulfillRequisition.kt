@@ -59,30 +59,33 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
       throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
-        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $state"
+        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
       }
     }
 
-    val updatedDetails = requisition.details.copy { nonce = request.nonce }
+    val updatedDetails =
+      requisition.details.copy {
+        nonce = request.nonce
+        if (request.hasDirectParams()) {
+          encryptedData = request.directParams.encryptedData
+        }
+      }
 
     val nonFulfilledRequisitionIds =
       readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
     val updatedMeasurementState: Measurement.State? =
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
+        val nextState =
+          if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+          else Measurement.State.SUCCEEDED
         // All other Requisitions are already FULFILLED, so update Measurement state.
-        Measurement.State.PENDING_PARTICIPANT_CONFIRMATION.also {
-          updateMeasurementState(measurementConsumerId, measurementId, it)
-        }
+        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
       } else {
         null
       }
 
-    updateRequisition(
-      readResult,
-      Requisition.State.FULFILLED,
-      updatedDetails,
-      getFulfillingDuchyId()
-    )
+    val fulfillDuchyId = if (request.hasComputedParams()) getFulfillDuchyId() else null
+    updateRequisition(readResult, Requisition.State.FULFILLED, updatedDetails, fulfillDuchyId)
 
     return requisition.copy {
       if (request.hasComputedParams()) {
@@ -102,10 +105,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
 
   private suspend fun TransactionScope.readRequisition(): RequisitionReader.Result {
     val externalRequisitionId = request.externalRequisitionId
-    val externalComputationId = request.computedParams.externalComputationId
-
-    val readResult: RequisitionReader.Result =
-      RequisitionReader()
+    if (request.hasComputedParams()) {
+      val externalComputationId = request.computedParams.externalComputationId
+      return RequisitionReader()
         .readByExternalComputationId(
           transactionContext,
           externalComputationId = externalComputationId,
@@ -115,10 +117,22 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           "Requisition with external Computation ID $externalComputationId and external " +
             "Requisition ID $externalRequisitionId not found"
         }
-    return readResult
+    } else {
+      val externalDataProviderId = request.directParams.externalDataProviderId
+      return RequisitionReader()
+        .readByExternalDataProviderId(
+          transactionContext,
+          externalDataProviderId = externalDataProviderId,
+          externalRequisitionId = externalRequisitionId
+        )
+        ?: throw KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND) {
+          "Requisition with external DataProvider ID $externalDataProviderId and external " +
+            "Requisition ID $externalRequisitionId not found"
+        }
+    }
   }
 
-  private fun getFulfillingDuchyId(): InternalId {
+  private fun getFulfillDuchyId(): InternalId {
     val externalDuchyId: String = request.computedParams.externalFulfillingDuchyId
     return DuchyIds.getInternalId(externalDuchyId)?.let { InternalId(it) }
       ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {

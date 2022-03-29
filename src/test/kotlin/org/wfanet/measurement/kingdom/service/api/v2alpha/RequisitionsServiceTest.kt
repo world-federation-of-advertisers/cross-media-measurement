@@ -200,6 +200,50 @@ class RequisitionsServiceTest {
   }
 
   @Test
+  fun `listRequisitions with requisition for direct measurement in response returns requisition`() {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(
+        flowOf(
+          INTERNAL_REQUISITION.copy {
+            parentMeasurement = parentMeasurement.copy { clearProtocolConfig() }
+          }
+        )
+      )
+
+    val request = listRequisitionsRequest { parent = DATA_PROVIDER_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listRequisitions(request) }
+      }
+
+    val expected = listRequisitionsResponse {
+      requisitions += REQUISITION.copy { clearProtocolConfig() }
+    }
+
+    val streamRequisitionRequest =
+      captureFirst<StreamRequisitionsRequest> {
+        verify(internalRequisitionMock).streamRequisitions(capture())
+      }
+
+    assertThat(streamRequisitionRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamRequisitionsRequest {
+          limit = DEFAULT_LIMIT + 1
+          filter =
+            StreamRequisitionsRequestKt.filter {
+              externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+              externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+              states += VISIBLE_REQUISITION_STATES
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
   fun `listRequisitions with page token returns next page`() = runBlocking {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
@@ -655,6 +699,54 @@ class RequisitionsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
+
+  @Test
+  fun `refuseRequisition for requisition for direct measurement returns the updated requisition`() =
+    runBlocking {
+      whenever(internalRequisitionMock.refuseRequisition(any()))
+        .thenReturn(
+          INTERNAL_REQUISITION.copy {
+            state = InternalState.REFUSED
+            details = details {
+              refusal =
+                InternalRequisitionKt.refusal {
+                  justification = InternalRefusal.Justification.UNFULFILLABLE
+                }
+            }
+            parentMeasurement = parentMeasurement.copy { clearProtocolConfig() }
+          }
+        )
+
+      val request = refuseRequisitionRequest {
+        name = REQUISITION_NAME
+        refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+      }
+
+      val result =
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.refuseRequisition(request) }
+        }
+
+      val expected =
+        REQUISITION.copy {
+          state = State.REFUSED
+          refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
+          clearProtocolConfig()
+        }
+
+      verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          internalRefuseRequisitionRequest {
+            refusal =
+              InternalRequisitionKt.refusal {
+                justification = InternalRefusal.Justification.UNFULFILLABLE
+              }
+          }
+        )
+
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
 
   @Test
   fun `fulfillDirectRequisition fulfills the requisition`() = runBlocking {

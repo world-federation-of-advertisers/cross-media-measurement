@@ -139,7 +139,10 @@ proto_library(
     name = "async_computation_control_service_proto",
     srcs = ["async_computation_control_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":computation_protocols_proto"],
+    deps = [
+        ":computation_protocols_proto",
+        ":computation_token_proto",
+    ],
 )
 
 kt_jvm_grpc_proto_library(

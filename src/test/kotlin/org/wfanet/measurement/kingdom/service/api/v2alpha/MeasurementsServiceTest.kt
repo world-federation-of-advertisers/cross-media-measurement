@@ -32,6 +32,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2.alpha.ListMeasurementsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listMeasurementsPageToken
@@ -251,6 +252,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with impression type returns measurement with resource name set`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenReturn(INTERNAL_MEASUREMENT.copy { details = details.copy { clearProtocolConfig() } })
+    }
+
     val request = createMeasurementRequest {
       measurement =
         MEASUREMENT.copy {
@@ -278,7 +284,7 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected = MEASUREMENT
+    val expected = MEASUREMENT.copy { clearProtocolConfig() }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -303,6 +309,11 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with duration type returns measurement with resource name set`() {
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenReturn(INTERNAL_MEASUREMENT.copy { details = details.copy { clearProtocolConfig() } })
+    }
+
     val request = createMeasurementRequest {
       measurement =
         MEASUREMENT.copy {
@@ -330,7 +341,7 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected = MEASUREMENT
+    val expected = MEASUREMENT.copy { clearProtocolConfig() }
 
     verifyProtoArgument(
         internalMeasurementsMock,

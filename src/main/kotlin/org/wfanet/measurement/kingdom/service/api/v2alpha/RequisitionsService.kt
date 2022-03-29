@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -265,7 +266,11 @@ private fun InternalRequisition.toRequisition(): Requisition {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
+    if (parentMeasurement.protocolConfig.protocolCase !=
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
+    }
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
