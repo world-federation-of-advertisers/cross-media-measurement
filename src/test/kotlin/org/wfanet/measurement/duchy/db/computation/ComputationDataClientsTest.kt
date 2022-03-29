@@ -77,19 +77,14 @@ class ComputationDataClientsTest {
 
   private val dummyStorageClient =
     object : StorageClient {
-      override val defaultBufferSizeBytes: Int
-        get() {
-          throw NotImplementedError("Unused by test")
-        }
-
-      override suspend fun createBlob(
-        blobKey: String,
-        content: Flow<ByteString>
-      ): StorageClient.Blob {
+      override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
         throw NotImplementedError("Unused by test")
       }
 
-      override fun getBlob(blobKey: String): StorageClient.Blob? {
+      override suspend fun writeBlob(
+        blobKey: String,
+        content: Flow<ByteString>,
+      ): StorageClient.Blob {
         throw NotImplementedError("Unused by test")
       }
     }

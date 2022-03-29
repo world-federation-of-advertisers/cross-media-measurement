@@ -82,7 +82,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 private const val EVENT_TEMPLATE_PACKAGE_NAME =
   "org.wfanet.measurement.api.v2alpha.event_templates.testing"
@@ -217,8 +216,7 @@ class FrontendSimulator(
     val anySketches =
       requisitions.map {
         val storedSketch =
-          sketchStore.get(it.name)?.read(DEFAULT_BUFFER_SIZE_BYTES)?.flatten()
-            ?: error("Sketch blob not found for ${it.name}.")
+          sketchStore.get(it)?.read()?.flatten() ?: error("Sketch blob not found for ${it.name}.")
         SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
       }
 

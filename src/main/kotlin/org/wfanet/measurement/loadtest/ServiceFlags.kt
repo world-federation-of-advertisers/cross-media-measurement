@@ -19,26 +19,30 @@ import picocli.CommandLine
 class KingdomPublicApiFlags {
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
-    description = ["Address and port of the Kingdom's public APIs"],
-    required = true
+    description = ["gRPC target (authority) of the Kingdom public API server"],
+    required = true,
   )
   lateinit var target: String
     private set
 
   @CommandLine.Option(
     names = ["--kingdom-public-api-cert-host"],
-    description = ["The expected hostname in the kingdom PublicApiServer's TLS certificate."],
-    required = true
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = false,
   )
-  lateinit var certHost: String
+  var certHost: String? = null
     private set
 }
 
 class RequisitionFulfillmentServiceFlags {
   @CommandLine.Option(
     names = ["--requisition-fulfillment-service-target"],
-    description = ["Address and port of the duchy's RequisitionFulfillmentService"],
-    required = true
+    description = ["gRPC target (authority) of the Duchy RequisitionFullfillment server"],
+    required = true,
   )
   lateinit var target: String
     private set
@@ -46,27 +50,35 @@ class RequisitionFulfillmentServiceFlags {
   @CommandLine.Option(
     names = ["--requisition-fulfillment-service-cert-host"],
     description =
-      ["The expected hostname in the duchy's RequisitionFulfillmentServer's TLS certificate."],
-    required = true
+      [
+        "Expected hostname (DNS-ID) in the Duchy RequisitionFullfillment server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from " +
+          "--requisition-fulfillment-service-target.",
+      ],
+    required = false,
   )
-  lateinit var certHost: String
+  var certHost: String? = null
     private set
 }
 
 class KingdomInternalApiFlags {
   @CommandLine.Option(
     names = ["--kingdom-internal-api-target"],
-    description = ["Address and port of the Kingdom's internal APIs"],
-    required = true
+    description = ["gRPC target (authority) of the Kingdom internal API server"],
+    required = true,
   )
   lateinit var target: String
     private set
 
   @CommandLine.Option(
     names = ["--kingdom-internal-api-cert-host"],
-    description = ["The expected hostname in the kingdom InternalApiServer's TLS certificate."],
-    required = true
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom internal API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-internal-api-target.",
+      ],
+    required = false,
   )
-  lateinit var certHost: String
+  var certHost: String? = null
     private set
 }
