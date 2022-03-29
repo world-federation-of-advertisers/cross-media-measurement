@@ -322,14 +322,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         )
       val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
       val measurement1 =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           dataServices.measurementsService,
           measurementConsumer,
           "measurement 1",
           dataProvider
         )
       val measurement2 =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           dataServices.measurementsService,
           measurementConsumer,
           "measurement 2",
