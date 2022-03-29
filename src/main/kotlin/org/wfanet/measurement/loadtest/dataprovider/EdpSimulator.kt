@@ -17,11 +17,16 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
+import org.projectnessie.cel.checker.Decls
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -42,7 +47,10 @@ import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventTemplate
+import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -52,10 +60,12 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.asBufferedFlow
@@ -69,7 +79,12 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 import org.wfanet.measurement.loadtest.storage.SketchStore
+
+private const val EVENT_TEMPLATE_PACKAGE_NAME =
+  "org.wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -92,7 +107,8 @@ class EdpSimulator(
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
-  private val throttler: MinimumIntervalThrottler
+  private val throttler: MinimumIntervalThrottler,
+  private val eventTemplateNames: List<String> = emptyList()
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -112,6 +128,7 @@ class EdpSimulator(
           eventGroup = eventGroup {
             measurementConsumer = measurementConsumerName
             eventGroupReferenceId = "001"
+            eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
           }
         }
       )
@@ -173,7 +190,23 @@ class EdpSimulator(
 
     val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-    val sketch = generateSketch(sketchConfig, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+
+    val sketch =
+      try {
+        generateSketch(
+          sketchConfig,
+          requisitionSpec.eventGroupsList.get(0).value.filter,
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth
+        )
+      } catch (e: EventFilterValidationException) {
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
+          e
+        )
+        return
+      }
 
     sketchStore.write(requisition.name, sketch.toByteString())
     val sketchChunks: Flow<ByteString> =
@@ -188,13 +221,17 @@ class EdpSimulator(
 
   private fun generateSketch(
     sketchConfig: SketchConfig,
+    eventFilter: EventFilter,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
+    validateEventFilter(eventFilter)
+
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    // TODO(@wangyaopw): get the queryParameter from EventFilters when EventFilters is implemented.
+    // TODO(@uakyol): change EventQuery getUserVirtualIds to accept EventFilter rather than
+    // QueryParameter.
     val queryParameter =
       QueryParameter(
         edpDisplayName = edpData.displayName,
@@ -237,6 +274,25 @@ class EdpSimulator(
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
 
     return response.encryptedSketch.asBufferedFlow(1024)
+  }
+
+  private fun validateEventFilter(eventFilter: EventFilter) {
+    val decls =
+      eventTemplateNames.map {
+        Decls.newVar(
+          EventTemplate(templateProtoTypeRegistry.getDescriptorForType(it)!!).name,
+          Decls.newObjectType(it),
+        )
+      }
+
+    val env =
+      Env.newEnv(
+        EnvOption.customTypeAdapter(celProtoTypeRegistry),
+        EnvOption.customTypeProvider(celProtoTypeRegistry),
+        EnvOption.declarations(decls),
+      )
+
+    EventFilterValidator.validate(eventFilter.expression, env)
   }
 
   private suspend fun fulfillRequisition(
@@ -293,6 +349,12 @@ class EdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val templateProtoTypeRegistry: EventTemplateTypeRegistry =
+      EventTemplateTypeRegistry.createRegistryForPackagePrefix(EVENT_TEMPLATE_PACKAGE_NAME)
+    val celProtoTypeRegistry: ProtoTypeRegistry =
+      ProtoTypeRegistry.newRegistry(
+        TestVideoTemplate.getDefaultInstance(),
+      )
 
     init {
       loadLibrary(

@@ -34,6 +34,8 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventTemplate
+import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
@@ -53,6 +55,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
@@ -80,6 +84,8 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
+private const val EVENT_TEMPLATE_PACKAGE_NAME =
+  "org.wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -102,7 +108,9 @@ class FrontendSimulator(
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val sketchStore: SketchStore,
-  private val runId: String
+  private val runId: String,
+  /** Map of event template names to filter expressions. */
+  private val eventTemplateFilters: Map<String, String> = emptyMap()
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -151,6 +159,7 @@ class FrontendSimulator(
   /** Creates a Measurement on behave of the [MeasurementConsumer]. */
   private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
+
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
       eventGroups.map {
@@ -307,16 +316,45 @@ class FrontendSimulator(
       .getDataProvider(request)
   }
 
+  /**
+   * Creates a CEL filter using Event Templates names to qualify each variable in expression.
+   *
+   * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
+   * org.wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
+   */
+  private suspend fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
+    val eventGroupTemplateNameMap: Map<String, String> =
+      registeredEventTemplates
+        .map { it to EventTemplate(typeRegistry.getDescriptorForType(it)!!).name }
+        .toMap()
+
+    return eventTemplateFilters
+      .map {
+        if (!eventGroupTemplateNameMap.containsKey(it.key)) {
+          error("EventGroup is not registered to the template ${it.key}")
+        }
+        "${eventGroupTemplateNameMap.get(it.key)}.${it.value}"
+      }
+      .reduce { acc, string -> acc + " && " + string }
+  }
+
   private suspend fun createDataProviderEntry(
     eventGroup: EventGroup,
     measurementConsumer: MeasurementConsumer,
     nonce: Long
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
+
+    val eventFilterExpression =
+      createFilterExpression(eventGroup.getEventTemplatesList().map { it.type })
+
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {
         key = eventGroup.name
-        // TODO: populate other fields when the EventGroup design is done.
+        value =
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            filter = eventFilter { expression = eventFilterExpression }
+          }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
@@ -349,6 +387,8 @@ class FrontendSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val typeRegistry: EventTemplateTypeRegistry =
+      EventTemplateTypeRegistry.createRegistryForPackagePrefix(EVENT_TEMPLATE_PACKAGE_NAME)
     init {
       loadLibrary(
         name = "estimators",
