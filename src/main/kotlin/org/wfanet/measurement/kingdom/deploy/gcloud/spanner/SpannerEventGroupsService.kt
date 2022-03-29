@@ -66,6 +66,7 @@ class SpannerEventGroupsService(
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
@@ -84,6 +85,7 @@ class SpannerEventGroupsService(
         ErrorCode.CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
         ErrorCode.EVENT_GROUP_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,

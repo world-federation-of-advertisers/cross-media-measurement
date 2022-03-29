@@ -70,6 +70,7 @@ class SpannerComputationParticipantsService(
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
@@ -106,6 +107,7 @@ class SpannerComputationParticipantsService(
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
@@ -142,6 +144,7 @@ class SpannerComputationParticipantsService(
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
