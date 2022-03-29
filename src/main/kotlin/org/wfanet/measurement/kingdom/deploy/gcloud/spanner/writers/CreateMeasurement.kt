@@ -65,13 +65,13 @@ class CreateMeasurement(private val measurement: Measurement) :
     return if (measurement.details.protocolConfig.protocolCase !=
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
-      createComputationMeasurement(measurement, measurementConsumerId)
+      createComputedMeasurement(measurement, measurementConsumerId)
     } else {
       createDirectMeasurement(measurement, measurementConsumerId)
     }
   }
 
-  private suspend fun TransactionScope.createComputationMeasurement(
+  private suspend fun TransactionScope.createComputedMeasurement(
     measurement: Measurement,
     measurementConsumerId: InternalId
   ): Measurement {

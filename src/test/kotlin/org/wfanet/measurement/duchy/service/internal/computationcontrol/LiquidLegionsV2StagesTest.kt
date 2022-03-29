@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.service.internal.computationcontrol
 
 import com.google.common.truth.Truth.assertThat
-import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import org.junit.Test
@@ -24,19 +23,16 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.LiquidLegionsSketchAggregationV2Protocol
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest
-import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
-class LiquidLegionsSketchAggregationV2ContextTest {
+class LiquidLegionsV2StagesTest {
+  private val stages = LiquidLegionsV2Stages()
 
   @Test
   fun `next stages are valid`() {
-    val context =
-      LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
     fun assertContextThrowsErrorWhenCallingNextStage(stage: Stage) {
       val token =
         ComputationToken.newBuilder()
@@ -48,10 +44,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
             addBlobs(newEmptyOutputBlobMetadata(1L))
           }
           .build()
-      assertFailsWith<StatusRuntimeException> {
-        println(stage)
-        context.outputBlob(token)
-      }
+      assertFailsWith<IllegalArgumentException> { stages.outputBlob(token, "Buck") }
     }
 
     for (stage in Stage.values()) {
@@ -60,9 +53,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS,
         Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS -> {
-          val next =
-            context.nextStage(ComputationDetails.getDefaultInstance(), stage.toProtocolStage())
-              .liquidLegionsSketchAggregationV2
+          val next = stages.nextStage(stage.toProtocolStage()).liquidLegionsSketchAggregationV2
           assertTrue("$next is not a valid successor of $stage") {
             LiquidLegionsSketchAggregationV2Protocol.EnumStages.validTransition(stage, next)
           }
@@ -90,26 +81,9 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         }
         .build()
 
-    assertThat(
-        LiquidLegionsSketchAggregationV2Context(
-            AdvanceComputationRequest.newBuilder().setDataOrigin("alice").build()
-          )
-          .outputBlob(token)
-      )
-      .isEqualTo(newEmptyOutputBlobMetadata(21L))
-    assertThat(
-        LiquidLegionsSketchAggregationV2Context(
-            AdvanceComputationRequest.newBuilder().setDataOrigin("bob").build()
-          )
-          .outputBlob(token)
-      )
-      .isEqualTo(newEmptyOutputBlobMetadata(1L))
-    assertFailsWith<IllegalStateException> {
-      LiquidLegionsSketchAggregationV2Context(
-          AdvanceComputationRequest.newBuilder().setDataOrigin("unknown-sender").build()
-        )
-        .outputBlob(token)
-    }
+    assertThat(stages.outputBlob(token, "alice")).isEqualTo(newEmptyOutputBlobMetadata(21L))
+    assertThat(stages.outputBlob(token, "bob")).isEqualTo(newEmptyOutputBlobMetadata(1L))
+    assertFailsWith<IllegalStateException> { stages.outputBlob(token, "unknown-sender") }
   }
 
   @Test
@@ -122,11 +96,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         }
         .build()
 
-    assertThat(
-        LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
-          .outputBlob(token)
-      )
-      .isEqualTo(newEmptyOutputBlobMetadata(1L))
+    assertThat(stages.outputBlob(token, "Buck")).isEqualTo(newEmptyOutputBlobMetadata(1L))
   }
 
   @Test
@@ -139,11 +109,7 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         }
         .build()
 
-    assertThat(
-        LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
-          .outputBlob(token)
-      )
-      .isEqualTo(newEmptyOutputBlobMetadata(100L))
+    assertThat(stages.outputBlob(token, "Buck")).isEqualTo(newEmptyOutputBlobMetadata(100L))
   }
 
   @Test
@@ -156,17 +122,11 @@ class LiquidLegionsSketchAggregationV2ContextTest {
         }
         .build()
 
-    assertThat(
-        LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
-          .outputBlob(token)
-      )
-      .isEqualTo(newEmptyOutputBlobMetadata(120L))
+    assertThat(stages.outputBlob(token, "Buck")).isEqualTo(newEmptyOutputBlobMetadata(120L))
   }
 
   @Test
   fun `output blob for unsupported stages throw`() {
-    val context =
-      LiquidLegionsSketchAggregationV2Context(AdvanceComputationRequest.newBuilder().build())
     fun assertContextThrowsErrorWhenGettingBlob(stage: Stage) {
       val token =
         ComputationToken.newBuilder()
@@ -178,11 +138,10 @@ class LiquidLegionsSketchAggregationV2ContextTest {
             addBlobs(newEmptyOutputBlobMetadata(1L))
           }
           .build()
-      assertFailsWith<StatusRuntimeException> { context.outputBlob(token) }
+      assertFailsWith<IllegalArgumentException> { stages.outputBlob(token, "Buck") }
     }
 
     for (stage in Stage.values()) {
-      println(stage)
       when (stage) {
         // Skip all the supported stages, they are tested elsewhere.
         Stage.WAIT_SETUP_PHASE_INPUTS,

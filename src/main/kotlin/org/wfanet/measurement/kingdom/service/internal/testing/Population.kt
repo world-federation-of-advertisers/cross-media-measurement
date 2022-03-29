@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.gson.JsonParser
-import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.Clock
 import java.time.Instant
@@ -38,7 +37,7 @@ import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCo
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumerKt
@@ -49,7 +48,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.activateAccountRequest
 import org.wfanet.measurement.internal.kingdom.certificate
@@ -81,8 +80,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   ) {
     this.notValidBefore = notValidBefore.toProtoTime()
     this.notValidAfter = notValidAfter.toProtoTime()
-    subjectKeyIdentifier = ByteString.copyFromUtf8(skidUtf8)
-    details = CertificateKt.details { x509Der = ByteString.copyFromUtf8(derUtf8) }
+    subjectKeyIdentifier = skidUtf8.toByteStringUtf8()
+    details = CertificateKt.details { x509Der = derUtf8.toByteStringUtf8() }
   }
 
   suspend fun createMeasurementConsumer(
@@ -108,8 +107,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           details =
             MeasurementConsumerKt.details {
               apiVersion = API_VERSION
-              publicKey = ByteString.copyFromUtf8("MC public key")
-              publicKeySignature = ByteString.copyFromUtf8("MC public key signature")
+              publicKey = "MC public key".toByteStringUtf8()
+              publicKeySignature = "MC public key signature".toByteStringUtf8()
             }
         }
         externalAccountId = account.externalAccountId
@@ -135,8 +134,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         details =
           DataProviderKt.details {
             apiVersion = API_VERSION
-            publicKey = ByteString.copyFromUtf8("EDP public key")
-            publicKeySignature = ByteString.copyFromUtf8("EDP public key signature")
+            publicKey = "EDP public key".toByteStringUtf8()
+            publicKeySignature = "EDP public key signature".toByteStringUtf8()
           }
       }
     )
@@ -160,19 +159,20 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           details =
             ModelProviderKt.details {
               apiVersion = "v2alpha"
-              publicKey = ByteString.copyFromUtf8("ModelProvider public key")
-              publicKeySignature = ByteString.copyFromUtf8("ModelProvider public key signature")
+              publicKey = "ModelProvider public key".toByteStringUtf8()
+              publicKeySignature = "ModelProvider public key signature".toByteStringUtf8()
             }
         }
       )
     return modelProvider
   }
 
-  suspend fun createMeasurement(
+  private suspend fun createMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
-    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf(),
+    details: Measurement.Details
   ): Measurement {
     return measurementsService.createMeasurement(
       measurement {
@@ -180,30 +180,79 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         this.providedMeasurementId = providedMeasurementId
         externalMeasurementConsumerCertificateId =
           measurementConsumer.certificate.externalCertificateId
-        details =
-          MeasurementKt.details {
-            apiVersion = API_VERSION
-            measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
-            measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
-            duchyProtocolConfig = duchyProtocolConfig {
-              liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-            }
-            protocolConfig = protocolConfig {
-              liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
-            }
-          }
+        this.details = details
         this.dataProviders.putAll(dataProviders)
       }
     )
   }
 
-  suspend fun createMeasurement(
+  suspend fun createComputedMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+  ): Measurement {
+    val details =
+      MeasurementKt.details {
+        apiVersion = API_VERSION
+        measurementSpec = "MeasurementSpec".toByteStringUtf8()
+        measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+        duchyProtocolConfig = duchyProtocolConfig {
+          liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
+        }
+        protocolConfig = protocolConfig { liquidLegionsV2 = ProtocolConfigKt.liquidLegionsV2 {} }
+      }
+    return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders,
+      details
+    )
+  }
+
+  suspend fun createComputedMeasurement(
     measurementsService: MeasurementsCoroutineImplBase,
     measurementConsumer: MeasurementConsumer,
     providedMeasurementId: String,
     vararg dataProviders: DataProvider
   ): Measurement {
+    return createComputedMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders.associate { it.externalDataProviderId to it.toDataProviderValue() }
+    )
+  }
+
+  suspend fun createDirectMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    dataProviders: Map<Long, Measurement.DataProviderValue> = mapOf()
+  ): Measurement {
+    val details =
+      MeasurementKt.details {
+        apiVersion = API_VERSION
+        measurementSpec = "MeasurementSpec".toByteStringUtf8()
+        measurementSpecSignature = "MeasurementSpec signature".toByteStringUtf8()
+      }
     return createMeasurement(
+      measurementsService,
+      measurementConsumer,
+      providedMeasurementId,
+      dataProviders,
+      details
+    )
+  }
+
+  suspend fun createDirectMeasurement(
+    measurementsService: MeasurementsCoroutineImplBase,
+    measurementConsumer: MeasurementConsumer,
+    providedMeasurementId: String,
+    vararg dataProviders: DataProvider
+  ): Measurement {
+    return createDirectMeasurement(
       measurementsService,
       measurementConsumer,
       providedMeasurementId,
