@@ -23,7 +23,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyOptions
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
 import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
@@ -56,7 +55,7 @@ class CopyToSharedStorageTaskTest {
   }
 
   private suspend fun addSourceBlob(blobKey: String, contents: ByteString = BLOB_CONTENTS) {
-    source.createBlob(blobKey, contents)
+    source.writeBlob(blobKey, contents)
   }
 
   @Test

@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.deploy
 
 import org.wfanet.measurement.common.crypto.KeyStorageProvider
+import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
@@ -25,7 +26,7 @@ import org.wfanet.panelmatch.common.storage.withPrefix
 class DaemonStorageClientDefaults(
   rootStorageClient: StorageClient,
   tinkKeyUri: String,
-  tinkStorageProvider: KeyStorageProvider<TinkPrivateKeyHandle>
+  tinkStorageProvider: KeyStorageProvider<TinkKeyId, TinkPrivateKeyHandle>
 ) {
   val validExchangeWorkflows: MutableSecretMap by lazy {
     StorageClientSecretMap(rootStorageClient.withPrefix("valid-exchange-workflows"))

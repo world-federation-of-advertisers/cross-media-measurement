@@ -19,50 +19,36 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.storage.StorageClient
 
-/** StorageClient identical to [delegate] that throws if blobs are larger than [sizeLimitBytes]. */
+/**
+ * [StorageClient] identical to [delegate] that throws if blobs are larger than [sizeLimitBytes].
+ */
 class SizeLimitedStorageClient(
   private val sizeLimitBytes: Long,
   private val delegate: StorageClient
 ) : StorageClient {
-  override val defaultBufferSizeBytes: Int
-    get() = delegate.defaultBufferSizeBytes
 
-  override suspend fun createBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
-    return delegate.createBlob(blobKey, content.limitSize(sizeLimitBytes))
-  }
-
-  override fun getBlob(blobKey: String): StorageClient.Blob? {
-    val delegateBlob = delegate.getBlob(blobKey) ?: return null
-    return Blob(this, sizeLimitBytes, delegateBlob)
-  }
-
-  private class Blob(
-    override val storageClient: StorageClient,
-    private val sizeLimitBytes: Long,
-    private val delegate: StorageClient.Blob
-  ) : StorageClient.Blob {
-    override val size: Long by lazy {
-      val trueSize = delegate.size
-      require(trueSize <= sizeLimitBytes) {
-        "Blob is $trueSize bytes, which exceeds allowed size of $sizeLimitBytes bytes"
+  override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
+    var size = 0L
+    val checkedContent =
+      content.onEach {
+        size += it.size()
+        require(size <= sizeLimitBytes) { "Exceeds maximum allowed size of $sizeLimitBytes bytes" }
       }
-      trueSize
-    }
 
-    override fun delete() {
-      delegate.delete()
-    }
-
-    override fun read(bufferSizeBytes: Int): Flow<ByteString> {
-      return delegate.read(bufferSizeBytes).limitSize(sizeLimitBytes)
-    }
+    return delegate.writeBlob(blobKey, checkedContent)
   }
-}
 
-private fun Flow<ByteString>.limitSize(sizeLimitBytes: Long): Flow<ByteString> {
-  var size = 0L
-  return onEach {
-    size += it.size()
-    require(size <= sizeLimitBytes) { "Exceeds maximum allowed size of $sizeLimitBytes bytes" }
+  override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+    val delegateBlob = delegate.getBlob(blobKey) ?: return null
+
+    val trueSize = delegateBlob.size
+    check(trueSize <= sizeLimitBytes) {
+      "Blob is $trueSize bytes, which exceeds allowed size of $sizeLimitBytes bytes"
+    }
+
+    return Blob(this, delegateBlob)
   }
+
+  private class Blob(override val storageClient: StorageClient, delegate: StorageClient.Blob) :
+    StorageClient.Blob by delegate
 }

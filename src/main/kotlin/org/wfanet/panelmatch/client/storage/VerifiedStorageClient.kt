@@ -18,14 +18,13 @@ import com.google.protobuf.ByteString
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.asBufferedFlow
+import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.common.crypto.SignedBlob
 import org.wfanet.measurement.common.crypto.createSignedBlob
 import org.wfanet.measurement.common.crypto.newSigner
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.storage.toByteString
@@ -78,7 +77,7 @@ class VerifiedStorageClient(
    * [PrivateKey] , this creates a signature in shared storage for the written blob that can be
    * verified by the other party using a pre-provided [X509Certificate].
    */
-  suspend fun createBlob(blobKey: String, content: Flow<ByteString>): VerifiedBlob {
+  suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): VerifiedBlob {
     // Since StorageClient has no concept of "overwriting" a blob, we first delete existing blobs.
     // This is to ensure that transient failures after some blobs are written do not cause problems
     // when re-attempting to write.
@@ -93,15 +92,15 @@ class VerifiedStorageClient(
       certificateName = certName
       signature = signedBlob.signature
     }
-    storageClient.createBlob(signatureBlobKeyFor(blobKey), namedSignature.toByteString())
+    storageClient.writeBlob(signatureBlobKeyFor(blobKey), namedSignature.toByteString())
     return VerifiedBlob(signedBlob, x509)
   }
 
-  suspend fun createBlob(blobKey: String, content: ByteString): VerifiedBlob {
-    return createBlob(blobKey, content.asBufferedFlow(storageClient.defaultBufferSizeBytes))
+  suspend fun writeBlob(blobKey: String, content: ByteString): VerifiedBlob {
+    return writeBlob(blobKey, flowOf(content))
   }
 
-  private fun deleteExistingBlobs(blobKey: String) {
+  private suspend fun deleteExistingBlobs(blobKey: String) {
     storageClient.getBlob(blobKey)?.delete()
     storageClient.getBlob(signatureBlobKeyFor(blobKey))?.delete()
   }
@@ -115,10 +114,8 @@ class VerifiedStorageClient(
       get() = sourceBlob.signature
 
     /** Reads the underlying blob. Throws if the signature was invalid . */
-    fun read(
-      bufferSizeBytes: Int = sourceBlob.storageClient.defaultBufferSizeBytes
-    ): Flow<ByteString> {
-      return sourceBlob.readVerifying(cert, bufferSizeBytes)
+    fun read(): Flow<ByteString> {
+      return sourceBlob.readVerifying(cert)
     }
 
     /** @see [StorageClient::toByteString]. */

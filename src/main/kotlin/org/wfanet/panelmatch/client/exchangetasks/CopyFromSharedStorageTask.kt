@@ -18,7 +18,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
@@ -35,7 +34,7 @@ class CopyFromSharedStorageTask(
   override suspend fun execute() {
     val blob = source.getBlob(sourceBlobKey)
 
-    destination.createBlob(signatureBlobKeyFor(destinationBlobKey), blob.signature)
+    destination.writeBlob(signatureBlobKeyFor(destinationBlobKey), blob.signature)
 
     when (copyOptions.labelType) {
       BLOB -> blob.copyInternally(destinationBlobKey)
@@ -48,16 +47,16 @@ class CopyFromSharedStorageTask(
     val manifestBytes = blob.toByteString()
     val shardedFileName = ShardedFileName(manifestBytes.toStringUtf8())
 
-    destination.createBlob(destinationBlobKey, manifestBytes)
+    destination.writeBlob(destinationBlobKey, manifestBytes)
 
     for (shardName in shardedFileName.fileNames) {
       val shardBlob = source.getBlob(shardName)
-      destination.createBlob(signatureBlobKeyFor(shardName), shardBlob.signature)
+      destination.writeBlob(signatureBlobKeyFor(shardName), shardBlob.signature)
       shardBlob.copyInternally(shardName)
     }
   }
 
   private suspend fun VerifiedBlob.copyInternally(destinationBlobKey: String) {
-    destination.createBlob(destinationBlobKey, read())
+    destination.writeBlob(destinationBlobKey, read())
   }
 }

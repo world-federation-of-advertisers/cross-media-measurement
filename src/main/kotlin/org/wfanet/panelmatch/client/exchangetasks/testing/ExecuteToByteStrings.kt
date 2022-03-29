@@ -19,7 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.createBlob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.logger.TaskLog
@@ -32,12 +31,12 @@ fun ExchangeTask.executeToByteStrings(
 ): Map<String, ByteString> {
   val storage = InMemoryStorageClient()
 
-  fun createBlob(blobKey: String, contents: ByteString): StorageClient.Blob = runBlocking {
-    storage.createBlob(blobKey, contents)
+  fun writeBlob(blobKey: String, contents: ByteString): StorageClient.Blob = runBlocking {
+    storage.writeBlob(blobKey, contents)
   }
 
   fun writeInputs(vararg inputs: Pair<String, ByteString>): Map<String, StorageClient.Blob> {
-    return inputs.toMap().mapValues { createBlob("underlying-key-for-${it.key}", it.value) }
+    return inputs.toMap().mapValues { writeBlob("underlying-key-for-${it.key}", it.value) }
   }
 
   return runBlocking(TaskLog(ATTEMPT_KEY) + Dispatchers.Default) {

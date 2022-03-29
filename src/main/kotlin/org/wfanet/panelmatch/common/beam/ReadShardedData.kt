@@ -65,8 +65,11 @@ private class ReadBlobFn<T : MessageLite>(
 
   @ProcessElement
   fun processElement(context: ProcessContext) {
-    val blob = storageFactory.build().getBlob(context.element()) ?: return
-    val bytes = runBlocking(Dispatchers.IO) { blob.toByteString() }
+    val bytes =
+      runBlocking(Dispatchers.IO) {
+        storageFactory.build().getBlob(context.element())?.toByteString()
+      }
+        ?: return
 
     fileSizeDistribution.update(bytes.size().toLong())
 

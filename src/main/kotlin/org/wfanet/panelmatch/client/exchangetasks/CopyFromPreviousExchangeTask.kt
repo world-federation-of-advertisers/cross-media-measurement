@@ -19,7 +19,6 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.read
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.common.ExchangeDateKey
 

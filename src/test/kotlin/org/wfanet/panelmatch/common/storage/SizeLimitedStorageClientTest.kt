@@ -16,17 +16,16 @@ package org.wfanet.panelmatch.common.storage
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.lang.IllegalStateException
 import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.createBlob
-import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -39,9 +38,9 @@ class SizeLimitedStorageClientTest {
   private val delegate = InMemoryStorageClient()
   private val storageClient = SizeLimitedStorageClient(10L, delegate)
 
-  private fun createBlob(vararg elements: String) = runBlocking {
+  private fun writeBlob(vararg elements: String) = runBlocking {
     val flow = elements.map { it.toByteStringUtf8() }.asFlow()
-    storageClient.createBlob(KEY, flow)
+    storageClient.writeBlob(KEY, flow)
   }
 
   private fun getBlob(): StorageClient.Blob? = runBlocking { storageClient.getBlob(KEY) }
@@ -49,7 +48,7 @@ class SizeLimitedStorageClientTest {
   private fun getBlobFromDelegate(): StorageClient.Blob? = runBlocking { delegate.getBlob(KEY) }
 
   private fun assertCreateBlobFails(vararg elements: String) = runBlockingTest {
-    assertFails { createBlob(*elements) }
+    assertFails { writeBlob(*elements) }
     assertThat(getBlob()).isNull()
     assertThat(getBlobFromDelegate()).isNull()
   }
@@ -62,7 +61,7 @@ class SizeLimitedStorageClientTest {
 
   @Test
   fun createUnderLimitWorks() = runBlockingTest {
-    createBlob(SAFE_CONTENTS)
+    writeBlob(SAFE_CONTENTS)
 
     val blob = getBlob()
     assertThat(blob).isNotNull()
@@ -79,16 +78,14 @@ class SizeLimitedStorageClientTest {
 
   @Test
   fun getBlobFailsForTooLargeBlob() = runBlockingTest {
-    delegate.createBlob(KEY, UNSAFE_CONTENTS.toByteStringUtf8())
-    val blob = storageClient.getBlob(KEY)
-    assertThat(blob).isNotNull()
-    assertFails { blob?.size }
-    assertFails { blob?.read()?.toList() }
+    delegate.writeBlob(KEY, UNSAFE_CONTENTS.toByteStringUtf8())
+
+    assertFailsWith<IllegalStateException> { storageClient.getBlob(KEY) }
   }
 
   @Test
   fun deleteIsDelegated() = runBlockingTest {
-    createBlob(SAFE_CONTENTS)
+    writeBlob(SAFE_CONTENTS)
     assertThat(getBlob()).isNotNull()
     assertThat(getBlobFromDelegate()).isNotNull()
 

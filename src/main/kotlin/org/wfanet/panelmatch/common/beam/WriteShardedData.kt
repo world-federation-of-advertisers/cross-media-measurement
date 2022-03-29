@@ -33,7 +33,6 @@ import org.apache.beam.sdk.values.PValue
 import org.apache.beam.sdk.values.TupleTag
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.storage.StorageFactory
-import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 import org.wfanet.panelmatch.common.toDelimitedByteString
 
 /** Writes input messages into blobs. */
@@ -86,7 +85,7 @@ private class WriteFilesFn<T : Message>(
     val storageClient = storageFactory.build()
     val messageFlow = kv.value.asFlow().map { it.toDelimitedByteString() }
 
-    runBlocking(Dispatchers.IO) { storageClient.createOrReplaceBlob(blobKey, messageFlow) }
+    runBlocking(Dispatchers.IO) { storageClient.writeBlob(blobKey, messageFlow) }
 
     context.output(blobKey)
   }

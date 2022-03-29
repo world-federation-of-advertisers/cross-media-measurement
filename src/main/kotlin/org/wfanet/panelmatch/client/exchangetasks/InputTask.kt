@@ -31,7 +31,7 @@ class InputTask(
   private val storage: StorageClient
 ) : CustomIOExchangeTask() {
 
-  private fun isReady(): Boolean {
+  private suspend fun isReady(): Boolean {
     logger.fine("Checking for blobKey '$blobKey'")
     return storage.getBlob(blobKey) != null
   }

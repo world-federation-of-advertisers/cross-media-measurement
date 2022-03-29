@@ -17,7 +17,6 @@ package org.wfanet.panelmatch.common.storage
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.measurement.storage.read
 
 /** Reads the blob into a single [ByteString]. */
 suspend fun Blob.toByteString(): ByteString = read().flatten()

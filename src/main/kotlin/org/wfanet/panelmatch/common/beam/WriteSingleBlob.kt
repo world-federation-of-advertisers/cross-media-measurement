@@ -28,7 +28,6 @@ import org.apache.beam.sdk.values.POutput
 import org.apache.beam.sdk.values.PValue
 import org.apache.beam.sdk.values.TupleTag
 import org.wfanet.panelmatch.common.storage.StorageFactory
-import org.wfanet.panelmatch.common.storage.createOrReplaceBlob
 
 /** Writes a single input message into a blob. */
 class WriteSingleBlob<T : Message>(
@@ -77,7 +76,7 @@ private class WriteBlobFn<T : Message>(
     check(context.sideInput(count) == 1L)
     val storageClient = storageFactory.build()
     runBlocking(Dispatchers.IO) {
-      storageClient.createOrReplaceBlob(blobKey, context.element().toByteString())
+      storageClient.writeBlob(blobKey, context.element().toByteString())
     }
     context.output(blobKey)
   }

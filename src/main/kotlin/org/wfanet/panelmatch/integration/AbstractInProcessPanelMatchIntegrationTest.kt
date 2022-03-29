@@ -241,7 +241,7 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     contents: ByteString,
     exchangeDateKey: ExchangeDateKey
   ) {
-    getStorageClient(exchangeDateKey).createBlob(blobKey, flowOf(contents))
+    getStorageClient(exchangeDateKey).writeBlob(blobKey, flowOf(contents))
   }
 
   private suspend fun PrivateStorageSelector.readSharedBlob(

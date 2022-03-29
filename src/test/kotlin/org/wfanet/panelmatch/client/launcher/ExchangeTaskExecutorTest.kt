@@ -45,12 +45,11 @@ private val ATTEMPT_KEY = ExchangeStepAttemptKey(RECURRING_EXCHANGE_ID, "x", "y"
 private val DATE = LocalDate.of(2021, 11, 3)
 
 private val WORKFLOW = exchangeWorkflow {
-  steps +=
-    step {
-      this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
-      inputLabels["a"] = "b"
-      outputLabels["Out:a"] = "c"
-    }
+  steps += step {
+    this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
+    inputLabels["a"] = "b"
+    outputLabels["Out:a"] = "c"
+  }
 }
 
 private val VALIDATED_EXCHANGE_STEP = ValidatedExchangeStep(WORKFLOW, WORKFLOW.getSteps(0), DATE)
@@ -86,7 +85,7 @@ class ExchangeTaskExecutorTest {
   fun `reads inputs and writes outputs`() = runBlockingTest {
     val blob = "some-blob".toByteStringUtf8()
 
-    testPrivateStorageSelector.storageClient.createBlob("b", blob.asBufferedFlow(1024))
+    testPrivateStorageSelector.storageClient.writeBlob("b", blob.asBufferedFlow(1024))
 
     exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
 
