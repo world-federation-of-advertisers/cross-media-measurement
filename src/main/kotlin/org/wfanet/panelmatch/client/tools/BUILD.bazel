@@ -20,10 +20,20 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "add_resource",
-    srcs = ["AddResource.kt"],
+    srcs = [
+        "AddAllResources.kt",
+        "AddPrivateStorageInfo.kt",
+        "AddResource.kt",
+        "AddRootCertificate.kt",
+        "AddSharedStorageInfo.kt",
+        "AddWorkflow.kt",
+        "CustomStorageFlags.kt",
+        "ProvideWorkflowInput.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/storage/aws/s3",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/gcloud/gcs",
         "//src/main/kotlin/org/wfanet/panelmatch/client/tools",
         "//src/main/proto/wfa/panelmatch/client/storage:storage_details_kt_jvm_proto",
