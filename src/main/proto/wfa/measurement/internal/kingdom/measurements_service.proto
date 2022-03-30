@@ -66,6 +66,7 @@ message StreamMeasurementsRequest {
       fixed64 external_measurement_id_after = 5;
       fixed64 external_computation_id_after = 6;
     }
+    string externalDuchyId = 7;
   }
   Filter filter = 1;
 
