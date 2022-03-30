@@ -14,40 +14,43 @@
 
 package org.wfanet.measurement.duchy.storage
 
-import java.util.UUID
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.internal.duchy.ComputationStage
-import org.wfanet.measurement.storage.BlobKeyGenerator
+import org.wfanet.measurement.internal.duchy.ComputationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store
 
 private const val BLOB_KEY_PREFIX = "computations"
 
 /** A [Store] instance for managing Blobs associated with computations in the Duchy. */
-class ComputationStore
-private constructor(
-  storageClient: StorageClient,
-  generateBlobKey: BlobKeyGenerator<ComputationBlobContext>
-) : Store<ComputationBlobContext>(storageClient, generateBlobKey) {
-  constructor(storageClient: StorageClient) : this(storageClient, ::generateBlobKey)
+class ComputationStore(storageClient: StorageClient) :
+  Store<ComputationBlobContext>(storageClient) {
 
   override val blobKeyPrefix = BLOB_KEY_PREFIX
 
-  companion object {
-    fun forTesting(
-      storageClient: StorageClient,
-      generateBlobKey: BlobKeyGenerator<ComputationBlobContext>
-    ): ComputationStore = ComputationStore(storageClient, generateBlobKey)
-  }
+  override fun deriveBlobKey(context: ComputationBlobContext): String = context.blobKey
 }
 
-/** The context used to generate blob key for the [ComputationStore]. */
+/** The context from which a blob key is derived for [ComputationStore]. */
 data class ComputationBlobContext(
   val externalComputationId: String,
-  val computationStage: ComputationStage
-)
+  val computationStage: ComputationStage,
+  val blobId: Long
+) {
+  val blobKey: String
+    get() = "$externalComputationId/${computationStage.name}/$blobId"
 
-/** Generates a Blob key using the [ComputationBlobContext]. */
-private fun generateBlobKey(context: ComputationBlobContext): String {
-  return "${context.externalComputationId}/${context.computationStage.name}/${UUID.randomUUID()}"
+  companion object {
+    fun fromToken(
+      computationToken: ComputationToken,
+      blobMetadata: ComputationStageBlobMetadata
+    ): ComputationBlobContext {
+      return ComputationBlobContext(
+        computationToken.globalComputationId,
+        computationToken.computationStage,
+        blobMetadata.blobId
+      )
+    }
+  }
 }

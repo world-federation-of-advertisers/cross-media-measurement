@@ -19,16 +19,20 @@ import picocli.CommandLine
 class InternalApiFlags {
   @set:CommandLine.Option(
     names = ["--internal-api-target"],
-    description = ["Target for the Kingdom internal APIs"],
-    required = true
+    description = ["gRPC target (authority) of the Kingdom internal API server"],
+    required = true,
   )
   lateinit var target: String
 
   @CommandLine.Option(
     names = ["--internal-api-cert-host"],
-    description = ["The expected hostname in the Kingdom internal API Server's TLS certificate"],
-    required = true
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom internal API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --internal-api-target.",
+      ],
+    required = false,
   )
-  lateinit var certHost: String
+  var certHost: String? = null
     private set
 }

@@ -25,9 +25,9 @@ import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 class StreamMeasurements(
-  private val view: Measurement.View,
+  view: Measurement.View,
   private val requestFilter: StreamMeasurementsRequest.Filter,
-  private val limit: Int = 0
+  limit: Int = 0
 ) : SpannerQuery<MeasurementReader.Result, MeasurementReader.Result>() {
   override val reader =
     MeasurementReader(view).fillStatementBuilder {
@@ -104,18 +104,16 @@ class StreamMeasurements(
 
   override fun Flow<MeasurementReader.Result>.transform(): Flow<MeasurementReader.Result> {
     // TODO(@tristanvuong): determine how to do this in the SQL query instead
-    val originalFlow = this
-    return if (requestFilter.externalDuchyId.isBlank()) {
-      originalFlow
-    } else {
-      originalFlow.filter { value: MeasurementReader.Result ->
-        value.measurement.computationParticipantsList.isNotEmpty() &&
-          value
-            .measurement
-            .computationParticipantsList
-            .map { it.externalDuchyId }
-            .contains(requestFilter.externalDuchyId)
-      }
+    if (requestFilter.externalDuchyId.isBlank()) {
+      return this
+    }
+
+    return filter { value: MeasurementReader.Result ->
+      value
+        .measurement
+        .computationParticipantsList
+        .map { it.externalDuchyId }
+        .contains(requestFilter.externalDuchyId)
     }
   }
 

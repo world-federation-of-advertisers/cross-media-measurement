@@ -16,6 +16,9 @@ package org.wfanet.measurement.duchy.db.computation
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
@@ -28,7 +31,6 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store.Blob
-import org.wfanet.measurement.storage.read
 
 /** Storage clients providing access to the ComputationsService and ComputationStore. */
 class ComputationDataClients
@@ -78,15 +80,11 @@ private constructor(
     computationToken: ComputationToken,
     content: Flow<ByteString>
   ): ComputationToken {
-    return writeBlobIfNotPresent(computationToken, computationToken.singleOutputBlobMetadata()) {
-      computationStore.write(
-        ComputationBlobContext(
-          computationToken.globalComputationId,
-          computationToken.computationStage
-        ),
-        content
-      )
-    }
+    return writeBlobIfNotPresent(
+      computationToken,
+      computationToken.singleOutputBlobMetadata(),
+      content
+    )
   }
 
   /** @see writeSingleOutputBlob */
@@ -94,36 +92,29 @@ private constructor(
     computationToken: ComputationToken,
     content: ByteString
   ): ComputationToken {
-    return writeBlobIfNotPresent(computationToken, computationToken.singleOutputBlobMetadata()) {
-      computationStore.write(
-        ComputationBlobContext(
-          computationToken.globalComputationId,
-          computationToken.computationStage
-        ),
-        content
-      )
-    }
+    val blobMetadata = computationToken.singleOutputBlobMetadata()
+    return writeBlobIfNotPresent(computationToken, blobMetadata, flowOf(content))
   }
 
   /**
-   * Writes the blob content using [writeContent] if no blob key is present in [metadata].
+   * Writes the blob content if no blob key is present in [metadata].
    *
    * @param metadata [ComputationStageBlobMetadata] for the blob
-   * @param writeContent function which writes bound blob content, to be called with
-   * [computationToken]
+   * @param content blob content to write
    * @return resulting [ComputationToken] from write, or [computationToken] if no write was
    * performed
    */
   private suspend fun writeBlobIfNotPresent(
     computationToken: ComputationToken,
     metadata: ComputationStageBlobMetadata,
-    writeContent: suspend (ComputationToken) -> Blob
+    content: Flow<ByteString>
   ): ComputationToken {
     if (metadata.path.isNotEmpty()) {
       return computationToken
     }
 
-    val blob = writeContent(computationToken)
+    val blob =
+      computationStore.write(ComputationBlobContext.fromToken(computationToken, metadata), content)
     val response =
       computationsClient.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder()
@@ -169,10 +160,10 @@ private constructor(
       return null
     }
 
-    return getBlob(blobRef).read()
+    return flow { emitAll(getBlob(blobRef).read()) }
   }
 
-  private fun getBlob(ref: BlobRef): Blob {
+  private suspend fun getBlob(ref: BlobRef): Blob {
     return checkNotNull(computationStore.get(ref.key)) {
       "Failed to read content for computation blob ${ref.idInRelationalDatabase}: " +
         "Blob with key ${ref.key} not found"

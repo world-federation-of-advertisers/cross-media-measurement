@@ -14,26 +14,17 @@
 
 package org.wfanet.measurement.loadtest.storage
 
-import org.wfanet.measurement.storage.BlobKeyGenerator
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store
 
 private const val BLOB_KEY_PREFIX = "sketches"
 
 /** A [Store] instance for managing Blobs associated with sketches (for test purpose only). */
-class SketchStore
-private constructor(storageClient: StorageClient, generateBlobKey: BlobKeyGenerator<String>) :
-  Store<String>(storageClient, generateBlobKey) {
-  constructor(storageClient: StorageClient) : this(storageClient, ::generateBlobKey)
-
+class SketchStore(storageClient: StorageClient) : Store<Requisition>(storageClient) {
   override val blobKeyPrefix = BLOB_KEY_PREFIX
-}
 
-/**
- * Generates a Blob key used in the [SketchStore].
- *
- * The blob path is deterministic such that the caller doesn't need to cache it.
- */
-private fun generateBlobKey(context: String): String {
-  return context
+  override fun deriveBlobKey(context: Requisition): String {
+    return context.name
+  }
 }

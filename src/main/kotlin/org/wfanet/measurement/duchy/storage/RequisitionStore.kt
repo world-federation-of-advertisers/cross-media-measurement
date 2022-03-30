@@ -14,38 +14,25 @@
 
 package org.wfanet.measurement.duchy.storage
 
-import java.util.UUID
-import org.wfanet.measurement.storage.BlobKeyGenerator
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.Store
 
 private const val BLOB_KEY_PREFIX = "requisitions"
 
 /** A [Store] instance for managing Blobs associated with requisitions in the Duchy. */
-class RequisitionStore
-private constructor(
-  storageClient: StorageClient,
-  generateBlobKey: BlobKeyGenerator<RequisitionBlobContext>
-) : Store<RequisitionBlobContext>(storageClient, generateBlobKey) {
-  constructor(storageClient: StorageClient) : this(storageClient, ::generateBlobKey)
+class RequisitionStore(storageClient: StorageClient) :
+  Store<RequisitionBlobContext>(storageClient) {
 
   override val blobKeyPrefix = BLOB_KEY_PREFIX
 
-  companion object {
-    fun forTesting(
-      storageClient: StorageClient,
-      generateBlobKey: BlobKeyGenerator<RequisitionBlobContext>
-    ): RequisitionStore = RequisitionStore(storageClient, generateBlobKey)
-  }
+  override fun deriveBlobKey(context: RequisitionBlobContext): String = context.blobKey
 }
 
-/** The context used to generate blob key for the [RequisitionStore]. */
+/** The context from which a blob key is derived for [RequisitionStore]. */
 data class RequisitionBlobContext(
-  val globalComputationId: String,
-  val externalRequisitionId: String
-)
-
-/** Generates a Blob key using the [RequisitionBlobContext]. */
-private fun generateBlobKey(context: RequisitionBlobContext): String {
-  return "${context.globalComputationId}/${context.externalRequisitionId}/${UUID.randomUUID()}"
+  private val globalComputationId: String,
+  private val externalRequisitionId: String
+) {
+  val blobKey: String
+    get() = "$globalComputationId/$externalRequisitionId"
 }

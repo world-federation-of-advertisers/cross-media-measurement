@@ -20,7 +20,7 @@ class ComputationsServiceFlags {
   @CommandLine.Option(
     names = ["--computations-service-target"],
     description = ["Address and port of the duchy ComputationsService"],
-    required = true
+    required = true,
   )
   lateinit var target: String
     private set
@@ -28,7 +28,7 @@ class ComputationsServiceFlags {
   @CommandLine.Option(
     names = ["--computations-service-cert-host"],
     description = ["The expected hostname in the duchy ComputationsServer's TLS certificate."],
-    required = true
+    required = true,
   )
   lateinit var certHost: String
     private set
@@ -38,7 +38,7 @@ class AsyncComputationControlServiceFlags {
   @CommandLine.Option(
     names = ["--async-computation-control-service-target"],
     description = ["Address and port of the AsyncComputationControlService."],
-    required = true
+    required = true,
   )
   lateinit var target: String
     private set
@@ -46,7 +46,7 @@ class AsyncComputationControlServiceFlags {
   @CommandLine.Option(
     names = ["--async-computation-control-service-cert-host"],
     description = ["The expected hostname in the AsyncComputationControlServer's TLS certificate."],
-    required = true
+    required = true,
   )
   lateinit var certHost: String
     private set
@@ -55,17 +55,21 @@ class AsyncComputationControlServiceFlags {
 class SystemApiFlags {
   @CommandLine.Option(
     names = ["--kingdom-system-api-target"],
-    description = ["Address and port of the Kingdom's system APIs"],
-    required = true
+    description = ["gRPC target (authority) of the Kingdom system API server"],
+    required = true,
   )
   lateinit var target: String
     private set
 
   @CommandLine.Option(
     names = ["--kingdom-system-api-cert-host"],
-    description = ["The expected hostname in the kingdom SystemApiServer's TLS certificate."],
-    required = true
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom system API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-system-api-target.",
+      ],
+    required = false,
   )
-  lateinit var certHost: String
+  var certHost: String? = null
     private set
 }
