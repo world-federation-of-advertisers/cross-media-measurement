@@ -1,0 +1,59 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v1alpha;
+
+import "google/api/resource.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v1alpha";
+option java_multiple_files = true;
+
+// Specification for a `EventGroup`. Immutable.
+message EventGroupSpecifier {
+  message EventFilter {
+    // Raw CEL expression that is applied to a message which has a field for
+    // each event template.
+    string expression = 1;
+  }
+  message EventGroupEntry {
+    // Key of the map entry, which is an `EventGroup` resource name. Required.
+    string key = 1
+    [(google.api.resource_reference).type = "halo.wfanet.org/EventGroup"];
+
+    message Value {
+      // Time interval over which the event data should be collected. Required.
+      TimeInterval collection_interval = 1;
+
+      // Reporting tag for aggregation
+      string tag = 2;
+      // Optional filter to apply to events.
+      EventFilter filter = 3;
+    }
+    // Value of the map entry. Required.
+    Value value = 2;
+  }
+  // Map of `EventGroup` name to parameters for that `EventGroup`. Required.
+  repeated EventGroupEntry event_groups = 1;
+}
+
+// A time interval.
+message TimeInterval {
+  // Start of the time interval, inclusive. Required.
+  google.protobuf.Timestamp start_time = 1;
+  // End of the time interval, exclusive. Required. This must be later than
+  // the start time.
+  google.protobuf.Timestamp end_time = 2;
+}
