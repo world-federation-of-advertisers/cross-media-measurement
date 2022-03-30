@@ -75,9 +75,10 @@ message Computation {
   // State of this `Computation`. Output-only.
   State state = 6;
 
-  // X.509 certificate in DER format which can be verified using the
-  // Aggregator's root certificate. Must be set if `state` is `SUCCEEDED`.
-  bytes aggregator_certificate = 7;
+  // Resource name of a `Certificate` belonging to the aggregator `Duchy`. Must
+  // be set if `state` is `SUCCEEDED`.
+  string aggregator_certificate = 7
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using

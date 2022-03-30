@@ -1855,7 +1855,7 @@ class LiquidLegionsV2MillTest {
       .isEqualTo(
         setComputationResultRequest {
           name = "computations/$GLOBAL_ID"
-          aggregatorCertificate = CONSENT_SIGNALING_CERT_DER
+          aggregatorCertificate = CONSENT_SIGNALING_CERT_NAME
           resultPublicKey = ENCRYPTION_PUBLIC_KEY.toByteString()
         }
       )

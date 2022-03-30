@@ -87,6 +87,18 @@ CREATE TABLE Certificates (
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
+CREATE TABLE DuchyCertificates (
+  DuchyId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalDuchyCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (DuchyId, CertificateId);
+
+CREATE UNIQUE INDEX DuchyCertificatesByExternalId
+  ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
+
 CREATE TABLE MeasurementConsumerCreationTokens (
   MeasurementConsumerCreationTokenId INT64 NOT NULL,
 
@@ -273,6 +285,9 @@ CREATE TABLE Measurements (
   -- encoded as int
   State             INT64 NOT NULL,
 
+  AggregatorDuchyId INT64,
+  AggregatorCertificateId INT64,
+
   -- org.wfanet.measurement.internal.kingdom.Measurement.Details serialized
   -- proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
@@ -280,6 +295,8 @@ CREATE TABLE Measurements (
 
   FOREIGN KEY (MeasurementConsumerId, CertificateId)
     REFERENCES MeasurementConsumerCertificates(MeasurementConsumerId, CertificateId),
+  FOREIGN KEY (AggregatorDuchyId, AggregatorCertificateId)
+    REFERENCES DuchyCertificates(DuchyId, CertificateId),
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
@@ -339,18 +356,6 @@ CREATE UNIQUE INDEX RequisitionsByDataProviderId
 -- Used to effectively list requisitions that a DataProvider would need to
 -- fulfill
 CREATE INDEX RequisitionsByState ON Requisitions(DataProviderId, State);
-
-CREATE TABLE DuchyCertificates (
-  DuchyId INT64 NOT NULL,
-  CertificateId INT64 NOT NULL,
-
-  ExternalDuchyCertificateId INT64 NOT NULL,
-
-  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
-) PRIMARY KEY (DuchyId, CertificateId);
-
-CREATE UNIQUE INDEX DuchyCertificatesByExternalId
-  ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
 
 -- Stores the details and state of duchies for the computation of parent
 -- Measurement.
