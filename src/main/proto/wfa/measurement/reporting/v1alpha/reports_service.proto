@@ -17,9 +17,7 @@ syntax = "proto3";
 package wfa.measurement.reporting.v1alpha;
 
 import "google/api/resource.proto";
-import "wfa/measurement/reporting/v1alpha/event_group_specifier.proto";
 import "wfa/measurement/reporting/v1alpha/report.proto";
-import "wfa/measurement/reporting/v1alpha/report_parameter.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
@@ -54,7 +52,7 @@ message GetReportRequest {
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      type: "halo.wfanet.org/Report"
+      type: "reporting.halo-cmm.org/Report"
     }];
 }
 
@@ -63,7 +61,7 @@ message ListReportRequest {
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "halo.wfanet.org/Report"
+      child_type: "reporting.halo-cmm.org/Report"
     }];
 
   // The maximum number of books to return. The service may return fewer than
@@ -95,15 +93,11 @@ message CreateReportRequest {
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "halo.wfanet.org/Report"
+      child_type: "reporting.halo-cmm.org/Report"
     }];
 
   // The report to create.
   Report report = 2 [(google.api.field_behavior) = REQUIRED];
-
-  repeated EventGroupSpecifier event_group_specifiers = 3;
-
-  ReportParameter report_parameter = 4;
 }
 
 

@@ -30,8 +30,8 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "event_group_specifier_proto",
-    srcs = ["event_group_specifier.proto"],
+    name = "event_group_entry_proto",
+    srcs = ["event_group_entry.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         "@com_google_googleapis//google/api:resource_proto",
@@ -40,16 +40,16 @@ proto_library(
 )
 
 java_proto_library(
-    name = "event_group_specifier_java_proto",
+    name = "event_group_entry_java_proto",
     visibility = ["//visibility:public"],
-    deps = [":event_group_specifier_proto"],
+    deps = [":event_group_entry_proto"],
 )
 
 kt_jvm_proto_library(
-    name = "event_group_specifier_kt_jvm_proto",
-    srcs = [":event_group_specifier_proto"],
+    name = "event_group_entry_kt_jvm_proto",
+    srcs = [":event_group_entry_proto"],
     visibility = ["//visibility:public"],
-    deps = [":event_group_specifier_java_proto"],
+    deps = [":event_group_entry_java_proto"],
 )
 
 proto_library(
@@ -57,6 +57,8 @@ proto_library(
     srcs = ["report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":event_group_entry_proto",
+        ":report_parameter_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
@@ -116,9 +118,7 @@ proto_library(
     srcs = ["reports_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":event_group_specifier_proto",
         ":report_proto",
-        ":report_parameter_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )

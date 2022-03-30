@@ -25,8 +25,8 @@ option java_multiple_files = true;
 // campaign or creative defined in a publisher's ad system.
 message EventGroup {
   option (google.api.resource) = {
-    type: "halo.wfanet.org/EventGroup"
-    pattern: "/measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}/eventGroups/{event_group}"
+    type: "reporting.halo-cmm.org/EventGroup"
+    pattern: "measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}/eventGroups/{event_group}"
   };
 
   // Resource name.
