@@ -164,7 +164,7 @@ private class CreateQueries(
       .values("Drop ShardIds")
       .apply("Flatten", Flatten.iterables())
       .filter("Filter out padded queries") { it.joinKeyIdentifier.id != FAKE_JOIN_KEY_ID }
-      .map { fullUnencryptedQuery ->
+      .map("Map to Query Id") { fullUnencryptedQuery ->
         queryIdAndId {
           queryId = fullUnencryptedQuery.unencryptedQuery.queryId
           joinKeyIdentifier = fullUnencryptedQuery.joinKeyIdentifier

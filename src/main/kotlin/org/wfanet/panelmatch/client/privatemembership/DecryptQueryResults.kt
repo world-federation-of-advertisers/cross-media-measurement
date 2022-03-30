@@ -115,15 +115,22 @@ private class DecryptQueryResults(
     val decryptedJoinKeyAndIds = input[decryptedJoinKeyAndIdsTag]
     val plaintextJoinKeyAndIds = input[plaintextJoinKeyAndIdsTag]
 
-    val keyedQueryIdAndIds = queryIdAndIds.keyBy("Key QueryIdAndIds by Id") { it.joinKeyIdentifier }
-    val keyedDecryptedJoinKeyAndIds = decryptedJoinKeyAndIds.keyBy { it.joinKeyIdentifier }
-    val decryptedJoinKeyKeyedByQueryId =
-      keyedQueryIdAndIds.strictOneToOneJoin(keyedDecryptedJoinKeyAndIds).map {
-        kvOf(it.key.queryId, it.value)
+    val keyedQueryIdAndIds = queryIdAndIds.keyBy("Key QueryIds by Id") { it.joinKeyIdentifier }
+    val keyedDecryptedJoinKeyAndIds =
+      decryptedJoinKeyAndIds.keyBy("Key DecryptedJoinKeys by JoinKeyIdentifier") {
+        it.joinKeyIdentifier
       }
+    val decryptedJoinKeyKeyedByQueryId =
+      keyedQueryIdAndIds.strictOneToOneJoin(
+          keyedDecryptedJoinKeyAndIds,
+          name = "Join Query ID to Decrypted Join Key"
+        )
+        .map("Map to QueryId and JoinKey") { kvOf(it.key.queryId, it.value) }
 
     val keyedEncryptedQueryResults: PCollection<KV<QueryId, EncryptedQueryResult>> =
-      encryptedQueryResults.keyBy("Key by QueryId") { requireNotNull(it.queryId) }
+      encryptedQueryResults.keyBy("Key EncryptedQueryResult by QueryId") {
+        requireNotNull(it.queryId)
+      }
     val groupedEncryptedQueryResults =
       keyedEncryptedQueryResults.groupByKey("Group Encrypted Query Results")
     val individualDecryptedResults:
@@ -147,16 +154,23 @@ private class DecryptQueryResults(
     val groupedDecryptedResults: PCollection<KV<JoinKeyIdentifier, List<@JvmWildcard Plaintext>>> =
       individualDecryptedResults
         .groupByKey()
-        .map { kvOf(it.key, it.value.flatten()) }
+        .map("Map to List of Plaintext") { kvOf(it.key, it.value.flatten()) }
         .setCoder(plaintextListCoder)
 
-    val keyedPlaintextJoinKeyAndIds = plaintextJoinKeyAndIds.keyBy { it.joinKeyIdentifier }
-    return groupedDecryptedResults.strictOneToOneJoin(keyedPlaintextJoinKeyAndIds).map {
-      keyedDecryptedEventDataSet {
-        plaintextJoinKeyAndId = it.value
-        decryptedEventData += it.key
+    val keyedPlaintextJoinKeyAndIds =
+      plaintextJoinKeyAndIds.keyBy("Key PlaintextJoinKeys By JoinKeyIdentifier") {
+        it.joinKeyIdentifier
       }
-    }
+    return groupedDecryptedResults.strictOneToOneJoin(
+        keyedPlaintextJoinKeyAndIds,
+        name = "Join Decrypted Result to Plaintext Joinkeys"
+      )
+      .map("Map to KeyedDecryptedEventDataSet") {
+        keyedDecryptedEventDataSet {
+          plaintextJoinKeyAndId = it.value
+          decryptedEventData += it.key
+        }
+      }
   }
 
   companion object {
