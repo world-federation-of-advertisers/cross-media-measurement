@@ -16,6 +16,13 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v1alpha;
 
+// google.api.method_signature
+import "google/api/client.proto";
+// google.api.field_behavior
+import "google/api/field_behavior.proto";
+// google.api.http
+import "google/api/http.proto";
+// google.api.resource_reference
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v1alpha/report.proto";
 
@@ -25,21 +32,21 @@ option java_multiple_files = true;
 service Reports {
   rpc GetReport(GetReportRequest) returns(Report) {
     option (google.api.http) = {
-      get: "/v1alpha/{name=measurementConsumers/{measurement_consumer}/reports/*}"
+      get: "/v1alpha/{name=measurementConsumers/*/reports/*}"
     };
     option (google.api.method_signature) = "name";
   }
 
   rpc ListReports(ListReportRequest) returns(ListReportResponse) {
     option (google.api.http) = {
-      get: "/v1alpha/{parent=measurementConsumers/measurement_consumer}/reports"
+      get: "/v1alpha/{parent=measurementConsumers/*}/reports"
     };
     option (google.api.method_signature) = "parent";
   }
 
   rpc CreateReport(CreateReportRequest) returns(Report) {
     option (google.api.http) = {
-      post: "/v1alpha/{parent=measurementConsumers/measurement_consumer}/reports"
+      post: "/v1alpha/{parent=measurementConsumers/*}/reports"
       body: "report"
     };
     option (google.api.method_signature) = "parent,report";
@@ -56,7 +63,7 @@ message GetReportRequest {
     }];
 }
 
-message ListReportRequest {
+message ListReportsRequest {
   // Format: measurementConsumers/{measurement_consumer}
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
@@ -78,7 +85,7 @@ message ListReportRequest {
   string page_token = 3;
 }
 
-message ListReportResponse {
+message ListReportsResponse {
   // The reports from the specified measurement consumer.
   repeated Report reports = 1;
 

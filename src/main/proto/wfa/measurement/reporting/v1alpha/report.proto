@@ -25,7 +25,7 @@ option java_multiple_files = true;
 
 message Report {
   option (google.api.resource) = {
-    type: "halo.wfanet.org/Report"
+    type: "reporting.halo-cmm.org/Report"
     pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
   };
 
