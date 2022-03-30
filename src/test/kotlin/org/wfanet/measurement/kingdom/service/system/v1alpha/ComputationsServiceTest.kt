@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -44,6 +45,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCo
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -343,25 +346,22 @@ class ComputationsServiceTest {
     fun expectedStreamMeasurementsRequest(
       updatedAfterSeconds: Long,
       lastSeenExternalComputationId: Long
-    ) =
-      StreamMeasurementsRequest.newBuilder()
-        .apply {
-          measurementView = InternalMeasurement.View.COMPUTATION
-          filterBuilder.apply {
-            addAllStates(
-              listOf(
-                InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
-                InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-                InternalMeasurement.State.PENDING_COMPUTATION,
-                InternalMeasurement.State.FAILED,
-                InternalMeasurement.State.CANCELLED
-              )
-            )
-            updatedAfterBuilder.seconds = updatedAfterSeconds
-            externalComputationIdAfter = lastSeenExternalComputationId
-          }
-        }
-        .build()
+    ): StreamMeasurementsRequest = streamMeasurementsRequest {
+      measurementView = InternalMeasurement.View.COMPUTATION
+      filter = filter {
+        states +=
+          listOf(
+            InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+            InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+            InternalMeasurement.State.PENDING_COMPUTATION,
+            InternalMeasurement.State.FAILED,
+            InternalMeasurement.State.CANCELLED
+          )
+        updatedAfter = timestamp { seconds = updatedAfterSeconds }
+        externalComputationIdAfter = lastSeenExternalComputationId
+        externalDuchyId = DUCHY_ID
+      }
+    }
 
     inOrder(internalMeasurementsServiceMock) {
       argumentCaptor<StreamMeasurementsRequest> {

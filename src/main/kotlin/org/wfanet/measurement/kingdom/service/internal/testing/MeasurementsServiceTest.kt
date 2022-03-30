@@ -1021,6 +1021,55 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamMeasurements with duchy filter only returns measurements with duchy as participant`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          details =
+            details.copy {
+              clearProtocolConfig()
+              clearDuchyProtocolConfig()
+            }
+        }
+      )
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      }
+      measurementView = Measurement.View.COMPUTATION
+    }
+
+    val measurements: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements[0].externalMeasurementId).isEqualTo(measurement1.externalMeasurementId)
+    assertThat(measurements[0].externalMeasurementId)
+      .isNotEqualTo(measurement2.externalMeasurementId)
+  }
+
+  @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
