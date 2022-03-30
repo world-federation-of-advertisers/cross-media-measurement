@@ -34,6 +34,6 @@ message EventGroup {
 
   // Resource name of the `DataProvider` associated with this `EventGroup`.
   // Immutable.
-  string data_provider = 2 [(google.api.resource_reference).type =
-    "halo.wfanet.org/DataProvider"];
+  string data_provider = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 }
