@@ -16,6 +16,13 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v1alpha;
 
+// google.api.method_signature
+import "google/api/client.proto";
+// google.api.field_behavior
+import "google/api/field_behavior.proto";
+// google.api.http
+import "google/api/http.proto";
+// google.api.resource_reference
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v1alpha/event_group.proto";
 
@@ -25,7 +32,7 @@ service EventGroups {
   rpc ListEventGroups(ListEventGroupsRequest)
     returns (ListEventGroupsResponse) {
     option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/data_provider}/eventGroups"
+      get: "/v1alpha/{parent=dataProviders/*}/eventGroups"
     };
     option (google.api.method_signature) = "parent";
   }
