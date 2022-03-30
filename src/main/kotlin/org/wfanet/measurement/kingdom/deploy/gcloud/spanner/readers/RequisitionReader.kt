@@ -182,14 +182,13 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
       val participantStructs =
-        if (!struct.isNull("ComputationParticipants"))
-          struct.getStructList("ComputationParticipants").associateBy {
-            val duchyId = it.getLong("DuchyId")
-            checkNotNull(DuchyIds.getExternalId(duchyId)) {
-              "Duchy with internal ID $duchyId not found"
-            }
+        struct.getStructList("ComputationParticipants").associateBy {
+          val duchyId = it.getLong("DuchyId")
+          checkNotNull(DuchyIds.getExternalId(duchyId)) {
+            "Duchy with internal ID $duchyId not found"
           }
-        else emptyMap()
+        }
+
       return buildRequisition(struct, struct, participantStructs)
     }
     fun buildRequisition(
