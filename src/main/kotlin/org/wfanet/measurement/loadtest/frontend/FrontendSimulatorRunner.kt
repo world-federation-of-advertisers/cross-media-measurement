@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.frontend
 
 import io.grpc.ManagedChannel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -74,7 +75,8 @@ abstract class FrontendSimulatorRunner : Runnable {
 
     runBlocking {
       // Runs the frontend simulator.
-      FrontendSimulator(
+      val frontendSimulator =
+        FrontendSimulator(
           measurementConsumerData,
           outputDpParams,
           dataProvidersStub,
@@ -82,10 +84,12 @@ abstract class FrontendSimulatorRunner : Runnable {
           measurementsStub,
           requisitionsStub,
           measurementConsumersStub,
-          SketchStore(storageClient),
-          flags.runId
+          SketchStore(storageClient)
         )
-        .process()
+
+      launch { frontendSimulator.executeReachAndFrequency(flags.runId + "-reach_frequency") }
+      launch { frontendSimulator.executeImpression(flags.runId + "-impression") }
+      launch { frontendSimulator.executeDuration(flags.runId + "-duration") }
     }
   }
 }
