@@ -24,8 +24,8 @@ option java_multiple_files = true;
 
 message EventGroupEntry {
   // Key of the map entry, which is an `EventGroup` resource name. Required.
-  string key = 1
-  [(google.api.resource_reference).type = "reporting.halo-cmm.org/EventGroup"];
+  string key = 1 [(google.api.resource_reference).type =
+                      "reporting.halo-cmm.org/EventGroup"];
 
   message Value {
     // Time interval over which the event data should be collected. Required.
