@@ -116,9 +116,9 @@ proto_library(
     srcs = ["reports_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":event_group_specifier",
-        ":report",
-        ":report_parameter",
+        ":event_group_specifier_proto",
+        ":report_proto",
+        ":report_parameter_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
