@@ -30,7 +30,7 @@ service EventGroups {
   // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
   // to list `EventGroup`s that the authenticated user does not have access to.
   rpc ListEventGroups(ListEventGroupsRequest)
-    returns (ListEventGroupsResponse) {
+      returns (ListEventGroupsResponse) {
     option (google.api.http) = {
       get: "/v1alpha/{parent=dataProviders/*}/eventGroups"
     };
@@ -43,7 +43,7 @@ message ListEventGroupsRequest {
   // used in place of the `DataProvider` ID to list across `DataProvider`s, in
   // which case a filter should be specified.
   string parent = 1
-  [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
   // The maximum number of resources to return. See https://aip.dev/158.
   int32 page_size = 2;

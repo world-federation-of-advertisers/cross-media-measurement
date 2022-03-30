@@ -32,11 +32,9 @@ message Report {
   // Resource name.
   string name = 1;
 
-  String measurement_consumer = 2 [
-    (google.api.resource_reference) = {
-      type: "halo.wfanet.org/MeasurementConsumer"
-    }
-  ];
+  String measurement_consumer = 2 [(google.api.resource_reference) = {
+    type: "halo.wfanet.org/MeasurementConsumer"
+  }];
 
   repeated EventGroupEntry event_group_entries = 3;
 
@@ -50,7 +48,6 @@ message Report {
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
-
   };
 
   State state = 5;

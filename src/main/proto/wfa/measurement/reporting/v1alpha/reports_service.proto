@@ -30,21 +30,21 @@ option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
 
 service Reports {
-  rpc GetReport(GetReportRequest) returns(Report) {
+  rpc GetReport(GetReportRequest) returns (Report) {
     option (google.api.http) = {
       get: "/v1alpha/{name=measurementConsumers/*/reports/*}"
     };
     option (google.api.method_signature) = "name";
   }
 
-  rpc ListReports(ListReportRequest) returns(ListReportResponse) {
+  rpc ListReports(ListReportRequest) returns (ListReportResponse) {
     option (google.api.http) = {
       get: "/v1alpha/{parent=measurementConsumers/*}/reports"
     };
     option (google.api.method_signature) = "parent";
   }
 
-  rpc CreateReport(CreateReportRequest) returns(Report) {
+  rpc CreateReport(CreateReportRequest) returns (Report) {
     option (google.api.http) = {
       post: "/v1alpha/{parent=measurementConsumers/*}/reports"
       body: "report"
@@ -58,9 +58,8 @@ message GetReportRequest {
   // Format: measurementConsumers/{measurement_consumer}/reports/{report}
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/Report"
-    }];
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
 }
 
 message ListReportsRequest {
@@ -69,7 +68,8 @@ message ListReportsRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       child_type: "reporting.halo-cmm.org/Report"
-    }];
+    }
+  ];
 
   // The maximum number of books to return. The service may return fewer than
   // this value.
@@ -101,10 +101,9 @@ message CreateReportRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       child_type: "reporting.halo-cmm.org/Report"
-    }];
+    }
+  ];
 
   // The report to create.
   Report report = 2 [(google.api.field_behavior) = REQUIRED];
 }
-
-
