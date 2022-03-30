@@ -182,7 +182,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     private fun buildRequisition(struct: Struct): Requisition {
       // Map of external Duchy ID to ComputationParticipant struct.
       val participantStructs =
-        if (isComputedMeasurement(struct))
+        if (!struct.isNull("ComputationParticipants"))
           struct.getStructList("ComputationParticipants").associateBy {
             val duchyId = it.getLong("DuchyId")
             checkNotNull(DuchyIds.getExternalId(duchyId)) {
@@ -203,18 +203,18 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
-      if (isComputedMeasurement(measurementStruct)) {
+      if (!measurementStruct.isNull("ExternalComputationId")) {
         externalComputationId = measurementStruct.getLong("ExternalComputationId")
-        if (state == Requisition.State.FULFILLED) {
-          val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
-          externalFulfillingDuchyId =
-            checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
-              "External ID not found for fulfilling Duchy $fulfillingDuchyId"
-            }
-        }
-        for ((externalDuchyId, participantStruct) in participantStructs) {
-          duchies[externalDuchyId] = buildDuchyValue(participantStruct)
-        }
+      }
+      if (state == Requisition.State.FULFILLED && !requisitionStruct.isNull("FulfillingDuchyId")) {
+        val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
+        externalFulfillingDuchyId =
+          checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
+            "External ID not found for fulfilling Duchy $fulfillingDuchyId"
+          }
+      }
+      for ((externalDuchyId, participantStruct) in participantStructs) {
+        duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
       details =
         requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
@@ -255,7 +255,5 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       protocolConfig = measurementDetails.protocolConfig
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
     }
-
-    private fun isComputedMeasurement(struct: Struct) = !struct.isNull("ExternalComputationId")
   }
 }
