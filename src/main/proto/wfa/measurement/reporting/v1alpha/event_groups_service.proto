@@ -44,12 +44,10 @@ message ListEventGroupsRequest {
   // https://aip.dev/158.
   string page_token = 3;
 
-  // Filter criteria. Repeated fields are treated as logical ORs, and multiple
-  // fields specified as logical ANDs.
   message Filter {
-    repeated string measurement_consumers = 1
-    [(google.api.resource_reference).type =
-      "halo.wfanet.org/MeasurementConsumer"];
+    // Raw CEL expression that is applied to a message which has a field for
+    // each event group template.
+    string expression = 1;
   }
   // Result filter.
   Filter filter = 4;

@@ -17,6 +17,8 @@ syntax = "proto3";
 package wfa.measurement.reporting.v1alpha;
 
 import "google/api/resource.proto";
+import "wfa/measurement/reporting/v1alpha/event_group_entry.proto";
+import "wfa/measurement/reporting/v1alpha/report_parameter.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
@@ -36,7 +38,7 @@ message Report {
     }
   ];
 
-  repeated EventGroupSpecifier event_group_specifiers = 3;
+  repeated EventGroupEntry event_group_entries = 3;
 
   ReportParameter report_parameter = 4;
 
@@ -50,6 +52,7 @@ message Report {
     FAILED = 3;
 
   };
+
   State state = 5;
 
   string result = 6;
