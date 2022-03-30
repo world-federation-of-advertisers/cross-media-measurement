@@ -25,7 +25,6 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -201,13 +200,11 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
       externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
       externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
-      if (!measurementStruct.isNull("ExternalComputationId")) {
-        externalComputationId = measurementStruct.getLong("ExternalComputationId")
-      }
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
       if (isComputedMeasurement(measurementStruct)) {
+        externalComputationId = measurementStruct.getLong("ExternalComputationId")
         if (state == Requisition.State.FULFILLED) {
           val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
           externalFulfillingDuchyId =
@@ -259,11 +256,6 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
     }
 
-    private fun isComputedMeasurement(struct: Struct): Boolean {
-      val measurementDetails =
-        struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
-      return measurementDetails.protocolConfig.protocolCase !=
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    }
+    private fun isComputedMeasurement(struct: Struct) = !struct.isNull("ExternalComputationId")
   }
 }

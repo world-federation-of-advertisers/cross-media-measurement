@@ -540,7 +540,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
-  fun `getRequisition returns expected direct requisition`() = runBlocking {
+  fun `getRequisition returns expected direct measurement`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val dataProviderValue = dataProvider.toDataProviderValue()
     val measurement =
@@ -606,7 +606,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
-  fun `getRequisitionByDataProviderId returns requisition`() = runBlocking {
+  fun `getRequisitionByDataProviderId returns measurement`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val measurement =
       population.createComputedMeasurement(
