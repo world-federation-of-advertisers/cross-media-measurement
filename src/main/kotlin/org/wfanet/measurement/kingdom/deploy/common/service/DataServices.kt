@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 
@@ -49,6 +50,7 @@ data class KingdomDataServices(
   val eventGroupsService: EventGroupsCoroutineImplBase,
   val measurementConsumersService: MeasurementConsumersCoroutineImplBase,
   val measurementsService: MeasurementsCoroutineImplBase,
+  val publicKeysService: PublicKeysCoroutineImplBase,
   val requisitionsService: RequisitionsCoroutineImplBase,
   val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
   val measurementLogEntriesService: MeasurementLogEntriesCoroutineImplBase,
