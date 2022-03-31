@@ -191,6 +191,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
 
       return buildRequisition(struct, struct, participantStructs)
     }
+
     fun buildRequisition(
       measurementStruct: Struct,
       requisitionStruct: Struct,
