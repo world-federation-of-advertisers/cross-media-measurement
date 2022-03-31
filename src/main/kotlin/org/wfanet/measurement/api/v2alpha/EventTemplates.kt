@@ -24,6 +24,7 @@ object EventTemplates {
 
   init {
     val registryBuilder = TypeRegistry.newBuilder()
+    // TODO(chipingyeh): Filter out messages causing exceptions and/or use ClassGraph instead.
     val classes = ClassPath.from(ClassLoader.getSystemClassLoader()).getTopLevelClasses()
     for (c in classes) {
       try {
