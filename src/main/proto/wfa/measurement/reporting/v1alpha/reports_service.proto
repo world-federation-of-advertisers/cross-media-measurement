@@ -21,7 +21,7 @@ import "google/api/client.proto";
 // google.api.field_behavior
 import "google/api/field_behavior.proto";
 // google.api.http
-import "google/api/http.proto";
+import "google/api/annotations.proto";
 // google.api.resource_reference
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v1alpha/report.proto";

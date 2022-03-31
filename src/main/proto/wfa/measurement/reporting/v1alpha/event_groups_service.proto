@@ -21,7 +21,7 @@ import "google/api/client.proto";
 // google.api.field_behavior
 import "google/api/field_behavior.proto";
 // google.api.http
-import "google/api/http.proto";
+import "google/api/annotations.proto";
 // google.api.resource_reference
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v1alpha/event_group.proto";
@@ -42,8 +42,12 @@ message ListEventGroupsRequest {
   // Resource key of the parent `DataProvider`. The wildcard ID (`-`) may be
   // used in place of the `DataProvider` ID to list across `DataProvider`s, in
   // which case a filter should be specified.
-  string parent = 1
-      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/EventGroup"
+    }
+  ];
 
   // The maximum number of resources to return. See https://aip.dev/158.
   int32 page_size = 2;
