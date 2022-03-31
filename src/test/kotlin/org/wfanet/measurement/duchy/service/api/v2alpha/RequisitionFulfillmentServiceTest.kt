@@ -30,7 +30,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -49,8 +48,8 @@ import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.common.provider
@@ -65,8 +64,8 @@ import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.recordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.RequisitionKey as SystemRequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -76,7 +75,6 @@ private const val COMPUTATION_ID = "xyz"
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private val DATA_PROVIDER_API_ID = externalIdToApiId(EXTERNAL_DATA_PROVIDER_ID)
 private const val REQUISITION_API_ID = "abcd"
-private const val NEXT_BLOB_PATH = "just a path"
 private const val NONCE = -3060866405677570814L // Hex: D5859E38A0A96502
 private val NONCE_HASH =
   HexString("45FEAA185D434E0EB4747F547F0918AA5B8403DBBD7F90D6F0D8C536E2D620D7")
@@ -104,15 +102,13 @@ private val REQUISITION_METADATA = requisitionMetadata {
   externalKey = REQUISITION_KEY
   details = requisitionDetails { nonceHash = NONCE_HASH.bytes }
 }
+private val REQUISITION_BLOB_CONTEXT = RequisitionBlobContext(COMPUTATION_ID, REQUISITION_API_ID)
 
 /** Test for [RequisitionFulfillmentService]. */
 @RunWith(JUnit4::class)
 class RequisitionFulfillmentServiceTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService()
   private val computationsServiceMock: ComputationsCoroutineImplBase = mockService()
-
-  private val tempDirectory = TemporaryFolder()
-  private lateinit var requisitionStore: RequisitionStore
 
   private val callerIdentityProvider = {
     provider {
@@ -121,19 +117,18 @@ class RequisitionFulfillmentServiceTest {
     }
   }
 
+  @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    val storageClient = FileSystemStorageClient(tempDirectory.root)
-    requisitionStore = RequisitionStore.forTesting(storageClient) { NEXT_BLOB_PATH }
     addService(requisitionsServiceMock)
     addService(computationsServiceMock)
   }
 
-  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
-
+  private lateinit var requisitionStore: RequisitionStore
   private lateinit var service: RequisitionFulfillmentService
 
   @Before
   fun initService() {
+    requisitionStore = RequisitionStore(InMemoryStorageClient())
     service =
       RequisitionFulfillmentService(
         RequisitionsCoroutineStub(grpcTestServerRule.channel),
@@ -154,12 +149,13 @@ class RequisitionFulfillmentServiceTest {
       onBlocking { getComputationToken(any()) }
         .thenReturn(getComputationTokenResponse { token = fakeToken })
     }
+    RequisitionBlobContext(COMPUTATION_ID, HEADER.name)
 
-    assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
-      .isEqualTo(FULFILLED_RESPONSE)
-    val data = assertNotNull(requisitionStore.get(NEXT_BLOB_PATH))
-    assertThat(data).contentEqualTo(TEST_REQUISITION_DATA)
+    val response = service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA))
 
+    assertThat(response).isEqualTo(FULFILLED_RESPONSE)
+    val blob = assertNotNull(requisitionStore.get(REQUISITION_BLOB_CONTEXT))
+    assertThat(blob).contentEqualTo(TEST_REQUISITION_DATA)
     verifyProtoArgument(
         computationsServiceMock,
         ComputationsCoroutineImplBase::recordRequisitionBlobPath
@@ -168,10 +164,9 @@ class RequisitionFulfillmentServiceTest {
         recordRequisitionBlobPathRequest {
           token = fakeToken
           key = REQUISITION_KEY
-          blobPath = NEXT_BLOB_PATH
+          blobPath = blob.blobKey
         }
       )
-
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(
         systemFulfillRequisitionRequest {
@@ -183,10 +178,11 @@ class RequisitionFulfillmentServiceTest {
 
   @Test
   fun `fulfill requisition, already fulfilled locally should skip writing`() = runBlocking {
+    val blobKey = REQUISITION_BLOB_CONTEXT.blobKey
     val fakeToken = computationToken {
       globalComputationId = COMPUTATION_ID
       computationDetails = COMPUTATION_DETAILS
-      requisitions += REQUISITION_METADATA.copy { path = NEXT_BLOB_PATH }
+      requisitions += REQUISITION_METADATA.copy { path = blobKey }
     }
     computationsServiceMock.stub {
       onBlocking { getComputationToken(any()) }
@@ -196,7 +192,7 @@ class RequisitionFulfillmentServiceTest {
     assertThat(service.fulfillRequisition(HEADER.withContent(TEST_REQUISITION_DATA)))
       .isEqualTo(FULFILLED_RESPONSE)
     // The blob is not created since it is marked already fulfilled.
-    assertNull(requisitionStore.get(NEXT_BLOB_PATH))
+    assertNull(requisitionStore.get(blobKey))
 
     verifyProtoArgument(requisitionsServiceMock, RequisitionsCoroutineImplBase::fulfillRequisition)
       .isEqualTo(

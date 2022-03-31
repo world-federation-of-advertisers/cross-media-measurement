@@ -13,7 +13,7 @@ kt_jvm_library(
     srcs = ["SketchStore.kt"],
     exports = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client"],
     deps = [
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:store",
     ],
