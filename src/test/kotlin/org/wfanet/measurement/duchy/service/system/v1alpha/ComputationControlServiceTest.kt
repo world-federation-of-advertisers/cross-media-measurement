@@ -58,7 +58,6 @@ private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
-private const val NEXT_BLOB_PATH = "just a path"
 private const val BLOB_ID = 1234L
 
 @RunWith(JUnit4::class)
@@ -93,7 +92,7 @@ class ComputationControlServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    computationStore = ComputationStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    computationStore = ComputationStore(storageClient)
     addService(mockAsyncControlService)
   }
 
@@ -124,6 +123,7 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 send setup inputs`() = runBlocking {
     val id = "311311"
+    val blobKey = "$id/WAIT_SETUP_PHASE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
     withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
@@ -146,17 +146,18 @@ class ComputationControlServiceTest {
             computationStage =
               LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
             blobId = BLOB_ID
-            blobPath = NEXT_BLOB_PATH
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
   fun `liquid legions v2 send reach phase inputs`() = runBlocking {
     val id = "444444"
+    val blobKey = "$id/WAIT_EXECUTION_PHASE_ONE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
     withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
@@ -180,17 +181,18 @@ class ComputationControlServiceTest {
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
                 .toProtocolStage()
             blobId = BLOB_ID
-            blobPath = NEXT_BLOB_PATH
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
   fun `liquid legions v2 send filtering phase inputs`() = runBlocking {
     val id = "55555"
+    val blobKey = "$id/WAIT_EXECUTION_PHASE_TWO_INPUTS/$BLOB_ID"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, id)
     withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
@@ -214,17 +216,19 @@ class ComputationControlServiceTest {
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
                 .toProtocolStage()
             blobId = BLOB_ID
-            blobPath = NEXT_BLOB_PATH
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
   fun `liquid legions v2 send frequency phase inputs`() = runBlocking {
     val id = "777777"
+    val blobKey = "$id/WAIT_EXECUTION_PHASE_THREE_INPUTS/$BLOB_ID"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT, id)
     withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
@@ -248,11 +252,11 @@ class ComputationControlServiceTest {
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
                 .toProtocolStage()
             blobId = BLOB_ID
-            blobPath = NEXT_BLOB_PATH
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
