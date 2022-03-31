@@ -250,6 +250,13 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   fillMeasurementCommon(struct)
 
+  if (struct.isNull("ExternalComputationId")) {
+    for (requisitionStruct in struct.getStructList("Requisitions")) {
+      requisitions += RequisitionReader.buildRequisition(struct, requisitionStruct, mapOf())
+    }
+    return
+  }
+
   val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
   val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
   val externalComputationId = ExternalId(struct.getLong("ExternalComputationId"))
