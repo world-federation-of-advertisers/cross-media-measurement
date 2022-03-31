@@ -32,7 +32,7 @@ message Report {
   // Resource name.
   string name = 1;
 
-  String measurement_consumer = 2 [(google.api.resource_reference) = {
+  string measurement_consumer = 2 [(google.api.resource_reference) = {
     type: "halo.wfanet.org/MeasurementConsumer"
   }];
 
