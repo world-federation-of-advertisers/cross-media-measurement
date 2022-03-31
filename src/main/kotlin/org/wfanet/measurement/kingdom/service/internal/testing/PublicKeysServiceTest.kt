@@ -138,7 +138,7 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `updatePublicKey throws not found when certificate not found`() = runBlocking {
+  fun `updatePublicKey throws NOT_FOUND when mc certificate not found`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
@@ -160,7 +160,28 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `updatePublicKey throws not found when measurement consumer not found`() = runBlocking {
+  fun `updatePublicKey throws NOT_FOUND when data provider certificate not found`() = runBlocking {
+    val dataProvider = population.createDataProvider(dataProvidersService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        publicKeysService.updatePublicKey(
+          updatePublicKeyRequest {
+            externalDataProviderId = dataProvider.externalDataProviderId
+            externalCertificateId = dataProvider.certificate.externalCertificateId + 1L
+            apiVersion = API_VERSION
+            publicKey = dataProvider.details.publicKey.concat(PUBLIC_KEY)
+            publicKeySignature =
+              dataProvider.details.publicKeySignature.concat(PUBLIC_KEY_SIGNATURE)
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `updatePublicKey throws NOT_FOUND when measurement consumer not found`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
@@ -182,7 +203,7 @@ abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `updatePublicKey throws not found when data provider not found`() = runBlocking {
+  fun `updatePublicKey throws NOT_FOUND when data provider not found`() = runBlocking {
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val exception =
