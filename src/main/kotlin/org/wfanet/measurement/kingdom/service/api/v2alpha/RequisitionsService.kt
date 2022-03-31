@@ -423,10 +423,6 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
         states.containsAll(requisitionsStatesList) && requisitionsStatesList.containsAll(states)
       ) { "Arguments must be kept the same when using a page token" }
 
-      if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
-        pageSize = source.pageSize
-      }
-
       grpcRequire(
         measurementStates.containsAll(measurementsStatesList) &&
           measurementsStatesList.containsAll(measurementStates)
