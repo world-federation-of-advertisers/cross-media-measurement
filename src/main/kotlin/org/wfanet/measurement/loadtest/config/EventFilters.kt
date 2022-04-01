@@ -16,12 +16,16 @@ package org.wfanet.measurement.loadtest.config
 
 private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
 
-/**
- * Values of this map are anded to create the event filter to be sent to the EDPs.
- *
- * For purposes of this simulation, all of the EDPs register the same templates and receive the same
- * filter from the MC.
- *
- * TODO(@uakyol): Add [date], [socialGrade], [gender] fields once filtration is implemented.
- */
-val EVENT_TEMPLATES_TO_FILTERS_MAP = mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
+object EventFilters {
+
+  /**
+   * Values of this map are anded to create the event filter to be sent to the EDPs.
+   *
+   * For purposes of this simulation, all of the EDPs register the same templates and receive the
+   * same filter from the MC.
+   *
+   * TODO(@uakyol): Add [date], [socialGrade], [gender] fields once filtration is implemented.
+   */
+  val EVENT_TEMPLATES_TO_FILTERS_MAP =
+    mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
+}
