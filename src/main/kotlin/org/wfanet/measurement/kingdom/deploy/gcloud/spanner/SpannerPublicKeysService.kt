@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,47 +19,51 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.ErrorCode
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt
+import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest
+import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyResponse
+import org.wfanet.measurement.internal.kingdom.updatePublicKeyResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdatePublicKey
 
-class SpannerMeasurementLogEntriesService(
+class SpannerPublicKeysService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
-) : MeasurementLogEntriesCoroutineImplBase() {
-  override suspend fun createDuchyMeasurementLogEntry(
-    request: CreateDuchyMeasurementLogEntryRequest
-  ): DuchyMeasurementLogEntry {
+) : PublicKeysGrpcKt.PublicKeysCoroutineImplBase() {
 
-    if (request.measurementLogEntryDetails.hasError()) {
-      grpcRequire(request.measurementLogEntryDetails.error.type == TRANSIENT) {
-        "MeasurementLogEntries Service only supports TRANSIENT errors, " +
-          "use FailComputationParticipant instead."
-      }
-    }
+  override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): UpdatePublicKeyResponse {
+    grpcRequire(
+      request.externalDataProviderId != 0L || request.externalMeasurementConsumerId != 0L
+    ) { "Parent Id is specified" }
+
+    grpcRequire(request.externalCertificateId != 0L) { "Certificate Id unspecified" }
+
+    grpcRequire(request.apiVersion.isNotBlank()) { "API version unspecified" }
+
+    grpcRequire(!request.publicKey.isEmpty) { "Public key unspecified" }
+    grpcRequire(!request.publicKeySignature.isEmpty) { "Public key signature unspecified" }
 
     try {
-      return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator)
+      UpdatePublicKey(request).execute(client, idGenerator)
+      return updatePublicKeyResponse {}
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        ErrorCode.MEASUREMENT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Measurement not found" }
-        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
+        ErrorCode.CERTIFICATE_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Certificate not found" }
+        ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.DUCHY_NOT_FOUND,
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.ACCOUNT_NOT_FOUND,
         ErrorCode.API_KEY_NOT_FOUND,
         ErrorCode.PERMISSION_DENIED,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
         ErrorCode.REQUISITION_NOT_FOUND,

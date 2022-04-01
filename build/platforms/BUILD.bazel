@@ -81,9 +81,9 @@ alias(
 )
 
 platform(
-    name = "ubuntu_18_04_rbe",
+    name = "ubuntu_20_04_rbe",
     constraint_values = [
-        ":glibc_2_27",
+        ":glibc_2_31",
     ],
     parents = [
         "@wfa_measurement_system//third_party/rbe_configs/config:platform",

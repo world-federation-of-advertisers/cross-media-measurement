@@ -22,9 +22,11 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroupMetadataDescriptor
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroupMetadataDescriptor
 
 class SpannerEventGroupMetadataDescriptorsService(
   private val idGenerator: IdGenerator,
@@ -58,6 +60,7 @@ class SpannerEventGroupMetadataDescriptorsService(
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
@@ -76,5 +79,42 @@ class SpannerEventGroupMetadataDescriptorsService(
       )
       ?.eventGroupMetadataDescriptor
       ?: failGrpc(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found" }
+  }
+
+  override suspend fun updateEventGroupMetadataDescriptor(
+    request: UpdateEventGroupMetadataDescriptorRequest
+  ): EventGroupMetadataDescriptor {
+    try {
+      return UpdateEventGroupMetadataDescriptor(request.eventGroupMetadataDescriptor)
+        .execute(client, idGenerator)
+    } catch (e: KingdomInternalException) {
+      when (e.code) {
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found" }
+        ErrorCode.DATA_PROVIDER_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+        ErrorCode.CERTIFICATE_IS_INVALID,
+        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
+        ErrorCode.ACCOUNT_NOT_FOUND,
+        ErrorCode.API_KEY_NOT_FOUND,
+        ErrorCode.PERMISSION_DENIED,
+        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
+        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
+        ErrorCode.DUCHY_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+        ErrorCode.REQUISITION_STATE_ILLEGAL,
+        ErrorCode.EVENT_GROUP_INVALID_ARGS,
+        ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.UNKNOWN_ERROR,
+        ErrorCode.UNRECOGNIZED -> throw e
+      }
+    }
   }
 }

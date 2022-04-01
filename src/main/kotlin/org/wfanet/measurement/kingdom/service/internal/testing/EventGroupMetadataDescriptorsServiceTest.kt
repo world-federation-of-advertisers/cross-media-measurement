@@ -34,8 +34,10 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest
 
 private const val RANDOM_SEED = 1
 private val DETAILS = details {
@@ -178,6 +180,61 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       assertThat(secondCreatedEventGroupMetadataDescriptorAttempt)
         .isEqualTo(createdEventGroupMetadataDescriptor)
     }
+
+  @Test
+  fun `updateEventGroupMetadataDescriptor fails for missing EventGroupMetadataDescriptor`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupMetadataDescriptorService.updateEventGroupMetadataDescriptor(
+            updateEventGroupMetadataDescriptorRequest {
+              this.eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+                this.externalDataProviderId = 1L
+                details = DETAILS
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("EventGroupMetadataDescriptor not found")
+    }
+
+  @Test
+  fun `updateEventGroupMetadataDescriptor succeeds`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+      this.externalDataProviderId = externalDataProviderId
+      details = DETAILS
+    }
+
+    val createdEventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor
+      )
+
+    val modifyEventGroupMetadataDescriptor =
+      createdEventGroupMetadataDescriptor.copy {
+        details = details { apiVersion = "alternate version" }
+      }
+
+    val updatedEventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptorService.updateEventGroupMetadataDescriptor(
+        updateEventGroupMetadataDescriptorRequest {
+          this.eventGroupMetadataDescriptor = modifyEventGroupMetadataDescriptor
+        }
+      )
+
+    assertThat(updatedEventGroupMetadataDescriptor)
+      .isEqualTo(
+        createdEventGroupMetadataDescriptor
+          .toBuilder()
+          .also { it.details = updatedEventGroupMetadataDescriptor.details }
+          .build()
+      )
+  }
 }
 
 data class EventGroupMetadataDescriptorsAndHelperServices<

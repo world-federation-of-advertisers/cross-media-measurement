@@ -16,13 +16,13 @@
 
 set -eEu -o pipefail
 
-readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:a1fee281b05fdaa769ff4e1d85cba831c046fbd7f177f31c06f3bf3840f4dec0}"
+readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:0568ae6e1fbc9e23822a649f6fe43618ad04371d76fb3bb47e63c54b8609f6eb}"
 readonly DOCKER="${DOCKER:-docker}"
+readonly DOCKER_HOST="${DOCKER_HOST:-unix://var/run/docker.sock}"
 readonly CONTAINER_USER='builder'
 readonly CONTAINER_HOME="/${CONTAINER_USER}"
 readonly OUTPUT_BASE="${PWD}/bazel-container-output"
 readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${CONTAINER_USER}"
-readonly WORKING_DIR="${CONTAINER_HOME}/workspace"
 readonly BAZELISK_HOME="${CONTAINER_HOME}/.cache/bazelisk"
 readonly GCLOUD_SDK_CONFIG="${CONTAINER_HOME}/.config/gcloud"
 
@@ -33,16 +33,23 @@ check_bash_version() {
   fi
 }
 
-is_podman() {
-  [[ "$($DOCKER -v)" == *podman* ]]
+check_docker_is_podman() {
+  if [[ "$($DOCKER -v)" == *podman* ]]; then
+    echo 'Podman is not supported by TestContainers' >&2
+    exit 1
+  fi
+}
+
+get_docker_socket() {
+  if [[ "${DOCKER_HOST}" != 'unix://'* ]]; then
+    echo 'DOCKER_HOST is not a Unix socket' >&2
+    exit 1
+  fi
+
+  echo "${DOCKER_HOST##unix://}"
 }
 
 is_rootless() {
-  if is_podman; then
-    [[ "$($DOCKER info --format '{{.Host.Security.Rootless}}')" == 'true' ]]
-    return
-  fi
-
   [[ "$($DOCKER info --format '{{.SecurityOptions}}')" == *rootless* ]] ||
     [[ "$($DOCKER version --format '{{.Client.Os}}')" == 'darwin' ]]
 }
@@ -87,6 +94,11 @@ ensure_host_bazelisk_cache_dir() {
 
 main() {
   check_bash_version
+  check_docker_is_podman
+
+  local docker_socket
+  docker_socket="$(get_docker_socket)"
+  readonly docker_socket
 
   local host_output_user_root
   host_output_user_root="$(get_host_output_user_root)"
@@ -101,6 +113,8 @@ main() {
   output_volume="$(get_output_volume)"
   readonly output_volume
 
+  mkdir -p "${OUTPUT_BASE}"
+
   local -a docker_options=(
     '-it'
     '--rm'
@@ -110,15 +124,19 @@ main() {
       "HOME=${CONTAINER_HOME}"
     '--env'
       "BAZELISK_HOME=${BAZELISK_HOME}"
+    '--env'
+      'TESTCONTAINERS_RYUK_DISABLED=true'
     '--mount'
-      "type=bind,source=${PWD},target=${WORKING_DIR},readonly"
+      "type=bind,source=${PWD},target=${PWD},readonly"
     '--mount'
       "type=bind,source=${host_output_user_root},target=${OUTPUT_USER_ROOT}"
     '--mount'
       "type=bind,source=${host_bazelisk_cache_dir},target=${BAZELISK_HOME}"
     '--mount'
       "type=volume,source=${output_volume},target=${OUTPUT_BASE}"
-    "--workdir=${WORKING_DIR}"
+    '--mount'
+      "type=bind,source=${docker_socket},target=/var/run/docker.sock"
+    "--workdir=${PWD}"
   )
 
   if hash gcloud; then
@@ -145,7 +163,8 @@ main() {
     # Set volume ownership.
     ${DOCKER} run --rm \
       --mount type=volume,source="${output_volume}",target="${OUTPUT_BASE}" \
-      --entrypoint=/bin/chown "${IMAGE}" "${owner}" "${OUTPUT_BASE}"
+      --entrypoint=/bin/sh "${IMAGE}" \
+      "-c 'touch ${OUTPUT_BASE}/.initialized && chown ${owner} ${OUTPUT_BASE}'"
 
     docker_options+=(
       "--user=${owner}"
