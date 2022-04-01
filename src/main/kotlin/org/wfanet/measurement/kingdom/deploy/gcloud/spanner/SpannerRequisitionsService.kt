@@ -100,7 +100,7 @@ class SpannerRequisitionsService(
           }
         }
         FulfillRequisitionRequest.ParamsCase.PARAMS_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "params field not set" }
+          failGrpc(Status.INVALID_ARGUMENT) { "params field not specified" }
       }
     }
 
@@ -130,6 +130,7 @@ class SpannerRequisitionsService(
           ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
           ErrorCode.EVENT_GROUP_INVALID_ARGS,
           ErrorCode.EVENT_GROUP_NOT_FOUND,
+          ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
           ErrorCode.UNKNOWN_ERROR,
           ErrorCode.UNRECOGNIZED -> throw e
         }
@@ -176,6 +177,7 @@ class SpannerRequisitionsService(
         ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }

@@ -34,8 +34,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplate
-import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
@@ -85,8 +84,6 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
-private const val EVENT_TEMPLATE_PACKAGE_NAME =
-  "org.wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -386,9 +383,9 @@ class FrontendSimulator(
    */
   private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
-      registeredEventTemplates.associateWith {
-        EventTemplate(typeRegistry.getDescriptorForType(it)!!).name
-      }
+      registeredEventTemplates
+        .map { it to (EventTemplates.getEventTemplateForType(it)!!).name }
+        .toMap()
 
     if (eventTemplateFilters.isEmpty()) {
       return ""
@@ -453,8 +450,6 @@ class FrontendSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private val typeRegistry: EventTemplateTypeRegistry =
-      EventTemplateTypeRegistry.createRegistryForPackagePrefix(EVENT_TEMPLATE_PACKAGE_NAME)
     init {
       loadLibrary(
         name = "estimators",

@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 
 @RunWith(JUnit4::class)
 class EventFilterValidatorTest {
