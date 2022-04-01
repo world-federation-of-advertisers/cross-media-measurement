@@ -36,6 +36,7 @@ class SpannerDataServices(
       SpannerEventGroupsService(idGenerator, client),
       SpannerMeasurementConsumersService(idGenerator, client),
       SpannerMeasurementsService(idGenerator, client),
+      SpannerPublicKeysService(idGenerator, client),
       SpannerRequisitionsService(idGenerator, client),
       SpannerComputationParticipantsService(idGenerator, client),
       SpannerMeasurementLogEntriesService(idGenerator, client),
