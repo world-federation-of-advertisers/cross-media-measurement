@@ -384,7 +384,7 @@ class FrontendSimulator(
   private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
       registeredEventTemplates
-        .map { it to EventTemplate(typeRegistry.getDescriptorForType(it)!!).name }
+        .map { it to (EventTemplates.getEventTemplateForType(it)!!).name }
         .toMap()
 
     if (eventTemplateFilters.isEmpty()) {
