@@ -54,7 +54,6 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val API_AUTHENTICATION_KEY = "authentication key"
-private const val RUN_ID = "run id"
 
 private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
@@ -149,8 +148,7 @@ class FrontendSimulatorImplTest {
         measurementsStub,
         requisitionsStub,
         measurementConsumersStub,
-        sketchStore,
-        RUN_ID
+        sketchStore
       )
 
     assertThat(frontendSimulator.getExpectedResult("foo", LIQUID_LEGIONS_V2_PROTOCOL_CONFIG))

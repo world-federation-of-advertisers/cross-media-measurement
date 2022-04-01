@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -70,6 +71,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTempl
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -140,86 +142,87 @@ class EdpSimulator(
   /** Executes the requisition fulfillment workflow. */
   private suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
-    val requisition = getRequisition()
-    if (requisition == null ||
-        requisition.measurementState != Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-    ) {
+    val requisitions = getRequisitions()
+    if (requisitions.isEmpty()) {
       logger.info("No unfulfilled requisition. Polling again later...")
       return
     }
-    logger.info("Processing requisition ${requisition.name}...")
 
-    if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2) {
-      logger.info(
-        "Skipping requisition ${requisition.name}, only LIQUID_LEGIONS_V2 is supported..."
-      )
-      return
-    }
+    for (requisition in requisitions) {
+      logger.info("Processing requisition ${requisition.name}...")
 
-    val measurementConsumerCertificate =
-      certificatesStub.getCertificate(
-        getCertificateRequest { name = requisition.measurementConsumerCertificate }
-      )
-
-    val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
-    val measurementConsumerCertificateX509 = readCertificate(measurementConsumerCertificate.x509Der)
-    if (!verifyMeasurementSpec(
-        measurementSpecSignature = requisition.measurementSpec.signature,
-        measurementSpec = measurementSpec,
-        measurementConsumerCertificate = measurementConsumerCertificateX509,
-      )
-    ) {
-      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec.")
-      return
-    }
-
-    val requisitionFingerprint = computeRequisitionFingerprint(requisition)
-    val signedRequisitionSpec: SignedData =
-      decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
-    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
-    if (!verifyRequisitionSpec(
-        requisitionSpecSignature = signedRequisitionSpec.signature,
-        requisitionSpec = requisitionSpec,
-        measurementConsumerCertificate = measurementConsumerCertificateX509,
-        measurementSpec = measurementSpec,
-      )
-    ) {
-      logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec.")
-      return
-    }
-
-    val combinedPublicKey =
-      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
-    val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
-
-    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-
-    val sketch =
-      try {
-        generateSketch(
-          sketchConfig,
-          requisitionSpec.eventGroupsList.get(0).value.filter,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
+      val measurementConsumerCertificate =
+        certificatesStub.getCertificate(
+          getCertificateRequest { name = requisition.measurementConsumerCertificate }
         )
-      } catch (e: EventFilterValidationException) {
-        logger.log(
-          Level.WARNING,
-          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
-          e
+
+      val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+      val measurementConsumerCertificateX509 =
+        readCertificate(measurementConsumerCertificate.x509Der)
+      if (!verifyMeasurementSpec(
+          measurementSpecSignature = requisition.measurementSpec.signature,
+          measurementSpec = measurementSpec,
+          measurementConsumerCertificate = measurementConsumerCertificateX509,
         )
-        return
+      ) {
+        logger.info("RequisitionFulfillmentWorkflow failed due to: invalid measurementSpec.")
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          "Invalid measurementSpec"
+        )
       }
 
-    sketchStore.write(requisition, sketch.toByteString())
-    val sketchChunks: Flow<ByteString> =
-      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
-    fulfillRequisition(
-      requisition.name,
-      requisitionFingerprint,
-      requisitionSpec.nonce,
-      sketchChunks
+      val requisitionFingerprint = computeRequisitionFingerprint(requisition)
+      val signedRequisitionSpec: SignedData =
+        decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
+      val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+      if (!verifyRequisitionSpec(
+          requisitionSpecSignature = signedRequisitionSpec.signature,
+          requisitionSpec = requisitionSpec,
+          measurementConsumerCertificate = measurementConsumerCertificateX509,
+          measurementSpec = measurementSpec,
+        )
+      ) {
+        logger.info("RequisitionFulfillmentWorkflow failed due to: invalid requisitionSpec.")
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          "Invalid requisitionSpec"
+        )
+      }
+
+      if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
+      ) {
+        logger.info(
+          "Skipping requisition ${requisition.name}, only LIQUID_LEGIONS_V2 is supported..."
+        )
+        // TODO(@tristanvuong): fulfill direct measurements
+        continue
+      } else {
+        fulfillRequisitionForReachAndFrequencyMeasurement(
+          requisition,
+          measurementSpec,
+          requisitionFingerprint,
+          requisitionSpec
+        )
+      }
+    }
+  }
+
+  private suspend fun refuseRequisition(
+    requisitionName: String,
+    justification: Requisition.Refusal.Justification,
+    message: String
+  ): Requisition {
+    return requisitionsStub.refuseRequisition(
+      refuseRequisitionRequest {
+        name = requisitionName
+        refusal = refusal {
+          this.justification = justification
+          this.message = message
+        }
+      }
     )
   }
 
@@ -230,7 +233,9 @@ class EdpSimulator(
     vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
-    validateEventFilter(eventFilter)
+    if (eventFilter.expression.isNotBlank()) {
+      validateEventFilter(eventFilter)
+    }
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
@@ -278,6 +283,47 @@ class EdpSimulator(
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
 
     return response.encryptedSketch.asBufferedFlow(1024)
+  }
+
+  private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
+    requisition: Requisition,
+    measurementSpec: MeasurementSpec,
+    requisitionFingerprint: ByteString,
+    requisitionSpec: RequisitionSpec
+  ) {
+    val combinedPublicKey =
+      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
+    val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
+
+    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
+    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
+
+    val sketch =
+      try {
+        generateSketch(
+          sketchConfig,
+          requisitionSpec.eventGroupsList[0].value.filter,
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth
+        )
+      } catch (e: EventFilterValidationException) {
+        logger.log(
+          Level.WARNING,
+          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
+          e
+        )
+        return
+      }
+
+    sketchStore.write(requisition, sketch.toByteString())
+    val sketchChunks: Flow<ByteString> =
+      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
+    fulfillRequisition(
+      requisition.name,
+      requisitionFingerprint,
+      requisitionSpec.nonce,
+      sketchChunks
+    )
   }
 
   private fun validateEventFilter(eventFilter: EventFilter) {
@@ -339,7 +385,7 @@ class EdpSimulator(
       .elGamalKeys
   }
 
-  private suspend fun getRequisition(): Requisition? {
+  private suspend fun getRequisitions(): List<Requisition> {
     val request = listRequisitionsRequest {
       parent = edpData.name
       filter = filter {
@@ -348,7 +394,7 @@ class EdpSimulator(
       }
     }
 
-    return requisitionsStub.listRequisitions(request).requisitionsList.firstOrNull()
+    return requisitionsStub.listRequisitions(request).requisitionsList
   }
 
   companion object {
