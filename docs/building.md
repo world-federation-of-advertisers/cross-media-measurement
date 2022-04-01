@@ -93,6 +93,19 @@ all of your commands from inside the container. You may even want to install
 IntelliJ inside the container and then use X11 forwarding to use it from your
 host machine.
 
+### Running TestContainer-based Tests
+
+There is some extra setup needed for running tests that use TestContainers
+inside of a Docker container. The
+[`tools/bazel-container`](../tools/bazel-container) script will take care of
+these for you, but for reference:
+
+*   Follow the instructions for sibling Docker containers in
+    [Patterns for running tests inside a Docker container](https://www.testcontainers.org/supported_docker_environment/continuous_integration/dind_patterns/)
+*   Set the `TESTCONTAINERS_RYUK_DISABLED` environment variable to `true` within
+    the container. See
+    https://github.com/opentable/otj-pg-embedded/issues/166#issuecomment-1020602855.
+
 ### Hybrid Development
 
 If your host machine has too new a glibc version but meets all other

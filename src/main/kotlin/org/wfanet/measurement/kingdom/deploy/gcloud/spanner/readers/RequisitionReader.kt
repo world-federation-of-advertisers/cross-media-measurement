@@ -188,6 +188,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
             "Duchy with internal ID $duchyId not found"
           }
         }
+
       return buildRequisition(struct, struct, participantStructs)
     }
 
@@ -199,24 +200,24 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
       externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
       externalRequisitionId = requisitionStruct.getLong("ExternalRequisitionId")
-      if (!measurementStruct.isNull("ExternalComputationId")) {
-        externalComputationId = measurementStruct.getLong("ExternalComputationId")
-      }
       externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
       updateTime = requisitionStruct.getTimestamp("UpdateTime").toProto()
       state = requisitionStruct.getProtoEnum("RequisitionState", Requisition.State::forNumber)
-      if (state == Requisition.State.FULFILLED) {
+      if (!measurementStruct.isNull("ExternalComputationId")) {
+        externalComputationId = measurementStruct.getLong("ExternalComputationId")
+      }
+      if (state == Requisition.State.FULFILLED && !requisitionStruct.isNull("FulfillingDuchyId")) {
         val fulfillingDuchyId = requisitionStruct.getLong("FulfillingDuchyId")
         externalFulfillingDuchyId =
           checkNotNull(DuchyIds.getExternalId(fulfillingDuchyId)) {
             "External ID not found for fulfilling Duchy $fulfillingDuchyId"
           }
       }
-      details =
-        requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
       for ((externalDuchyId, participantStruct) in participantStructs) {
         duchies[externalDuchyId] = buildDuchyValue(participantStruct)
       }
+      details =
+        requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
       parentMeasurement = buildParentMeasurement(measurementStruct)
     }

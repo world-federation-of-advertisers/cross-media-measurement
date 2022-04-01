@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2.alpha.ListRequisitionsPageTokenKt.previousP
 import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -72,6 +73,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -107,7 +109,7 @@ private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
 
 private val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/AAAAAAAAAHs"
-private val INVALID_REQUISITION_NAME = "requisitions/AAAAAAAAAHs"
+private const val INVALID_REQUISITION_NAME = "requisitions/AAAAAAAAAHs"
 
 private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 
@@ -309,6 +311,60 @@ class RequisitionsServiceTest {
   }
 
   @Test
+  fun `listRequisitions with measurement states filter set uses measurement states in filter`() =
+    runBlocking {
+      whenever(internalRequisitionMock.streamRequisitions(any()))
+        .thenReturn(flowOf(INTERNAL_REQUISITION, INTERNAL_REQUISITION, INTERNAL_REQUISITION))
+
+      val request = listRequisitionsRequest {
+        parent = DATA_PROVIDER_NAME
+        pageSize = 2
+        filter = filter { measurementStates += Measurement.State.FAILED }
+      }
+
+      val result =
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listRequisitions(request) }
+        }
+
+      val expected = listRequisitionsResponse {
+        requisitions += REQUISITION
+        requisitions += REQUISITION
+        val requisitionPageToken = listRequisitionsPageToken {
+          pageSize = 2
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          measurementStates += Measurement.State.FAILED
+          lastRequisition = previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+        }
+        nextPageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+      }
+
+      val streamRequisitionRequest =
+        captureFirst<StreamRequisitionsRequest> {
+          verify(internalRequisitionMock).streamRequisitions(capture())
+        }
+
+      assertThat(streamRequisitionRequest)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          streamRequisitionsRequest {
+            limit = 3
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                states += VISIBLE_REQUISITION_STATES
+                externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+                measurementStates += InternalMeasurement.State.FAILED
+              }
+          }
+        )
+
+      assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    }
+
+  @Test
   fun `listRequisitions with more results remaining returns response with next page token`() =
     runBlocking {
       whenever(internalRequisitionMock.streamRequisitions(any()))
@@ -504,6 +560,35 @@ class RequisitionsServiceTest {
         }
         pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
         filter = filter { states += State.REFUSED }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.listRequisitions(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `listRequisitions throws INVALID ARGUMENT when measurementStates doesn't match pagetoken `() =
+    runBlocking {
+      whenever(internalRequisitionMock.streamRequisitions(any()))
+        .thenReturn(flowOf(INTERNAL_REQUISITION))
+
+      val request = listRequisitionsRequest {
+        parent = DATA_PROVIDER_NAME
+        val requisitionPageToken = listRequisitionsPageToken {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          lastRequisition = previousPageEnd {
+            externalRequisitionId = EXTERNAL_REQUISITION_ID
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          }
+          measurementStates += Measurement.State.FAILED
+        }
+        pageToken = requisitionPageToken.toByteArray().base64UrlEncode()
+        filter = filter { measurementStates += Measurement.State.CANCELLED }
       }
 
       val exception =
@@ -900,6 +985,7 @@ class RequisitionsServiceTest {
           externalProtocolConfigId = "llv2"
           liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
+        state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
       }
     }
 
@@ -960,6 +1046,7 @@ class RequisitionsServiceTest {
       }
 
       state = State.FULFILLED
+      measurementState = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
     }
   }
 }

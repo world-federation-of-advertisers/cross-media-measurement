@@ -100,7 +100,7 @@ class SpannerRequisitionsService(
           }
         }
         FulfillRequisitionRequest.ParamsCase.PARAMS_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "params field not set" }
+          failGrpc(Status.INVALID_ARGUMENT) { "params field not specified" }
       }
     }
 

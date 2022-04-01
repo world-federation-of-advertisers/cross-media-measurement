@@ -9,7 +9,7 @@ declared action inputs or the action commandline changes.
 /usr/include/x86_64-linux-gnu
 /usr/include
 /usr/lib/llvm-10/lib/clang/10.0.0/share
-/usr/include/c++/7.5.0
-/usr/include/x86_64-linux-gnu/c++/7.5.0
-/usr/include/c++/7.5.0/backward
+/usr/include/c++/9
+/usr/include/x86_64-linux-gnu/c++/9
+/usr/include/c++/9/backward
 /usr/lib/clang/10.0.0/include
