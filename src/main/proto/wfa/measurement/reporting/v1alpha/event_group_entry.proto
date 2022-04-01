@@ -17,38 +17,50 @@ syntax = "proto3";
 package wfa.measurement.reporting.v1alpha;
 
 import "google/api/resource.proto";
+import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "EventGroupEntryProto";
 
+// A key-value pair of event group and event properties. The format is used to
+// replace map for backward compatibility.
 message EventGroupEntry {
   // Key of the map entry, which is an `EventGroup` resource name. Required.
-  string key = 1 [(google.api.resource_reference).type =
-                      "reporting.halo-cmm.org/EventGroup"];
+  string key = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/EventGroup";
+    }
+  ];
 
+  // Value of the map entry, which is a set of event properties.
   message Value {
     // Time interval over which the event data should be collected. Required.
-    TimeInterval collection_interval = 1;
-
+    TimeInterval collection_interval = 1
+        [(google.api.field_behavior) = REQUIRED];
     // Reporting tag for aggregation
     string tag = 2;
-    // Optional filter to apply to events.
+    // Event filter to apply to events.
     EventFilter filter = 3;
   }
-  // Value of the map entry. Required.
-  Value value = 2;
+  // Value of the map entry.
+  Value value = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
 // A time interval.
 message TimeInterval {
-  // Start of the time interval, inclusive. Required.
-  google.protobuf.Timestamp start_time = 1;
-  // End of the time interval, exclusive. Required. This must be later than
-  // the start time.
-  google.protobuf.Timestamp end_time = 2;
+  // Start of the time interval, inclusive.
+  google.protobuf.Timestamp start_time = 1
+      [(google.api.field_behavior) = REQUIRED];
+  // End of the time interval, exclusive. This must be later than the start
+  // time.
+  google.protobuf.Timestamp end_time = 2
+      [(google.api.field_behavior) = REQUIRED];
 }
 
+// Event filter to apply to events.
 message EventFilter {
   // Raw CEL expression that is applied to a message which has a field for
   // each event template.

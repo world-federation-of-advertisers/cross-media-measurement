@@ -26,6 +26,9 @@ import "google/api/annotations.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v1alpha/event_group.proto";
 
+option java_package = "org.wfanet.measurement.reporting.v1alpha";
+option java_multiple_files = true;
+
 service EventGroups {
   // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
   // to list `EventGroup`s that the authenticated user does not have access to.
