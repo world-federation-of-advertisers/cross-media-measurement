@@ -24,6 +24,7 @@ kt_jvm_library(
     deps = [
         "//imports/org/reflections",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_java_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
