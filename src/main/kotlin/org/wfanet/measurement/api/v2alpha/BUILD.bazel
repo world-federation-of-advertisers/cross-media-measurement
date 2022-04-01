@@ -19,10 +19,10 @@ package_group(
 )
 
 kt_jvm_library(
-    name = "event_template_type_registry",
-    srcs = ["EventTemplateTypeRegistry.kt"],
+    name = "event_templates",
+    srcs = ["EventTemplates.kt"],
     deps = [
-        "//imports/org/reflections",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_data_classes",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
