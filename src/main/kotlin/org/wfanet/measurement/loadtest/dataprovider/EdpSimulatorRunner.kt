@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.loadtest.config.EVENT_TEMPLATES_TO_FILTERS_MAP
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
@@ -80,7 +81,8 @@ abstract class EdpSimulatorRunner : Runnable {
           requisitionFulfillmentStub,
           SketchStore(storageClient),
           eventQuery,
-          MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval)
+          MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
+          eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
         )
         .process()
     }
