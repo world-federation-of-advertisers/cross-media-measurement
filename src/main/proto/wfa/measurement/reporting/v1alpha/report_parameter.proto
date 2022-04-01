@@ -14,55 +14,54 @@
 
 syntax = "proto3";
 
-package src.main.proto.wfa.measurement.reporting.v1alpha;
+package wfa.measurement.reporting.v1alpha;
 
-option java_package = "com.src.main.proto.wfa.measurement.reporting.v1alpha";
+option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportParameterProto";
 
-// The parameter that is associated to a specific report type.
+// Associated to a specific report type.
 message ReportParameter {
   oneof report_parameter {
-    // The parameter that is used to generate a Total Campaign report.
+    // Used to generate a Total Campaign report.
     TotalCampaignParameter total_campaign_parameter = 1;
-    // The parameter that is used to generate a Daily Cumulatives report.
+    // Used to generate a Daily Cumulatives report.
     DailyCumulativesParameter daily_cumulatives_parameter = 2;
-    // The parameter that is used to generate a Frequency Histogram report.
+    // Used to generate a Frequency Histogram report.
     FrequencyHistogramParameter frequency_histogram_parameter = 3;
-    // The parameter that is used to generate a Key Metrics for digital report.
+    // Used to generate a Key Metrics for digital report.
     KeyMetricsDigitalParameter key_metrics_digital_parameter = 4;
-    // The parameter that is used to generate a Key Metrics for TV report.
+    // Used to generate a Key Metrics for TV report.
     KeyMetricsTVParameter key_metrics_tv_parameter = 5;
-    // The parameter that is used to generate a Reach Curve report.
+    // Used to generate a Reach Curve report.
     ReachCurveParameter reach_curve_parameter = 6;
-    // The parameter that is used to output available privacy budget for a
-    // report request.
+    // Used to output available privacy budget for a report request.
     AvailablePrivacyBudgetParameter available_privacy_budget_parameter = 7;
   }
 }
 
-// The parameter that is used to generate a Total Campaign report.
+// Used to generate a Total Campaign report.
 message TotalCampaignParameter {
   // Raw CEL expression that is applied to a message which has a field for
   // each event template.
   string target_audience_expression = 1;
 }
 
-// The parameter that is used to generate a Daily Cumulatives report.
+// Used to generate a Daily Cumulatives report.
 message DailyCumulativesParameter {
   // Raw CEL expression that is applied to a message which has a field for
   // each event template.
   string target_audience_expression = 1;
 }
 
-// The parameter that is used to generate a Frequency Histogram report.
+// Used to generate a Frequency Histogram report.
 message FrequencyHistogramParameter {
   // Raw CEL expression that is applied to a message which has a field for
   // each event template.
   string target_audience_expression = 1;
 }
 
-// The parameter that is used to generate a Key Metrics for digital report.
+// Used to generate a Key Metrics for digital report.
 message KeyMetricsDigitalParameter {
   // Raw CEL expression for target audience demo that is applied to a message
   // which has a field for each event template.
@@ -72,7 +71,7 @@ message KeyMetricsDigitalParameter {
   string target_geo_expression = 2;
 }
 
-// The parameter that is used to generate a Key Metrics for TV report.
+// Used to generate a Key Metrics for TV report.
 message KeyMetricsTVParameter {
   // Raw CEL expression for target audience demo that is applied to a message
   // which has a field for each event template.
@@ -82,7 +81,7 @@ message KeyMetricsTVParameter {
   string target_geo_expression = 2;
 }
 
-// The parameter that is used to generate a Reach Curve report.
+// Used to generate a Reach Curve report.
 message ReachCurveParameter {
   // Number of points that should be plotted on the reach curve
   int32 number_plotting_points = 1;
@@ -91,21 +90,20 @@ message ReachCurveParameter {
   int64 max_impression_count = 2;
 }
 
-// The parameter that is used to output available privacy budget for a report
-// request.
+// Used to output available privacy budget for a report request.
 message AvailablePrivacyBudgetParameter {
   oneof report_param {
-    // The parameter that is used to generate a Total Campaign report.
+    // Used to generate a Total Campaign report.
     TotalCampaignParameter total_campaign_parameter = 1;
-    // The parameter that is used to generate a Daily Cumulatives report.
+    // Used to generate a Daily Cumulatives report.
     DailyCumulativesParameter daily_cumulatives_parameter = 2;
-    // The parameter that is used to generate a Frequency Histogram report.
+    // Used to generate a Frequency Histogram report.
     FrequencyHistogramParameter frequency_histogram_parameter = 3;
-    // The parameter that is used to generate a Key Metrics for digital report.
+    // Used to generate a Key Metrics for digital report.
     KeyMetricsDigitalParameter key_metrics_digital_parameter = 4;
-    // The parameter that is used to generate a Key Metrics for TV report.
+    // Used to generate a Key Metrics for TV report.
     KeyMetricsTVParameter key_metrics_tv_parameter = 5;
-    // The parameter that is used to generate a Reach Curve report.
+    // Used to generate a Reach Curve report.
     ReachCurveParameter reach_curve_parameter = 6;
   }
 }
