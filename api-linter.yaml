@@ -1,5 +1,0 @@
-- included_paths:
-  - 'src/main/proto/wfa/measurement/reporting/**/*.proto'
-  disabled_rules:
-  - 'core::0191::java-package'
-  - 'core::0191::proto-package'
