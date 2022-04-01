@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package org.wfa.measurement.api.v2alpha.event_templates.testing;
+package wfa.measurement.api.v2alpha.event_templates.testing;
 
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 

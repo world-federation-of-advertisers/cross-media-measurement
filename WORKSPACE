@@ -33,7 +33,6 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "com.google.crypto.tink:tink": "1.6.0",
     "com.opentable.components:otj-pg-embedded": "1.0.0",
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
-    "org.reflections:reflections": "0.10.2",
     "org.projectnessie.cel:cel-core": "0.2.4",
     "org.projectnessie.cel:cel-tools": "0.2.4",
     "org.projectnessie.cel:cel-generated-pb": "0.2.4",
