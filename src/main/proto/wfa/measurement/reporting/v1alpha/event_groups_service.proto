@@ -58,13 +58,9 @@ message ListEventGroupsRequest {
   // https://aip.dev/158.
   string page_token = 3;
 
-  message Filter {
-    // Raw CEL expression that is applied to a message which has a field for
-    // each event group template.
-    string expression = 1;
-  }
-  // Result filter.
-  Filter filter = 4;
+  // Result filter. Raw CEL expression that is applied to a message which has a
+  // field for each event group template.
+  string filter = 4;
 }
 
 message ListEventGroupsResponse {
