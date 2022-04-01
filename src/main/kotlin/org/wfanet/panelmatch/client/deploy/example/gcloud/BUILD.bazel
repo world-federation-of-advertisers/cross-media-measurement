@@ -8,6 +8,7 @@ kt_jvm_library(
     name = "gcloud",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
