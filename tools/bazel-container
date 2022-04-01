@@ -16,7 +16,7 @@
 
 set -eEu -o pipefail
 
-readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:a1fee281b05fdaa769ff4e1d85cba831c046fbd7f177f31c06f3bf3840f4dec0}"
+readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:0568ae6e1fbc9e23822a649f6fe43618ad04371d76fb3bb47e63c54b8609f6eb}"
 readonly DOCKER="${DOCKER:-docker}"
 readonly DOCKER_HOST="${DOCKER_HOST:-unix://var/run/docker.sock}"
 readonly CONTAINER_USER='builder'
