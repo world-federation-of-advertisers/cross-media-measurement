@@ -392,6 +392,7 @@ class EdpSimulator(
         states += Requisition.State.UNFULFILLED
         measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
       }
+    }
 
     return requisitionsStub.listRequisitions(request).requisitionsList
   }
