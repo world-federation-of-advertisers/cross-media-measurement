@@ -294,6 +294,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
         message = details.refusal.message
       }
     }
+    measurementState = this@toRequisition.parentMeasurement.state.toState()
   }
 }
 
@@ -402,6 +403,7 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
   }
 
   val requisitionsStatesList = source.filter.statesList
+  val measurementsStatesList = source.filter.measurementStatesList
 
   return if (source.pageToken.isNotBlank()) {
     ListRequisitionsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
@@ -421,6 +423,11 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
         states.containsAll(requisitionsStatesList) && requisitionsStatesList.containsAll(states)
       ) { "Arguments must be kept the same when using a page token" }
 
+      grpcRequire(
+        measurementStates.containsAll(measurementsStatesList) &&
+          measurementsStatesList.containsAll(measurementStates)
+      ) { "Arguments must be kept the same when using a page token" }
+
       if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
         pageSize = source.pageSize
       }
@@ -438,6 +445,7 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
       this.externalMeasurementId = externalMeasurementId
       this.externalDataProviderId = externalDataProviderId
       states += requisitionsStatesList
+      measurementStates += measurementsStatesList
     }
   }
 }
@@ -458,6 +466,7 @@ private fun ListRequisitionsPageToken.toStreamRequisitionsRequest(): StreamRequi
           externalDataProviderIdAfter = source.lastRequisition.externalDataProviderId
           externalRequisitionIdAfter = source.lastRequisition.externalRequisitionId
         }
+        source.measurementStatesList.forEach { measurementStates += it.toInternalState() }
       }
   }
 }
