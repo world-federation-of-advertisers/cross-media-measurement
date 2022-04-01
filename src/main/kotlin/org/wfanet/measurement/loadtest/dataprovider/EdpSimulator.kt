@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -387,8 +388,10 @@ class EdpSimulator(
   private suspend fun getRequisitions(): List<Requisition> {
     val request = listRequisitionsRequest {
       parent = edpData.name
-      filter = filter { states += Requisition.State.UNFULFILLED }
-    }
+      filter = filter {
+        states += Requisition.State.UNFULFILLED
+        measurementStates += Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+      }
 
     return requisitionsStub.listRequisitions(request).requisitionsList
   }
