@@ -14,15 +14,20 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import io.grpc.Status
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
+import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -33,25 +38,70 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
   PublicKeysCoroutineImplBase() {
 
   override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): PublicKey {
+    val principal = principalFromCurrentContext
+
     val publicKeyKey =
       grpcRequireNotNull(createPublicKeyResourceKey(request.publicKey.name)) {
         "Resource name is either unspecified or invalid"
       }
-
-    grpcRequire(
-      !request.publicKey.publicKey.data.isEmpty && !request.publicKey.publicKey.signature.isEmpty
-    ) { "EncryptionPublicKey is unspecified" }
 
     val certificateKey =
       grpcRequireNotNull(createCertificateResourceKey(request.publicKey.certificate)) {
         "Certificate name is either unspecified or invalid"
       }
 
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        when (publicKeyKey) {
+          is DataProviderPublicKeyKey -> {
+            if (apiIdToExternalId(resourceKey.dataProviderId) !=
+                apiIdToExternalId(publicKeyKey.dataProviderId)
+            ) {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Cannot update Public Key belonging to another DataProvider"
+              }
+            }
+          }
+          else -> {
+            failGrpc(Status.PERMISSION_DENIED) { "Caller can only update Public Key for itself" }
+          }
+        }
+      }
+      is MeasurementConsumerKey -> {
+        when (publicKeyKey) {
+          is MeasurementConsumerPublicKeyKey -> {
+            if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+                apiIdToExternalId(publicKeyKey.measurementConsumerId)
+            ) {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Cannot update Public Key belonging to another MeasurementConsumer"
+              }
+            }
+          }
+          else -> {
+            failGrpc(Status.PERMISSION_DENIED) { "Caller can only update Public Key for itself" }
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to update Public Key"
+        }
+      }
+    }
+
     grpcRequire(
       (publicKeyKey is MeasurementConsumerPublicKeyKey &&
-        certificateKey is MeasurementConsumerCertificateKey) ||
-        (publicKeyKey is DataProviderPublicKeyKey && certificateKey is DataProviderCertificateKey)
+        certificateKey is MeasurementConsumerCertificateKey &&
+        publicKeyKey.measurementConsumerId == certificateKey.measurementConsumerId) ||
+        (publicKeyKey is DataProviderPublicKeyKey &&
+          certificateKey is DataProviderCertificateKey &&
+          publicKeyKey.dataProviderId == certificateKey.dataProviderId)
     ) { "Resource name does not have same parent as Certificate name" }
+
+    grpcRequire(
+      !request.publicKey.publicKey.data.isEmpty && !request.publicKey.publicKey.signature.isEmpty
+    ) { "EncryptionPublicKey is unspecified" }
 
     internalPublicKeysStub.updatePublicKey(
       updatePublicKeyRequest {

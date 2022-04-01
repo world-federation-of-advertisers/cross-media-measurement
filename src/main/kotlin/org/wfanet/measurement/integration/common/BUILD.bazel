@@ -19,6 +19,7 @@ KINGDOM_PUBLIC_API_SERVICES = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurements_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:measurement_consumers_service",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:public_keys_service",
     "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:requisitions_service",
 ]
 
