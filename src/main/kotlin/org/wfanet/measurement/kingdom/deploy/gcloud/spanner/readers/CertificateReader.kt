@@ -14,10 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
@@ -148,6 +150,36 @@ class CertificateReader(private val parentType: ParentType) :
           isValid
         )
     }
+  }
+
+  suspend fun readDataProviderCertificateIdByExternalId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    externalCertificateId: ExternalId
+  ): InternalId? {
+    val idColumn = "CertificateId"
+    return readContext.readRowUsingIndex(
+        "DataProviderCertificates",
+        "DataProviderCertificatesByExternalId",
+        Key.of(dataProviderId.value, externalCertificateId.value),
+        idColumn
+      )
+      ?.let { struct -> InternalId(struct.getLong(idColumn)) }
+  }
+
+  suspend fun readMeasurementConsumerCertificateIdByExternalId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    measurementConsumerId: InternalId,
+    externalCertificateId: ExternalId
+  ): InternalId? {
+    val idColumn = "CertificateId"
+    return readContext.readRowUsingIndex(
+        "MeasurementConsumerCertificates",
+        "MeasurementConsumerCertificatesByExternalId",
+        Key.of(measurementConsumerId.value, externalCertificateId.value),
+        idColumn
+      )
+      ?.let { struct -> InternalId(struct.getLong(idColumn)) }
   }
 
   companion object {
