@@ -33,6 +33,9 @@ class BiqQueryEventQuery(
   private val tableName: String,
 ) : EventQuery() {
 
+  lateinit var edpDisplayName : String
+    public set
+
   override fun getUserVirtualIds(parameter: QueryParameter): Sequence<Long> {
     val publisher =
       DISPLAY_NAME_TO_PUBLISHER_MAP[parameter.edpDisplayName]
