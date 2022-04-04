@@ -16,6 +16,8 @@ package org.wfanet.panelmatch.client.deploy.example.gcloud
 
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.util.Optional
+import org.apache.beam.runners.dataflow.DataflowRunner
+import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
@@ -77,6 +79,10 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   @Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
   @Mixin private lateinit var caFlags: CertificateAuthorityFlags
   @Mixin private lateinit var privateCaFlags: PrivateCaFlags
+
+  override val pipelineOptions: PipelineOptions by lazy {
+    super.pipelineOptions.apply { runner = DataflowRunner::class.java }
+  }
 
   override val rootStorageClient: StorageClient by lazy {
     GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
