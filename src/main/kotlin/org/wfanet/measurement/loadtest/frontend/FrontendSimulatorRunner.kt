@@ -27,6 +27,7 @@ import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.loadtest.config.EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
@@ -84,7 +85,8 @@ abstract class FrontendSimulatorRunner : Runnable {
           measurementsStub,
           requisitionsStub,
           measurementConsumersStub,
-          SketchStore(storageClient)
+          SketchStore(storageClient),
+          EVENT_TEMPLATES_TO_FILTERS_MAP
         )
 
       launch { frontendSimulator.executeReachAndFrequency(flags.runId + "-reach_frequency") }
