@@ -47,12 +47,6 @@ data class QueryParameter(
   val complete: Complete?,
 )
 
-// // TODO(@uakyol) : Rename to QueryParameter after QueryParameter is deleted.
-// data class FilterParameter(
-//   val celExpr: String,
-//   val eventMessage: Message,
-// )
-
 /** A query to get the list of user virtual IDs for a particular requisition. */
 abstract class EventQuery {
   abstract fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long>
