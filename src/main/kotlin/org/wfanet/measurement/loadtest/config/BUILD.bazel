@@ -1,3 +1,5 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
 filegroup(
     name = "config",
     srcs = [
@@ -8,5 +10,13 @@ filegroup(
         "//src/test/kotlin/org/wfanet/measurement/e2e:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_filters",
+    srcs = ["EventFilters.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
 )
