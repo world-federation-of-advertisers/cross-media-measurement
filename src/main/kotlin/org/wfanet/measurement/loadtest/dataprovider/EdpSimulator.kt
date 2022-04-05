@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.util.logging.Level
@@ -80,6 +79,7 @@ import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val EVENT_TEMPLATE_CLASS_NAME =
@@ -221,7 +221,22 @@ class EdpSimulator(
     )
   }
 
-  private fun generateSketch(
+  private fun populateAnySketch(
+    eventFilter: EventFilter,
+    vidSampler: VidSampler,
+    vidSamplingIntervalStart: Float,
+    vidSamplingIntervalWidth: Float,
+    anySketch: AnySketch
+  ): Unit {
+    eventQuery.getUserVirtualIds(eventFilter).forEach {
+      if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+      ) {
+        anySketch.insert(it, mapOf("frequency" to 1L))
+      }
+    }
+  }
+
+  fun generateSketch(
     sketchConfig: SketchConfig,
     eventFilter: EventFilter,
     vidSamplingIntervalStart: Float,
@@ -231,14 +246,14 @@ class EdpSimulator(
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    val vidSampler = VidSampler(Hashing.farmHashFingerprint64())
+    populateAnySketch(
+      eventFilter,
+      VidSampler(VID_SAMPLER_HASH_FUNCTION),
+      vidSamplingIntervalStart,
+      vidSamplingIntervalWidth,
+      anySketch
+    )
 
-    eventQuery.getUserVirtualIds(eventFilter).forEach {
-      if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      ) {
-        anySketch.insert(it, mapOf("frequency" to 1L))
-      }
-    }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
