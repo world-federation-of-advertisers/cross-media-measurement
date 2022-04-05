@@ -16,13 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v1alpha;
 
-// google.api.method_signature
 import "google/api/client.proto";
-// google.api.field_behavior
 import "google/api/field_behavior.proto";
-// google.api.http
 import "google/api/annotations.proto";
-// google.api.resource_reference
 import "google/api/resource.proto";
 import "wfa/measurement/reporting/v1alpha/event_group.proto";
 
