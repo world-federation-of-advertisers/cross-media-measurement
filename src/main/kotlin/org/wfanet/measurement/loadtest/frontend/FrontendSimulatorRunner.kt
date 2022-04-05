@@ -17,6 +17,7 @@ package org.wfanet.measurement.loadtest.frontend
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -56,6 +57,7 @@ abstract class FrontendSimulatorRunner : Runnable {
     val requisitionsStub = RequisitionsCoroutineStub(v2alphaPublicApiChannel)
     val measurementsStub = MeasurementsCoroutineStub(v2alphaPublicApiChannel)
     val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
+    val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
 
     val mcName = flags.mcResourceName
 
@@ -85,6 +87,7 @@ abstract class FrontendSimulatorRunner : Runnable {
           measurementsStub,
           requisitionsStub,
           measurementConsumersStub,
+          certificatesStub,
           SketchStore(storageClient),
           EVENT_TEMPLATES_TO_FILTERS_MAP
         )

@@ -80,17 +80,19 @@ message StreamMeasurementsRequest {
 message SetMeasurementResultRequest {
   fixed64 external_computation_id = 1;
 
-  // X.509 certificate in DER format which can be verified using the
-  // Aggregator's root certificate.
-  bytes aggregator_certificate = 2;
+  // External ID of the aggregator `Duchy`.
+  string external_aggregator_duchy_id = 2;
+
+  // External ID of the certificate belonging to the aggregator `Duchy`.
+  fixed64 external_aggregator_certificate_id = 3;
 
   // Serialized `EncryptionPublicKey` message from the public API.
-  bytes result_public_key = 3;
+  bytes result_public_key = 4;
 
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate`.
-  bytes encrypted_result = 4;
+  bytes encrypted_result = 5;
 }
 
 message CancelMeasurementRequest {

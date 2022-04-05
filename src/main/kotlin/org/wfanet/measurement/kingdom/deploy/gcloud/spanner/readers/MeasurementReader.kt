@@ -114,8 +114,10 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.CreateTime,
       Measurements.UpdateTime,
       Measurements.State AS MeasurementState,
+      Measurements.AggregatorDuchyId,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      DuchyCertificates.ExternalDuchyCertificateId AS ExternalAggregatorCertificateId,
       ARRAY(
         SELECT AS STRUCT
           ExternalDataProviderId,
@@ -133,7 +135,10 @@ class MeasurementReader(private val view: Measurement.View) :
     FROM
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
-      JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
+      JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId, CertificateId)
+      LEFT JOIN DuchyCertificates ON
+        DuchyCertificates.DuchyId = Measurements.AggregatorDuchyId
+        AND DuchyCertificates.CertificateId = Measurements.AggregatorCertificateId
     """.trimIndent()
 
     private val computationViewBaseSql =
@@ -150,6 +155,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements.CreateTime,
       Measurements.UpdateTime,
       Measurements.State AS MeasurementState,
+      Measurements.AggregatorDuchyId,
+      DuchyCertificates.ExternalDuchyCertificateId AS ExternalAggregatorCertificateId,
       ARRAY(
         SELECT AS STRUCT
           ExternalDataProviderId,
@@ -210,6 +217,9 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
+      LEFT JOIN DuchyCertificates ON
+        DuchyCertificates.DuchyId = Measurements.AggregatorDuchyId
+        AND DuchyCertificates.CertificateId = Measurements.AggregatorCertificateId
     """.trimIndent()
   }
 }
@@ -225,6 +235,14 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   }
   externalMeasurementConsumerCertificateId =
     struct.getLong("ExternalMeasurementConsumerCertificateId")
+  if (!struct.isNull("AggregatorDuchyId")) {
+    val aggregatorDuchyId = struct.getLong("AggregatorDuchyId")
+    externalAggregatorDuchyId =
+      checkNotNull(DuchyIds.getExternalId(aggregatorDuchyId)) {
+        "Duchy with internal ID $aggregatorDuchyId not found"
+      }
+    externalAggregatorCertificateId = struct.getLong("ExternalAggregatorCertificateId")
+  }
   createTime = struct.getTimestamp("CreateTime").toProto()
   updateTime = struct.getTimestamp("UpdateTime").toProto()
   state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
