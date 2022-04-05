@@ -27,6 +27,7 @@ import org.mockito.kotlin.any
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -131,6 +132,9 @@ class FrontendSimulatorImplTest {
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub by lazy {
     MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
   }
+  private val certificatesStub: CertificatesCoroutineStub by lazy {
+    CertificatesCoroutineStub(grpcTestServerRule.channel)
+  }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -148,6 +152,7 @@ class FrontendSimulatorImplTest {
         measurementsStub,
         requisitionsStub,
         measurementConsumersStub,
+        certificatesStub,
         sketchStore
       )
 

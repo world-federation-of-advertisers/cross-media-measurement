@@ -270,5 +270,22 @@ class CertificateReader(private val parentType: ParentType) :
         struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
       details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
     }
+
+    /** Returns the internal Certificate ID for a Duchy Certificate, or `null` if not found. */
+    suspend fun getDuchyCertificateId(
+      txn: AsyncDatabaseClient.TransactionContext,
+      duchyId: InternalId,
+      externalDuchyCertificateId: ExternalId
+    ): InternalId? {
+      val struct =
+        txn.readRowUsingIndex(
+          "DuchyCertificates",
+          "DuchyCertificatesByExternalId",
+          Key.of(duchyId.value, externalDuchyCertificateId.value),
+          "CertificateId"
+        )
+          ?: return null
+      return InternalId(struct.getLong("CertificateId"))
+    }
   }
 }
