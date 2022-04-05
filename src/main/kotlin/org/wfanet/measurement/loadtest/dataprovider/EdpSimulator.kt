@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.api.expr.v1alpha1.Decl
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
@@ -24,9 +23,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.projectnessie.cel.Env
-import org.projectnessie.cel.EnvOption
-import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
@@ -50,7 +46,6 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -233,26 +228,12 @@ class EdpSimulator(
     vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
-    if (eventFilter.expression.isNotBlank()) {
-      validateEventFilter(eventFilter)
-    }
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    // TODO(@uakyol): change EventQuery getUserVirtualIds to accept EventFilter rather than
-    // QueryParameter.
-    val queryParameter =
-      QueryParameter(
-        edpDisplayName = edpData.displayName,
-        beginDate = "2021-03-01",
-        endDate = "2021-03-28",
-        sex = Sex.FEMALE,
-        ageGroup = null,
-        socialGrade = SocialGrade.ABC1,
-        complete = Complete.COMPLETE
-      )
     val vidSampler = VidSampler(Hashing.farmHashFingerprint64())
-    eventQuery.getUserVirtualIds(queryParameter).forEach {
+
+    eventQuery.getUserVirtualIds(eventFilter).forEach {
       if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       ) {
         anySketch.insert(it, mapOf("frequency" to 1L))
@@ -326,6 +307,7 @@ class EdpSimulator(
     )
   }
 
+<<<<<<< HEAD
   private fun validateEventFilter(eventFilter: EventFilter) {
     val declarations: List<Decl> =
       eventTemplateNames.map {
@@ -345,6 +327,8 @@ class EdpSimulator(
     EventFilters.compile(eventFilter.expression, env)
   }
 
+=======
+>>>>>>> 318c5418 (skeleton)
   private suspend fun fulfillRequisition(
     requisitionName: String,
     requisitionFingerprint: ByteString,
