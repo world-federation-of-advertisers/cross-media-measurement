@@ -750,9 +750,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult fails for wrong externalComputationId`() = runBlocking {
+    val aggregatorDuchyId = "Buck"
+    val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
     val request = setMeasurementResultRequest {
       externalComputationId = 1234L // externalComputationId for Measurement that doesn't exist
-      aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+      externalAggregatorDuchyId = aggregatorDuchyId
+      externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
     }
@@ -762,6 +765,34 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Measurement not found")
+  }
+
+  @Test
+  fun `setMeasurementResult fails for wrong aggregator certificate ID`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val aggregatorDuchyId = "Buck"
+    val request = setMeasurementResultRequest {
+      externalComputationId = createdMeasurement.externalComputationId
+      externalAggregatorDuchyId = aggregatorDuchyId
+      externalAggregatorCertificateId = 404L
+      resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+      encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.setMeasurementResult(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("certificate")
   }
 
   @Test
@@ -776,31 +807,39 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             measurementConsumer.certificate.externalCertificateId
         }
       )
+    val aggregatorDuchyId = "Buck"
+    val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
 
     val request = setMeasurementResultRequest {
       externalComputationId = createdMeasurement.externalComputationId
-      aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+      externalAggregatorDuchyId = aggregatorDuchyId
+      externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
     }
 
-    val measurementWithResult = measurementsService.setMeasurementResult(request)
+    val response = measurementsService.setMeasurementResult(request)
 
-    val expectedMeasurementDetails =
-      createdMeasurement.details.copy {
-        aggregatorCertificate = request.aggregatorCertificate
-        encryptedResult = request.encryptedResult
-      }
-    assertThat(measurementWithResult.updateTime.toInstant())
+    assertThat(response.updateTime.toInstant())
       .isGreaterThan(createdMeasurement.updateTime.toInstant())
-
-    assertThat(measurementWithResult)
+    assertThat(response)
       .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
-          details = expectedMeasurementDetails
+          externalAggregatorDuchyId = aggregatorDuchyId
+          externalAggregatorCertificateId = duchyCertificate.externalCertificateId
+          details = createdMeasurement.details.copy { encryptedResult = request.encryptedResult }
         }
+      )
+    assertThat(response)
+      .isEqualTo(
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+            externalMeasurementId = createdMeasurement.externalMeasurementId
+          }
+        )
       )
   }
 
@@ -1166,14 +1205,19 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     // SUCCEED second measurement.
-    measurementsService.setMeasurementResult(
-      setMeasurementResultRequest {
-        externalComputationId = measurement2.externalComputationId
-        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
-        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
-        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
-      }
-    )
+    val aggregatorDuchyId = "Buck"
+    val aggregatorCertificate =
+      population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
+    val succeededMeasurement =
+      measurementsService.setMeasurementResult(
+        setMeasurementResultRequest {
+          externalComputationId = measurement2.externalComputationId
+          externalAggregatorDuchyId = aggregatorDuchyId
+          externalAggregatorCertificateId = aggregatorCertificate.externalCertificateId
+          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+        }
+      )
 
     val measurements: List<Measurement> =
       measurementsService
@@ -1182,11 +1226,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(measurements)
-      .comparingExpectedFieldsOnly()
-      .ignoringFields(
-        Measurement.UPDATE_TIME_FIELD_NUMBER,
-      )
-      .containsExactly(measurement2.copy { state = Measurement.State.SUCCEEDED })
+    assertThat(measurements).containsExactly(succeededMeasurement)
   }
 }

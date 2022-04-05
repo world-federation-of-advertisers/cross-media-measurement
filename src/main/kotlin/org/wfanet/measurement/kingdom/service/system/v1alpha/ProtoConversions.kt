@@ -167,13 +167,25 @@ fun InternalComputationParticipant.State.toSystemRequisitionState(): Computation
 
 /** Converts a kingdom internal Measurement to system Api Computation. */
 fun InternalMeasurement.toSystemComputation(): Computation {
+  val apiVersion = Version.fromString(details.apiVersion)
   return Computation.newBuilder()
     .also {
       it.name = ComputationKey(externalIdToApiId(externalComputationId)).toName()
       it.publicApiVersion = details.apiVersion
       it.measurementSpec = details.measurementSpec
       it.state = state.toSystemComputationState()
-      it.aggregatorCertificate = details.aggregatorCertificate
+      if (externalAggregatorDuchyId.isNotEmpty()) {
+        it.aggregatorCertificate =
+          when (apiVersion) {
+            Version.V2_ALPHA ->
+              DuchyCertificateKey(
+                  externalAggregatorDuchyId,
+                  externalIdToApiId(externalAggregatorCertificateId)
+                )
+                .toName()
+            Version.VERSION_UNSPECIFIED -> error("Public API version is invalid or unspecified.")
+          }
+      }
       it.encryptedResult = details.encryptedResult
       it.addAllComputationParticipants(
         computationParticipantsList.map { participant ->
