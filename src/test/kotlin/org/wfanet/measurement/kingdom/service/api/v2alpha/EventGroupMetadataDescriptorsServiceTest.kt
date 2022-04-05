@@ -136,7 +136,7 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `getEventGroupMetadataDescriptor throws PERMISSION_DENIED when edp caller doesn't match`() {
+  fun `getEventGroupMetadataDescriptor throws PERMISSION_DENIED when edp doesn't match`() {
     val request = getEventGroupMetadataDescriptorRequest {
       name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
     }
@@ -191,7 +191,7 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `createEventGroupMetadataDescriptor throws PERMISSION_DENIED when edp caller doesn't match`() {
+  fun `createEventGroupMetadataDescriptor throws PERMISSION_DENIED when edp doesn't match`() {
     val request = createEventGroupMetadataDescriptorRequest {
       parent = DATA_PROVIDER_NAME
       eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
