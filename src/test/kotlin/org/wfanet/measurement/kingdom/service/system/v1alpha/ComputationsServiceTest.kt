@@ -91,7 +91,6 @@ private val ENCRYPTED_REQUISITION_SPEC_HASH =
 private val MEASUREMENT_SPEC = ByteString.copyFromUtf8("a measurement spec.")
 private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
-private val AGGREGATOR_CERTIFICATE = ByteString.copyFromUtf8("aggregator certificate.")
 private val RESULT_PUBLIC_KEY = ByteString.copyFromUtf8("result public key.")
 private val ENCRYPTED_RESULT = ByteString.copyFromUtf8("encrypted result.")
 
@@ -185,7 +184,8 @@ private val INTERNAL_MEASUREMENT =
           ellipticCurveId = 123
           maximumFrequency = 12
         }
-        aggregatorCertificate = AGGREGATOR_CERTIFICATE
+        externalAggregatorDuchyId = DUCHY_ID
+        externalAggregatorCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
         encryptedResult = ENCRYPTED_RESULT
         addComputationParticipants(INTERNAL_COMPUTATION_PARTICIPANT)
         addRequisitions(INTERNAL_REQUISITION)
@@ -228,7 +228,7 @@ class ComputationsServiceTest {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = MEASUREMENT_SPEC
             state = Computation.State.FAILED
-            aggregatorCertificate = AGGREGATOR_CERTIFICATE
+            aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
             encryptedResult = ENCRYPTED_RESULT
             mpcProtocolConfigBuilder.liquidLegionsV2Builder.apply {
               sketchParamsBuilder.apply {
@@ -387,7 +387,7 @@ class ComputationsServiceTest {
       SetComputationResultRequest.newBuilder()
         .apply {
           name = SYSTEM_COMPUTATION_NAME
-          aggregatorCertificate = AGGREGATOR_CERTIFICATE
+          aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
           resultPublicKey = RESULT_PUBLIC_KEY
           encryptedResult = ENCRYPTED_RESULT
         }
@@ -403,7 +403,8 @@ class ComputationsServiceTest {
         SetMeasurementResultRequest.newBuilder()
           .apply {
             externalComputationId = EXTERNAL_COMPUTATION_ID
-            aggregatorCertificate = AGGREGATOR_CERTIFICATE
+            externalAggregatorDuchyId = DUCHY_ID
+            externalAggregatorCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
             resultPublicKey = RESULT_PUBLIC_KEY
             encryptedResult = ENCRYPTED_RESULT
           }

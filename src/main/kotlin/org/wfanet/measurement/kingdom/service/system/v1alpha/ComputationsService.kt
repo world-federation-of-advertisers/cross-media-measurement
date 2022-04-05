@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import io.grpc.Status
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -29,8 +31,8 @@ import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -89,15 +91,27 @@ class ComputationsService(
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    val internalRequest =
-      SetMeasurementResultRequest.newBuilder()
-        .apply {
-          externalComputationId = apiIdToExternalId(computationKey.computationId)
-          aggregatorCertificate = request.aggregatorCertificate
-          resultPublicKey = request.resultPublicKey
-          encryptedResult = request.encryptedResult
-        }
-        .build()
+
+    // This assumes that the Certificate resource name is compatible with public API version
+    // v2alpha.
+    val aggregatorCertificateKey =
+      grpcRequireNotNull(DuchyCertificateKey.fromName(request.aggregatorCertificate)) {
+        "aggregator_certificate unspecified or invalid"
+      }
+    val authenticatedDuchy: DuchyIdentity = duchyIdentityProvider()
+    if (aggregatorCertificateKey.duchyId != authenticatedDuchy.id) {
+      throw Status.PERMISSION_DENIED
+        .withDescription("Aggregator certificate not owned by authenticated Duchy")
+        .asRuntimeException()
+    }
+
+    val internalRequest = setMeasurementResultRequest {
+      externalComputationId = apiIdToExternalId(computationKey.computationId)
+      resultPublicKey = request.resultPublicKey
+      externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
+      externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
+      encryptedResult = request.encryptedResult
+    }
     return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
   }
 

@@ -26,6 +26,8 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.estimation.Estimators
 import org.wfanet.estimation.ValueHistogram
+import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -62,6 +64,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -105,10 +108,13 @@ class FrontendSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val certificatesClient: CertificatesCoroutineStub,
   private val sketchStore: SketchStore,
   /** Map of event template names to filter expressions. */
   private val eventTemplateFilters: Map<String, String> = emptyMap()
 ) {
+  /** Cache of resource name to [Certificate]. */
+  private val certificateCache = mutableMapOf<String, Certificate>()
 
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun executeReachAndFrequency(runId: String) {
@@ -223,19 +229,31 @@ class FrontendSimulator(
       logger.warning("Failure reason: " + measurement.failure.reason)
       logger.warning("Failure message: " + measurement.failure.message)
     }
-    return if (measurement.state == Measurement.State.SUCCEEDED) {
-      val signedResult =
-        decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
-      @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
-      val result = Result.parseFrom(signedResult.data)
-      val aggregatorCertificate = readCertificate(measurement.aggregatorCertificate)
-      if (!verifyResult(signedResult.signature, result, aggregatorCertificate)) {
-        error("Aggregator signature of the result is invalid.")
-      }
-      result
-    } else {
-      null
+    if (measurement.state != Measurement.State.SUCCEEDED) {
+      return null
     }
+
+    val aggregatorCertificate =
+      certificateCache.getOrPut(measurement.aggregatorCertificate) {
+        certificatesClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { name = measurement.aggregatorCertificate })
+      }
+
+    val signedResult =
+      decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
+    @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
+    val result = Result.parseFrom(signedResult.data)
+
+    if (!verifyResult(
+        signedResult.signature,
+        result,
+        readCertificate(aggregatorCertificate.x509Der)
+      )
+    ) {
+      error("Aggregator signature of the result is invalid.")
+    }
+    return result
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */

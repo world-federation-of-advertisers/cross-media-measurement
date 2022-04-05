@@ -19,6 +19,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -193,7 +194,14 @@ fun InternalMeasurement.toMeasurement(): Measurement {
       protocolConfig = source.details.protocolConfig.toProtocolConfig()
     }
     state = source.state.toState()
-    aggregatorCertificate = source.details.aggregatorCertificate
+    if (source.externalAggregatorDuchyId.isNotEmpty()) {
+      aggregatorCertificate =
+        DuchyCertificateKey(
+            source.externalAggregatorDuchyId,
+            externalIdToApiId(source.externalAggregatorCertificateId)
+          )
+          .toName()
+    }
     encryptedResult = source.details.encryptedResult
     measurementReferenceId = source.providedMeasurementId
     failure = failure {
