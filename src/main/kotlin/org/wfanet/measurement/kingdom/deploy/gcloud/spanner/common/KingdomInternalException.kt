@@ -22,21 +22,19 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-const val CONTEXT_KEY_ID = "id"
-const val CONTEXT_KEY_NAME = "NAME"
-const val CONTEXT_KEY_STATE = "STATE"
-
 
 /* Throw internal exceptions with reserved parameters
 
 Throw internal exception:
-throwMeasurementConsumerNotFound(id="123") { "measurement_consumer not existing" }
+throw MeasurementConsumerNotFoundError(id="123") { "measurement_consumer not existing" }
 
 Catch internal exception and throw Grpc runtime exception to the client:
 catch(e: KingdomInternalException) {
   when(e) {
-    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          e.throwRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" }
+    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> {
+      val externalMeasurementConsumerId = e.context.externalMeasurementConsumerId ?: 0L
+      e.throwRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" }
+    }
     else -> {}
   }
 }
@@ -45,44 +43,110 @@ The client receive the Grpc runtime exception and check reason and context:
 catch(e: StatusRuntimeException) {
    val info = e.getErrorInfo()
    if(info.notNull() && info.reason = MEASUREMENT_CONSUMER_NOT_FOUND.getName()) {
-       val measurementConsumerId = info.metadata["id"]
+       val externalMeasurementConsumerId = info.metadata.getOrDefault("externalMeasurementConsumerId", 0L)
        blame(measurementConsumerId)
    }
 }
  */
 
-class KingdomInternalException : Exception {
-  val code: ErrorCode
-  lateinit var context: Map<String, String>
+class ErrorContext {
+  var externalAccountId: Long? = null
+  var accountActivationState: Int? = null
+  var externalMeasurementConsumerId: Long? = null
+  var externalMeasurementConsumerCertificateId: Long? = null
+  var externalMeasurementId: Long ?= null
+  var providedMeasurementId: String? = null
+  var measurementState: Int? = null
+  var externalApiKeyId: Long? = null
+  var externalDataProviderId: Long ?= null
+  var externalDataProviderCertificateId: Long? = null
+  var externalEventGroupId: Long? = null
+  var providedEventGroupId: String? = null
+  var externalEventGroupMetadataDescriptorId: Long? = null
+  var externalDuchyId: String? = null
+  var internalDuchyId: Long? = null
+  var externalComputationId: Long? = null
+  var computationState: Int? = null
+  var externalRequisitionId: Long? = null
+  var requisitionState: Int? = null
+  var externalFulfillingDuchyId: String ?= null;
+  var externalCertificateId: Long? = null
+  var certificationRevocationState: Int? = null
+  var externalRecurringExchangeId: Long? = null
+  var externalModelProviderId: Long? = null
+  var externalProtocolConfigId: String? = null
 
-  constructor(code: ErrorCode, context: Map<String, String> = emptyMap()) : super() {
-    this.code = code
-    this.context = context
+
+  private fun addMapItem(map: MutableMap<String, String>, key: String, value: String?) {
+    if (!value.isNullOrEmpty()) {
+      map[key] = value
+    }
   }
 
-  constructor(code: ErrorCode, context: Map<String, String> = emptyMap(), buildMessage: () -> String) : super(buildMessage()) {
-    this.code = code
-    this.context = context
-  }
+  fun toMap(): Map<String, String> {
+    val map = mutableMapOf<String, String>()
+    addMapItem(map, "externalAccountId", externalAccountId?.toString())
+    addMapItem(map, "accountActivationState", accountActivationState?.toString())
+    addMapItem(map, "externalMeasurementConsumerId", externalMeasurementConsumerId?.toString())
+    addMapItem(map, "externalMeasurementConsumerCertificateId", externalMeasurementConsumerCertificateId?.toString())
+    addMapItem(map, "externalMeasurementId", externalMeasurementId?.toString())
+    addMapItem(map, "providedMeasurementId", providedMeasurementId)
+    addMapItem(map, "measurementState", measurementState?.toString())
+    addMapItem(map, "externalApiKeyId", externalApiKeyId?.toString())
+    addMapItem(map, "externalDataProviderId", externalDataProviderId?.toString())
+    addMapItem(map, "externalDataProviderCertificateId", externalDataProviderCertificateId?.toString())
+    addMapItem(map, "externalEventGroupId", externalEventGroupId?.toString())
+    addMapItem(map, "providedEventGroupId", providedEventGroupId)
+    addMapItem(map, "externalEventGroupMetadataDescriptorId", externalEventGroupMetadataDescriptorId?.toString())
+    addMapItem(map, "externalDuchyId", externalDuchyId)
+    addMapItem(map, "internalDuchyId", internalDuchyId?.toString())
+    addMapItem(map, "externalComputationId", externalComputationId?.toString())
+    addMapItem(map, "computationState", computationState?.toString())
+    addMapItem(map, "externalRequisitionId", externalRequisitionId?.toString())
+    addMapItem(map, "requisitionState", requisitionState?.toString())
+    addMapItem(map, "externalFulfillingDuchyId", externalFulfillingDuchyId)
+    addMapItem(map, "externalCertificateId", externalCertificateId?.toString())
+    addMapItem(map, "certificationRevocationState", externalCertificateId?.toString())
+    addMapItem(map, "externalRecurringExchangeId", externalRecurringExchangeId?.toString())
+    addMapItem(map, "externalModelProviderId", externalModelProviderId?.toString())
+    addMapItem(map, "externalProtocolConfigId", externalProtocolConfigId)
 
-  fun throwRuntimeException(
-    status: Status = Status.INVALID_ARGUMENT,
-    provideDescription: () -> String) {
-
-    throwRuntimeException(status, code, context, provideDescription)
+    return map
   }
 }
 
-fun throwRuntimeException(
+open class KingdomInternalException : Exception {
+  val code: ErrorCode
+  val context = ErrorContext()
+
+  constructor(code: ErrorCode) : super() {
+    this.code = code
+  }
+
+  constructor(code: ErrorCode, buildMessage: () -> String) : super(buildMessage()) {
+    this.code = code
+  }
+
+  fun throwStatusRuntimeException(
+    status: Status = Status.INVALID_ARGUMENT,
+    provideDescription: () -> String,
+  ): Nothing {
+
+    throwStatusRuntimeException(status, code, context, provideDescription)
+  }
+}
+
+fun throwStatusRuntimeException(
   status: Status = Status.INVALID_ARGUMENT,
   code: ErrorCode,
-  context: Map<String, String> = emptyMap(),
-  provideDescription: () -> String) {
+  context: ErrorContext,
+  provideDescription: () -> String,
+): Nothing {
 
   val info = errorInfo {
     reason = code.toString()
     domain = ErrorInfo::class.qualifiedName.toString()
-    metadata.putAll(context)
+    metadata.putAll(context.toMap())
   }
 
   val metadata = Metadata()
@@ -96,28 +160,34 @@ fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
   return trailers?.get(key)
 }
 
-fun StatusRuntimeException.getErrorContext(): Map<String, String> {
-  val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
-  return trailers?.get(key)?.metadataMap ?: emptyMap()
+class MeasurementConsumerNotFoundError(
+  externalMeasurementConsumerId: Long,
+  provideDescription: () -> String
+) : KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
+  init {
+    context.externalMeasurementConsumerId = externalMeasurementConsumerId
+  }
 }
 
-
-private fun addIdToErrorContext(details: MutableMap<String, String>, id: String) {
-  details[CONTEXT_KEY_ID] = id
+class DataProviderNotFoundError(
+  externalDataProviderId: Long,
+  provideDescription: () -> String
+) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
+  init {
+    context.externalDataProviderId = externalDataProviderId
+  }
 }
 
-private fun addNameToErrorContext(details: MutableMap<String, String>, name: String) {
-  details[CONTEXT_KEY_NAME] = name
+class MeasurementStateIllegalError(
+  externalMeasurementId: Long,
+  measurementState: Int,
+  provideDescription: () -> String
+): KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
+  init {
+    context.externalMeasurementId = externalMeasurementId
+    context.measurementState = measurementState
+  }
 }
 
-private fun addStateToErrorContext(details: MutableMap<String, String>, state: Int) {
-  details[CONTEXT_KEY_STATE] = state.toString()
-}
-
-fun throwMeasurementConsumerNotFound(id: String, provideDescription: () -> String) {
-  val context = mutableMapOf<String, String>()
-  addIdToErrorContext(context, id)
-  throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, context) { provideDescription() }
-}
 
 
