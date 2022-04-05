@@ -3,6 +3,8 @@ load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
 
+package(default_visibility = ["//visibility:public"])
+
 IMPORT_PREFIX = "/src/main/proto"
 
 # Resources and shared message types.
@@ -18,14 +20,12 @@ proto_library(
 
 java_proto_library(
     name = "event_group_java_proto",
-    visibility = ["//visibility:public"],
     deps = [":event_group_proto"],
 )
 
 kt_jvm_proto_library(
     name = "event_group_kt_jvm_proto",
     srcs = [":event_group_proto"],
-    visibility = ["//visibility:public"],
     deps = [":event_group_java_proto"],
 )
 
@@ -42,14 +42,12 @@ proto_library(
 
 java_proto_library(
     name = "event_group_entry_java_proto",
-    visibility = ["//visibility:public"],
     deps = [":event_group_entry_proto"],
 )
 
 kt_jvm_proto_library(
     name = "event_group_entry_kt_jvm_proto",
     srcs = [":event_group_entry_proto"],
-    visibility = ["//visibility:public"],
     deps = [":event_group_entry_java_proto"],
 )
 
@@ -66,14 +64,12 @@ proto_library(
 
 java_proto_library(
     name = "report_java_proto",
-    visibility = ["//visibility:public"],
     deps = [":report_proto"],
 )
 
 kt_jvm_proto_library(
     name = "report_kt_jvm_proto",
     srcs = [":report_proto"],
-    visibility = ["//visibility:public"],
     deps = [":report_java_proto"],
 )
 
@@ -85,14 +81,12 @@ proto_library(
 
 java_proto_library(
     name = "report_parameter_java_proto",
-    visibility = ["//visibility:public"],
     deps = [":report_parameter_proto"],
 )
 
 kt_jvm_proto_library(
     name = "report_parameter_kt_jvm_proto",
     srcs = [":report_parameter_proto"],
-    visibility = ["//visibility:public"],
     deps = [":report_parameter_java_proto"],
 )
 
@@ -114,7 +108,6 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "event_groups_service_kt_jvm_grpc_proto",
     srcs = [":event_groups_service_proto"],
-    visibility = ["//visibility:public"],
 )
 
 proto_library(
@@ -133,5 +126,4 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "reports_service_kt_jvm_grpc_proto",
     srcs = [":reports_service_proto"],
-    visibility = ["//visibility:public"],
 )
