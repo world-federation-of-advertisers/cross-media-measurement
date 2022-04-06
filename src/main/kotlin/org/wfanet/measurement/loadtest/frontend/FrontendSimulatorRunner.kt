@@ -87,10 +87,7 @@ abstract class FrontendSimulatorRunner : Runnable {
           measurementsStub,
           requisitionsStub,
           measurementConsumersStub,
-<<<<<<< HEAD
           certificatesStub,
-=======
->>>>>>> b58e09f7 (Fix local correctness test by passing in Event Templates to Simulators (#512))
           SketchStore(storageClient),
           EVENT_TEMPLATES_TO_FILTERS_MAP
         )

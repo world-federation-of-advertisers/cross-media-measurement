@@ -322,28 +322,7 @@ class EdpSimulator(
     )
   }
 
-<<<<<<< HEAD
-  private fun validateEventFilter(eventFilter: EventFilter) {
-    val declarations: List<Decl> =
-      eventTemplateNames.map {
-        Decls.newVar(
-          EventTemplates.getEventTemplateForType(it)!!.name,
-          Decls.newObjectType(it),
-        )
-      }
 
-    val env =
-      Env.newEnv(
-        EnvOption.customTypeAdapter(celProtoTypeRegistry),
-        EnvOption.customTypeProvider(celProtoTypeRegistry),
-        EnvOption.declarations(declarations),
-      )
-
-    EventFilters.compile(eventFilter.expression, env)
-  }
-
-=======
->>>>>>> 318c5418 (skeleton)
   private suspend fun fulfillRequisition(
     requisitionName: String,
     requisitionFingerprint: ByteString,
