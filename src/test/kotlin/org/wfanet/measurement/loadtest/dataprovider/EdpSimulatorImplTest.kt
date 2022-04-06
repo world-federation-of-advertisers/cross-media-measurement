@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.common.truth.Correspondence
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
@@ -27,21 +30,29 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.AnySketch
+import org.wfanet.anysketch.AnySketch.Register
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.anysketch.SketchProtos
+import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplates
-import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.AgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -52,6 +63,8 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -96,13 +109,6 @@ private val SKETCH_CONFIG =
       }
     }
     .build()
-private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
-  sketchParams = liquidLegionsSketchParams {
-    decayRate = LLV2_DECAY_RATE
-    maxSize = LLV2_MAX_SIZE
-  }
-  maximumFrequency = MAX_FREQUENCY
-}
 
 @RunWith(JUnit4::class)
 class EdpSimulatorImplTest {
@@ -152,10 +158,57 @@ class EdpSimulatorImplTest {
     return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
   }
 
-
-
   @Test
   fun `filter events and generate sketch successfully`() = runBlocking {
+    val videoTemplateMatchingVids = (1..10)
+    val bannerTemplateMatchingVids = (11..20)
+    val nonMatchingVids = (21..40)
+
+    val videoTemplateMatchingEvents =
+      videoTemplateMatchingVids
+        .map {
+          it to
+            testEvent {
+              videoAd = testVideoTemplate { age = ageRange { value = AgeRange.Value.AGE_18_TO_24 } }
+              bannerAd = testBannerTemplate { gender = gender { value = Gender.Value.GENDER_MALE } }
+            }
+        }
+        .toMap()
+
+    val bannerTemplateMatchingEvents =
+      bannerTemplateMatchingVids
+        .map {
+          it to
+            testEvent {
+              videoAd = testVideoTemplate {
+                age = ageRange { value = AgeRange.Value.AGE_RANGE_UNSPECIFIED }
+              }
+              bannerAd = testBannerTemplate {
+                gender = gender { value = Gender.Value.GENDER_FEMALE }
+              }
+            }
+        }
+        .toMap()
+
+    val nonMatchingEvents =
+      nonMatchingVids
+        .map {
+          it to
+            testEvent {
+              videoAd = testVideoTemplate {
+                age = ageRange { value = AgeRange.Value.AGE_RANGE_UNSPECIFIED }
+              }
+              bannerAd = testBannerTemplate { gender = gender { value = Gender.Value.GENDER_MALE } }
+            }
+        }
+        .toMap()
+
+    val matchingEvents = videoTemplateMatchingEvents + bannerTemplateMatchingEvents
+    val allEvents = matchingEvents + nonMatchingEvents
+
+    val vidSamplingIntervalStart = 0.1.toFloat()
+    val vidSamplingIntervalWidth = 0.2.toFloat()
+
     edpSimulator =
       EdpSimulator(
         EdpData(
@@ -170,7 +223,7 @@ class EdpSimulatorImplTest {
         requisitionsStub,
         requisitionFulfillmentStub,
         sketchStore,
-        RandomEventQuery(SketchGenerationParams(reach = 10, universeSize = 10_000)),
+        FilterTestEventQuery(allEvents),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
         EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
       )
@@ -179,40 +232,73 @@ class EdpSimulatorImplTest {
       SketchProtos.toAnySketch(
         edpSimulator.generateSketch(
           SKETCH_CONFIG,
-          eventFilter {
-            expression = "age.value == 1"
-          },
-          0.1.toFloat(),
-          0.2.toFloat()
+          eventFilter { expression = "video_ad.age.value == 1 || banner_ad.gender.value == 2" },
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth
         )
       )
-    println(result.toList())
 
-    // assertThat(frontendSimulator.getExpectedResult("foo", LIQUID_LEGIONS_V2_PROTOCOL_CONFIG))
-    //   .isEqualTo(
-    //     Measurement.Result.newBuilder()
-    //       .apply {
-    //         reachBuilder.value = 9
-    //         frequencyBuilder.apply {
-    //           putRelativeFrequencyDistribution(1, 2.0 / 3) // 1,2,6,7
-    //           putRelativeFrequencyDistribution(2, 1.0 / 3) // 4,5
-    //         }
-    //       }
-    //       .build()
-    //   )
-    println("I WORKED!!!!")
+    val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
+    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
+    val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
+
+    for (matchingVid in matchingVids) {
+      if (vidSampler.vidIsInSamplingBucket(
+          matchingVid.toLong(),
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth
+        )
+      ) {
+        expectedResult.insert(matchingVid.toLong(), mapOf("frequency" to 1L))
+      }
+    }
+    assertAnySketchEquals(result, expectedResult)
+  }
+
+  class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
+
+    override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+      val program =
+        EventFilters.compileProgram(
+          eventFilter.expression,
+          testEvent {},
+        )
+      return sequence {
+        for (vid in events.keys.toList()) {
+          if (EventFilters.matches(events.get(vid) as Message, program)) {
+            yield(vid.toLong())
+          }
+        }
+      }
+    }
   }
 
   companion object {
 
     @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
 
+    private val EQUIVALENCE: Correspondence<Register?, Register?> =
+      Correspondence.from(EdpSimulatorImplTest::registersEquivalent, "is equivalent to")
+
+    fun registersEquivalent(result: Register?, expected: Register?): Boolean {
+      if (result == null || expected == null) {
+        return result == expected
+      }
+      return result.getIndex() == expected.getIndex() &&
+        result.getValues().containsAll(expected.getValues()) &&
+        expected.getValues().containsAll(result.getValues())
+    }
+
+    private fun assertAnySketchEquals(sketch: AnySketch, other: AnySketch) {
+      assertThat(sketch).comparingElementsUsing(EQUIVALENCE).containsExactlyElementsIn(other)
+    }
+
     lateinit var sketchStore: SketchStore
       private set
 
     @JvmStatic
     @BeforeClass
-    fun createSketchesToStore() =
+    fun createSketchStore() =
       runBlocking<Unit> { sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root)) }
   }
 }
