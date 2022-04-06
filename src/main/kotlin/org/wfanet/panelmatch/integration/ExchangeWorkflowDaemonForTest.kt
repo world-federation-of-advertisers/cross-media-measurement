@@ -120,7 +120,7 @@ class ExchangeWorkflowDaemonForTest(
       sharedStorageSelector = sharedStorageSelector,
       certificateManager = certificateManager,
       inputTaskThrottler = MinimumIntervalThrottler(clock, Duration.ofMillis(250)),
-      pipelineOptions = PipelineOptionsFactory.create(),
+      makePipelineOptions = PipelineOptionsFactory::create,
       taskContext = taskContext,
     )
   }

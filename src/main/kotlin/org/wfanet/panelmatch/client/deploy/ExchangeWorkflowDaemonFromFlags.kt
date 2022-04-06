@@ -51,7 +51,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   protected abstract val privateKeys: MutableSecretMap
 
   /** Apache Beam options. */
-  protected abstract val pipelineOptions: PipelineOptions
+  protected abstract fun makePipelineOptions(): PipelineOptions
 
   /** [CertificateAuthority] for use in [V2AlphaCertificateManager]. */
   protected abstract val certificateAuthority: CertificateAuthority
@@ -102,7 +102,7 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
       privateStorageSelector = privateStorageSelector,
       sharedStorageSelector = sharedStorageSelector,
       certificateManager = certificateManager,
-      pipelineOptions = pipelineOptions,
+      makePipelineOptions = ::makePipelineOptions,
       taskContext = taskContext,
     )
   }

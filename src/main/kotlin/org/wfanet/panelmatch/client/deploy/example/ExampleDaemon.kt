@@ -33,7 +33,7 @@ abstract class ExampleDaemon : ExchangeWorkflowDaemonFromFlags() {
   abstract val rootStorageClient: StorageClient
 
   /** This should be customized per deployment. */
-  override val pipelineOptions: PipelineOptions = PipelineOptionsFactory.create()
+  override fun makePipelineOptions(): PipelineOptions = PipelineOptionsFactory.create()
 
   /** This can be customized per deployment. */
   override val privateStorageFactories = exampleStorageFactories

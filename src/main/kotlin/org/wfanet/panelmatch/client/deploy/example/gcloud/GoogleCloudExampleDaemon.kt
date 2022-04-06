@@ -18,7 +18,6 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.util.Optional
 import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
-import org.apache.beam.sdk.io.FileSystems
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
 import org.wfanet.measurement.common.commandLineMain
@@ -115,14 +114,13 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   lateinit var dataflowTempLocation: String
     private set
 
-  override val pipelineOptions: PipelineOptions by lazy {
-    PipelineOptionsFactory.`as`(DataflowPipelineOptions::class.java).apply {
+  override fun makePipelineOptions(): PipelineOptions {
+    return PipelineOptionsFactory.`as`(DataflowPipelineOptions::class.java).apply {
       runner = DataflowRunner::class.java
       project = dataflowProjectId
       region = dataflowRegion
       tempLocation = dataflowTempLocation
       serviceAccount = dataflowServiceAccount
-      FileSystems.setDefaultPipelineOptions(this)
     }
   }
 

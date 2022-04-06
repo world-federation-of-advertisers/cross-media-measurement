@@ -60,12 +60,17 @@ import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.crypto.JniDeterministicCommutativeCipher
 import org.wfanet.panelmatch.common.crypto.generateSecureRandomByteString
 
+/**
+ * Concrete [ExchangeTaskMapper] implementation.
+ *
+ * [makePipelineOptions] must return a different object on each invocation.
+ */
 open class ProductionExchangeTaskMapper(
   private val inputTaskThrottler: Throttler,
   private val privateStorageSelector: PrivateStorageSelector,
   private val sharedStorageSelector: SharedStorageSelector,
   private val certificateManager: CertificateManager,
-  private val pipelineOptions: PipelineOptions,
+  private val makePipelineOptions: () -> PipelineOptions,
   private val taskContext: TaskParameters,
 ) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt(): ExchangeTask {
@@ -278,6 +283,9 @@ open class ProductionExchangeTaskMapper(
     outputBlobs: List<String>,
     execute: suspend ApacheBeamContext.() -> Unit
   ): ApacheBeamTask {
+    val pipelineOptions = makePipelineOptions()
+    pipelineOptions.jobName = "${attemptKey.toName()}-${this.step.stepId}"
+
     return ApacheBeamTask(
       Pipeline.create(pipelineOptions),
       privateStorageSelector.getStorageFactory(exchangeDateKey),
