@@ -34,5 +34,33 @@ data class PrivacyBucketGroup(
   val ageGroup: AgeGroup,
   val gender: Gender,
   val vidSampleStart: Float,
-  val vidSampleWidth: Float
-)
+  val vidSampleWidth: Float,
+) {
+
+  fun privacyBucketsOverlap(
+    bucketGroup1: PrivacyBucketGroup,
+    bucketGroup2: PrivacyBucketGroup,
+  ): Boolean {
+    if (bucketGroup1.measurementConsumerId != bucketGroup2.measurementConsumerId) {
+      return false
+    }
+    if (bucketGroup2.endingDate.isBefore(bucketGroup1.startingDate) ||
+      bucketGroup1.endingDate.isBefore(bucketGroup2.startingDate)
+    ) {
+      return false
+    }
+    if (bucketGroup1.ageGroup != bucketGroup2.ageGroup) {
+      return false
+    }
+    if (bucketGroup1.gender != bucketGroup2.gender) {
+      return false
+    }
+
+    // Prior wrap-around logic is removed
+    val vidSampleEnd1 = bucketGroup1.vidSampleStart + bucketGroup1.vidSampleWidth
+    val vidSampleEnd2 = bucketGroup2.vidSampleStart + bucketGroup2.vidSampleWidth
+
+    return (bucketGroup1.vidSampleStart <= vidSampleEnd2) &&
+      (bucketGroup2.vidSampleStart <= vidSampleEnd1)
+  }
+}
