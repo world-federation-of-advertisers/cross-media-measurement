@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.compu
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -1143,6 +1144,79 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               externalRequisitionId = requisitions[1].externalRequisitionId
             }
           )
+        )
+    }
+
+  @Test
+  fun `direct fulfillRequisition sets measurement result when all requisitions fulfilled`(): Unit =
+    runBlocking {
+      val measurement =
+        population.createDirectMeasurement(
+          dataServices.measurementsService,
+          population.createMeasurementConsumer(
+            dataServices.measurementConsumersService,
+            dataServices.accountsService
+          ),
+          "direct_measurement",
+          population.createDataProvider(dataServices.dataProvidersService),
+          population.createDataProvider(dataServices.dataProvidersService),
+        )
+
+      val requisitions =
+        service
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+            }
+          )
+          .toList()
+
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisitions[0].externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisitions[0].externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
+        }
+      )
+
+      service.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisitions[1].externalRequisitionId
+          nonce = NONCE_1
+          directParams = directRequisitionParams {
+            externalDataProviderId = requisitions[1].externalDataProviderId
+            encryptedData = REQUISITION_ENCRYPTED_DATA
+          }
+        }
+      )
+
+      val succeededMeasurement =
+        dataServices.measurementsService.getMeasurement(
+          getMeasurementRequest {
+            externalMeasurementId = measurement.externalMeasurementId
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          }
+        )
+
+      assertThat(succeededMeasurement.details.resultsList)
+        .ignoringRepeatedFieldOrder()
+        .containsAtLeast(
+          resultInfo {
+            externalDataProviderId = requisitions[0].externalDataProviderId
+            externalCertificateId = requisitions[0].dataProviderCertificate.externalCertificateId
+            encryptedResult = REQUISITION_ENCRYPTED_DATA
+          },
+          resultInfo {
+            externalDataProviderId = requisitions[1].externalDataProviderId
+            externalCertificateId = requisitions[1].dataProviderCertificate.externalCertificateId
+            encryptedResult = REQUISITION_ENCRYPTED_DATA
+          }
         )
     }
 

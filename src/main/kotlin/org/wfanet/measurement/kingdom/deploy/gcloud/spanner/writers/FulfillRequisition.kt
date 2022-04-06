@@ -15,18 +15,24 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 private object Params {
@@ -48,7 +54,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
-    val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
+    val (measurementConsumerId, measurementId, requisitionId, requisition, measurementDetails) =
+      readResult
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
@@ -75,11 +82,26 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
     val updatedMeasurementState: Measurement.State? =
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
+        var updatedMeasurementDetails = measurementDetails
         val nextState =
-          if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-          else Measurement.State.SUCCEEDED
+          if (request.hasComputedParams()) {
+            Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+          } else {
+            updatedMeasurementDetails =
+              updatedMeasurementDetails.copy {
+                setDirectMeasurementResults(transactionContext, requisition)
+              }
+            Measurement.State.SUCCEEDED
+          }
         // All other Requisitions are already FULFILLED, so update Measurement state.
-        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
+        nextState.also {
+          updateMeasurementState(
+            measurementConsumerId,
+            measurementId,
+            it,
+            updatedMeasurementDetails
+          )
+        }
       } else {
         null
       }
@@ -138,6 +160,32 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {
         "Duchy with external ID $externalDuchyId not found"
       }
+  }
+
+  private suspend fun MeasurementKt.DetailsKt.Dsl.setDirectMeasurementResults(
+    readContext: AsyncDatabaseClient.ReadContext,
+    requisition: Requisition
+  ) {
+    StreamRequisitions(
+        filter {
+          externalMeasurementConsumerId = requisition.externalMeasurementConsumerId
+          externalMeasurementId = requisition.externalMeasurementId
+          states += Requisition.State.FULFILLED
+        }
+      )
+      .execute(readContext)
+      .collect {
+        results += resultInfo {
+          externalCertificateId = it.requisition.dataProviderCertificate.externalCertificateId
+          externalDataProviderId = it.requisition.externalDataProviderId
+          encryptedResult = it.requisition.details.encryptedData
+        }
+      }
+    results += resultInfo {
+      externalCertificateId = requisition.dataProviderCertificate.externalCertificateId
+      externalDataProviderId = requisition.externalDataProviderId
+      encryptedResult = request.directParams.encryptedData
+    }
   }
 
   companion object {
