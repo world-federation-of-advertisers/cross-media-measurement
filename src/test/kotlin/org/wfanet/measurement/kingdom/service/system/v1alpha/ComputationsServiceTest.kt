@@ -42,8 +42,8 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
@@ -198,11 +198,11 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
           maximumFrequency = 12
         }
     }
-    results += resultInfo {
-      externalAggregatorDuchyId = DUCHY_ID
-      externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-      encryptedResult = ENCRYPTED_RESULT
-    }
+  }
+  results += resultInfo {
+    externalAggregatorDuchyId = DUCHY_ID
+    externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+    encryptedResult = ENCRYPTED_RESULT
   }
   computationParticipants += INTERNAL_COMPUTATION_PARTICIPANT
   requisitions += INTERNAL_REQUISITION

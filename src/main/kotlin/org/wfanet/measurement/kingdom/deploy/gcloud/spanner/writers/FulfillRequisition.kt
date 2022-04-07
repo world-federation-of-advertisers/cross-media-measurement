@@ -14,19 +14,21 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Value
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
@@ -54,8 +56,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
-    val (measurementConsumerId, measurementId, requisitionId, requisition, measurementDetails) =
-      readResult
+    val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
@@ -82,26 +83,15 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
     val updatedMeasurementState: Measurement.State? =
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
-        var updatedMeasurementDetails = measurementDetails
         val nextState =
           if (request.hasComputedParams()) {
             Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
           } else {
-            updatedMeasurementDetails =
-              updatedMeasurementDetails.copy {
-                setDirectMeasurementResults(transactionContext, requisition)
-              }
+            setDirectMeasurementResults(readResult, request.directParams.encryptedData)
             Measurement.State.SUCCEEDED
           }
         // All other Requisitions are already FULFILLED, so update Measurement state.
-        nextState.also {
-          updateMeasurementState(
-            measurementConsumerId,
-            measurementId,
-            it,
-            updatedMeasurementDetails
-          )
-        }
+        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
       } else {
         null
       }
@@ -162,30 +152,51 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       }
   }
 
-  private suspend fun MeasurementKt.DetailsKt.Dsl.setDirectMeasurementResults(
-    readContext: AsyncDatabaseClient.ReadContext,
-    requisition: Requisition
+  private fun TransactionScope.addResult(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    dataProviderId: InternalId,
+    certificateId: InternalId,
+    encryptedResult: ByteString
+  ) {
+    transactionContext.bufferInsertMutation("MeasurementResultDataProviderCertificates") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("DataProviderId" to dataProviderId)
+      set("CertificateId" to certificateId)
+      set("CreateTime" to Value.COMMIT_TIMESTAMP)
+      set("EncryptedResult" to encryptedResult.toGcloudByteArray())
+    }
+  }
+
+  private suspend fun TransactionScope.setDirectMeasurementResults(
+    readResult: RequisitionReader.Result,
+    encryptedResult: ByteString
   ) {
     StreamRequisitions(
         filter {
-          externalMeasurementConsumerId = requisition.externalMeasurementConsumerId
-          externalMeasurementId = requisition.externalMeasurementId
+          externalMeasurementConsumerId = readResult.requisition.externalMeasurementConsumerId
+          externalMeasurementId = readResult.requisition.externalMeasurementId
           states += Requisition.State.FULFILLED
         }
       )
-      .execute(readContext)
+      .execute(transactionContext)
       .collect {
-        results += resultInfo {
-          externalCertificateId = it.requisition.dataProviderCertificate.externalCertificateId
-          externalDataProviderId = it.requisition.externalDataProviderId
-          encryptedResult = it.requisition.details.encryptedData
-        }
+        addResult(
+          it.measurementConsumerId,
+          it.measurementId,
+          it.dataProviderId,
+          it.dataProviderCertificateId,
+          it.requisition.details.encryptedData
+        )
       }
-    results += resultInfo {
-      externalCertificateId = requisition.dataProviderCertificate.externalCertificateId
-      externalDataProviderId = requisition.externalDataProviderId
-      encryptedResult = request.directParams.encryptedData
-    }
+    addResult(
+      readResult.measurementConsumerId,
+      readResult.measurementId,
+      readResult.dataProviderId,
+      readResult.dataProviderCertificateId,
+      encryptedResult
+    )
   }
 
   companion object {

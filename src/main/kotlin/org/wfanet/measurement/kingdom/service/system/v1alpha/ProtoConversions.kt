@@ -175,7 +175,7 @@ fun InternalMeasurement.toSystemComputation(): Computation {
     publicApiVersion = details.apiVersion
     measurementSpec = details.measurementSpec
     state = source.state.toSystemComputationState()
-    val resultsList = source.details.resultsList
+    val resultsList = source.resultsList
     if (resultsList.isNotEmpty() && resultsList[0].externalAggregatorDuchyId.isNotBlank()) {
       aggregatorCertificate =
         when (apiVersion) {

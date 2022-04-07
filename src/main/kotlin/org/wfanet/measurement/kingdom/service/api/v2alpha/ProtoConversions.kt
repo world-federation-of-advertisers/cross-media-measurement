@@ -196,7 +196,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     state = source.state.toState()
     results +=
-      source.details.resultsList.map {
+      source.resultsList.map {
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
         resultPair {
           if (it.externalAggregatorDuchyId.isNotBlank()) {

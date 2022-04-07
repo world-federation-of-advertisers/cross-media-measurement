@@ -126,30 +126,30 @@ message Measurement {
     ProtocolConfig protocol_config = 6;
     DuchyProtocolConfig duchy_protocol_config = 7;
 
-    message ResultInfo {
-      oneof certificate_parent {
-        string external_aggregator_duchy_id = 1;
-        fixed64 external_data_provider_id = 2;
-      }
-      fixed64 external_certificate_id = 3;
-      bytes encrypted_result = 4;
-    }
-    repeated ResultInfo results = 8;
-
     // Set when the state is set to FAILED.
-    Failure failure = 9;
+    Failure failure = 8;
   }
   Details details = 10;
+
+  message ResultInfo {
+    oneof certificate_parent {
+      string external_aggregator_duchy_id = 1;
+      fixed64 external_data_provider_id = 2;
+    }
+    fixed64 external_certificate_id = 3;
+    bytes encrypted_result = 4;
+  }
+  repeated ResultInfo results = 11;
 
   // Child Requisitions of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated Requisition requisitions = 11;
+  repeated Requisition requisitions = 12;
 
   // Child ComputationParticipants of this Measurement. Output-only.
   //
   // Only set for COMPUTATION view.
-  repeated ComputationParticipant computation_participants = 12;
+  repeated ComputationParticipant computation_participants = 13;
 }
 
 message Requisition {

@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.compu
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -1204,7 +1204,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
 
-      assertThat(succeededMeasurement.details.resultsList)
+      assertThat(succeededMeasurement.resultsList)
         .ignoringRepeatedFieldOrder()
         .containsAtLeast(
           resultInfo {

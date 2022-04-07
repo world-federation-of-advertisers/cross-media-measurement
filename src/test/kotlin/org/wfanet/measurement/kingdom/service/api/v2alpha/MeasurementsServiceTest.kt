@@ -85,7 +85,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
@@ -248,11 +248,8 @@ class MeasurementsServiceTest {
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
           clearExternalMeasurementId()
-          details =
-            details.copy {
-              clearFailure()
-              results.clear()
-            }
+          details = details.copy { clearFailure() }
+          results.clear()
         }
       )
 
@@ -309,8 +306,8 @@ class MeasurementsServiceTest {
               clearProtocolConfig()
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
-              results.clear()
             }
+          results.clear()
         }
       )
 
@@ -367,8 +364,8 @@ class MeasurementsServiceTest {
               clearProtocolConfig()
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
-              results.clear()
             }
+          results.clear()
         }
       )
 
@@ -1379,28 +1376,24 @@ class MeasurementsServiceTest {
               reason = InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
               message = MEASUREMENT.failure.message
             }
-          results += resultInfo {
-            externalAggregatorDuchyId =
-              DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.duchyId
-            externalCertificateId =
-              apiIdToExternalId(
-                DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.certificateId
-              )
-            encryptedResult = ENCRYPTED_DATA
-          }
-          results += resultInfo {
-            externalDataProviderId =
-              apiIdToExternalId(
-                DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!
-                  .dataProviderId
-              )
-            externalCertificateId =
-              apiIdToExternalId(
-                DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.certificateId
-              )
-            encryptedResult = ENCRYPTED_DATA
-          }
         }
+      results += resultInfo {
+        externalAggregatorDuchyId = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.duchyId
+        externalCertificateId =
+          apiIdToExternalId(DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.certificateId)
+        encryptedResult = ENCRYPTED_DATA
+      }
+      results += resultInfo {
+        externalDataProviderId =
+          apiIdToExternalId(
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.dataProviderId
+          )
+        externalCertificateId =
+          apiIdToExternalId(
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.certificateId
+          )
+        encryptedResult = ENCRYPTED_DATA
+      }
     }
   }
 }

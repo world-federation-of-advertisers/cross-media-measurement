@@ -42,7 +42,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementKt.DetailsKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -828,14 +828,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
-          details =
-            createdMeasurement.details.copy {
-              results += resultInfo {
-                externalAggregatorDuchyId = aggregatorDuchyId
-                externalCertificateId = duchyCertificate.externalCertificateId
-                encryptedResult = request.encryptedResult
-              }
-            }
+          results += resultInfo {
+            externalAggregatorDuchyId = aggregatorDuchyId
+            externalCertificateId = duchyCertificate.externalCertificateId
+            encryptedResult = request.encryptedResult
+          }
         }
       )
     assertThat(response)

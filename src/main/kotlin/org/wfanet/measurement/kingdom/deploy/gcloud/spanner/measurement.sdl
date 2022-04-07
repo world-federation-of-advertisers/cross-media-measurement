@@ -28,7 +28,9 @@
 --   │   └── Measurements
 --   │       ├── ComputationParticipants
 --   │       ├── MeasurementLogEntries
---   │       └── Requisitions
+--   │       ├── Requisitions
+--   │       ├── MeasurementResultDataProviderCertificates
+--   │       └── MeasurementResultAggregatorDuchyCertificates
 --   └── Accounts
 --       ├── OpenIdConnectIdentities
 --       ├── OpenIdConnectClaims
@@ -414,6 +416,40 @@ CREATE TABLE DuchyMeasurementLogEntries (
 
 CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
   ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
+
+CREATE TABLE MeasurementResultDataProviderCertificates (
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  DataProviderId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  EncryptedResult BYTES(MAX) NOT NULL,
+
+  FOREIGN KEY (MeasurementConsumerId, MeasurementId)
+      REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+  FOREIGN KEY (DataProviderId, CertificateId)
+      REFERENCES DataProviderCertificates(DataProviderId, CertificateId),
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DataProviderId, CertificateId),
+  INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
+
+CREATE TABLE MeasurementResultAggregatorDuchyCertificates (
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  AggregatorDuchyId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  EncryptedResult BYTES(MAX) NOT NULL,
+
+  FOREIGN KEY (MeasurementConsumerId, MeasurementId)
+      REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+  FOREIGN KEY (AggregatorDuchyId, CertificateId)
+      REFERENCES DuchyCertificates(DuchyId, CertificateId),
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, AggregatorDuchyId, CertificateId),
+  INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE TABLE Accounts (
   AccountId INT64 NOT NULL,
