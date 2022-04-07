@@ -42,8 +42,6 @@ private val BASE_SQL =
     Requisitions.State AS RequisitionState,
     Requisitions.FulfillingDuchyId,
     Requisitions.RequisitionDetails,
-    Requisitions.DataProviderId,
-    Requisitions.DataProviderCertificateId,
     ExternalMeasurementId,
     ExternalMeasurementConsumerId,
     ExternalMeasurementConsumerCertificateId,
@@ -94,9 +92,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     val measurementId: InternalId,
     val requisitionId: InternalId,
     val requisition: Requisition,
-    val measurementDetails: Measurement.Details,
-    val dataProviderId: InternalId,
-    val dataProviderCertificateId: InternalId
+    val measurementDetails: Measurement.Details
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(BASE_SQL)
@@ -107,9 +103,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("RequisitionId")),
       buildRequisition(struct),
-      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser()),
-      InternalId(struct.getLong("DataProviderId")),
-      InternalId(struct.getLong("DataProviderCertificateId"))
+      struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
     )
   }
 

@@ -66,10 +66,10 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           "Aggregator certificate ${request.externalAggregatorCertificateId} not found"
         }
 
-    transactionContext.bufferInsertMutation("MeasurementResultAggregatorDuchyCertificates") {
+    transactionContext.bufferInsertMutation("MeasurementResultDuchyCertificates") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
-      set("AggregatorDuchyId" to aggregatorDuchyId)
+      set("DuchyId" to aggregatorDuchyId)
       set("CertificateId" to aggregatorCertificateId)
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
       set("EncryptedResult" to request.encryptedResult.toGcloudByteArray())

@@ -14,27 +14,19 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Value
-import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.bind
-import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
-import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 private object Params {
@@ -84,12 +76,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val updatedMeasurementState: Measurement.State? =
       if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
         val nextState =
-          if (request.hasComputedParams()) {
-            Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-          } else {
-            setDirectMeasurementResults(readResult, request.directParams.encryptedData)
-            Measurement.State.SUCCEEDED
-          }
+          if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+          else Measurement.State.SUCCEEDED
         // All other Requisitions are already FULFILLED, so update Measurement state.
         nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
       } else {
@@ -150,53 +138,6 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
       ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {
         "Duchy with external ID $externalDuchyId not found"
       }
-  }
-
-  private fun TransactionScope.addResult(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    dataProviderId: InternalId,
-    certificateId: InternalId,
-    encryptedResult: ByteString
-  ) {
-    transactionContext.bufferInsertMutation("MeasurementResultDataProviderCertificates") {
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("MeasurementId" to measurementId)
-      set("DataProviderId" to dataProviderId)
-      set("CertificateId" to certificateId)
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      set("EncryptedResult" to encryptedResult.toGcloudByteArray())
-    }
-  }
-
-  private suspend fun TransactionScope.setDirectMeasurementResults(
-    readResult: RequisitionReader.Result,
-    encryptedResult: ByteString
-  ) {
-    StreamRequisitions(
-        filter {
-          externalMeasurementConsumerId = readResult.requisition.externalMeasurementConsumerId
-          externalMeasurementId = readResult.requisition.externalMeasurementId
-          states += Requisition.State.FULFILLED
-        }
-      )
-      .execute(transactionContext)
-      .collect {
-        addResult(
-          it.measurementConsumerId,
-          it.measurementId,
-          it.dataProviderId,
-          it.dataProviderCertificateId,
-          it.requisition.details.encryptedData
-        )
-      }
-    addResult(
-      readResult.measurementConsumerId,
-      readResult.measurementId,
-      readResult.dataProviderId,
-      readResult.dataProviderCertificateId,
-      encryptedResult
-    )
   }
 
   companion object {

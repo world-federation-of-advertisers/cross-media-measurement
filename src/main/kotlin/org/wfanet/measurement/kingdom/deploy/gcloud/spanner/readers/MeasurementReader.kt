@@ -134,33 +134,18 @@ class MeasurementReader(private val view: Measurement.View) :
       ) AS Requisitions,
       ARRAY(
         SELECT AS STRUCT
-          ExternalDataProviderId,
-          ExternalDataProviderCertificateId,
-          EncryptedResult
-        FROM
-          Measurements as _Measurements
-          JOIN MeasurementResultDataProviderCertificates USING(MeasurementConsumerId, MeasurementId)
-          JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates
-            ON (DataProviderCertificates.CertificateId = MeasurementResultDataProviderCertificates.CertificateId)
-        WHERE
-          Measurements.MeasurementConsumerId = MeasurementResultDataProviderCertificates.MeasurementConsumerId
-          AND Measurements.MeasurementId = MeasurementResultDataProviderCertificates.MeasurementId
-      ) AS DataProviderResults,
-      ARRAY(
-        SELECT AS STRUCT
-          AggregatorDuchyId,
+          MeasurementResultDuchyCertificates.DuchyId,
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
           Measurements as _Measurements
-          JOIN MeasurementResultAggregatorDuchyCertificates USING(MeasurementConsumerId, MeasurementId)
+          JOIN MeasurementResultDuchyCertificates USING(MeasurementConsumerId, MeasurementId)
           JOIN DuchyCertificates
-            ON (DuchyCertificates.CertificateId = MeasurementResultAggregatorDuchyCertificates.CertificateId)
+            ON (DuchyCertificates.CertificateId = MeasurementResultDuchyCertificates.CertificateId)
         WHERE
-          Measurements.MeasurementConsumerId = MeasurementResultAggregatorDuchyCertificates.MeasurementConsumerId
-          AND Measurements.MeasurementId = MeasurementResultAggregatorDuchyCertificates.MeasurementId
-      ) AS AggregatorDuchyResults
+          Measurements.MeasurementConsumerId = MeasurementResultDuchyCertificates.MeasurementConsumerId
+          AND Measurements.MeasurementId = MeasurementResultDuchyCertificates.MeasurementId
+      ) AS DuchyResults
     FROM
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
@@ -239,33 +224,18 @@ class MeasurementReader(private val view: Measurement.View) :
       ) AS ComputationParticipants,
       ARRAY(
         SELECT AS STRUCT
-          ExternalDataProviderId,
-          ExternalDataProviderCertificateId,
-          EncryptedResult
-        FROM
-          Measurements as _Measurements
-          JOIN MeasurementResultDataProviderCertificates USING(MeasurementConsumerId, MeasurementId)
-          JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates
-            ON (DataProviderCertificates.CertificateId = MeasurementResultDataProviderCertificates.CertificateId)
-        WHERE
-          Measurements.MeasurementConsumerId = MeasurementResultDataProviderCertificates.MeasurementConsumerId
-          AND Measurements.MeasurementId = MeasurementResultDataProviderCertificates.MeasurementId
-      ) AS DataProviderResults,
-      ARRAY(
-        SELECT AS STRUCT
-          AggregatorDuchyId,
+          MeasurementResultDuchyCertificates.DuchyId,
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
           Measurements as _Measurements
-          JOIN MeasurementResultAggregatorDuchyCertificates USING(MeasurementConsumerId, MeasurementId)
+          JOIN MeasurementResultDuchyCertificates USING(MeasurementConsumerId, MeasurementId)
           JOIN DuchyCertificates
-            ON (DuchyCertificates.CertificateId = MeasurementResultAggregatorDuchyCertificates.CertificateId)
+            ON (DuchyCertificates.CertificateId = MeasurementResultDuchyCertificates.CertificateId)
         WHERE
-          Measurements.MeasurementConsumerId = MeasurementResultAggregatorDuchyCertificates.MeasurementConsumerId
-          AND Measurements.MeasurementId = MeasurementResultAggregatorDuchyCertificates.MeasurementId
-      ) AS AggregatorDuchyResults
+          Measurements.MeasurementConsumerId = MeasurementResultDuchyCertificates.MeasurementConsumerId
+          AND Measurements.MeasurementId = MeasurementResultDuchyCertificates.MeasurementId
+      ) AS DuchyResults
     FROM
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
@@ -290,24 +260,15 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
   state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
   details = struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
   if (state == Measurement.State.SUCCEEDED) {
-    for (dataProviderResultStruct in struct.getStructList("DataProviderResults")) {
+    for (duchyResultStruct in struct.getStructList("DuchyResults")) {
       results += resultInfo {
-        externalDataProviderId = dataProviderResultStruct.getLong("ExternalDataProviderId")
-        externalCertificateId =
-          dataProviderResultStruct.getLong("ExternalDataProviderCertificateId")
-        encryptedResult = dataProviderResultStruct.getBytesAsByteString("EncryptedResult")
-      }
-    }
-
-    for (aggregatorDuchyResultStruct in struct.getStructList("AggregatorDuchyResults")) {
-      results += resultInfo {
-        val aggregatorDuchyId = aggregatorDuchyResultStruct.getLong("AggregatorDuchyId")
+        val duchyId = duchyResultStruct.getLong("DuchyId")
         externalAggregatorDuchyId =
-          checkNotNull(DuchyIds.getExternalId(aggregatorDuchyId)) {
-            "Duchy with internal ID $aggregatorDuchyId not found"
+          checkNotNull(DuchyIds.getExternalId(duchyId)) {
+            "Duchy with internal ID $duchyId not found"
           }
-        externalCertificateId = aggregatorDuchyResultStruct.getLong("ExternalDuchyCertificateId")
-        encryptedResult = aggregatorDuchyResultStruct.getBytesAsByteString("EncryptedResult")
+        externalCertificateId = duchyResultStruct.getLong("ExternalDuchyCertificateId")
+        encryptedResult = duchyResultStruct.getBytesAsByteString("EncryptedResult")
       }
     }
   }
@@ -316,15 +277,26 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
   fillMeasurementCommon(struct)
 
+  val measurementSucceeded = state == Measurement.State.SUCCEEDED
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     val requisitionDetails =
       requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
-    dataProviders[requisitionStruct.getLong("ExternalDataProviderId")] = dataProviderValue {
-      externalDataProviderCertificateId =
-        requisitionStruct.getLong("ExternalDataProviderCertificateId")
+    val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
+    val externalDataProviderCertificateId =
+      requisitionStruct.getLong("ExternalDataProviderCertificateId")
+    dataProviders[externalDataProviderId] = dataProviderValue {
+      this.externalDataProviderCertificateId = externalDataProviderCertificateId
       dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
       dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
       encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+    }
+
+    if (measurementSucceeded) {
+      results += resultInfo {
+        this.externalDataProviderId = externalDataProviderId
+        externalCertificateId = externalDataProviderCertificateId
+        encryptedResult = requisitionDetails.encryptedData
+      }
     }
   }
 }

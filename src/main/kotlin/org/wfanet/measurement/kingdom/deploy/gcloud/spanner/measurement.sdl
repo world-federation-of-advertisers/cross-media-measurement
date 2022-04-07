@@ -29,8 +29,7 @@
 --   │       ├── ComputationParticipants
 --   │       ├── MeasurementLogEntries
 --   │       ├── Requisitions
---   │       ├── MeasurementResultDataProviderCertificates
---   │       └── MeasurementResultAggregatorDuchyCertificates
+--   │       └── MeasurementResultDuchyCertificates
 --   └── Accounts
 --       ├── OpenIdConnectIdentities
 --       ├── OpenIdConnectClaims
@@ -88,6 +87,18 @@ CREATE TABLE Certificates (
 -- Enforce that subject key identifier (SKID) is unique.
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
+
+CREATE TABLE DuchyCertificates (
+  DuchyId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  ExternalDuchyCertificateId INT64 NOT NULL,
+
+  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
+) PRIMARY KEY (DuchyId, CertificateId);
+
+CREATE UNIQUE INDEX DuchyCertificatesByExternalId
+  ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
 
 CREATE TABLE MeasurementConsumerCreationTokens (
   MeasurementConsumerCreationTokenId INT64 NOT NULL,
@@ -342,18 +353,6 @@ CREATE UNIQUE INDEX RequisitionsByDataProviderId
 -- fulfill
 CREATE INDEX RequisitionsByState ON Requisitions(DataProviderId, State);
 
-CREATE TABLE DuchyCertificates (
-  DuchyId INT64 NOT NULL,
-  CertificateId INT64 NOT NULL,
-
-  ExternalDuchyCertificateId INT64 NOT NULL,
-
-  FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
-) PRIMARY KEY (DuchyId, CertificateId);
-
-CREATE UNIQUE INDEX DuchyCertificatesByExternalId
-  ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
-
 -- Stores the details and state of duchies for the computation of parent
 -- Measurement.
 CREATE TABLE ComputationParticipants (
@@ -417,10 +416,10 @@ CREATE TABLE DuchyMeasurementLogEntries (
 CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
   ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
 
-CREATE TABLE MeasurementResultDataProviderCertificates (
+CREATE TABLE MeasurementResultDuchyCertificates (
   MeasurementConsumerId INT64 NOT NULL,
   MeasurementId INT64 NOT NULL,
-  DataProviderId INT64 NOT NULL,
+  DuchyId INT64 NOT NULL,
   CertificateId INT64 NOT NULL,
 
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
@@ -429,26 +428,9 @@ CREATE TABLE MeasurementResultDataProviderCertificates (
 
   FOREIGN KEY (MeasurementConsumerId, MeasurementId)
       REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
-  FOREIGN KEY (DataProviderId, CertificateId)
-      REFERENCES DataProviderCertificates(DataProviderId, CertificateId),
-) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DataProviderId, CertificateId),
-  INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
-
-CREATE TABLE MeasurementResultAggregatorDuchyCertificates (
-  MeasurementConsumerId INT64 NOT NULL,
-  MeasurementId INT64 NOT NULL,
-  AggregatorDuchyId INT64 NOT NULL,
-  CertificateId INT64 NOT NULL,
-
-  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-
-  EncryptedResult BYTES(MAX) NOT NULL,
-
-  FOREIGN KEY (MeasurementConsumerId, MeasurementId)
-      REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
-  FOREIGN KEY (AggregatorDuchyId, CertificateId)
+  FOREIGN KEY (DuchyId, CertificateId)
       REFERENCES DuchyCertificates(DuchyId, CertificateId),
-) PRIMARY KEY (MeasurementConsumerId, MeasurementId, AggregatorDuchyId, CertificateId),
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DuchyId, CertificateId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE TABLE Accounts (
