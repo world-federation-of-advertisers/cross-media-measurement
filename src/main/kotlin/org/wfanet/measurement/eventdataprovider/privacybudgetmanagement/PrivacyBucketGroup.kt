@@ -45,7 +45,7 @@ data class PrivacyBucketGroup(
       return false
     }
     if (bucketGroup2.endingDate.isBefore(bucketGroup1.startingDate) ||
-      bucketGroup1.endingDate.isBefore(bucketGroup2.startingDate)
+        bucketGroup1.endingDate.isBefore(bucketGroup2.startingDate)
     ) {
       return false
     }
