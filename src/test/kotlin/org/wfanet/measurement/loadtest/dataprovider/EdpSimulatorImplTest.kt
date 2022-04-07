@@ -165,11 +165,32 @@ class EdpSimulatorImplTest {
     return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
   }
 
+  private fun getExpectedResult(
+    matchingVids: List<Int>,
+    vidSamplingIntervalStart: Float,
+    vidSamplingIntervalWidth: Float
+  ): AnySketch {
+    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
+    val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
+
+    matchingVids.forEach {
+      if (vidSampler.vidIsInSamplingBucket(
+          it.toLong(),
+          vidSamplingIntervalStart,
+          vidSamplingIntervalWidth
+        )
+      ) {
+        expectedResult.insert(it.toLong(), mapOf("frequency" to 1L))
+      }
+    }
+    return expectedResult
+  }
   @Test
   fun `filter events and generate sketch successfully`() = runBlocking {
     val videoTemplateMatchingVids = (1..10)
     val bannerTemplateMatchingVids = (11..20)
     val nonMatchingVids = (21..40)
+    val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
 
     val videoTemplateMatchingEvents =
       videoTemplateMatchingVids
@@ -245,21 +266,10 @@ class EdpSimulatorImplTest {
         )
       )
 
-    val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
-    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
-    val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
-
-    matchingVids.forEach {
-      if (vidSampler.vidIsInSamplingBucket(
-          it.toLong(),
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
-        )
-      ) {
-        expectedResult.insert(it.toLong(), mapOf("frequency" to 1L))
-      }
-    }
-    assertAnySketchEquals(result, expectedResult)
+    assertAnySketchEquals(
+      result,
+      getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+    )
   }
 
   class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
