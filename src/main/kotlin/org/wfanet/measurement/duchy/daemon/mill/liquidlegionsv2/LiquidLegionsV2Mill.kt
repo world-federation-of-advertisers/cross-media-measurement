@@ -750,7 +750,7 @@ class LiquidLegionsV2Mill(
       }
     sendResultToKingdom(
       globalId = token.globalComputationId,
-      certificate = consentSignalCert.value,
+      certificate = consentSignalCert,
       resultPublicKey = serializedPublicApiEncryptionPublicKey,
       encryptedResult = encryptedResult
     )
