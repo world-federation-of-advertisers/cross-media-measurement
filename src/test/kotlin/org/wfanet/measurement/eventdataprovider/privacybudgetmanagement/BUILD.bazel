@@ -13,10 +13,32 @@ kt_jvm_test(
 
 kt_jvm_test(
     name = "InMemoryBackingStoreTest",
-    srcs = ["InMemoryBackingStoreTest.kt"],
+    srcs = [
+        "AbstractPrivacyBudgetLedgerStoreTest.kt",
+        "InMemoryBackingStoreTest.kt",
+    ],
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStoreTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "PostgresBackingStoreTest",
+    srcs = [
+        "AbstractPrivacyBudgetLedgerStoreTest.kt",
+        "PostgresBackingStoreTest.kt",
+    ],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:ledger.sql",
+    ],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PostgresBackingStoreTest",
+    deps = [
+        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:schemata",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
