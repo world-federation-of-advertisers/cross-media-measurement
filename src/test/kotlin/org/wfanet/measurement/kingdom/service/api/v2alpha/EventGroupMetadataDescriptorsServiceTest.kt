@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -53,6 +54,8 @@ private val DATA_PROVIDER_NAME = makeDataProvider(123L)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
 private val DATA_PROVIDER_EXTERNAL_ID =
   apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
+
+private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 
 private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
   "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAAAHs"
@@ -109,13 +112,40 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `getEventGroupMetadataDescriptor returns descriptor`() {
+  fun `getEventGroupMetadataDescriptor with data provider returns descriptor`() {
     val request = getEventGroupMetadataDescriptorRequest {
       name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
     }
 
     val result =
       withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getEventGroupMetadataDescriptor(request) }
+      }
+
+    val expected = EVENT_GROUP_METADATA_DESCRIPTOR
+
+    verifyProtoArgument(
+        internalEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+      )
+      .isEqualTo(
+        internalGetEventGroupMetadataDescriptorRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `getEventGroupMetadataDescriptor with measurement consumer returns descriptor`() {
+    val request = getEventGroupMetadataDescriptorRequest {
+      name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.getEventGroupMetadataDescriptor(request) }
       }
 
