@@ -15,6 +15,7 @@
 package org.wfanet.panelmatch.client.deploy
 
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.time.format.DateTimeFormatter
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -284,7 +285,15 @@ open class ProductionExchangeTaskMapper(
     execute: suspend ApacheBeamContext.() -> Unit
   ): ApacheBeamTask {
     val pipelineOptions = makePipelineOptions()
-    pipelineOptions.jobName = "${attemptKey.toName()}-${this.step.stepId}"
+    pipelineOptions.jobName =
+      listOf(
+          exchangeDateKey.recurringExchangeId,
+          exchangeDateKey.date.format(DateTimeFormatter.ofPattern("yyyyMMdd")),
+          step.stepId,
+          attemptKey.exchangeStepAttemptId
+        )
+        .joinToString("-")
+        .replace('_', '-')
 
     return ApacheBeamTask(
       Pipeline.create(pipelineOptions),
