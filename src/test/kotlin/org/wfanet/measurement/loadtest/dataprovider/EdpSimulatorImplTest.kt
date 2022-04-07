@@ -31,9 +31,15 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.AnySketch.Register
-import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
+import org.wfanet.anysketch.SketchConfigKt.indexSpec
+import org.wfanet.anysketch.SketchConfigKt.valueSpec
 import org.wfanet.anysketch.SketchProtos
+import org.wfanet.anysketch.distribution
+import org.wfanet.anysketch.exponentialDistribution
+import org.wfanet.anysketch.oracleDistribution
+import org.wfanet.anysketch.sketchConfig
+import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -70,8 +76,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private const val MC_NAME = "mc"
-private val EVENT_TEMPLATES_TO_FILTERS_MAP =
-  mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
+private val EVENT_TEMPLATES =
+  listOf("$TEMPLATE_PREFIX.TestVideoTemplate", "$TEMPLATE_PREFIX.TestBannerTemplate")
 private const val EDP_DISPLAY_NAME = "edp1"
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
@@ -85,30 +91,31 @@ private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
 private const val MAX_FREQUENCY = 10
 
-private val SKETCH_CONFIG =
-  SketchConfig.newBuilder()
-    .apply {
-      addIndexesBuilder().apply {
-        name = "Index"
-        distributionBuilder.exponentialBuilder.apply {
-          rate = LLV2_DECAY_RATE
-          numValues = LLV2_MAX_SIZE
-        }
-      }
-      addValuesBuilder().apply {
-        name = "SamplingIndicator"
-        aggregator = Aggregator.UNIQUE
-        distributionBuilder.uniformBuilder.apply {
-          numValues = 10_000_000 // 10M
-        }
-      }
-      addValuesBuilder().apply {
-        name = "Frequency"
-        aggregator = Aggregator.SUM
-        distributionBuilder.oracleBuilder.apply { key = "frequency" }
+private val SKETCH_CONFIG = sketchConfig {
+  indexes += indexSpec {
+    name = "Index"
+    distribution = distribution {
+      exponential = exponentialDistribution {
+        rate = LLV2_DECAY_RATE
+        numValues = LLV2_MAX_SIZE
       }
     }
-    .build()
+  }
+  values += valueSpec {
+    name = "SamplingIndicator"
+    aggregator = Aggregator.UNIQUE
+    distribution = distribution {
+      uniform = uniformDistribution {
+        numValues = 10_000_000 // 10M
+      }
+    }
+  }
+  values += valueSpec {
+    name = "Frequency"
+    aggregator = Aggregator.SUM
+    distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+  }
+}
 
 @RunWith(JUnit4::class)
 class EdpSimulatorImplTest {
@@ -225,7 +232,7 @@ class EdpSimulatorImplTest {
         sketchStore,
         FilterTestEventQuery(allEvents),
         MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
+        EVENT_TEMPLATES
       )
 
     val result: AnySketch =
