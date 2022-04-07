@@ -29,7 +29,7 @@ data class PrivacyBudgetLedgerEntry(
 )
 
 /** Manages the persistence of privacy budget data. */
-interface PrivacyBudgetLedgerBackingStore {
+interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
   /**
    * Informs the backing store that the processing of a new requisition has commenced. All accesses
    * to the backing store between the call to startTransaction() and the final call to commit() will
@@ -53,7 +53,7 @@ interface PrivacyBudgetLedgerBackingStore {
  * could be processing privacy budget management operations simultaneously. Implementors of the
  * PrivacyBudgetLedgerBackingStore should take this into account.
  */
-interface PrivacyBudgetLedgerTransactionContext {
+interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   val transactionId: Long // A unique ID assigned to this transaction.
 
   /**

@@ -1,4 +1,18 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
+
+package(default_visibility = [
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "abstract_ledger_store_test",
+    srcs = ["AbstractPrivacyBudgetLedgerStoreTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
 
 kt_jvm_test(
     name = "AdvancedCompositionTest",
@@ -16,10 +30,13 @@ kt_jvm_test(
     name = "InMemoryBackingStoreTest",
     srcs = ["InMemoryBackingStoreTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStoreTest",
+    runtime_deps = [
+        # Workaround for `NoClassDefFoundError: kotlin/jdk7/AutoCloseableKt`.
+        # See https://github.com/bazelbuild/rules_kotlin/issues/333
+        "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
+    ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "abstract_ledger_store_test",
     ],
 )
 
