@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.api.expr.v1alpha1.Decl
+import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.util.logging.Level
@@ -321,7 +323,6 @@ class EdpSimulator(
       sketchChunks
     )
   }
-
 
   private suspend fun fulfillRequisition(
     requisitionName: String,

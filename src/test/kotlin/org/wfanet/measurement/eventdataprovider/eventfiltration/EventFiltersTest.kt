@@ -67,7 +67,7 @@ class EventFiltersTest {
     val program =
       EventFilters.compileProgram(
         " video_ad.age.value == 1",
-        TestEvent.getDefaultInstance(),
+        testEvent {},
       )
     val event = testEvent {}
     assertFailsWithCode(EventFilterException.Code.EVALUATION_ERROR) {
