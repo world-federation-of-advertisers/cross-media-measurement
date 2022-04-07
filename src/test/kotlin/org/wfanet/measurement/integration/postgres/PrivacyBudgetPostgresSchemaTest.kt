@@ -1,0 +1,74 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package org.wfanet.measurement.integration.postgres
+
+import com.opentable.db.postgres.junit.EmbeddedPostgresRules
+import java.sql.ResultSet
+import kotlin.test.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres.POSTGRES_LEDGER_SCHEMA_FILE
+
+@RunWith(JUnit4::class)
+class PrivacyBudgetPostgresSchemaTest {
+  val schema = POSTGRES_LEDGER_SCHEMA_FILE.readText()
+
+  @get:Rule val pg = EmbeddedPostgresRules.singleInstance()
+
+  @Test
+  fun `privacy budget ledger sql file is valid for postgres`() {
+    val conn = pg.embeddedPostgres.postgresDatabase.connection
+    val statement = conn.createStatement()
+    statement.execute(schema)
+  }
+
+  @Test
+  fun `privacy budget ledger can be written and read`() {
+    val conn = pg.embeddedPostgres.postgresDatabase.connection
+    val statement = conn.createStatement()
+    val insertSql =
+      """
+      INSERT INTO LedgerEntries (
+        measurementConsumerId,
+        date,
+        age,
+        gender,
+        vid,
+        delta,epsilon,
+        repetition_count
+      ) VALUES (
+        1,
+        '2022-01-01',
+        1,
+        'FEMALE',
+        100,
+        0.1,
+        0.01,
+        10
+      )
+      """
+    val selectSql = """
+      SELECT gender, delta from LedgerEntries
+      """
+    statement.execute(schema)
+    statement.execute(insertSql)
+    val result: ResultSet = statement.executeQuery(selectSql)
+    result.next()
+    assertEquals("FEMALE", result.getString("gender"))
+    assertEquals(0.1f, result.getFloat("delta"))
+  }
+}
