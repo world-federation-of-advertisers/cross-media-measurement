@@ -53,7 +53,9 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.AgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.ageRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
@@ -117,6 +119,24 @@ private val SKETCH_CONFIG = sketchConfig {
   }
 }
 
+class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
+
+  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    val program =
+      EventFilters.compileProgram(
+        eventFilter.expression,
+        testEvent {},
+      )
+    return sequence {
+      for (vid in events.keys.toList()) {
+        if (EventFilters.matches(events.get(vid) as Message, program)) {
+          yield(vid.toLong())
+        }
+      }
+    }
+  }
+}
+
 @RunWith(JUnit4::class)
 class EdpSimulatorImplTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService()
@@ -151,20 +171,6 @@ class EdpSimulatorImplTest {
 
   private lateinit var edpSimulator: EdpSimulator
 
-  fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
-    return loadSigningKey(
-      SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
-      SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
-    )
-  }
-  fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
-    return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
-  }
-
-  fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
-    return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
-  }
-
   private fun getExpectedResult(
     matchingVids: List<Int>,
     vidSamplingIntervalStart: Float,
@@ -185,57 +191,61 @@ class EdpSimulatorImplTest {
     }
     return expectedResult
   }
+
+  private fun getEvents(
+    videoAd: TestVideoTemplate,
+    bannerAd: TestBannerTemplate,
+    vidRange: IntRange
+  ): Map<Int, TestEvent> {
+    return vidRange
+      .map {
+        it to
+          testEvent {
+            this.videoAd = videoAd
+            this.bannerAd = bannerAd
+          }
+      }
+      .toMap()
+  }
+
   @Test
-  fun `filter events and generate sketch successfully`() = runBlocking {
+  fun `filters events and generate sketch successfully`() = runBlocking {
     val videoTemplateMatchingVids = (1..10)
     val bannerTemplateMatchingVids = (11..20)
     val nonMatchingVids = (21..40)
     val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
 
+    val matchingTestVideoTemplate = testVideoTemplate {
+      age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+    }
+    val matchingTestBannerTemplate = testBannerTemplate {
+      gender = gender { value = Gender.Value.GENDER_FEMALE }
+    }
+    val nonMatchingTestVideoTemplate = testVideoTemplate {
+      age = ageRange { value = AgeRange.Value.AGE_RANGE_UNSPECIFIED }
+    }
+    val nonMatchingTestBannerTemplate = testBannerTemplate {
+      gender = gender { value = Gender.Value.GENDER_MALE }
+    }
+
     val videoTemplateMatchingEvents =
-      videoTemplateMatchingVids
-        .map {
-          it to
-            testEvent {
-              videoAd = testVideoTemplate { age = ageRange { value = AgeRange.Value.AGE_18_TO_24 } }
-              bannerAd = testBannerTemplate { gender = gender { value = Gender.Value.GENDER_MALE } }
-            }
-        }
-        .toMap()
+      getEvents(matchingTestVideoTemplate, nonMatchingTestBannerTemplate, videoTemplateMatchingVids)
 
     val bannerTemplateMatchingEvents =
-      bannerTemplateMatchingVids
-        .map {
-          it to
-            testEvent {
-              videoAd = testVideoTemplate {
-                age = ageRange { value = AgeRange.Value.AGE_RANGE_UNSPECIFIED }
-              }
-              bannerAd = testBannerTemplate {
-                gender = gender { value = Gender.Value.GENDER_FEMALE }
-              }
-            }
-        }
-        .toMap()
+      getEvents(
+        nonMatchingTestVideoTemplate,
+        matchingTestBannerTemplate,
+        bannerTemplateMatchingVids
+      )
 
     val nonMatchingEvents =
-      nonMatchingVids
-        .map {
-          it to
-            testEvent {
-              videoAd = testVideoTemplate {
-                age = ageRange { value = AgeRange.Value.AGE_RANGE_UNSPECIFIED }
-              }
-              bannerAd = testBannerTemplate { gender = gender { value = Gender.Value.GENDER_MALE } }
-            }
-        }
-        .toMap()
+      getEvents(nonMatchingTestVideoTemplate, nonMatchingTestBannerTemplate, nonMatchingVids)
 
     val matchingEvents = videoTemplateMatchingEvents + bannerTemplateMatchingEvents
     val allEvents = matchingEvents + nonMatchingEvents
 
-    val vidSamplingIntervalStart = 0.1.toFloat()
-    val vidSamplingIntervalWidth = 0.2.toFloat()
+    val vidSamplingIntervalStart = 0.1f
+    val vidSamplingIntervalWidth = 0.2f
 
     edpSimulator =
       EdpSimulator(
@@ -272,27 +282,22 @@ class EdpSimulatorImplTest {
     )
   }
 
-  class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
-
-    override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-      val program =
-        EventFilters.compileProgram(
-          eventFilter.expression,
-          testEvent {},
-        )
-      return sequence {
-        for (vid in events.keys.toList()) {
-          if (EventFilters.matches(events.get(vid) as Message, program)) {
-            yield(vid.toLong())
-          }
-        }
-      }
-    }
-  }
-
   companion object {
 
     @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
+    fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
+      return loadSigningKey(
+        SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
+        SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
+      )
+    }
+    fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
+      return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
+    }
+
+    fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
+      return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
+    }
 
     private val EQUIVALENCE: Correspondence<Register?, Register?> =
       Correspondence.from(EdpSimulatorImplTest::registersEquivalent, "is equivalent to")
