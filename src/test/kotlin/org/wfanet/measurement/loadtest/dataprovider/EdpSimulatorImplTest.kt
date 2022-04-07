@@ -249,14 +249,14 @@ class EdpSimulatorImplTest {
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
     val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
 
-    for (matchingVid in matchingVids) {
+    matchingVids.forEach {
       if (vidSampler.vidIsInSamplingBucket(
-          matchingVid.toLong(),
+          it.toLong(),
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth
         )
       ) {
-        expectedResult.insert(matchingVid.toLong(), mapOf("frequency" to 1L))
+        expectedResult.insert(it.toLong(), mapOf("frequency" to 1L))
       }
     }
     assertAnySketchEquals(result, expectedResult)
