@@ -13,6 +13,8 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.io.Closeable
+
 /**
  * Representation of a single row in the privacy budget ledger backing store. Note that a given
  * PrivacyBucketGroup may have multiple rows associated to it. The total charge to the
@@ -29,7 +31,7 @@ data class PrivacyBudgetLedgerEntry(
 )
 
 /** Manages the persistence of privacy budget data. */
-interface PrivacyBudgetLedgerBackingStore {
+interface PrivacyBudgetLedgerBackingStore : Closeable {
   /**
    * Informs the backing store that the processing of a new requisition has commenced. All accesses
    * to the backing store between the call to startTransaction() and the final call to commit() will
@@ -53,7 +55,7 @@ interface PrivacyBudgetLedgerBackingStore {
  * could be processing privacy budget management operations simultaneously. Implementors of the
  * PrivacyBudgetLedgerBackingStore should take this into account.
  */
-interface PrivacyBudgetLedgerTransactionContext {
+interface PrivacyBudgetLedgerTransactionContext : Closeable {
   val transactionId: Long // A unique ID assigned to this transaction.
 
   /**

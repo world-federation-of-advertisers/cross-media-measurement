@@ -21,13 +21,15 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * stores. This code is not thread safe.
  */
 class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
-  var transactionCount = 0L
+  private val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+  private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {
     transactionCount += 1
     return InMemoryBackingStoreTransactionContext(ledger, transactionCount)
   }
+
+  override fun close() {}
 }
 
 class InMemoryBackingStoreTransactionContext(
@@ -35,7 +37,7 @@ class InMemoryBackingStoreTransactionContext(
   override val transactionId: Long,
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  var transactionLedger = ledger.toMutableList()
+  private var transactionLedger = ledger.toMutableList()
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup,
@@ -96,4 +98,6 @@ class InMemoryBackingStoreTransactionContext(
     ledger.clear()
     ledger.addAll(transactionLedger)
   }
+
+  override fun close() {}
 }
