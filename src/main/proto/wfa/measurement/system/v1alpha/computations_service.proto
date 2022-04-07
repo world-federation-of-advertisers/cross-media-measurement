@@ -81,9 +81,10 @@ message SetComputationResultRequest {
   string name = 1 [(google.api.resource_reference).type =
                        "halo-system.wfanet.org/Computation"];
 
-  // X.509 certificate in DER format which can be verified using the
-  // Aggregator's root certificate. Required.
-  bytes aggregator_certificate = 2;
+  // Resource name of a `Certificate` belonging to the aggregator `Duchy`.
+  // Required.
+  string aggregator_certificate = 2
+      [(google.api.resource_reference).type = "halo.wfanet.org/Certificate"];
 
   // Serialized `EncryptionPublicKey` message from the public API. Required.
   bytes result_public_key = 3;
