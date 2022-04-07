@@ -11,7 +11,13 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
+
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerEntry
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
 
 /**
  * A simple implementation of a privacy budget ledger backing store.
@@ -21,13 +27,15 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * stores. This code is not thread safe.
  */
 class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
-  var transactionCount = 0L
+  private val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+  private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {
     transactionCount += 1
     return InMemoryBackingStoreTransactionContext(ledger, transactionCount)
   }
+
+  override fun close() {}
 }
 
 class InMemoryBackingStoreTransactionContext(
@@ -35,7 +43,7 @@ class InMemoryBackingStoreTransactionContext(
   override val transactionId: Long,
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  var transactionLedger = ledger.toMutableList()
+  private var transactionLedger = ledger.toMutableList()
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup,
@@ -96,4 +104,6 @@ class InMemoryBackingStoreTransactionContext(
     ledger.clear()
     ledger.addAll(transactionLedger)
   }
+
+  override fun close() {}
 }
