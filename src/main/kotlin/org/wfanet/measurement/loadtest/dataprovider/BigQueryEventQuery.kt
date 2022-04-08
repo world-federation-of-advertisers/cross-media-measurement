@@ -55,7 +55,7 @@ class BiqQueryEventQuery(
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
     val publisher =
       DISPLAY_NAME_TO_PUBLISHER_MAP[edpDisplayName]
-        ?: error("EDP ${edpDisplayName} not in the test data.")
+        ?: error("EDP $edpDisplayName not in the test data.")
     val queryConfig =
       buildQueryConfig(
         publisher = publisher,
