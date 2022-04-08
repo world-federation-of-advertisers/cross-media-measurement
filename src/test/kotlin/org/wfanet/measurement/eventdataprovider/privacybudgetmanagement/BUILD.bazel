@@ -1,7 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-<<<<<<< HEAD
     name = "AdvancedCompositionTest",
     srcs = ["AdvancedCompositionTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AdvancedCompositionTest",
@@ -30,8 +29,10 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-=======
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",]
+)
+
+kt_jvm_test(
     name = "PrivacyBucketMapperTest",
     srcs = ["PrivacyBucketMapperTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketMapperTest",
@@ -46,6 +47,5 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager"
->>>>>>> cb1c96b3 (working)
     ],
 )
