@@ -280,7 +280,7 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `updateEventGroupMetadataDescriptor throws INVALID_ARGUMENT when name is missing or invalid`() {
+  fun `updateEventGroupMetadataDescriptor throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
