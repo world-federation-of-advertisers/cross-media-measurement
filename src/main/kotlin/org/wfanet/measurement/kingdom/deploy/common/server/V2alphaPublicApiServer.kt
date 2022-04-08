@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineS
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as InternalEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub as InternalExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
@@ -40,6 +41,7 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ApiKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.CertificatesService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.DataProvidersService
+import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupMetadataDescriptorsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepAttemptsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.ExchangeStepsService
@@ -108,6 +110,11 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       EventGroupsService(InternalEventGroupsCoroutineStub(channel))
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+        .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
+      EventGroupMetadataDescriptorsService(
+          InternalEventGroupMetadataDescriptorsCoroutineStub(channel)
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ExchangeStepAttemptsService(
