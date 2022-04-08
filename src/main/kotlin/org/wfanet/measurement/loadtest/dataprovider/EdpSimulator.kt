@@ -226,8 +226,7 @@ class EdpSimulator(
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
-  ): Unit {
-
+  ) {
     eventQuery
       .getUserVirtualIds(eventFilter)
       .filter {
