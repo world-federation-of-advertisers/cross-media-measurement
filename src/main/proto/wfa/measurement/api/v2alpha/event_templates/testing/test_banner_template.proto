@@ -41,5 +41,9 @@ message TestBannerTemplate {
     description: "A simple Event Template for a banner ad."
   };
 
+<<<<<<< HEAD
   Gender gender = 1;
+=======
+  int32 age = 1;
+>>>>>>> cb1c96b3 (working)
 }

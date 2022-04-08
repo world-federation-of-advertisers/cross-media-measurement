@@ -49,6 +49,7 @@ message TestVideoTemplate {
     description: "A simple Event Template for a video ad."
   };
 
+  string ugur = 3;
   AgeRange age = 1;
   ViewDuration duration = 2;
 }

@@ -11,5 +11,10 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "@maven//:org_projectnessie_cel_cel_tools",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_template_type_registry",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_java_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
     ],
 )
