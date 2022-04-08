@@ -14,9 +14,13 @@
 
 package org.wfanet.panelmatch.client.exchangetasks
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
+import org.wfanet.measurement.common.mapConcurrently
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
 import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
@@ -29,7 +33,8 @@ class CopyFromSharedStorageTask(
   private val destination: StorageClient,
   private val copyOptions: CopyOptions,
   private val sourceBlobKey: String,
-  private val destinationBlobKey: String
+  private val destinationBlobKey: String,
+  private val maxParallelTransfers: Int = 32,
 ) : CustomIOExchangeTask() {
   override suspend fun execute() {
     val blob = source.getBlob(sourceBlobKey)
@@ -49,10 +54,16 @@ class CopyFromSharedStorageTask(
 
     destination.writeBlob(destinationBlobKey, manifestBytes)
 
-    for (shardName in shardedFileName.fileNames) {
-      val shardBlob = source.getBlob(shardName)
-      destination.writeBlob(signatureBlobKeyFor(shardName), shardBlob.signature)
-      shardBlob.copyInternally(shardName)
+    coroutineScope {
+      shardedFileName
+        .fileNames
+        .asFlow()
+        .mapConcurrently(this, maxParallelTransfers) { shardName ->
+          val shardBlob = source.getBlob(shardName)
+          destination.writeBlob(signatureBlobKeyFor(shardName), shardBlob.signature)
+          shardBlob.copyInternally(shardName)
+        }
+        .collect()
     }
   }
 
