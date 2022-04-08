@@ -46,7 +46,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvider
-import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.account
@@ -142,29 +141,10 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   }
 
   suspend fun createModelProvider(
-    modelProvidersService: ModelProvidersCoroutineImplBase,
-    notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    modelProvidersService: ModelProvidersCoroutineImplBase
   ): ModelProvider {
-    val modelProvider =
-      modelProvidersService.createModelProvider(
-        modelProvider {
-          certificate =
-            buildRequestCertificate(
-              "MC cert",
-              "MP SKID " + idGenerator.generateExternalId().value,
-              notValidBefore,
-              notValidAfter
-            )
-          details =
-            ModelProviderKt.details {
-              apiVersion = "v2alpha"
-              publicKey = "ModelProvider public key".toByteStringUtf8()
-              publicKeySignature = "ModelProvider public key signature".toByteStringUtf8()
-            }
-        }
-      )
-    return modelProvider
+
+    return modelProvidersService.createModelProvider(modelProvider {})
   }
 
   private suspend fun createMeasurement(

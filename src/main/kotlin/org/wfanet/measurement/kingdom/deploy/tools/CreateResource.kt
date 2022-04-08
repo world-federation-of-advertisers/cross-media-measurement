@@ -38,7 +38,6 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineS
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
@@ -160,20 +159,9 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
 @Command(name = "model-provider", description = ["Creates a ModelProvider"])
 private class CreateModelProviderCommand : CreatePrincipalCommand() {
   override fun run() {
-    val modelProvider = modelProvider {
-      certificate = this@CreateModelProviderCommand.certificate
-
-      details =
-        ModelProviderKt.details {
-          apiVersion = API_VERSION
-          publicKey = serializedEncryptionPublicKey
-          publicKeySignature = this@CreateModelProviderCommand.encryptionPublicKeySignature
-        }
-    }
-
     val modelProvidersStub = ModelProvidersCoroutineStub(parent.channel)
     val outputModelProvider =
-      runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider) }
+      runBlocking(Dispatchers.IO) { modelProvidersStub.createModelProvider(modelProvider {}) }
 
     val apiId = externalIdToApiId(outputModelProvider.externalModelProviderId)
     val modelProviderName = ModelProviderKey(apiId).toName()
