@@ -169,8 +169,6 @@ class EdpSimulatorImplTest {
     RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
   }
 
-  private lateinit var edpSimulator: EdpSimulator
-
   private fun getExpectedResult(
     matchingVids: List<Int>,
     vidSamplingIntervalStart: Float,
@@ -247,7 +245,7 @@ class EdpSimulatorImplTest {
     val vidSamplingIntervalStart = 0.1f
     val vidSamplingIntervalWidth = 0.2f
 
-    edpSimulator =
+    val edpSimulator =
       EdpSimulator(
         EdpData(
           EDP_NAME,
@@ -291,6 +289,7 @@ class EdpSimulatorImplTest {
         SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
       )
     }
+
     fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
       return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
     }
@@ -320,7 +319,7 @@ class EdpSimulatorImplTest {
 
     @JvmStatic
     @BeforeClass
-    fun createSketchStore() =
+    fun initSketchStore() =
       runBlocking<Unit> { sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root)) }
   }
 }

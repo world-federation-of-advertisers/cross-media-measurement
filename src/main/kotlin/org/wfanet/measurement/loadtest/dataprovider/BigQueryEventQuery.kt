@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 /** The mapping from the EDP Display name to the Publisher Id in the synthetic data. */
 private val DISPLAY_NAME_TO_PUBLISHER_MAP = (1..6).associateBy { "edp$it" }
 
-// TODO(@uakyol): Delete once the GCS correctness test supports EventFilters.
+/** TODO(@uakyol): Delete once the GCS correctness test supports [EventFilter]s */
 private val DEFAULT_QUERY_PARAMETER =
   QueryParameter(
     beginDate = "2021-03-01",
@@ -48,7 +48,12 @@ class BiqQueryEventQuery(
   lateinit var edpDisplayName: String
     public set
 
-  /** Generate Ids using constant query parameter. The parameter is ignored. */
+  /**
+   * Converts [eventFilter] to a select statement and fetches the virtual ids from [BigQuery],
+   * 
+   * TODO(@uakyol): Use [eventFiltbiger] rather than DEFAULT_QUERY_PARAMETER once the GCS
+   * correctness test supports [EventFilter]s
+   */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
     val publisher =
       DISPLAY_NAME_TO_PUBLISHER_MAP[edpDisplayName]

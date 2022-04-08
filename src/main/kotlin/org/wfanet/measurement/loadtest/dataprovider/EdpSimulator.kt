@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.api.expr.v1alpha1.Decl
-import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.util.logging.Level
@@ -79,7 +77,6 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -230,12 +227,13 @@ class EdpSimulator(
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
   ): Unit {
-    eventQuery.getUserVirtualIds(eventFilter).forEach {
-      if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      ) {
-        anySketch.insert(it, mapOf("frequency" to 1L))
+
+    eventQuery
+      .getUserVirtualIds(eventFilter)
+      .filter {
+        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       }
-    }
+      .forEach { anySketch.insert(it, mapOf("frequency" to 1L)) }
   }
 
   fun generateSketch(

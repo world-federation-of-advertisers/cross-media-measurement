@@ -16,7 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 
-// TODO(@uakyol): Delete once the GCS correctness test supports EventFilters.
+/** TODO(@uakyol): Delete once the GCS correctness test supports [EventFilter]s */
 enum class Sex(val string: String) {
   MALE("M"),
   FEMALE("F")
