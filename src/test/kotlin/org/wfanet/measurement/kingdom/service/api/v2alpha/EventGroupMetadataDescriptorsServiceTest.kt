@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequ
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -93,6 +94,8 @@ class EventGroupMetadataDescriptorsServiceTest {
       onBlocking { getEventGroupMetadataDescriptor(any()) }
         .thenReturn(INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR)
       onBlocking { createEventGroupMetadataDescriptor(any()) }
+        .thenReturn(INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR)
+      onBlocking { updateEventGroupMetadataDescriptor(any()) }
         .thenReturn(INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR)
     }
 
@@ -251,5 +254,46 @@ class EventGroupMetadataDescriptorsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `updateEventGroupMetadataDescriptor returns descriptor`() {
+    val request = updateEventGroupMetadataDescriptorRequest {
+      this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
+    }
+
+    val result = runBlocking { service.updateEventGroupMetadataDescriptor(request) }
+
+    val expected = EVENT_GROUP_METADATA_DESCRIPTOR
+
+    verifyProtoArgument(
+        internalEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
+      )
+      .isEqualTo(
+        org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest {
+          eventGroupMetadataDescriptor = INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {}
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `updateEventGroupMetadataDescriptor throws INVALID_ARGUMENT when name is missing or invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.updateEventGroupMetadataDescriptor(
+            updateEventGroupMetadataDescriptorRequest {
+              eventGroupMetadataDescriptor =
+                EVENT_GROUP_METADATA_DESCRIPTOR.toBuilder().apply { clearName() }.build()
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("EventGroupMetadataDescriptor name is either unspecified or invalid")
   }
 }
