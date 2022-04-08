@@ -835,15 +835,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         }
       )
-    assertThat(response)
-      .isEqualTo(
-        measurementsService.getMeasurement(
-          getMeasurementRequest {
-            externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-            externalMeasurementId = createdMeasurement.externalMeasurementId
-          }
-        )
+
+    val succeededMeasurement =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+          externalMeasurementId = createdMeasurement.externalMeasurementId
+        }
       )
+    assertThat(response).isEqualTo(succeededMeasurement)
+    assertThat(succeededMeasurement.resultsList.size).isEqualTo(1)
   }
 
   @Test
