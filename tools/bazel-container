@@ -18,7 +18,7 @@ set -eEu -o pipefail
 
 readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:0568ae6e1fbc9e23822a649f6fe43618ad04371d76fb3bb47e63c54b8609f6eb}"
 readonly DOCKER="${DOCKER:-docker}"
-readonly DOCKER_HOST="${DOCKER_HOST:-unix://var/run/docker.sock}"
+readonly DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 readonly CONTAINER_USER='builder'
 readonly CONTAINER_HOME="/${CONTAINER_USER}"
 readonly OUTPUT_BASE="${PWD}/bazel-container-output"
@@ -54,9 +54,18 @@ is_rootless() {
     [[ "$($DOCKER version --format '{{.Client.Os}}')" == 'darwin' ]]
 }
 
+hash_md5() {
+  if hash md5 2>/dev/null; then
+    md5 -s -q "$1"
+    return
+  fi
+
+  echo -n "$1" | md5sum | cut -d ' ' -f 1
+}
+
 get_output_volume() {
   local wdir_hash
-  wdir_hash="$(echo -n "${PWD}" | md5sum | cut -d ' ' -f 1)"
+  wdir_hash="$(hash_md5 "${PWD}")"
   echo "bazel-output-${wdir_hash}"
 }
 
@@ -164,7 +173,7 @@ main() {
     ${DOCKER} run --rm \
       --mount type=volume,source="${output_volume}",target="${OUTPUT_BASE}" \
       --entrypoint=/bin/sh "${IMAGE}" \
-      "-c 'touch ${OUTPUT_BASE}/.initialized && chown ${owner} ${OUTPUT_BASE}'"
+      -c "touch ${OUTPUT_BASE}/.initialized && chown ${owner} ${OUTPUT_BASE}"
 
     docker_options+=(
       "--user=${owner}"

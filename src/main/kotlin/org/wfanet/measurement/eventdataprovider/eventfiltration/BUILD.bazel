@@ -1,0 +1,16 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "event_filters",
+    srcs = [
+        "EventFilterException.kt",
+        "EventFilters.kt",
+    ],
+    deps = [
+        "//imports/java/org/projectnessie/cel:core",
+        "//imports/java/org/projectnessie/cel/tools",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/validation",
+    ],
+)
