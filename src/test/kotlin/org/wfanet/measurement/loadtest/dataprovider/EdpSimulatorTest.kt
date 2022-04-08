@@ -138,7 +138,7 @@ class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
 }
 
 @RunWith(JUnit4::class)
-class EdpSimulatorImplTest {
+class EdpSimulatorTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService()
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService()
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {}
@@ -299,7 +299,7 @@ class EdpSimulatorImplTest {
     }
 
     private val EQUIVALENCE: Correspondence<Register?, Register?> =
-      Correspondence.from(EdpSimulatorImplTest::registersEquivalent, "is equivalent to")
+      Correspondence.from(EdpSimulatorTest::registersEquivalent, "is equivalent to")
 
     fun registersEquivalent(result: Register?, expected: Register?): Boolean {
       if (result == null || expected == null) {

@@ -106,7 +106,7 @@ class EdpSimulator(
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
   private val throttler: MinimumIntervalThrottler,
-  private val eventTemplateNames: List<String> = emptyList()
+  private val eventTemplateNames: List<String>
 ) {
 
   /** A sequence of operations done in the simulator. */

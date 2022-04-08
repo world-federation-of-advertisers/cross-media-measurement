@@ -41,16 +41,14 @@ private val DEFAULT_QUERY_PARAMETER =
 
 /** Fulfill the query by querying the specified BigQuery table. */
 class BiqQueryEventQuery(
+  private val edpDisplayName: String,
   private val bigQuery: BigQuery,
   private val tableName: String,
 ) : EventQuery() {
 
-  lateinit var edpDisplayName: String
-    public set
-
   /**
    * Converts [eventFilter] to a select statement and fetches the virtual ids from [BigQuery],
-   * 
+   *
    * TODO(@uakyol): Use [eventFiltbiger] rather than DEFAULT_QUERY_PARAMETER once the GCS
    * correctness test supports [EventFilter]s
    */

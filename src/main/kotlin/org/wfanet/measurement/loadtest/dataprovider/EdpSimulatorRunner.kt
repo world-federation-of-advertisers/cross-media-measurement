@@ -73,11 +73,6 @@ abstract class EdpSimulatorRunner : Runnable {
           loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
         )
 
-      // If querying BigQuery, assign the edp name since the DB contains all EDPs.
-      if (eventQuery is BiqQueryEventQuery) {
-        eventQuery.edpDisplayName = edpData.displayName
-      }
-
       EdpSimulator(
           edpData,
           flags.mcResourceName,
