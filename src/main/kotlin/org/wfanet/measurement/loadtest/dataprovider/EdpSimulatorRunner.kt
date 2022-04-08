@@ -72,7 +72,6 @@ abstract class EdpSimulatorRunner : Runnable {
           loadPrivateKey(flags.edpEncryptionPrivateKeyset),
           loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
         )
-
       EdpSimulator(
           edpData,
           flags.mcResourceName,
