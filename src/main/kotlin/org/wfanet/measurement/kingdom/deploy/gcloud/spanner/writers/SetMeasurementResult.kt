@@ -66,7 +66,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           "Aggregator certificate ${request.externalAggregatorCertificateId} not found"
         }
 
-    transactionContext.bufferInsertMutation("MeasurementResultDuchyCertificates") {
+    transactionContext.bufferInsertMutation("DuchyMeasurementResults") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
       set("DuchyId" to aggregatorDuchyId)

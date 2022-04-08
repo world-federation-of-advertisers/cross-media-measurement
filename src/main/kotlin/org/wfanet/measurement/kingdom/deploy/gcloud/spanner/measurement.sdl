@@ -29,7 +29,7 @@
 --   │       ├── ComputationParticipants
 --   │       ├── MeasurementLogEntries
 --   │       ├── Requisitions
---   │       └── MeasurementResultDuchyCertificates
+--   │       └── DuchyMeasurementResults
 --   └── Accounts
 --       ├── OpenIdConnectIdentities
 --       ├── OpenIdConnectClaims
@@ -416,7 +416,7 @@ CREATE TABLE DuchyMeasurementLogEntries (
 CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
   ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
 
-CREATE TABLE MeasurementResultDuchyCertificates (
+CREATE TABLE DuchyMeasurementResults (
   MeasurementConsumerId INT64 NOT NULL,
   MeasurementId INT64 NOT NULL,
   DuchyId INT64 NOT NULL,

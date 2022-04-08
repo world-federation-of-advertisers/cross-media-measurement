@@ -134,17 +134,17 @@ class MeasurementReader(private val view: Measurement.View) :
       ) AS Requisitions,
       ARRAY(
         SELECT AS STRUCT
-          MeasurementResultDuchyCertificates.DuchyId,
+          DuchyMeasurementResults.DuchyId,
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
           Measurements as _Measurements
-          JOIN MeasurementResultDuchyCertificates USING(MeasurementConsumerId, MeasurementId)
+          JOIN DuchyMeasurementResults USING(MeasurementConsumerId, MeasurementId)
           JOIN DuchyCertificates
-            ON (DuchyCertificates.CertificateId = MeasurementResultDuchyCertificates.CertificateId)
+            ON (DuchyCertificates.CertificateId = DuchyMeasurementResults.CertificateId)
         WHERE
-          Measurements.MeasurementConsumerId = MeasurementResultDuchyCertificates.MeasurementConsumerId
-          AND Measurements.MeasurementId = MeasurementResultDuchyCertificates.MeasurementId
+          Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
+          AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
       ) AS DuchyResults
     FROM
       Measurements
@@ -224,17 +224,17 @@ class MeasurementReader(private val view: Measurement.View) :
       ) AS ComputationParticipants,
       ARRAY(
         SELECT AS STRUCT
-          MeasurementResultDuchyCertificates.DuchyId,
+          DuchyMeasurementResults.DuchyId,
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
           Measurements as _Measurements
-          JOIN MeasurementResultDuchyCertificates USING(MeasurementConsumerId, MeasurementId)
+          JOIN DuchyMeasurementResults USING(MeasurementConsumerId, MeasurementId)
           JOIN DuchyCertificates
-            ON (DuchyCertificates.CertificateId = MeasurementResultDuchyCertificates.CertificateId)
+            ON (DuchyCertificates.CertificateId = DuchyMeasurementResults.CertificateId)
         WHERE
-          Measurements.MeasurementConsumerId = MeasurementResultDuchyCertificates.MeasurementConsumerId
-          AND Measurements.MeasurementId = MeasurementResultDuchyCertificates.MeasurementId
+          Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
+          AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
       ) AS DuchyResults
     FROM
       Measurements
