@@ -40,9 +40,7 @@ class InMemoryBackingStoreTransactionContext(
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetLedgerEntry> {
-    return transactionLedger.filter {
-      privacyBucketGroup.privacyBucketsOverlap(privacyBucketGroup, it.privacyBucketGroup)
-    }
+    return transactionLedger.filter { privacyBucketGroup.overlapsWith(it.privacyBucketGroup) }
   }
 
   override fun addLedgerEntry(

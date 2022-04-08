@@ -36,31 +36,28 @@ data class PrivacyBucketGroup(
   val vidSampleStart: Float,
   val vidSampleWidth: Float,
 ) {
-
-  fun privacyBucketsOverlap(
-    bucketGroup1: PrivacyBucketGroup,
-    bucketGroup2: PrivacyBucketGroup,
+  fun overlapsWith(
+    otherBucketGroup: PrivacyBucketGroup,
   ): Boolean {
-    if (bucketGroup1.measurementConsumerId != bucketGroup2.measurementConsumerId) {
+    if (this.measurementConsumerId != otherBucketGroup.measurementConsumerId) {
       return false
     }
-    if (bucketGroup2.endingDate.isBefore(bucketGroup1.startingDate) ||
-        bucketGroup1.endingDate.isBefore(bucketGroup2.startingDate)
+    if (otherBucketGroup.endingDate.isBefore(this.startingDate) ||
+        this.endingDate.isBefore(otherBucketGroup.startingDate)
     ) {
       return false
     }
-    if (bucketGroup1.ageGroup != bucketGroup2.ageGroup) {
+    if (this.ageGroup != otherBucketGroup.ageGroup) {
       return false
     }
-    if (bucketGroup1.gender != bucketGroup2.gender) {
+    if (this.gender != otherBucketGroup.gender) {
       return false
     }
 
-    // Prior wrap-around logic is removed
-    val vidSampleEnd1 = bucketGroup1.vidSampleStart + bucketGroup1.vidSampleWidth
-    val vidSampleEnd2 = bucketGroup2.vidSampleStart + bucketGroup2.vidSampleWidth
+    val vidSampleEnd1 = this.vidSampleStart + this.vidSampleWidth
+    val vidSampleEnd2 = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
 
-    return (bucketGroup1.vidSampleStart <= vidSampleEnd2) &&
-      (bucketGroup2.vidSampleStart <= vidSampleEnd1)
+    return (this.vidSampleStart <= vidSampleEnd2) &&
+      (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
   }
 }

@@ -14,13 +14,28 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
-import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import org.junit.Test
 
 class PrivacyBucketGroupTest {
+
+  companion object {
+    private val bucketGroup =
+      PrivacyBucketGroup(
+        "ACME",
+        LocalDate.parse("2021-07-01"),
+        LocalDate.parse("2021-07-01"),
+        AgeGroup.RANGE_35_54,
+        Gender.MALE,
+        0.3f,
+        0.2f
+      )
+  }
+
   @Test
-  fun `privacyBucketsOverlap works as expected`() {
-    val bucket1 =
+  fun `privacyBucketsOverlap overlapping works as expected`() {
+    val bucketGroup2 =
       PrivacyBucketGroup(
         "ACME",
         LocalDate.parse("2021-07-01"),
@@ -31,29 +46,22 @@ class PrivacyBucketGroupTest {
         0.1f
       )
 
-    val bucket2 =
+    assertTrue { bucketGroup.overlapsWith(bucketGroup2) }
+  }
+
+  @Test
+  fun `privacyBucketsOverlap non overlapping works as expected`() {
+    val bucketGroup2 =
       PrivacyBucketGroup(
         "ACME",
         LocalDate.parse("2021-07-01"),
         LocalDate.parse("2021-07-01"),
         AgeGroup.RANGE_35_54,
         Gender.MALE,
-        0.5f,
-        0.4f
+        0.6f,
+        0.2f
       )
 
-    val bucket3 =
-      PrivacyBucketGroup(
-        "ACME",
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.MALE,
-        0.5f,
-        0.1f
-      )
-
-    assertEquals(bucket1.privacyBucketsOverlap(bucket1, bucket2), false)
-    assertEquals(bucket1.privacyBucketsOverlap(bucket2, bucket3), true)
+    assertFalse { bucketGroup.overlapsWith(bucketGroup2) }
   }
 }
