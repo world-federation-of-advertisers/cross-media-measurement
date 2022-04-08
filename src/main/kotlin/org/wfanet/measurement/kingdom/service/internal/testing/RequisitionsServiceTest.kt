@@ -878,12 +878,12 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         dataProvider
       )
 
-    val nonExistantExternalRequisitionId = idGenerator.generateExternalId()
+    val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
     val exception =
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
           fulfillRequisitionRequest {
-            externalRequisitionId = nonExistantExternalRequisitionId.value
+            externalRequisitionId = nonExistentExternalRequisitionId.value
             nonce = NONCE_1
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
@@ -921,7 +921,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         )
         .first()
 
-    val nonExistantExternalDuchyId = "Chalced"
+    val nonExistentExternalDuchyId = "Chalced"
     val exception =
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
@@ -930,7 +930,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             nonce = NONCE_1
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = nonExistantExternalDuchyId
+              externalFulfillingDuchyId = nonExistentExternalDuchyId
             }
           }
         )
@@ -1204,6 +1204,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           }
         )
 
+      assertThat(succeededMeasurement.resultsList.size).isEqualTo(2)
       assertThat(succeededMeasurement.resultsList)
         .ignoringRepeatedFieldOrder()
         .containsAtLeast(
@@ -1373,13 +1374,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       dataProvider
     )
 
-    val nonExistantExternalRequisitionId = idGenerator.generateExternalId()
+    val nonExistentExternalRequisitionId = idGenerator.generateExternalId()
     val exception =
       assertFailsWith(StatusRuntimeException::class) {
         service.refuseRequisition(
           refuseRequisitionRequest {
             externalDataProviderId = dataProvider.externalDataProviderId
-            externalRequisitionId = nonExistantExternalRequisitionId.value
+            externalRequisitionId = nonExistentExternalRequisitionId.value
             refusal = REFUSAL
           }
         )
