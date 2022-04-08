@@ -398,7 +398,7 @@ class FrontendSimulator(
    * Creates a CEL filter using Event Templates names to qualify each variable in expression.
    *
    * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
-   * org.wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
+   * wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
    */
   private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
