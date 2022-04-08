@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * Copyright 2022 The Cross-Media Measurement Authors
  *
@@ -12,22 +11,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-=======
-// Copyright 2022 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
->>>>>>> 637139dc (Adds skeleton of privacy budget manager)
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.api.expr.v1alpha1.Decl
@@ -52,7 +35,6 @@ import org.projectnessie.cel.common.Source.newTextSource;
 import org.projectnessie.cel.common.Source;
 import org.projectnessie.cel.Program.EvalResult;
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistry
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
@@ -78,36 +60,12 @@ fun toDelc(fieldName: String): Decl {
  * this list are disjoint. In the current implementation, each privacy bucket group represents a
  * single privacy bucket.
  */
-<<<<<<< HEAD
-<<<<<<< HEAD
 internal fun getPrivacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
 ): List<PrivacyBucketGroup> = TODO("Not implemented $measurementSpec $requisitionSpec")
-=======
-internal fun privacyBucketGroups(
-  measurementSpec: MeasurementSpec,
-  requisitionSpec: RequisitionSpec
-<<<<<<< HEAD
-<<<<<<< HEAD
-): List<PrivacyBucketGroup> =
-  TODO("Not implemented ${measurementSpec} ${requisitionSpec}")
-<<<<<<< HEAD
-}
->>>>>>> 637139dc (Adds skeleton of privacy budget manager)
-=======
->>>>>>> 9bacaf26 (More formatting changes)
-=======
-): List<PrivacyBucketGroup> = TODO("Not implemented ${measurementSpec} ${requisitionSpec}")
->>>>>>> a2645281 (Still more formatting changes)
-=======
-): List<PrivacyBucketGroup> = TODO("Not implemented $measurementSpec $requisitionSpec")
->>>>>>> b1052a9f (More formatting changes!)
-=======
-fun privacyBucketGroups(
-  measurementSpec: MeasurementSpec,
-  requisitionSpec: RequisitionSpec
-): List<PrivacyBucketGroup> {
+
+/*
   //   throw PrivacyBudgetManagementInternalException(
   //     PrivacyBudgetManagementInternalException.Code.BAD_INPUT
   //   )
@@ -194,4 +152,5 @@ fun privacyBucketGroups(
     println(out.getVal().value())
     return listOf<PrivacyBucketGroup>()
 }
->>>>>>> cb1c96b3 (working)
+
+*/

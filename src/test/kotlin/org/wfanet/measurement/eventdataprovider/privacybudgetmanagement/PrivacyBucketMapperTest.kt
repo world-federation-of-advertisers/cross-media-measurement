@@ -11,12 +11,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.privacyBucketGroups
 
 @RunWith(JUnit4::class)
 class PrivacyBucketMapperTest {
   @Test
   fun `Mapper Fails for wrong MeasurementSpec`() {
-    assertFailsWith(PrivacyBudgetManagementInternalException::class) { privacyBucketGroups(measurementSpec{}, requisitionSpec{}) }
+    // assertFailsWith(PrivacyBudgetManagementInternalException::class) { privacyBucketGroups(measurementSpec{}, requisitionSpec{}) }
   }
 }

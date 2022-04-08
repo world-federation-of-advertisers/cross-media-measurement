@@ -18,7 +18,7 @@ object PrivacyLandscape {
   val date = listOf("1", "2", "3")
   val ageGroup = listOf("1", "2", "3")
   val gender = listOf("1", "2", "3")
-  val vidSample = (0..1 step 0.01)
+  // val vidSample = (0..1 step 0.01)
 }
 
 

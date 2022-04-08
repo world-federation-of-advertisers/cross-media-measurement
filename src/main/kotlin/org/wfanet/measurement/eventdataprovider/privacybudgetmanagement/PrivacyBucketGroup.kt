@@ -35,3 +35,4 @@ data class PrivacyBucketGroup(
   val gender: Gender,
   val vidSampleStart: Float,
   val vidSampleWidth: Float
+)
