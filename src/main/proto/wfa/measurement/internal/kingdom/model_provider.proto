@@ -31,6 +31,8 @@ message ModelProvider {
   Certificate certificate = 2 [deprecated = true];
 
   message Details {
+    option deprecated = true;
+
     // Version the public API for serialized message definitions.
     string api_version = 1;
 
