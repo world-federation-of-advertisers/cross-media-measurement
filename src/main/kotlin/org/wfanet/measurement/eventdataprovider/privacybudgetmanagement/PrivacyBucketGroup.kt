@@ -14,6 +14,10 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
 
 enum class AgeGroup(val string: String) {
   RANGE_18_34("18_34"),
@@ -36,3 +40,15 @@ data class PrivacyBucketGroup(
   val vidSampleStart: Float,
   val vidSampleWidth: Float
 )
+
+/**
+ * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
+ * that message.
+ *
+ * TODO(@uakyol) : Update this to [Event] message when actual templates are registered.
+ */
+fun PrivacyBucketGroup.toEventProto(){
+  return testEvent{
+
+  }
+}

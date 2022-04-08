@@ -17,28 +17,9 @@ import com.google.api.expr.v1alpha1.Decl
 import com.google.api.expr.v1alpha1.Decl.IdentDecl
 import com.google.api.expr.v1alpha1.Type
 import com.google.api.expr.v1alpha1.Type.PrimitiveType
-import org.projectnessie.cel.Env
-import org.projectnessie.cel.Env.AstIssuesTuple
-import org.projectnessie.cel.Env.newEnv
-import org.projectnessie.cel.checker.Decls
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.DataProvider
-import org.wfanet.measurement.api.v2alpha.dataProvider
-import org.projectnessie.cel.EnvOption;
-import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry;
-import org.projectnessie.cel.common.types.ref.TypeRegistry;
-import org.projectnessie.cel.EnvOption.container;
-import org.projectnessie.cel.EnvOption.customTypeAdapter;
-import org.projectnessie.cel.EnvOption.customTypeProvider;
-import org.projectnessie.cel.common.Source.newTextSource;
-import org.projectnessie.cel.common.Source;
-import org.projectnessie.cel.Program.EvalResult;
-import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 
 fun toDelc(fieldName: String): Decl {
   return Decl.newBuilder()
@@ -63,7 +44,48 @@ fun toDelc(fieldName: String): Decl {
 internal fun getPrivacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
-): List<PrivacyBucketGroup> = TODO("Not implemented $measurementSpec $requisitionSpec")
+): List<PrivacyBucketGroup> {
+
+  val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
+  val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
+  val vidSamplingIntervalEnd = vidSamplingIntervalStart + vidSamplingIntervalWidth
+
+  return requisitionSpec.eventGroups.flatMap {
+    getPrivacyBucketGroups(it, vidSamplingIntervalStart, vidSamplingIntervalEnd)
+  }
+}
+
+private fun getPrivacyBucketGroups(
+  eventGroupEntryValue: EventGroupEntry.Value,
+  vidSamplingIntervalStart: Float,
+  vidSamplingIntervalEnd: Float
+): List<PrivacyBucketGroup> {
+
+  val program =
+    EventFilters.compileProgram(
+      eventGroupEntryValue.eventFilter.expression,
+      testEvent {},
+    )
+
+  val matchingPrivacyBuckets: List<PrivacyBucketGroup> = emptyList()
+  for (vid in PrivacyLandscape.vids) {
+    if (vid < vidSamplingIntervalStart || vid > vidSamplingIntervalEnd) {
+      continue
+    }
+    for (date in PrivacyLandscape.dates) {
+      for (ageGroup in PrivacyLandscape.ageGroups) {
+        for (gender in PrivacyLandscape.genders) {
+          val privacyBucketGroup =
+            PrivacyBucketGroup("ACME", date, date, ageGroup, gender, vid, vid)
+          if (EventFilters.matches(privacyBucketGroup.toEventProto() as Message, program)) {
+            matchingPrivacyBuckets.add(privacyBucketGroup)
+          }
+        }
+      }
+    }
+  }
+  return matchingPrivacyBuckets
+}
 
 /*
   //   throw PrivacyBudgetManagementInternalException(
