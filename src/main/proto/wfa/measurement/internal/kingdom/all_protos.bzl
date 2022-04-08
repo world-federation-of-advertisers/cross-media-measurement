@@ -45,6 +45,7 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:duchy_id_config_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:duchy_protocol_config_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:event_group_kt_jvm_proto",
+    "//src/main/proto/wfa/measurement/internal/kingdom:event_group_metadata_descriptor_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:exchange_details_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:exchange_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_attempt_details_kt_jvm_proto",
