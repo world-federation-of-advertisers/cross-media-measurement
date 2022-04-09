@@ -22,38 +22,38 @@ import "wfa/measurement/api/v2alpha/event_annotations.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
-message AgeRange {
-  option (.wfa.measurement.api.v2alpha.event_field) = {
-    display_name: "Age Range"
-  };
-
-  enum Value {
-    AGE_18_TO_24 = 0;
-    AGE_35_TO_54 = 1;
-    AGE_54+ = 1;
-  }
-  Value value = 1;
-}
-
-message Gender {
-  option (.wfa.measurement.api.v2alpha.event_field) = {
-    display_name: "Gender"
-  };
-
-  enum Value {
-    GENDER_MALE = 0;
-    GENDER_FEMALE = 1;
-  }
-  Value value = 1;
-}
-
-message TestVideoTemplate {
+message TestPrivacyBudgetTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "test_privacy_budget_template"
     display_name: "Privacy Budget"
     description: "An Event Template to specify privacy regions to charge."
   };
 
+  message AgeRange {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Age Range"
+    };
+
+    enum Value {
+      AGE_18_TO_24 = 0;
+      AGE_35_TO_54 = 1;
+      AGE_OVER_54 = 2;
+    }
+    Value value = 1;
+  }
+
+  message Gender {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Gender"
+    };
+
+    enum Value {
+      GENDER_MALE = 0;
+      GENDER_FEMALE = 1;
+    }
+    Value value = 1;
+  }
+
   AgeRange age = 1;
-  ViewDuration duration = 2;
+  Gender gender = 2;
 }

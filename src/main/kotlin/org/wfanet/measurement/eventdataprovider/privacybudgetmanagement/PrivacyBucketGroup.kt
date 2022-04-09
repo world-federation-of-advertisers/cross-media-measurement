@@ -15,9 +15,12 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
 
 enum class AgeGroup(val string: String) {
   RANGE_18_34("18_34"),
@@ -41,14 +44,33 @@ data class PrivacyBucketGroup(
   val vidSampleWidth: Float
 )
 
+// 300*200*3*2 = 60.000
+
 /**
  * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
  * that message.
  *
  * TODO(@uakyol) : Update this to [Event] message when actual templates are registered.
  */
-fun PrivacyBucketGroup.toEventProto(){
-  return testEvent{
+fun PrivacyBucketGroup.toEventProto(): TestEvent {
+  val privacyBucketGroupGender = this.gender
+  return testEvent {
+    privacyBudget = testPrivacyBudgetTemplate {
+      age =
+        if (ageGroup == AgeGroup.RANGE_18_34) ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+        else
+          (if (ageGroup == AgeGroup.RANGE_35_54) ageRange { value = AgeRange.Value.AGE_35_TO_54 }
+          else ageRange { value = AgeRange.Value.AGE_OVER_54 })
 
+      gender =
+        if (privacyBucketGroupGender == Gender.MALE)
+          TestPrivacyBudgetTemplateKt.gender {
+            value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
+          }
+        else
+          TestPrivacyBudgetTemplateKt.gender {
+            value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
+          }
+    }
   }
 }

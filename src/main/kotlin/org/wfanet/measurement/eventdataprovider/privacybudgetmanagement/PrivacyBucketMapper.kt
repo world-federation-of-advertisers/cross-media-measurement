@@ -17,9 +17,20 @@ import com.google.api.expr.v1alpha1.Decl
 import com.google.api.expr.v1alpha1.Decl.IdentDecl
 import com.google.api.expr.v1alpha1.Type
 import com.google.api.expr.v1alpha1.Type.PrimitiveType
+import com.google.protobuf.Message
+import com.google.protobuf.Timestamp
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+
+
+private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.01f
 
 fun toDelc(fieldName: String): Decl {
   return Decl.newBuilder()
@@ -41,7 +52,7 @@ fun toDelc(fieldName: String): Decl {
  * this list are disjoint. In the current implementation, each privacy bucket group represents a
  * single privacy bucket.
  */
-internal fun getPrivacyBucketGroups(
+fun getPrivacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
 ): List<PrivacyBucketGroup> {
@@ -50,41 +61,70 @@ internal fun getPrivacyBucketGroups(
   val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
   val vidSamplingIntervalEnd = vidSamplingIntervalStart + vidSamplingIntervalWidth
 
-  return requisitionSpec.eventGroups.flatMap {
-    getPrivacyBucketGroups(it, vidSamplingIntervalStart, vidSamplingIntervalEnd)
-  }
+  return requisitionSpec
+    .getEventGroupsList()
+    .flatMap { getPrivacyBucketGroups(it.value, vidSamplingIntervalStart, vidSamplingIntervalEnd) }
+    .toList()
 }
 
 private fun getPrivacyBucketGroups(
   eventGroupEntryValue: EventGroupEntry.Value,
   vidSamplingIntervalStart: Float,
   vidSamplingIntervalEnd: Float
-): List<PrivacyBucketGroup> {
+): Sequence<PrivacyBucketGroup> {
+
+  val startTime: Timestamp = eventGroupEntryValue.collectionInterval.startTime
+  val endTime: Timestamp = eventGroupEntryValue.collectionInterval.endTime
+
+  val startDate: LocalDate =
+    Instant.ofEpochSecond(startTime.getSeconds(), startTime.getNanos().toLong())
+      .atZone(ZoneId.of("America/Montreal")) // This is problematic!
+      .toLocalDate()
+
+  val endDate: LocalDate =
+    Instant.ofEpochSecond(endTime.getSeconds(), endTime.getNanos().toLong())
+      .atZone(ZoneId.of("America/Montreal")) // This is problematic!
+      .toLocalDate()
 
   val program =
-    EventFilters.compileProgram(
-      eventGroupEntryValue.eventFilter.expression,
-      testEvent {},
-    )
-
-  val matchingPrivacyBuckets: List<PrivacyBucketGroup> = emptyList()
-  for (vid in PrivacyLandscape.vids) {
-    if (vid < vidSamplingIntervalStart || vid > vidSamplingIntervalEnd) {
-      continue
+    try {
+      EventFilters.compileProgram(
+        eventGroupEntryValue.filter.expression,
+        // TODO(@uakyol) : Update to Event proto once real event templates are checked in.
+        testEvent {},
+      )
+    } catch (e: EventFilterValidationException) {
+      throw PrivacyBudgetManagerException(
+        PrivacyBudgetManagerExceptionType.INVLAID_PRIVACY_BUCKET_FILTER,
+        emptyList()
+      )
     }
-    for (date in PrivacyLandscape.dates) {
-      for (ageGroup in PrivacyLandscape.ageGroups) {
-        for (gender in PrivacyLandscape.genders) {
-          val privacyBucketGroup =
-            PrivacyBucketGroup("ACME", date, date, ageGroup, gender, vid, vid)
-          if (EventFilters.matches(privacyBucketGroup.toEventProto() as Message, program)) {
-            matchingPrivacyBuckets.add(privacyBucketGroup)
+
+  return sequence {
+    for (vid in PrivacyLandscape.vids) {
+
+      if (vid < vidSamplingIntervalStart || vid > vidSamplingIntervalEnd) {
+        continue
+      }
+
+      for (date in PrivacyLandscape.dates) {
+
+        if (date.isAfter(endDate) || date.isBefore(startDate)) {
+          continue
+        }
+
+        for (ageGroup in PrivacyLandscape.ageGroups) {
+          for (gender in PrivacyLandscape.genders) {
+            val privacyBucketGroup =
+              PrivacyBucketGroup("ACME", date, date, ageGroup, gender, vid, PRIVACY_BUCKET_VID_SAMPLE_WIDTH)
+            if (EventFilters.matches(privacyBucketGroup.toEventProto() as Message, program)) {
+              yield(privacyBucketGroup)
+            }
           }
         }
       }
     }
   }
-  return matchingPrivacyBuckets
 }
 
 /*
