@@ -1,0 +1,32 @@
+# proto-file: src/main/proto/wfa/measurement/reporting/v1alpha/metric_set.proto
+# proto-message: MetricSet
+measurement_consumer: "measurementConsumers/comScore"
+event_group_filters {
+  key: "measurementConsumers/comScore/dataProviders/digitalEdp1/eventGroups/campaign1"
+  value: "age_bucket = AgeBucket.18_34 && is_viewable = true"
+}
+event_group_filters {
+  key: "measurementConsumers/comScore/dataProviders/tvEdp1/eventGroups/campaign1"
+  value: "age_bucket = AgeBucket.18_34"
+}
+metrics: REACH
+repeated_time_interval {
+  start_time {
+    seconds: 1649380087
+  }
+  increment {
+    seconds: 86400  # One standard day.
+  }
+  num_intervals: 30
+  cumulative: true
+}
+set_operation {
+  type: UNION
+  lhs {
+    spec {
+      display_name: "All"
+      event_groups: "measurementConsumers/comScore/dataProviders/digitalEdp1/eventGroups/campaign1"
+      event_groups: "measurementConsumers/comScore/dataProviders/tvEdp1/eventGroups/campaign1"
+    }
+  }
+}
