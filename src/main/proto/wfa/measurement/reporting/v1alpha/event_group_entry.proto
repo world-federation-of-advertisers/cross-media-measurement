@@ -16,9 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v1alpha;
 
-import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
-import "google/protobuf/timestamp.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v1alpha/time_interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
@@ -31,7 +31,7 @@ message EventGroupEntry {
   string key = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      type: "reporting.halo-cmm.org/EventGroup";
+      type: "reporting.halo-cmm.org/EventGroup"
     }
   ];
 
@@ -47,17 +47,6 @@ message EventGroupEntry {
   }
   // Value of the map entry.
   Value value = 2 [(google.api.field_behavior) = REQUIRED];
-}
-
-// A time interval.
-message TimeInterval {
-  // Start of the time interval, inclusive.
-  google.protobuf.Timestamp start_time = 1
-      [(google.api.field_behavior) = REQUIRED];
-  // End of the time interval, exclusive. This must be later than the start
-  // time.
-  google.protobuf.Timestamp end_time = 2
-      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Event filter to apply to events.
