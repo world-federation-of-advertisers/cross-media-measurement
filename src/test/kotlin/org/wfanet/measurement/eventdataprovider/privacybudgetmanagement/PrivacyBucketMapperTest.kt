@@ -50,29 +50,6 @@ class PrivacyBucketMapperTest {
     }
   }
 
-  //   @Test
-  //   fun `Mapper succeeds for filter expression with single privacy budget Field`() {
-
-  //     val requisitionSpec = requisitionSpec {
-  //       eventGroups += eventGroupEntry {
-  //         key = "eventGroups/someEventGroup"
-  //         value =
-  //           RequisitionSpecKt.EventGroupEntryKt.value {
-  //             collectionInterval = timeInterval {
-  //               startTime =
-  //
-  // LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-  //               endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-  //             }
-  //             filter = eventFilter { expression = "!(privacy_budget.age.value == 1 ||
-  // banner_ad.gender.value == 1)" }
-  //           }
-  //       }
-  //     }
-  //     val buckets = getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec)
-  //     println(buckets.size)
-  //   }
-
   @Test
   fun `Mapper succeeds for filter expression with only privacy budget Fields`() {
 
@@ -149,7 +126,8 @@ class PrivacyBucketMapperTest {
             }
             filter = eventFilter {
               expression =
-                "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 && banner_ad.gender.value == 1"
+                "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 && " +
+                  "banner_ad.gender.value == 1"
             }
           }
       }
@@ -211,7 +189,8 @@ class PrivacyBucketMapperTest {
             }
             filter = eventFilter {
               expression =
-                "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 || banner_ad.gender.value == 1"
+                "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 || " +
+                  "banner_ad.gender.value == 1"
             }
           }
       }

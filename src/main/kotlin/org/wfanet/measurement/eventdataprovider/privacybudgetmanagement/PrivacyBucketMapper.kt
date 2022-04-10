@@ -74,13 +74,6 @@ private fun getPrivacyBucketGroups(
   vidSamplingIntervalStart: Float,
   vidSamplingIntervalEnd: Float
 ): Sequence<PrivacyBucketGroup> {
-  // val program =
-  //   EventFilters.compileProgram(
-  //     eventGroupEntryValue.filter.expression,
-  //     // TODO(@uakyol) : Update to Event proto once real event templates are checked in.
-  //     testEvent {},
-  //     OPERATIVE_PRIVACY_BUDGET_FIELDS
-  //   )
 
   val program =
     try {
@@ -137,93 +130,3 @@ private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
   Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
     .atZone(ZoneId.of(timeZone)) // This is problematic!
     .toLocalDate()
-
-/*
-  //   throw PrivacyBudgetManagementInternalException(
-  //     PrivacyBudgetManagementInternalException.Code.BAD_INPUT
-  //   )
-
-  //   val decls: EnvOption =
-  //     declarations(
-  //       Decls.newVar("date", Decls.Int),
-  //       Decls.newVar("age", Decls.Int),
-  //       Decls.newVar("gender", Decls.String),
-  //       Decls.newVar("vid", Decls.Double)
-  //     )
-
-  //   val env: Env = newEnv(decls)
-  //   val astIss: AstIssuesTuple =
-  //     env.compile(
-  //       "(date < 30 && age < 30 && age > 18 && vid > 0.2 && gender == 'F' ) || (date > 10 && age
-  // < 30 && age > 18 && vid > 0.2 && gender == 'M' )"
-  //     )
-
-  //   val prg: Program = env.program(astIss.getAst())
-  //   val num_buckets = 10_000
-
-  //   for (i in 1..num_buckets) {
-  //     val date = Random.nextInt(0, 100)
-  //     val age = Random.nextInt(10, 50)
-  //     val vid = Random.nextFloat()
-  //     val paramMap: Map<String, Any> =
-  //       mapOf("date" to date, "age" to age, "vid" to vid, "gender" to "M")
-  //     val out: EvalResult = evaluateCel(prg, paramMap)
-  //   }
-
-
-  // val cont:Container = Container.newContainer(Container.name("ok"));
-  // val env: CheckerEnv = newStandardCheckerEnv(cont, reg);
-
-  // val env:Env = Env.newEnv(EnvOption.declarations(toDelc("a"), toDelc("b"), toDelc("c"),
-  // toDelc("d"), toDelc("e"), toDelc("f")));
-
-//   val env: Env =
-//     Env.newEnv(
-//       EnvOption.container("org.wfanet.measurement.api.v2alpha"),
-//       EnvOption.types(DataProvider.getDefaultInstance()),
-//       EnvOption.declarations(Decls.newVar("x", Decls.newObjectType("google.api.expr.test.v1.proto3.TestAllTypes"))
-//     ))
-
-    // val PACKAGE_NAME = "org.wfanet.measurement.api.v2alpha.event_templates.testing"
-    val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
-    // val BANNER_TEMPLATE_NAME = "$TEMPLATE_PREFIX.TestBannerTemplate"
-
-//     val haloTypeRegistry = EventTemplateTypeRegistry.createRegistryForPackagePrefix(PACKAGE_NAME)
-//     println(haloTypeRegistry.getDescriptorForType(BANNER_TEMPLATE_NAME))
-
-    // this is crucial!!!!! https://github.com/google/cel-spec/blob/master/doc/intro.md
-
-    val expression : String = "(vt.ugur == \"something\") && (bt.age > 5)"
-    // this is crazy! this doesn't work
-    // val dpType:Type = Decls.newObjectType("org.wfanet.measurement.api.v2alpha.DataProvider");
-
-    // But this works!!!!
-    // val dpType:Type = Decls.newObjectType("wfa.measurement.api.v2alpha.DataProvider");
-    // val reg:TypeRegistry = ProtoTypeRegistry.newRegistry(DataProvider.getDefaultInstance());
-
-    val dpType:Type = Decls.newObjectType("$TEMPLATE_PREFIX.TestVideoTemplate");
-    val btType:Type = Decls.newObjectType("$TEMPLATE_PREFIX.TestBannerTemplate");
-    val reg:TypeRegistry = ProtoTypeRegistry.newRegistry(TestVideoTemplate.getDefaultInstance(), TestBannerTemplate.getDefaultInstance());
-
-    val env:Env =
-        newEnv(
-            EnvOption.customTypeAdapter(reg),
-            EnvOption.customTypeProvider(reg),
-            // EnvOption.container("org.wfanet.measurement.api.v2alpha"),
-            // EnvOption.types(TestVideoTemplate.getDefaultInstance(), TestBannerTemplate.getDefaultInstance()),
-            EnvOption.declarations(Decls.newVar("vt", dpType), Decls.newVar("bt", btType)));
-
-    // val src:Source = newTextSource(expression)
-    // val astAndIssues: AstIssuesTuple = env.check(env.parseSource(src).ast);
-    val astAndIssues: AstIssuesTuple =  env.compile(expression)
-    val prg:Program = env.program(astAndIssues.getAst());
-    println(astAndIssues.getIssues().toString())
-    println(astAndIssues.getAst())
-    // val out: EvalResult = prg.eval(hashMapOf("dp" to dataProvider{name  = "something"}))
-    val out: EvalResult = prg.eval(hashMapOf("vt" to testVideoTemplate{ugur  = "something"}, "bt" to testBannerTemplate{age  = 10}))
-
-    println(out.getVal().value())
-    return listOf<PrivacyBucketGroup>()
-}
-
-*/

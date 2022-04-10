@@ -44,7 +44,6 @@ data class PrivacyBucketGroup(
   val vidSampleWidth: Float
 )
 
-
 /**
  * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
  * that message.
