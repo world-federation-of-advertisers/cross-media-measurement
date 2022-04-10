@@ -50,26 +50,28 @@ class PrivacyBucketMapperTest {
     }
   }
 
-  @Test
-  fun `Mapper succeeds for filter expression with single privacy budget Field`() {
+  //   @Test
+  //   fun `Mapper succeeds for filter expression with single privacy budget Field`() {
 
-    val requisitionSpec = requisitionSpec {
-      eventGroups += eventGroupEntry {
-        key = "eventGroups/someEventGroup"
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            collectionInterval = timeInterval {
-              startTime =
-                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-            }
-            filter = eventFilter { expression = "privacy_budget.age.value == 1" }
-          }
-      }
-    }
-    val buckets = getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec)
-    println(buckets.size)
-  }
+  //     val requisitionSpec = requisitionSpec {
+  //       eventGroups += eventGroupEntry {
+  //         key = "eventGroups/someEventGroup"
+  //         value =
+  //           RequisitionSpecKt.EventGroupEntryKt.value {
+  //             collectionInterval = timeInterval {
+  //               startTime =
+  //
+  // LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+  //               endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+  //             }
+  //             filter = eventFilter { expression = "!(privacy_budget.age.value == 1 ||
+  // banner_ad.gender.value == 1)" }
+  //           }
+  //       }
+  //     }
+  //     val buckets = getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec)
+  //     println(buckets.size)
+  //   }
 
   @Test
   fun `Mapper succeeds for filter expression with only privacy budget Fields`() {
@@ -130,5 +132,91 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
       )
+  }
+
+  @Test
+  fun `Mapper succeeds with privacy budget Field and non Privacy budget fields`() {
+
+    val requisitionSpec = requisitionSpec {
+      eventGroups += eventGroupEntry {
+        key = "eventGroups/someEventGroup"
+        value =
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = timeInterval {
+              startTime =
+                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            }
+            filter = eventFilter {
+              expression =
+                "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 && banner_ad.gender.value == 1"
+            }
+          }
+      }
+    }
+
+    assertThat(getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec))
+      .containsExactly(
+        PrivacyBucketGroup(
+          "ACME",
+          LocalDate.now(),
+          LocalDate.now(),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          0.0f,
+          0.01f
+        ),
+        PrivacyBucketGroup(
+          "ACME",
+          LocalDate.now().minusDays(1),
+          LocalDate.now().minusDays(1),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          0.0f,
+          0.01f
+        ),
+        PrivacyBucketGroup(
+          "ACME",
+          LocalDate.now(),
+          LocalDate.now(),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          0.01f,
+          0.01f
+        ),
+        PrivacyBucketGroup(
+          "ACME",
+          LocalDate.now().minusDays(1),
+          LocalDate.now().minusDays(1),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          0.01f,
+          0.01f
+        ),
+      )
+  }
+
+  @Test
+  fun `Non Privacy Budget Fields may charge more buckets than necessary`() {
+
+    val requisitionSpec = requisitionSpec {
+      eventGroups += eventGroupEntry {
+        key = "eventGroups/someEventGroup"
+        value =
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = timeInterval {
+              startTime =
+                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            }
+            filter = eventFilter {
+              expression =
+                "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 || banner_ad.gender.value == 1"
+            }
+          }
+      }
+    }
+    val result = getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec)
+    assertThat(result).hasSize(24)
   }
 }

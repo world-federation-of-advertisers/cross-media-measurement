@@ -42,4 +42,5 @@ message TestBannerTemplate {
   }
 
   Gender gender = 1;
+  int32 banner_id = 2;
 }

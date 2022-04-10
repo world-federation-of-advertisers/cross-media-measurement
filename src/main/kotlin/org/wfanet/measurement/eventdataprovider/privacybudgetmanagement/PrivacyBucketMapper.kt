@@ -31,7 +31,8 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 
 private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.01f
 
-private val OPERATIVE_PRIVACY_BUDGET_FIELDS = setOf("privacy_budget.age", "privacy_budget.gender")
+private val OPERATIVE_PRIVACY_BUDGET_FIELDS =
+  setOf("privacy_budget.age.value", "privacy_budget.gender.value")
 
 fun toDelc(fieldName: String): Decl {
   return Decl.newBuilder()
@@ -73,6 +74,14 @@ private fun getPrivacyBucketGroups(
   vidSamplingIntervalStart: Float,
   vidSamplingIntervalEnd: Float
 ): Sequence<PrivacyBucketGroup> {
+  // val program =
+  //   EventFilters.compileProgram(
+  //     eventGroupEntryValue.filter.expression,
+  //     // TODO(@uakyol) : Update to Event proto once real event templates are checked in.
+  //     testEvent {},
+  //     OPERATIVE_PRIVACY_BUDGET_FIELDS
+  //   )
+
   val program =
     try {
       EventFilters.compileProgram(

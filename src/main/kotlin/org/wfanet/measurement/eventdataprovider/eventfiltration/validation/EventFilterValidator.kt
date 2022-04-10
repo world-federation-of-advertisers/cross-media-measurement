@@ -13,7 +13,9 @@
  */
 package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
+import com.google.api.expr.v1alpha1.Constant
 import com.google.api.expr.v1alpha1.Expr
+import com.google.api.expr.v1alpha1.Expr.Builder
 import com.google.api.expr.v1alpha1.ParsedExpr
 import com.google.protobuf.Message
 import org.projectnessie.cel.Ast
@@ -24,6 +26,10 @@ import org.projectnessie.cel.Issues
 import org.projectnessie.cel.Program
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
+
+private const val NOT_OPERATOR = "!_"
+private const val AND_OPERATOR = "_&&_"
+private const val OR_OPERATOR = "_||_"
 
 private val LEAF_ONLY_OPERATORS =
   listOf(
@@ -36,9 +42,9 @@ private val LEAF_ONLY_OPERATORS =
   )
 private val BOOLEAN_OPERATORS =
   listOf(
-    "!_",
-    "_&&_",
-    "_||_",
+    NOT_OPERATOR,
+    AND_OPERATOR,
+    OR_OPERATOR,
   )
 private val ALLOWED_OPERATORS = LEAF_ONLY_OPERATORS + BOOLEAN_OPERATORS
 
@@ -139,6 +145,7 @@ object EventFilterValidator {
   }
 
   private fun validateExpr(expr: Expr) {
+    // Leaf Node
     if (!expr.hasCallExpr()) {
       failOnListOutsideInOperator(expr)
       return
@@ -164,57 +171,29 @@ object EventFilterValidator {
     validateExpr(expr)
   }
 
-  private fun negate(input: Expr): Expr {
-    // OR Node
-    if (isDisjuction(input)) {
-      val builder: Builder = input.getBuilderWithFunction("_&&_")
-      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(negate(it)) }
-      return builder.build()
-    }
-    // AND Node
-    if (isConjuction(input)) {
-      val builder: Builder = input.getBuilderWithFunction("_||_")
-      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(negate(it)) }
-      return builder.build()
-    }
-
-    //
-    // val negateOutput: Boolean = true
-    // while (isNegation(input)) {
-    //   val input = input.getCallExpr().getArgsList().single()
-    //   val negateOutput = !negateOutput
-    // }
-    // if (negateOutput) {
-    //   return Expr.newBuilder()
-    //     .setCallExpr(Expr.Call.newBuilder().setFunction("!_").addArgs(input))
-    //     .build()
-    // } else {
-    //   return input
-    // }
-  }
-
-  private fun toNnf(input: Expr, operativeFields: Set<String>): Expr {
-    // Leaf Node
+  private fun toNnf(input: Expr, operativeFields: Set<String>, negate: Boolean = false): Expr {
+    // Leaf Node, should never be achieved if the EventFilter is valid. The leaf nodes are always
+    // checked from the parent.
     if (!input.hasCallExpr()) {
-      return input
+      failOnSingleToplevelValue()
     }
     // Negation Node
-    if (isNegation(input)) {
-      return negate(toNnf(input.getCallExpr().getArgsList().single()))
+    if (input.isNegation()) {
+      val childExpr: Expr = input.getCallExpr().getArgsList().single()
+      if (childExpr.nonOperativeLeafNode(operativeFields)) {
+        return Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+      }
+      return toNnf(childExpr, operativeFields, !negate)
     }
     // OR Node
-    if (isDisjuction(input)) {
-      val builder: Builder = input.toBuilder()
-      builder.getCallExprBuilder().clearArgs()
-      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(toNnf(it)) }
-      return builder.build()
+    if (input.isDisjuction()) {
+      val operator = if (negate) AND_OPERATOR else OR_OPERATOR
+      return input.buildToNnf(operator, operativeFields, negate)
     }
     // AND Node
-    if (isConjuction(input)) {
-      val builder: Builder = input.toBuilder()
-      builder.getCallExprBuilder().clearArgs()
-      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(toNnf(it)) }
-      return builder.build()
+    if (input.isConjuction()) {
+      val operator = if (negate) OR_OPERATOR else AND_OPERATOR
+      return input.buildToNnf(operator, operativeFields, negate)
     }
     return input
   }
@@ -241,9 +220,10 @@ object EventFilterValidator {
   }
 
   fun compileToNormalForm(celExpression: String, env: Env, operativeFields: Set<String>): Ast {
-    val expr = toNnf(getAst(celExpression, env).expr, operativeFields)
+    val expr = getAst(celExpression, env).expr
     validateExpression(expr)
-    return parsedExprToAst(ParsedExpr.newBuilder().setExpr(expr).build())
+    val nnfExpr = toNnf(expr, operativeFields)
+    return parsedExprToAst(ParsedExpr.newBuilder().setExpr(nnfExpr).build())
   }
 
   private fun createEnv(eventMessage: Message): Env {
@@ -277,6 +257,53 @@ object EventFilterValidator {
       else compileToNormalForm(celExpression, env, operativeFields)
     return env.program(ast)
   }
+
+  private fun Expr.buildToNnf(
+    func: String,
+    operativeFields: Set<String>,
+    negate: Boolean = false
+  ): Expr {
+    val builder: Builder = this.getBuilderWithFunction(func)
+    this.getCallExpr().getArgsList().forEach {
+      if (it.nonOperativeLeafNode(operativeFields)) {
+        builder
+          .getCallExprBuilder()
+          .addArgs(Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)))
+      } else {
+        builder.getCallExprBuilder().addArgs(toNnf(it, operativeFields, negate))
+      }
+    }
+    return builder.build()
+  }
+}
+
+private fun getFieldName(selectExpr: Expr.Select): String {
+  if (selectExpr.operand.hasIdentExpr()) {
+    return selectExpr.operand.identExpr.name + "." + selectExpr.getField()
+  }
+  return getFieldName(selectExpr.operand.getSelectExpr()) + "." + selectExpr.getField()
+}
+
+private fun Expr.nonOperativeLeafNode(operativeFields: Set<String>): Boolean {
+  if (this.hasCallExpr()) {
+
+    if (LEAF_ONLY_OPERATORS.contains(this.callExpr.function)) {
+      val selectExpr =
+        listOf(callExpr.argsList[0], callExpr.argsList[1])
+          .filter { it.hasSelectExpr() }
+          .single()
+          .getSelectExpr()
+
+      if (selectExpr == null) {
+        return false
+      }
+      val fieldName: String = getFieldName(selectExpr)
+      if (!operativeFields.contains(fieldName)) {
+        return true
+      }
+    }
+  }
+  return false
 }
 
 private fun Expr.getBuilderWithFunction(func: String): Builder {
@@ -286,8 +313,8 @@ private fun Expr.getBuilderWithFunction(func: String): Builder {
   return builder
 }
 
-private fun Expr.functionMatches(pattern: String) =
-  this.hasCallExpr() && this.getCallExpr().getFunction().matches(pattern)
+private fun Expr.functionMatches(funcPattern: String) =
+  this.hasCallExpr() && this.getCallExpr().getFunction().matches(funcPattern.toRegex())
 
 private fun Expr.isNegation(): Boolean = this.functionMatches("_*[!]_*")
 
