@@ -163,10 +163,60 @@ object EventFilterValidator {
     }
     validateExpr(expr)
   }
-  private fun toNnf(input: Expr): Expr {
-    return Expr.newBuilder()
-      .setCallExpr(Expr.Call.newBuilder().setFunction("!_").addArgs(input))
-      .build()
+
+  private fun negate(input: Expr): Expr {
+    // OR Node
+    if (isDisjuction(input)) {
+      val builder: Builder = input.getBuilderWithFunction("_&&_")
+      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(negate(it)) }
+      return builder.build()
+    }
+    // AND Node
+    if (isConjuction(input)) {
+      val builder: Builder = input.getBuilderWithFunction("_||_")
+      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(negate(it)) }
+      return builder.build()
+    }
+
+    //
+    // val negateOutput: Boolean = true
+    // while (isNegation(input)) {
+    //   val input = input.getCallExpr().getArgsList().single()
+    //   val negateOutput = !negateOutput
+    // }
+    // if (negateOutput) {
+    //   return Expr.newBuilder()
+    //     .setCallExpr(Expr.Call.newBuilder().setFunction("!_").addArgs(input))
+    //     .build()
+    // } else {
+    //   return input
+    // }
+  }
+
+  private fun toNnf(input: Expr, operativeFields: Set<String>): Expr {
+    // Leaf Node
+    if (!input.hasCallExpr()) {
+      return input
+    }
+    // Negation Node
+    if (isNegation(input)) {
+      return negate(toNnf(input.getCallExpr().getArgsList().single()))
+    }
+    // OR Node
+    if (isDisjuction(input)) {
+      val builder: Builder = input.toBuilder()
+      builder.getCallExprBuilder().clearArgs()
+      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(toNnf(it)) }
+      return builder.build()
+    }
+    // AND Node
+    if (isConjuction(input)) {
+      val builder: Builder = input.toBuilder()
+      builder.getCallExprBuilder().clearArgs()
+      input.getCallExpr().getArgsList().forEach { builder.getCallExprBuilder().addArgs(toNnf(it)) }
+      return builder.build()
+    }
+    return input
   }
 
   private fun getAst(celExpression: String, env: Env): Ast {
@@ -191,7 +241,7 @@ object EventFilterValidator {
   }
 
   fun compileToNormalForm(celExpression: String, env: Env, operativeFields: Set<String>): Ast {
-    val expr = toNnf(getAst(celExpression, env).expr)
+    val expr = toNnf(getAst(celExpression, env).expr, operativeFields)
     validateExpression(expr)
     return parsedExprToAst(ParsedExpr.newBuilder().setExpr(expr).build())
   }
@@ -228,3 +278,19 @@ object EventFilterValidator {
     return env.program(ast)
   }
 }
+
+private fun Expr.getBuilderWithFunction(func: String): Builder {
+  val builder: Builder = this.toBuilder()
+  builder.getCallExprBuilder().clearArgs()
+  builder.getCallExprBuilder().setFunction(func)
+  return builder
+}
+
+private fun Expr.functionMatches(pattern: String) =
+  this.hasCallExpr() && this.getCallExpr().getFunction().matches(pattern)
+
+private fun Expr.isNegation(): Boolean = this.functionMatches("_*[!]_*")
+
+private fun Expr.isConjuction(): Boolean = this.functionMatches("_*[&][&]_*")
+
+private fun Expr.isDisjuction(): Boolean = this.functionMatches("_*[|][|]_*")
