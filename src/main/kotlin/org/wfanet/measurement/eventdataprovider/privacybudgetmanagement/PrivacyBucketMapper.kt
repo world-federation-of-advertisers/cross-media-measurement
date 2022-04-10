@@ -34,15 +34,6 @@ private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.01f
 private val OPERATIVE_PRIVACY_BUDGET_FIELDS =
   setOf("privacy_budget.age.value", "privacy_budget.gender.value")
 
-fun toDelc(fieldName: String): Decl {
-  return Decl.newBuilder()
-    .setName(fieldName)
-    .setIdent(
-      IdentDecl.newBuilder().setType(Type.newBuilder().setPrimitive(PrimitiveType.BOOL).build())
-    )
-    .build()
-}
-
 /**
  * Returns a list of privacy bucket groups that might be affected by a query.
  *
