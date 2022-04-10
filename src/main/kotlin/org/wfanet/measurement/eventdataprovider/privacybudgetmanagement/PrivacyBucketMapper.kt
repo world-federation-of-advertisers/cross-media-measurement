@@ -13,10 +13,6 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import com.google.api.expr.v1alpha1.Decl
-import com.google.api.expr.v1alpha1.Decl.IdentDecl
-import com.google.api.expr.v1alpha1.Type
-import com.google.api.expr.v1alpha1.Type.PrimitiveType
 import com.google.protobuf.Message
 import com.google.protobuf.Timestamp
 import java.time.Instant
