@@ -1,22 +1,23 @@
-// Copyright 2022 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+/**
+ * Copyright 2022 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * ```
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * ```
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
 import com.google.api.expr.v1alpha1.Expr
+import com.google.api.expr.v1alpha1.ParsedExpr
 import com.google.protobuf.Message
 import org.projectnessie.cel.Ast
+import org.projectnessie.cel.CEL.parsedExprToAst
 import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.Issues
@@ -156,7 +157,19 @@ object EventFilterValidator {
     }
   }
 
-  fun compile(celExpression: String, env: Env): Ast {
+  fun validateExpression(expr: Expr) {
+    if (!expr.hasCallExpr()) {
+      failOnSingleToplevelValue()
+    }
+    validateExpr(expr)
+  }
+  private fun toNnf(input: Expr): Expr {
+    return Expr.newBuilder()
+      .setCallExpr(Expr.Call.newBuilder().setFunction("!_").addArgs(input))
+      .build()
+  }
+
+  private fun getAst(celExpression: String, env: Env): Ast {
     val astAndIssues =
       try {
         env.compile(celExpression)
@@ -167,13 +180,20 @@ object EventFilterValidator {
         )
       }
     failOnInvalidExpression(astAndIssues.issues)
-    val ast = astAndIssues.ast
+    return astAndIssues.ast
+  }
+
+  fun compile(celExpression: String, env: Env): Ast {
+    val ast = getAst(celExpression, env)
     val expr = ast.expr
-    if (!expr.hasCallExpr()) {
-      failOnSingleToplevelValue()
-    }
-    validateExpr(expr)
+    validateExpression(expr)
     return ast
+  }
+
+  fun compileToNormalForm(celExpression: String, env: Env, operativeFields: Set<String>): Ast {
+    val expr = toNnf(getAst(celExpression, env).expr)
+    validateExpression(expr)
+    return parsedExprToAst(ParsedExpr.newBuilder().setExpr(expr).build())
   }
 
   private fun createEnv(eventMessage: Message): Env {
@@ -196,9 +216,15 @@ object EventFilterValidator {
     )
   }
 
-  fun compileProgramWithEventMessage(celExpression: String, eventMessage: Message): Program {
+  fun compileProgramWithEventMessage(
+    celExpression: String,
+    eventMessage: Message,
+    operativeFields: Set<String> = emptySet()
+  ): Program {
     val env = createEnv(eventMessage)
-    val ast = compile(celExpression, env)
+    val ast =
+      if (operativeFields.isEmpty()) compile(celExpression, env)
+      else compileToNormalForm(celExpression, env, operativeFields)
     return env.program(ast)
   }
 }

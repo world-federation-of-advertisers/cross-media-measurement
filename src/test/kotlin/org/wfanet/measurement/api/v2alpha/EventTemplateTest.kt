@@ -19,9 +19,9 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.AgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.ViewDuration
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.ViewDuration
 
 @RunWith(JUnit4::class)
 class EventTemplateTest {

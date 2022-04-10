@@ -29,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
-
 private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.01f
 
 fun toDelc(fieldName: String): Decl {
@@ -72,20 +71,6 @@ private fun getPrivacyBucketGroups(
   vidSamplingIntervalStart: Float,
   vidSamplingIntervalEnd: Float
 ): Sequence<PrivacyBucketGroup> {
-
-  val startTime: Timestamp = eventGroupEntryValue.collectionInterval.startTime
-  val endTime: Timestamp = eventGroupEntryValue.collectionInterval.endTime
-
-  val startDate: LocalDate =
-    Instant.ofEpochSecond(startTime.getSeconds(), startTime.getNanos().toLong())
-      .atZone(ZoneId.of("America/Montreal")) // This is problematic!
-      .toLocalDate()
-
-  val endDate: LocalDate =
-    Instant.ofEpochSecond(endTime.getSeconds(), endTime.getNanos().toLong())
-      .atZone(ZoneId.of("America/Montreal")) // This is problematic!
-      .toLocalDate()
-
   val program =
     try {
       EventFilters.compileProgram(
@@ -100,23 +85,32 @@ private fun getPrivacyBucketGroups(
       )
     }
 
+  val startDate: LocalDate = eventGroupEntryValue.collectionInterval.startTime.toLocalDate("UTC")
+  val endDate: LocalDate = eventGroupEntryValue.collectionInterval.endTime.toLocalDate("UTC")
+
+  val vids =
+    PrivacyLandscape.vids.filter { it >= vidSamplingIntervalStart && it <= vidSamplingIntervalEnd }
+  val dates =
+    PrivacyLandscape.dates.filter {
+      (it.isAfter(startDate) || it.isEqual(startDate)) &&
+        (it.isBefore(endDate) || it.isEqual(endDate))
+    }
+
   return sequence {
-    for (vid in PrivacyLandscape.vids) {
-
-      if (vid < vidSamplingIntervalStart || vid > vidSamplingIntervalEnd) {
-        continue
-      }
-
-      for (date in PrivacyLandscape.dates) {
-
-        if (date.isAfter(endDate) || date.isBefore(startDate)) {
-          continue
-        }
-
+    for (vid in vids) {
+      for (date in dates) {
         for (ageGroup in PrivacyLandscape.ageGroups) {
           for (gender in PrivacyLandscape.genders) {
             val privacyBucketGroup =
-              PrivacyBucketGroup("ACME", date, date, ageGroup, gender, vid, PRIVACY_BUCKET_VID_SAMPLE_WIDTH)
+              PrivacyBucketGroup(
+                "ACME",
+                date,
+                date,
+                ageGroup,
+                gender,
+                vid,
+                PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+              )
             if (EventFilters.matches(privacyBucketGroup.toEventProto() as Message, program)) {
               yield(privacyBucketGroup)
             }
@@ -126,6 +120,11 @@ private fun getPrivacyBucketGroups(
     }
   }
 }
+
+private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
+  Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
+    .atZone(ZoneId.of(timeZone)) // This is problematic!
+    .toLocalDate()
 
 /*
   //   throw PrivacyBudgetManagementInternalException(

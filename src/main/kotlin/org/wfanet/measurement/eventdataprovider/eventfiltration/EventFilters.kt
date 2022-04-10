@@ -1,17 +1,16 @@
-// Copyright 2022 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+/**
+ * Copyright 2022 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ * ```
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * ```
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package org.wfanet.measurement.eventdataprovider.eventfiltration
 
 import com.google.protobuf.Message
@@ -32,10 +31,23 @@ object EventFilters {
    * @param defaultEventMessage is a protobuf Message default instance for a message that contains
    * each type of event template as fields. See `event_annotations.proto`.
    *
+   * @param operativeFields are fields in this cel expression that will be kept after the
+   * normalization operation. If provided, the expression is normalized by bubbling down all the
+   * negation operations to the leafs and deleting all the leaf nodes that contain any field other
+   * than the operative fields.
+   *
    * Throws a [EventFilterValidationException].
    */
-  fun compileProgram(celExpr: String, defaultEventMessage: Message): Program =
-    EventFilterValidator.compileProgramWithEventMessage(celExpr, defaultEventMessage)
+  fun compileProgram(
+    celExpr: String,
+    defaultEventMessage: Message,
+    operativeFields: Set<String> = emptySet()
+  ): Program =
+    EventFilterValidator.compileProgramWithEventMessage(
+      celExpr,
+      defaultEventMessage,
+      operativeFields
+    )
 
   /**
    * Validates an Event Filtering CEL expression according to Halo rules.
