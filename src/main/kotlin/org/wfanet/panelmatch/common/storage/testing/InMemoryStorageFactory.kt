@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.client.storage.testing
+package org.wfanet.panelmatch.common.storage.testing
 
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.common.storage.StorageFactory
 
+/** Test [StorageFactory] backed by a single [InMemoryStorageClient]. */
 class InMemoryStorageFactory(
-  private val underylingStorage: InMemoryStorageClient = InMemoryStorageClient()
+  private val underlyingStorage: InMemoryStorageClient = InMemoryStorageClient()
 ) : StorageFactory {
 
   override fun build(): StorageClient {
-    return underylingStorage
+    return underlyingStorage
   }
 }
