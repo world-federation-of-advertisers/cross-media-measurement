@@ -186,14 +186,16 @@ object EventFilterValidator {
       }
       return toNnf(childExpr, operativeFields, !negate)
     }
-    // OR Node, recurse down with AND if negating and get rid of negation if not, recurse down with
-    // OR.
+    // OR Node
+    // if negating recurse down with AND and distrubute negation to children (De Morgan's laws)
+    // else recurse down with OR.
     if (input.isDisjuction()) {
       val operator = if (negate) AND_OPERATOR else OR_OPERATOR
       return input.buildToNnf(operator, operativeFields, negate)
     }
-    // AND Node, recurse down with OR if negating and get rid of negation if not, recurse down with
-    // AND.
+    // AND Node
+    // if negating recurse down with OR and distrubute negation to children (De Morgan's laws)
+    // else recurse down with AND.
     if (input.isConjuction()) {
       val operator = if (negate) OR_OPERATOR else AND_OPERATOR
       return input.buildToNnf(operator, operativeFields, negate)
