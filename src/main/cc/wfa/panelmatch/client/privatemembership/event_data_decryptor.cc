@@ -39,21 +39,24 @@ absl::StatusOr<DecryptedEventDataSet> DecryptEventData(
   if (request.hkdf_pepper().empty()) {
     return absl::InvalidArgumentError("Empty HKDF Pepper");
   }
-  if (request.lookup_key().key().empty()) {
-    return absl::InvalidArgumentError("Empty Single Blinded Joinkey");
-  }
   std::unique_ptr<Aes> aes = GetAesSivCmac512();
   std::unique_ptr<Hkdf> hkdf = GetSha256Hkdf();
   const AesWithHkdf aes_hkdf = AesWithHkdf(std::move(hkdf), std::move(aes));
   DecryptedEventDataSet response;
   response.mutable_query_id()->set_id(
       request.encrypted_event_data_set().query_id().id());
+  auto key = SecretDataFromStringView(request.lookup_key().key());
   for (const std::string& encrypted_event : request.encrypted_event_data_set()
                                                 .encrypted_event_data()
                                                 .ciphertexts()) {
+    if (key.empty()) {
+      Plaintext* decrypted_event_data = response.add_decrypted_event_data();
+      decrypted_event_data->set_payload(encrypted_event);
+      continue;
+    }
+
     absl::StatusOr<std::string> plaintext = aes_hkdf.Decrypt(
-        encrypted_event, SecretDataFromStringView(request.lookup_key().key()),
-        SecretDataFromStringView(request.hkdf_pepper()));
+        encrypted_event, key, SecretDataFromStringView(request.hkdf_pepper()));
     if (plaintext.ok()) {
       Plaintext* decrypted_event_data = response.add_decrypted_event_data();
       decrypted_event_data->set_payload(*std::move(plaintext));

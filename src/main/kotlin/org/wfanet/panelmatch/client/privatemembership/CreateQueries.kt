@@ -44,7 +44,7 @@ import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 import org.wfanet.panelmatch.common.withTime
 
-private val FAKE_JOIN_KEY_ID = ByteString.EMPTY
+val PADDING_QUERY_JOIN_KEY_IDENTIFIER = joinKeyIdentifierOf(ByteString.EMPTY)
 
 /**
  * Implements a query creation engine in Apache Beam that encrypts a query so that it can later be
@@ -164,7 +164,9 @@ private class CreateQueries(
     return fullUnencryptedQueries
       .values("Drop ShardIds")
       .apply("Flatten", Flatten.iterables())
-      .filter("Filter out padded queries") { it.joinKeyIdentifier.id != FAKE_JOIN_KEY_ID }
+      .filter("Filter out padded queries") {
+        it.joinKeyIdentifier.id != PADDING_QUERY_JOIN_KEY_IDENTIFIER.id
+      }
       .map("Map to Query Id") { fullUnencryptedQuery ->
         queryIdAndId {
           queryId = fullUnencryptedQuery.unencryptedQuery.queryId
@@ -281,7 +283,8 @@ private class EqualizeQueriesPerShardFn(
     paddingQueriesDistribution.update(-queryCountDelta.toLong())
     val paddingQueries =
       List(-queryCountDelta) {
-        BucketQuery(joinKeyIdentifierOf(FAKE_JOIN_KEY_ID), kv.key, paddingNonceBucket)
+        // TODO: If we add in query mitigation, the BucketId should be set to the fake bucket
+        BucketQuery(PADDING_QUERY_JOIN_KEY_IDENTIFIER, kv.key, bucketIdOf(0))
       }
 
     context.output(kvOf(kv.key, allQueries + paddingQueries))
