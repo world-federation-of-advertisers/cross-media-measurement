@@ -35,7 +35,7 @@ object EventFilters {
    * normalization operation. If provided, the expression is normalized by bubbling down all the
    * negation operations to the leafs by appliying De Morgan's laws recursively and by setting all
    * the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the operative
-   * fields.
+   * fields to true.
    *
    * Throws a [EventFilterValidationException].
    */
