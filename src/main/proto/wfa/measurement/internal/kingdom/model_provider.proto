@@ -24,22 +24,4 @@ option java_multiple_files = true;
 // Represents an entity that builds and contributes VID models to the system.
 message ModelProvider {
   fixed64 external_model_provider_id = 1;
-
-  // DEPRECATED: no more hold by ModelProvider.
-  // The Certificate belonging to this ModelProvider for public key signature
-  // verification.
-  Certificate certificate = 2 [deprecated = true];
-
-  message Details {
-    option deprecated = true;
-
-    // Version the public API for serialized message definitions.
-    string api_version = 1;
-
-    // Serialized `EncryptionPublicKey` from public API.
-    bytes public_key = 2;
-    bytes public_key_signature = 3;
-  }
-  // DEPRECATED: no more hold by ModelProvider.
-  Details details = 3 [deprecated = true];
 }

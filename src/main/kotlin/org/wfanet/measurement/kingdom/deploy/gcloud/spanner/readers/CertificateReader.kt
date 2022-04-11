@@ -44,8 +44,7 @@ class CertificateReader(private val parentType: ParentType) :
   enum class ParentType(private val prefix: String) {
     DATA_PROVIDER("DataProvider"),
     MEASUREMENT_CONSUMER("MeasurementConsumer"),
-    DUCHY("Duchy"),
-    MODEL_PROVIDER("ModelProvider");
+    DUCHY("Duchy");
 
     val idColumnName: String = "${prefix}Id"
     val externalCertificateIdColumnName: String = "External${prefix}CertificateId"
@@ -54,14 +53,14 @@ class CertificateReader(private val parentType: ParentType) :
     val externalIdColumnName: String?
       get() =
         when (this) {
-          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
+          DATA_PROVIDER, MEASUREMENT_CONSUMER -> "External${prefix}Id"
           DUCHY -> null
         }
 
     val tableName: String?
       get() =
         when (this) {
-          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
+          DATA_PROVIDER, MEASUREMENT_CONSUMER -> "${prefix}s"
           DUCHY -> null
         }
   }
@@ -141,14 +140,6 @@ class CertificateReader(private val parentType: ParentType) :
           isValid
         )
       }
-      ParentType.MODEL_PROVIDER ->
-        Result(
-          buildModelProviderCertificate(struct),
-          certificateId,
-          isNotYetActive,
-          isExpired,
-          isValid
-        )
     }
   }
 
@@ -185,8 +176,7 @@ class CertificateReader(private val parentType: ParentType) :
   companion object {
     private fun buildBaseSql(parentType: ParentType): String {
       return when (parentType) {
-        ParentType.DATA_PROVIDER, ParentType.MEASUREMENT_CONSUMER, ParentType.MODEL_PROVIDER ->
-          buildExternalIdSql(parentType)
+        ParentType.DATA_PROVIDER, ParentType.MEASUREMENT_CONSUMER -> buildExternalIdSql(parentType)
         ParentType.DUCHY -> buildInternalIdSql(parentType)
       }
     }
@@ -237,14 +227,6 @@ class CertificateReader(private val parentType: ParentType) :
 
       val parentType = ParentType.DATA_PROVIDER
       externalDataProviderId = struct.getLong(parentType.externalIdColumnName)
-      externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
-    }
-
-    private fun buildModelProviderCertificate(struct: Struct) = certificate {
-      fillCommon(struct)
-
-      val parentType = ParentType.MODEL_PROVIDER
-      externalModelProviderId = struct.getLong(parentType.externalIdColumnName)
       externalCertificateId = struct.getLong(parentType.externalCertificateIdColumnName)
     }
 
