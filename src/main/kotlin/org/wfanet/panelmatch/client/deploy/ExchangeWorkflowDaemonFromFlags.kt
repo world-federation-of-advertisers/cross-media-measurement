@@ -14,9 +14,10 @@
 
 package org.wfanet.panelmatch.client.deploy
 
+import io.grpc.Channel
 import java.time.Clock
 import org.apache.beam.sdk.options.PipelineOptions
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -35,6 +36,7 @@ import org.wfanet.panelmatch.common.Timeout
 import org.wfanet.panelmatch.common.asTimeout
 import org.wfanet.panelmatch.common.certificates.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.V2AlphaCertificateManager
+import org.wfanet.panelmatch.common.loggerFor
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import picocli.CommandLine.Mixin
 
@@ -56,20 +58,23 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   /** [CertificateAuthority] for use in [V2AlphaCertificateManager]. */
   protected abstract val certificateAuthority: CertificateAuthority
 
+  private val clientCerts: SigningCerts by lazy {
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.tlsFlags.certFile,
+      privateKeyFile = flags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+    )
+  }
+
+  private val channel: Channel by lazy {
+    logger.info("Connecting to Kingdom")
+    buildMutualTlsChannel(flags.exchangeApiTarget, clientCerts, flags.exchangeApiCertHost)
+      .withShutdownTimeout(flags.channelShutdownTimeout)
+      .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
+  }
+
   override val certificateManager: V2AlphaCertificateManager by lazy {
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = flags.tlsFlags.certFile,
-        privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
-      )
-
-    val channel =
-      buildMutualTlsChannel(flags.exchangeApiTarget, clientCerts, flags.exchangeApiCertHost)
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-        .withVerboseLogging(flags.debugVerboseGrpcClientLogging)
-
-    val certificateService = CertificatesGrpcKt.CertificatesCoroutineStub(channel)
+    val certificateService = CertificatesCoroutineStub(channel)
 
     V2AlphaCertificateManager(
       certificateService = certificateService,
@@ -108,25 +113,16 @@ abstract class ExchangeWorkflowDaemonFromFlags : ExchangeWorkflowDaemon() {
   }
 
   override val apiClient: ApiClient by lazy {
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = flags.tlsFlags.certFile,
-        privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
-      )
-
-    val channel =
-      buildMutualTlsChannel(flags.exchangeApiTarget, clientCerts, flags.exchangeApiCertHost)
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-
     val exchangeStepsClient = ExchangeStepsCoroutineStub(channel)
-
     val exchangeStepAttemptsClient = ExchangeStepAttemptsCoroutineStub(channel)
-
     GrpcApiClient(identity, exchangeStepsClient, exchangeStepAttemptsClient, Clock.systemUTC())
   }
 
   override val taskTimeout: Timeout by lazy { flags.taskTimeout.asTimeout() }
 
   override val identity: Identity by lazy { Identity(flags.id, flags.partyType) }
+
+  companion object {
+    private val logger by loggerFor()
+  }
 }
