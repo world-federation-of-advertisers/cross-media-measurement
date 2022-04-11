@@ -19,8 +19,8 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
 
 @RunWith(JUnit4::class)
 class EventFieldTest {

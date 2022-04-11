@@ -52,12 +52,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.ageRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
