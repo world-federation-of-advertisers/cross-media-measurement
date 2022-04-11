@@ -20,6 +20,7 @@ import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import java.security.spec.PKCS8EncodedKeySpec
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -48,7 +49,9 @@ class V2AlphaCertificateManager(
   private val localName: String
 ) : CertificateManager {
 
-  private val cache = ConcurrentHashMap<String, X509Certificate>()
+  private val x509CertCache = ConcurrentHashMap<String, X509Certificate>()
+  private val rootCertsCache = ConcurrentHashMap<String, X509Certificate>()
+  private val signingKeysCache = ConcurrentHashMap<String, Optional<SigningKeys>>()
 
   override suspend fun getCertificate(
     exchange: ExchangeDateKey,
@@ -58,7 +61,7 @@ class V2AlphaCertificateManager(
     check(certResourceName.startsWith("$certOwnerName/certificates/")) {
       "Invalid resource names: $certOwnerName and $certResourceName"
     }
-    return cache.getOrPut(certResourceName) {
+    return x509CertCache.getOrPut(certResourceName) {
       // TODO: handle revoked certificates.
       val request = getCertificateRequest { name = certResourceName }
       val response = certificateService.getCertificate(request)
@@ -104,16 +107,22 @@ class V2AlphaCertificateManager(
     }
 
     privateKeys.put(exchange.path, signingKeys.toByteString())
-    cache[certResourceName] = x509
+    x509CertCache[certResourceName] = x509
+    signingKeysCache[exchange.path] = Optional.of(signingKeys)
 
     return certResourceName
   }
 
   private suspend fun getSigningKeys(name: String): SigningKeys? {
-    val bytes = privateKeys.get(name) ?: return null
+    val keys =
+      signingKeysCache.getOrPut(name) {
+        val bytes = privateKeys.get(name) ?: return@getOrPut Optional.empty()
 
-    @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
-    return SigningKeys.parseFrom(bytes)
+        @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
+        Optional.of(SigningKeys.parseFrom(bytes))
+      }
+
+    return keys.orElse(null)
   }
 
   private fun parsePrivateKey(bytes: ByteString): PrivateKey {
@@ -131,8 +140,10 @@ class V2AlphaCertificateManager(
   }
 
   private suspend fun getRootCertificate(ownerName: String): X509Certificate {
-    val certBytes =
-      requireNotNull(rootCerts.get(ownerName)) { "Missing root certificate for $ownerName" }
-    return readCertificate(certBytes)
+    return rootCertsCache.getOrPut(ownerName) {
+      val certBytes =
+        requireNotNull(rootCerts.get(ownerName)) { "Missing root certificate for $ownerName" }
+      readCertificate(certBytes)
+    }
   }
 }
