@@ -33,8 +33,9 @@ object EventFilters {
    *
    * @param operativeFields are fields in this cel expression that will be kept after the
    * normalization operation. If provided, the expression is normalized by bubbling down all the
-   * negation operations to the leafs and deleting all the leaf nodes that contain any field other
-   * than the operative fields.
+   * negation operations to the leafs by appliying De Morgan's laws recursively and by setting all
+   * the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the operative
+   * fields.
    *
    * Throws a [EventFilterValidationException].
    */
