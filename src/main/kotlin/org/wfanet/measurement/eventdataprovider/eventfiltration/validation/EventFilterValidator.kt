@@ -178,7 +178,7 @@ object EventFilterValidator {
       failOnSingleToplevelValue()
     }
     // Negation Node. Flip the negate flag and recurse down. If the child is a non operative
-    // comparison node, return true
+    // comparison node, return true.
     if (input.isNegation()) {
       val childExpr: Expr = input.getCallExpr().getArgsList().single()
       if (childExpr.nonOperativeComparisonNode(operativeFields)) {
@@ -190,20 +190,19 @@ object EventFilterValidator {
     // if negating recurse down with AND and distrubute negation to children (De Morgan's laws)
     // else recurse down with OR.
     if (input.isDisjuction()) {
-      val operator = if (negate) AND_OPERATOR else OR_OPERATOR
-      return input.buildToNnf(operator, operativeFields, negate)
+      return input.buildToNnf(if (negate) AND_OPERATOR else OR_OPERATOR, operativeFields, negate)
     }
     // AND Node
     // if negating recurse down with OR and distrubute negation to children (De Morgan's laws)
     // else recurse down with AND.
     if (input.isConjuction()) {
-      val operator = if (negate) OR_OPERATOR else AND_OPERATOR
-      return input.buildToNnf(operator, operativeFields, negate)
+      return input.buildToNnf(if (negate) OR_OPERATOR else AND_OPERATOR, operativeFields, negate)
     }
-    // Comparison Node (e.g. x == 47).  If it is a non operative, return true
+    // Comparison Node (e.g. x == 47).  If it is for a non operative, return true.
     if (input.nonOperativeComparisonNode(operativeFields)) {
       return trueExpression()
     }
+    // Operative comparison node, valid statement that should not be altered.
     return input
   }
 
