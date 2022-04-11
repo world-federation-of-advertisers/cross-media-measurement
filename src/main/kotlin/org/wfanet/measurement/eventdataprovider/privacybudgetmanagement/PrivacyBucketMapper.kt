@@ -31,10 +31,3 @@ internal fun getPrivacyBucketGroups(
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
 ): List<PrivacyBucketGroup> = TODO("Not implemented $measurementSpec $requisitionSpec")
-© 2022 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
