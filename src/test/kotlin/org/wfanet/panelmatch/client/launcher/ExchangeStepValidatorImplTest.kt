@@ -47,6 +47,7 @@ private const val EXCHANGE_ID = "some-exchange-id"
 private const val EXCHANGE_STEP_ID = "some-exchange-step-id"
 
 private const val OTHER_RECURRING_EXCHANGE_ID = "some-other-recurring-exchange-id"
+private const val MISSING_RECURRING_EXCHANGE_ID = "some-missing-recurring-exchange-id"
 
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   firstExchangeDate = FIRST_EXCHANGE_DATE.toProtoDate()
@@ -112,6 +113,16 @@ class ExchangeStepValidatorImplTest {
     val wrongExchangeStep =
       EXCHANGE_STEP.copy { serializedExchangeWorkflow = wrongExchangeWorkflow.toByteString() }
     assertValidationFailsPermanently(wrongExchangeStep)
+  }
+
+  @Test
+  fun missingRecurringExchange() {
+    val wrongExchangeStep =
+      EXCHANGE_STEP.copy {
+        name =
+          ExchangeStepKey(MISSING_RECURRING_EXCHANGE_ID, EXCHANGE_ID, EXCHANGE_STEP_ID).toName()
+      }
+    assertValidationFailsTransiently(wrongExchangeStep)
   }
 
   @Test
