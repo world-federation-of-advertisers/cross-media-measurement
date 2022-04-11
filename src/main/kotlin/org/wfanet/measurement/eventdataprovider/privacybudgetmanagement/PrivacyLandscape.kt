@@ -11,16 +11,14 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
+
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
-  INVLAID_PRIVACY_BUCKET_FILTER("Provided Event Filter is invalid for Privacy Bucket mapping"),
-  PRIVACY_BUDGET_EXCEEDED("The available privacy budget was exceeded"),
-  DATABASE_UPDATE_ERROR("An error occurred committing the update to the database")
-}
+import java.time.LocalDate
 
-/** An exception thrown by the privacy budget manager. */
-class PrivacyBudgetManagerException(
-  val errorType: PrivacyBudgetManagerExceptionType,
-  val privacyBuckets: List<PrivacyBucketGroup>
-) : Exception(errorType.errorMessage)
+object PrivacyLandscape {
+  val dates = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
+  val ageGroups = listOf(AgeGroup.RANGE_18_34, AgeGroup.RANGE_35_54, AgeGroup.ABOVE_54)
+  val genders = listOf(Gender.MALE, Gender.FEMALE)
+  val vids = (0..300).map { it / 100f }
+}
