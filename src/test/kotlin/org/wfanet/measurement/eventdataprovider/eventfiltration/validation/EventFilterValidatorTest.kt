@@ -14,8 +14,11 @@
 
 package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
+import com.google.api.expr.v1alpha1.Constant
 import com.google.api.expr.v1alpha1.Decl
+import com.google.api.expr.v1alpha1.Expr
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,8 +27,9 @@ import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
@@ -51,11 +55,19 @@ class EventFilterValidatorTest {
     )
   }
 
+  private fun privacyTemplateVar(name: String): Decl {
+    return Decls.newVar(
+      name,
+      Decls.newObjectType("$TEMPLATE_PREFIX.TestPrivacyBudgetTemplate"),
+    )
+  }
+
   private fun envWithTestTemplateVars(vararg vars: Decl): Env {
     var typeRegistry: ProtoTypeRegistry =
       ProtoTypeRegistry.newRegistry(
-        TestBannerTemplate.getDefaultInstance(),
-        TestVideoTemplate.getDefaultInstance(),
+        testBannerTemplate {},
+        testVideoTemplate {},
+        testPrivacyBudgetTemplate {}
       )
     return Env.newEnv(
       EnvOption.customTypeAdapter(typeRegistry),
@@ -229,5 +241,145 @@ class EventFilterValidatorTest {
       "vt.age.value in [0, 1]",
       envWithTestTemplateVars(videoTemplateVar("vt"))
     )
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with single operative field`() {
+    assertThat(
+        EventFilterValidator.compileToNormalForm(
+            "vt.age.value in [0, 1]",
+            envWithTestTemplateVars(videoTemplateVar("vt")),
+            setOf("vt.age.value")
+          )
+          .getExpr()
+      )
+      .isEqualTo(
+        EventFilterValidator.compile(
+            "vt.age.value in [0, 1]",
+            envWithTestTemplateVars(videoTemplateVar("vt")),
+          )
+          .getExpr()
+      )
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with single non operative field`() {
+    assertThat(
+        EventFilterValidator.compileToNormalForm(
+            "vt.age.value in [0, 1]",
+            envWithTestTemplateVars(
+              videoTemplateVar("vt"),
+              privacyTemplateVar("pt"),
+            ),
+            setOf("pt.age.value")
+          )
+          .getExpr()
+      )
+      .isEqualTo(Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build())
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with non operative fields`() {
+    assertThat(
+        EventFilterValidator.compileToNormalForm(
+            "bt.gender.value == 2 && vt.age.value == 1",
+            envWithTestTemplateVars(
+              bannerTemplateVar("bt"),
+              videoTemplateVar("vt"),
+            ),
+            setOf("vt.age.value")
+          )
+          .getExpr()
+      )
+      .ignoringFields(Expr.ID_FIELD_NUMBER)
+      .isEqualTo(
+        EventFilterValidator.compile(
+            "true && vt.age.value == 1",
+            envWithTestTemplateVars(
+              bannerTemplateVar("bt"),
+              videoTemplateVar("vt"),
+            )
+          )
+          .getExpr()
+      )
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with no non operative fields and negation`() {
+    assertThat(
+        EventFilterValidator.compileToNormalForm(
+            "!(pt.gender.value == 2 && pt.age.value == 1)",
+            envWithTestTemplateVars(
+              privacyTemplateVar("pt"),
+            ),
+            setOf("pt.age.value", "pt.gender.value")
+          )
+          .getExpr()
+      )
+      .ignoringFields(Expr.ID_FIELD_NUMBER)
+      .isEqualTo(
+        EventFilterValidator.compile(
+            "pt.gender.value == 2 || pt.age.value == 1",
+            envWithTestTemplateVars(
+              privacyTemplateVar("pt"),
+            )
+          )
+          .getExpr()
+      )
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with non operative fields and negation`() {
+    assertThat(
+        EventFilterValidator.compileToNormalForm(
+            "!(pt.gender.value == 2 && pt.age.value == 1) && !(vt.age.value == 2)",
+            envWithTestTemplateVars(
+              privacyTemplateVar("pt"),
+              videoTemplateVar("vt"),
+            ),
+            setOf("pt.age.value", "pt.gender.value")
+          )
+          .getExpr()
+      )
+      .ignoringFields(Expr.ID_FIELD_NUMBER)
+      .isEqualTo(
+        EventFilterValidator.compile(
+            "(pt.gender.value == 2 || pt.age.value == 1) && true",
+            envWithTestTemplateVars(
+              privacyTemplateVar("pt"),
+              videoTemplateVar("vt"),
+            )
+          )
+          .getExpr()
+      )
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with complex expression`() {
+
+    assertThat(
+        EventFilterValidator.compileToNormalForm(
+            "!(pt.gender.value == 2  || vt.age.value == 1) && !(pt.age.value == 1 || " +
+              "(pt.age.value == 2 || !((vt.age.value == 1 && vt.age.value == 2))))",
+            envWithTestTemplateVars(
+              privacyTemplateVar("pt"),
+              videoTemplateVar("vt"),
+            ),
+            setOf("pt.age.value", "pt.gender.value")
+          )
+          .getExpr()
+      )
+      .ignoringFields(Expr.ID_FIELD_NUMBER)
+      .isEqualTo(
+        EventFilterValidator.compile(
+            "(pt.gender.value == 2  && true) && (pt.age.value == 1 && " +
+              "(pt.age.value == 2 && ((true && true))) )",
+            envWithTestTemplateVars(
+              privacyTemplateVar("pt"),
+              videoTemplateVar("vt"),
+            )
+          )
+          .getExpr()
+      )
   }
 }

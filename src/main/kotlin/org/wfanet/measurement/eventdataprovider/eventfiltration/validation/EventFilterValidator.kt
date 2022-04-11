@@ -177,25 +177,54 @@ object EventFilterValidator {
     if (!input.hasCallExpr()) {
       failOnSingleToplevelValue()
     }
-    // Negation Node
+    // Negation Node. Flip the negate flag and recurse down. If the child is a non operative
+    // comparison node, return true
     if (input.isNegation()) {
       val childExpr: Expr = input.getCallExpr().getArgsList().single()
-      if (childExpr.nonOperativeLeafNode(operativeFields)) {
-        return Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+      if (childExpr.nonOperativeComparisonNode(operativeFields)) {
+        return trueExpression()
       }
       return toNnf(childExpr, operativeFields, !negate)
     }
-    // OR Node
+    // OR Node, recurse down with AND if negating and get rid of negation if not, recurse down with
+    // OR.
     if (input.isDisjuction()) {
       val operator = if (negate) AND_OPERATOR else OR_OPERATOR
       return input.buildToNnf(operator, operativeFields, negate)
     }
-    // AND Node
+    // AND Node, recurse down with OR if negating and get rid of negation if not, recurse down with
+    // AND.
     if (input.isConjuction()) {
       val operator = if (negate) OR_OPERATOR else AND_OPERATOR
       return input.buildToNnf(operator, operativeFields, negate)
     }
+    // Comparison Node - parent of a leaf node that is a comparison (e.g. x == 47).  If it is a non
+    // operative
+    // comparison node, return true
+    if (input.nonOperativeComparisonNode(operativeFields)) {
+      return trueExpression()
+    }
     return input
+  }
+
+  private fun createEnv(eventMessage: Message): Env {
+    val typeRegistry: ProtoTypeRegistry = ProtoTypeRegistry.newRegistry(eventMessage)
+    val celVariables =
+      eventMessage.descriptorForType.fields.map { field ->
+        val typeName = field.messageType.fullName
+        val defaultValue = eventMessage.getField(field) as? Message
+        checkNotNull(defaultValue) { "eventMessage field should have Message type" }
+        typeRegistry.registerMessage(defaultValue)
+        Decls.newVar(
+          field.name,
+          Decls.newObjectType(typeName),
+        )
+      }
+    return Env.newEnv(
+      EnvOption.customTypeAdapter(typeRegistry),
+      EnvOption.customTypeProvider(typeRegistry),
+      EnvOption.declarations(celVariables),
+    )
   }
 
   private fun getAst(celExpression: String, env: Env): Ast {
@@ -226,26 +255,6 @@ object EventFilterValidator {
     return parsedExprToAst(ParsedExpr.newBuilder().setExpr(nnfExpr).build())
   }
 
-  private fun createEnv(eventMessage: Message): Env {
-    val typeRegistry: ProtoTypeRegistry = ProtoTypeRegistry.newRegistry(eventMessage)
-    val celVariables =
-      eventMessage.descriptorForType.fields.map { field ->
-        val typeName = field.messageType.fullName
-        val defaultValue = eventMessage.getField(field) as? Message
-        checkNotNull(defaultValue) { "eventMessage field should have Message type" }
-        typeRegistry.registerMessage(defaultValue)
-        Decls.newVar(
-          field.name,
-          Decls.newObjectType(typeName),
-        )
-      }
-    return Env.newEnv(
-      EnvOption.customTypeAdapter(typeRegistry),
-      EnvOption.customTypeProvider(typeRegistry),
-      EnvOption.declarations(celVariables),
-    )
-  }
-
   fun compileProgramWithEventMessage(
     celExpression: String,
     eventMessage: Message,
@@ -265,10 +274,8 @@ object EventFilterValidator {
   ): Expr {
     val builder: Builder = this.getBuilderWithFunction(func)
     this.getCallExpr().getArgsList().forEach {
-      if (it.nonOperativeLeafNode(operativeFields)) {
-        builder
-          .getCallExprBuilder()
-          .addArgs(Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)))
+      if (it.nonOperativeComparisonNode(operativeFields)) {
+        builder.getCallExprBuilder().addArgs(trueExpression())
       } else {
         builder.getCallExprBuilder().addArgs(toNnf(it, operativeFields, negate))
       }
@@ -284,7 +291,7 @@ private fun getFieldName(selectExpr: Expr.Select): String {
   return getFieldName(selectExpr.operand.getSelectExpr()) + "." + selectExpr.getField()
 }
 
-private fun Expr.nonOperativeLeafNode(operativeFields: Set<String>): Boolean {
+private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boolean {
   if (this.hasCallExpr()) {
 
     if (LEAF_ONLY_OPERATORS.contains(this.callExpr.function)) {
@@ -312,6 +319,9 @@ private fun Expr.getBuilderWithFunction(func: String): Builder {
   builder.getCallExprBuilder().setFunction(func)
   return builder
 }
+
+private fun trueExpression() =
+  Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
 
 private fun Expr.functionMatches(funcPattern: String) =
   this.hasCallExpr() && this.getCallExpr().getFunction().matches(funcPattern.toRegex())
