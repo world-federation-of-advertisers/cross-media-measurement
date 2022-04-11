@@ -22,6 +22,8 @@ import org.wfanet.measurement.api.v2alpha.ExchangeStepKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
+import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.PERMANENT
+import org.wfanet.panelmatch.client.launcher.InvalidExchangeStepException.FailureType.TRANSIENT
 import org.wfanet.panelmatch.common.secrets.SecretMap
 
 /** Real implementation of [ExchangeStepValidator]. */
@@ -34,11 +36,14 @@ class ExchangeStepValidatorImpl(
     val serializedExchangeWorkflow = exchangeStep.serializedExchangeWorkflow
     val recurringExchangeId =
       requireNotNull(ExchangeStepKey.fromName(exchangeStep.name)).recurringExchangeId
-    if (validExchangeWorkflows.get(recurringExchangeId) != serializedExchangeWorkflow) {
-      throw InvalidExchangeStepException(
-        InvalidExchangeStepException.FailureType.PERMANENT,
-        "Serialized ExchangeWorkflow unrecognized"
-      )
+    val existingExchangeWorkflow =
+      validExchangeWorkflows.get(recurringExchangeId)
+        ?: throw InvalidExchangeStepException(
+          TRANSIENT,
+          "No ExchangeWorkflow known for RecurringExchange $recurringExchangeId"
+        )
+    if (existingExchangeWorkflow != serializedExchangeWorkflow) {
+      throw InvalidExchangeStepException(PERMANENT, "Serialized ExchangeWorkflow unrecognized")
     }
 
     val workflow =
@@ -46,23 +51,17 @@ class ExchangeStepValidatorImpl(
         @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
         ExchangeWorkflow.parseFrom(serializedExchangeWorkflow)
       } catch (e: InvalidProtocolBufferException) {
-        throw InvalidExchangeStepException(
-          InvalidExchangeStepException.FailureType.PERMANENT,
-          "Invalid ExchangeWorkflow"
-        )
+        throw InvalidExchangeStepException(PERMANENT, "Invalid ExchangeWorkflow")
       }
 
     val stepIndex = exchangeStep.stepIndex
     if (stepIndex !in 0 until workflow.stepsCount) {
-      throw InvalidExchangeStepException(
-        InvalidExchangeStepException.FailureType.PERMANENT,
-        "Invalid step_index: $stepIndex"
-      )
+      throw InvalidExchangeStepException(PERMANENT, "Invalid step_index: $stepIndex")
     }
     val step = workflow.getSteps(stepIndex)
     if (step.party != party) {
       throw InvalidExchangeStepException(
-        InvalidExchangeStepException.FailureType.PERMANENT,
+        PERMANENT,
         "Party for step '${step.stepId}' was not ${party.name}"
       )
     }
@@ -71,17 +70,14 @@ class ExchangeStepValidatorImpl(
     val exchangeDate = exchangeStep.exchangeDate.toLocalDate()
     if (exchangeDate < firstExchangeDate) {
       throw InvalidExchangeStepException(
-        InvalidExchangeStepException.FailureType.PERMANENT,
+        PERMANENT,
         "exchange_date is before ExchangeWorkflow.first_exchange_date"
       )
     }
 
     val exchangeTime = exchangeDate.atStartOfDay(ZoneOffset.UTC).toInstant()
     if (exchangeTime > clock.instant()) {
-      throw InvalidExchangeStepException(
-        InvalidExchangeStepException.FailureType.TRANSIENT,
-        "exchange_date is in the future"
-      )
+      throw InvalidExchangeStepException(TRANSIENT, "exchange_date is in the future")
     }
 
     return ValidatedExchangeStep(workflow, step, exchangeDate)
