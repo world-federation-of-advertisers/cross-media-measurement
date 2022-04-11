@@ -51,7 +51,10 @@ class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
     val bigQuery =
       BigQueryOptions.newBuilder().apply { setProjectId(bigQueryProjectName) }.build().service
 
-    run(GcsStorageClient.fromFlags(gcs), BiqQueryEventQuery(bigQuery, bigQueryTableName))
+    run(
+      GcsStorageClient.fromFlags(gcs),
+      BiqQueryEventQuery(flags.dataProviderDisplayName, bigQuery, bigQueryTableName)
+    )
   }
 }
 

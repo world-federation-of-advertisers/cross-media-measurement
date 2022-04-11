@@ -37,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
@@ -194,15 +195,24 @@ fun InternalMeasurement.toMeasurement(): Measurement {
       protocolConfig = source.details.protocolConfig.toProtocolConfig()
     }
     state = source.state.toState()
-    if (source.externalAggregatorDuchyId.isNotEmpty()) {
-      aggregatorCertificate =
-        DuchyCertificateKey(
-            source.externalAggregatorDuchyId,
-            externalIdToApiId(source.externalAggregatorCertificateId)
-          )
-          .toName()
-    }
-    encryptedResult = source.details.encryptedResult
+    results +=
+      source.resultsList.map {
+        val certificateApiId = externalIdToApiId(it.externalCertificateId)
+        resultPair {
+          if (it.externalAggregatorDuchyId.isNotBlank()) {
+            certificate =
+              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
+          } else if (it.externalDataProviderId != 0L) {
+            certificate =
+              DataProviderCertificateKey(
+                  externalIdToApiId(it.externalDataProviderId),
+                  certificateApiId
+                )
+                .toName()
+          }
+          encryptedResult = it.encryptedResult
+        }
+      }
     measurementReferenceId = source.providedMeasurementId
     failure = failure {
       reason = source.details.failure.reason.toReason()

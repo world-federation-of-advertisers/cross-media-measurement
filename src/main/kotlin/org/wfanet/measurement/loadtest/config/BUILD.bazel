@@ -19,4 +19,5 @@ kt_jvm_library(
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
+    deps = ["@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler"],
 )
