@@ -198,9 +198,7 @@ object EventFilterValidator {
       val operator = if (negate) OR_OPERATOR else AND_OPERATOR
       return input.buildToNnf(operator, operativeFields, negate)
     }
-    // Comparison Node - parent of a leaf node that is a comparison (e.g. x == 47).  If it is a non
-    // operative
-    // comparison node, return true
+    // Comparison Node (e.g. x == 47).  If it is a non operative, return true
     if (input.nonOperativeComparisonNode(operativeFields)) {
       return trueExpression()
     }
