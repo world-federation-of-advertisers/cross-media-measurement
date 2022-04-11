@@ -111,8 +111,9 @@ private class CreateQueries(
   ): PCollection<KV<ShardId, Iterable<@JvmWildcard BucketQuery>>> {
     if (!parameters.padQueries) return queries
     val totalQueriesPerShard = parameters.maxQueriesPerShard
+    val paddingNonceBucket = bucketIdOf(parameters.numBucketsPerShard)
     return queries.parDo(
-      EqualizeQueriesPerShardFn(totalQueriesPerShard),
+      EqualizeQueriesPerShardFn(totalQueriesPerShard, paddingNonceBucket),
       name = "Equalize Queries per Shard"
     )
   }
@@ -246,7 +247,10 @@ private class EncryptQueriesFn(
  * Adds or deletes queries from sharded data until it is the desired size. We keep track of which
  * queries are fake in order to avoid attempting to decrypt them later.
  */
-private class EqualizeQueriesPerShardFn(private val totalQueriesPerShard: Int) :
+private class EqualizeQueriesPerShardFn(
+  private val totalQueriesPerShard: Int,
+  private val paddingNonceBucket: BucketId,
+) :
   DoFn<
     KV<ShardId, Iterable<@JvmWildcard BucketQuery>>,
     KV<ShardId, Iterable<@JvmWildcard BucketQuery>>>() {
@@ -277,8 +281,7 @@ private class EqualizeQueriesPerShardFn(private val totalQueriesPerShard: Int) :
     paddingQueriesDistribution.update(-queryCountDelta.toLong())
     val paddingQueries =
       List(-queryCountDelta) {
-        // TODO: If we add in query mitigation, the BucketId should be set to the fake bucket
-        BucketQuery(joinKeyIdentifierOf(FAKE_JOIN_KEY_ID), kv.key, bucketIdOf(0))
+        BucketQuery(joinKeyIdentifierOf(FAKE_JOIN_KEY_ID), kv.key, paddingNonceBucket)
       }
 
     context.output(kvOf(kv.key, allQueries + paddingQueries))
