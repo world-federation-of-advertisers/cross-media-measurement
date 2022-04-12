@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.api.expr.v1alpha1.Decl
-import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.util.logging.Level
@@ -24,9 +22,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.projectnessie.cel.Env
-import org.projectnessie.cel.EnvOption
-import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
@@ -50,7 +45,6 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -83,8 +77,8 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val EVENT_TEMPLATE_CLASS_NAME =
@@ -112,7 +106,7 @@ class EdpSimulator(
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
   private val throttler: MinimumIntervalThrottler,
-  private val eventTemplateNames: List<String> = emptyList()
+  private val eventTemplateNames: List<String>
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -226,38 +220,39 @@ class EdpSimulator(
     )
   }
 
-  private fun generateSketch(
+  private fun populateAnySketch(
+    eventFilter: EventFilter,
+    vidSampler: VidSampler,
+    vidSamplingIntervalStart: Float,
+    vidSamplingIntervalWidth: Float,
+    anySketch: AnySketch
+  ) {
+    eventQuery
+      .getUserVirtualIds(eventFilter)
+      .filter {
+        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+      }
+      .forEach { anySketch.insert(it, mapOf("frequency" to 1L)) }
+  }
+
+  fun generateSketch(
     sketchConfig: SketchConfig,
     eventFilter: EventFilter,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): Sketch {
     logger.info("Generating Sketch...")
-    if (eventFilter.expression.isNotBlank()) {
-      validateEventFilter(eventFilter)
-    }
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
 
-    // TODO(@uakyol): change EventQuery getUserVirtualIds to accept EventFilter rather than
-    // QueryParameter.
-    val queryParameter =
-      QueryParameter(
-        edpDisplayName = edpData.displayName,
-        beginDate = "2021-03-01",
-        endDate = "2021-03-28",
-        sex = Sex.FEMALE,
-        ageGroup = null,
-        socialGrade = SocialGrade.ABC1,
-        complete = Complete.COMPLETE
-      )
-    val vidSampler = VidSampler(Hashing.farmHashFingerprint64())
-    eventQuery.getUserVirtualIds(queryParameter).forEach {
-      if (vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
-      ) {
-        anySketch.insert(it, mapOf("frequency" to 1L))
-      }
-    }
+    populateAnySketch(
+      eventFilter,
+      VidSampler(VID_SAMPLER_HASH_FUNCTION),
+      vidSamplingIntervalStart,
+      vidSamplingIntervalWidth,
+      anySketch
+    )
+
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
@@ -324,25 +319,6 @@ class EdpSimulator(
       requisitionSpec.nonce,
       sketchChunks
     )
-  }
-
-  private fun validateEventFilter(eventFilter: EventFilter) {
-    val declarations: List<Decl> =
-      eventTemplateNames.map {
-        Decls.newVar(
-          EventTemplates.getEventTemplateForType(it)!!.name,
-          Decls.newObjectType(it),
-        )
-      }
-
-    val env =
-      Env.newEnv(
-        EnvOption.customTypeAdapter(celProtoTypeRegistry),
-        EnvOption.customTypeProvider(celProtoTypeRegistry),
-        EnvOption.declarations(declarations),
-      )
-
-    EventFilters.compile(eventFilter.expression, env)
   }
 
   private suspend fun fulfillRequisition(

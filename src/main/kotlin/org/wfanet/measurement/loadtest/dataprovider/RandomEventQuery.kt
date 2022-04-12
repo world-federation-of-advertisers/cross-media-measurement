@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import kotlin.random.Random
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 
 data class SketchGenerationParams(
   val reach: Int,
@@ -25,7 +26,7 @@ data class SketchGenerationParams(
 class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParams) : EventQuery() {
 
   /** Generate Ids using random values. The parameter is ignored. */
-  override fun getUserVirtualIds(parameter: QueryParameter): Sequence<Long> {
+  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
     return sequence {
       for (i in 1..sketchGenerationParams.reach) {
         yield(Random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong())
