@@ -13,10 +13,9 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
 import kotlin.test.assertFails
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 import org.junit.Test
 
 class PrivacyBucketGroupTest {
@@ -61,7 +60,7 @@ class PrivacyBucketGroupTest {
         0.1f
       )
 
-    assertTrue { bucketGroup.overlapsWith(bucketGroup2) }
+    assertThat(bucketGroup.overlapsWith(bucketGroup2)).isTrue()
   }
 
   @Test
@@ -77,6 +76,6 @@ class PrivacyBucketGroupTest {
         0.2f
       )
 
-    assertFalse { bucketGroup.overlapsWith(bucketGroup2) }
+    assertThat(bucketGroup.overlapsWith(bucketGroup2)).isFalse()
   }
 }
