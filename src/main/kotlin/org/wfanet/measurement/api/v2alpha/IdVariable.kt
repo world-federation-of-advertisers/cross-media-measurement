@@ -19,6 +19,7 @@ import org.wfanet.measurement.common.ResourceNameParser
 internal enum class IdVariable {
   RECURRING_EXCHANGE,
   EVENT_GROUP,
+  EVENT_GROUP_METADATA_DESCRIPTOR,
   EXCHANGE,
   EXCHANGE_STEP,
   EXCHANGE_STEP_ATTEMPT,

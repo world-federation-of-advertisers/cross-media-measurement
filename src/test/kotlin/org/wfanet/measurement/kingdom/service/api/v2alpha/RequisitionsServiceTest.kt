@@ -125,7 +125,6 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
   )
 
 private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
-private val REQUISITION_FINGERPRINT = "bar".toByteStringUtf8()
 private const val NONCE = -7452112597811743614 // Hex: 9894C7134537B482
 
 private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
@@ -846,7 +845,6 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
-      requisitionFingerprint = REQUISITION_FINGERPRINT
       nonce = NONCE
     }
 
@@ -878,7 +876,6 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       // No name
       encryptedData = REQUISITION_ENCRYPTED_DATA
-      requisitionFingerprint = REQUISITION_FINGERPRINT
       nonce = NONCE
     }
     val exception =
@@ -896,7 +893,6 @@ class RequisitionsServiceTest {
       val request = fulfillDirectRequisitionRequest {
         name = REQUISITION_NAME
         // No encrypted_data
-        requisitionFingerprint = REQUISITION_FINGERPRINT
         nonce = NONCE
       }
       val exception =
@@ -913,7 +909,6 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       name = INVALID_REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
-      requisitionFingerprint = REQUISITION_FINGERPRINT
       nonce = NONCE
     }
     val exception =
@@ -930,7 +925,6 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
-      requisitionFingerprint = REQUISITION_FINGERPRINT
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -946,7 +940,6 @@ class RequisitionsServiceTest {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
       encryptedData = REQUISITION_ENCRYPTED_DATA
-      requisitionFingerprint = REQUISITION_FINGERPRINT
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {

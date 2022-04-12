@@ -233,15 +233,16 @@ class FrontendSimulator(
       return null
     }
 
+    val resultPair = measurement.resultsList[0]
     val aggregatorCertificate =
-      certificateCache.getOrPut(measurement.aggregatorCertificate) {
+      certificateCache.getOrPut(resultPair.certificate) {
         certificatesClient
           .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = measurement.aggregatorCertificate })
+          .getCertificate(getCertificateRequest { name = resultPair.certificate })
       }
 
     val signedResult =
-      decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
+      decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
     @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
     val result = Result.parseFrom(signedResult.data)
 
@@ -397,7 +398,7 @@ class FrontendSimulator(
    * Creates a CEL filter using Event Templates names to qualify each variable in expression.
    *
    * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
-   * org.wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
+   * wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
    */
   private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
