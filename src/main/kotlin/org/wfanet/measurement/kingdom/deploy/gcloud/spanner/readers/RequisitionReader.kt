@@ -113,30 +113,6 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
     return this
   }
 
-  suspend fun readByExternalId(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalMeasurementConsumerId: Long,
-    externalMeasurementId: Long,
-    externalRequisitionId: Long,
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-          WHERE
-            ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
-            AND ExternalMeasurementId = @${Params.EXTERNAL_MEASUREMENT_ID}
-            AND ExternalMeasurementConsumerId = @${Params.EXTERNAL_MEASUREMENT_CONSUMER_ID}
-          """.trimIndent()
-        )
-        bind(Params.EXTERNAL_MEASUREMENT_CONSUMER_ID to externalMeasurementConsumerId)
-        bind(Params.EXTERNAL_MEASUREMENT_ID to externalMeasurementId)
-        bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
-        appendClause("LIMIT 1")
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
   suspend fun readByExternalDataProviderId(
     readContext: AsyncDatabaseClient.ReadContext,
     externalDataProviderId: Long,
