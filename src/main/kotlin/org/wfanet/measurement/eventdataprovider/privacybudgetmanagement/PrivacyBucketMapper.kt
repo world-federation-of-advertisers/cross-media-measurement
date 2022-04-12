@@ -11,7 +11,6 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.protobuf.Message
@@ -73,7 +72,7 @@ private fun getPrivacyBucketGroups(
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.INVLAID_PRIVACY_BUCKET_FILTER,
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
         emptyList()
       )
     }
