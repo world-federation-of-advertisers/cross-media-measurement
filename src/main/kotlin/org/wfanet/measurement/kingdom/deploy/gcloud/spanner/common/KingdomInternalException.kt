@@ -22,30 +22,22 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-/* Throw internal exceptions with reserved parameters
-
-Throw internal exception:
-throw MeasurementConsumerNotFoundError(id="123") { "measurement_consumer not existing" }
-
-Catch internal exception and throw Grpc runtime exception to the client:
-catch(e: KingdomInternalException) {
-  when(e) {
-    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> {
-      val externalMeasurementConsumerId = e.context.externalMeasurementConsumerId ?: 0L
-      e.throwRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" }
-    }
-    else -> {}
-  }
-}
-
-The client receive the Grpc runtime exception and check reason and context:
-catch(e: StatusRuntimeException) {
-   val info = e.getErrorInfo()
-   if(info.notNull() && info.reason = MEASUREMENT_CONSUMER_NOT_FOUND.getName()) {
-       val externalMeasurementConsumerId = info.metadata.getOrDefault("externalMeasurementConsumerId", 0L)
-       blame(measurementConsumerId)
-   }
-}
+/**
+ * Throw internal exceptions with reserved parameters
+ *
+ * Throw internal exception: throw MeasurementConsumerNotFoundError(id="123") {
+ * "measurement_consumer not existing" }
+ *
+ * Catch internal exception and throw Grpc runtime exception to the client: catch(e:
+ * KingdomInternalException) { when(e) { ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> { val
+ * externalMeasurementConsumerId = e.context.externalMeasurementConsumerId ?: 0L
+ * e.throwRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" } } else ->
+ * {} } }
+ *
+ * The client receive the Grpc runtime exception and check reason and context: catch(e:
+ * StatusRuntimeException) { val info = e.getErrorInfo() if(info.notNull() && info.reason =
+ * MEASUREMENT_CONSUMER_NOT_FOUND.getName()) { val externalMeasurementConsumerId =
+ * info.metadata.getOrDefault("externalMeasurementConsumerId", 0L) blame(measurementConsumerId) } }
  */
 
 class ErrorContext {
@@ -166,28 +158,55 @@ fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
   return trailers?.get(key)
 }
 
-class MeasurementConsumerNotFoundError(
+class MeasurementConsumerNotFound(
   externalMeasurementConsumerId: Long,
-  provideDescription: () -> String
+  provideDescription: () -> String = { "MeasurementConsumer not found" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
   init {
     context.externalMeasurementConsumerId = externalMeasurementConsumerId
   }
 }
 
-class DataProviderNotFoundError(
+class DataProviderNotFound(
   externalDataProviderId: Long,
-  provideDescription: () -> String = { "" }
+  provideDescription: () -> String = { "DataProvider not found" }
 ) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
   init {
     context.externalDataProviderId = externalDataProviderId
   }
 }
 
-class MeasurementStateIllegalError(
+class ModelProviderNotFound(
+  externalModelProviderId: Long,
+  provideDescription: () -> String = { "ModelProvider not found" }
+) : KingdomInternalException(ErrorCode.MODEL_PROVIDER_NOT_FOUND, provideDescription) {
+  init {
+    context.externalModelProviderId = externalModelProviderId
+  }
+}
+
+class DuchyNotFound(
+  externalDuchyId: String,
+  provideDescription: () -> String = { "Duchy not found" }
+) : KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND, provideDescription) {
+  init {
+    context.externalDuchyId = externalDuchyId
+  }
+}
+
+class MeasurementNotFound(
+  externalMeasurementId: Long,
+  provideDescription: () -> String = { "Measurement not found" }
+) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+  init {
+    context.externalMeasurementId = externalMeasurementId
+  }
+}
+
+class MeasurementStateIllegal(
   externalMeasurementId: Long,
   measurementState: Int,
-  provideDescription: () -> String
+  provideDescription: () -> String = { "" }
 ) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
   init {
     context.externalMeasurementId = externalMeasurementId
