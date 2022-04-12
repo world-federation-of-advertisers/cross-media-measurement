@@ -119,6 +119,23 @@ class EventGroupMetadataDescriptorsService(
         EventGroupMetadataDescriptorKey.fromName(request.eventGroupMetadataDescriptor.name)
       ) { "EventGroupMetadataDescriptor name is either unspecified or invalid" }
 
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        if (resourceKey.dataProviderId != eventGroupMetadataDescriptorKey.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot update EventGroupMetadataDescriptors for another DataProvider"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to update EventGroupMetadataDescriptors"
+        }
+      }
+    }
+
     return internalEventGroupMetadataDescriptorsStub
       .updateEventGroupMetadataDescriptor(
         updateEventGroupMetadataDescriptorRequest {

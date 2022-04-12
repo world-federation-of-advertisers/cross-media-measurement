@@ -262,7 +262,10 @@ class EventGroupMetadataDescriptorsServiceTest {
       this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
     }
 
-    val result = runBlocking { service.updateEventGroupMetadataDescriptor(request) }
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.updateEventGroupMetadataDescriptor(request) }
+      }
 
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
@@ -295,5 +298,33 @@ class EventGroupMetadataDescriptorsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("EventGroupMetadataDescriptor name is either unspecified or invalid")
+  }
+
+  @Test
+  fun `updateEventGroup throws UNAUTHENTICATED when no principal is found`() {
+    val request = updateEventGroupMetadataDescriptorRequest {
+      this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.updateEventGroupMetadataDescriptor(request) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `updateEventGroup throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = updateEventGroupMetadataDescriptorRequest {
+      this.eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.updateEventGroupMetadataDescriptor(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 }
