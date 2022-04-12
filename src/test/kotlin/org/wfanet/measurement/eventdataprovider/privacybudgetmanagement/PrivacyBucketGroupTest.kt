@@ -14,12 +14,12 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
+import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.junit.Test
 
 class PrivacyBucketGroupTest {
-
   companion object {
     private val bucketGroup =
       PrivacyBucketGroup(
@@ -34,7 +34,22 @@ class PrivacyBucketGroupTest {
   }
 
   @Test
-  fun `privacyBucketsOverlap overlapping works as expected`() {
+  fun `PrivacyBucketGroup throws exception if start + width larger than 1`() {
+    assertFails {
+      PrivacyBucketGroup(
+        "ACME",
+        LocalDate.parse("2021-07-01"),
+        LocalDate.parse("2021-07-01"),
+        AgeGroup.RANGE_35_54,
+        Gender.MALE,
+        0.8f,
+        0.5f
+      )
+    }
+  }
+
+  @Test
+  fun `overlapsWith overlapping works as expected`() {
     val bucketGroup2 =
       PrivacyBucketGroup(
         "ACME",
@@ -50,7 +65,7 @@ class PrivacyBucketGroupTest {
   }
 
   @Test
-  fun `privacyBucketsOverlap non overlapping works as expected`() {
+  fun `overlapsWith non overlapping works as expected`() {
     val bucketGroup2 =
       PrivacyBucketGroup(
         "ACME",

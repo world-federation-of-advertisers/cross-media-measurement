@@ -36,6 +36,12 @@ data class PrivacyBucketGroup(
   val vidSampleStart: Float,
   val vidSampleWidth: Float,
 ) {
+  init {
+    if (this.vidSampleStart + this.vidSampleWidth > 1) {
+      throw Exception("start + width cannot be larger than 1")
+    }
+  }
+
   fun overlapsWith(
     otherBucketGroup: PrivacyBucketGroup,
   ): Boolean {
