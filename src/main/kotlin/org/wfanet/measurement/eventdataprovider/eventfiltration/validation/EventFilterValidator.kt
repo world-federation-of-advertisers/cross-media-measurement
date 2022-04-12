@@ -172,7 +172,7 @@ object EventFilterValidator {
   }
 
   private fun toNnf(input: Expr, operativeFields: Set<String>, negate: Boolean = false): Expr {
-    // Leaf Node, should never be achieved if the EventFilter is valid. The leaf nodes are always
+    // Leaf Node, should never be reached if the EventFilter is valid. The leaf nodes are always
     // checked from the parent.
     if (!input.hasCallExpr()) {
       failOnSingleToplevelValue()
@@ -188,17 +188,17 @@ object EventFilterValidator {
     }
     // OR Node
     // if negating recurse down with AND and distrubute negation to children (De Morgan's laws)
-    // else recurse down with OR.
+    // else recurse down with OR without altering.
     if (input.isDisjuction()) {
       return input.buildToNnf(if (negate) AND_OPERATOR else OR_OPERATOR, operativeFields, negate)
     }
     // AND Node
     // if negating recurse down with OR and distrubute negation to children (De Morgan's laws)
-    // else recurse down with AND.
+    // else recurse down with AND without altering.
     if (input.isConjuction()) {
       return input.buildToNnf(if (negate) OR_OPERATOR else AND_OPERATOR, operativeFields, negate)
     }
-    // Comparison Node (e.g. x == 47).  If it is for a non operative, return true.
+    // Comparison Node (e.g. x == 47).  If it is for a non operative comparison, return true.
     if (input.nonOperativeComparisonNode(operativeFields)) {
       return trueExpression()
     }
