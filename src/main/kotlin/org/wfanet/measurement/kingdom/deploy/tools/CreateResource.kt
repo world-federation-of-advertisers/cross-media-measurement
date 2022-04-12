@@ -157,7 +157,8 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
 }
 
 @Command(name = "model-provider", description = ["Creates a ModelProvider"])
-private class CreateModelProviderCommand : CreatePrincipalCommand() {
+private class CreateModelProviderCommand : Runnable {
+  @ParentCommand private lateinit var parent: CreateResource
   override fun run() {
     val modelProvidersStub = ModelProvidersCoroutineStub(parent.channel)
     val outputModelProvider =
