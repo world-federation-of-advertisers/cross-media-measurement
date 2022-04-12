@@ -169,6 +169,7 @@ class FrontendSimulator(
       val result = parseAndVerifyResult(it)
       assertThat(result.impression.value)
         .isEqualTo(
+          // EdpSimulator sets it to this value.
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
     }
@@ -194,6 +195,7 @@ class FrontendSimulator(
       val result = parseAndVerifyResult(it)
       assertThat(result.watchDuration.value.seconds)
         .isEqualTo(
+          // EdpSimulator sets it to this value.
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
     }

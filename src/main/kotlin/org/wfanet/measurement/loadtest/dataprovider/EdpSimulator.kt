@@ -394,6 +394,7 @@ class EdpSimulator(
     val requisitionData =
       MeasurementKt.result {
         impression = impression {
+          // FrontendSimulator can verify it is the getting the right value from the EdpSimulator.
           value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
         }
       }
@@ -410,6 +411,7 @@ class EdpSimulator(
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
+            // FrontendSimulator can verify it is the getting the right value from the EdpSimulator.
             seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
           }
         }
