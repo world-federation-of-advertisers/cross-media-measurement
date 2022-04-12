@@ -40,12 +40,7 @@ private val LEAF_ONLY_OPERATORS =
     "_<=_",
     "@in",
   )
-private val BOOLEAN_OPERATORS =
-  listOf(
-    NOT_OPERATOR,
-    AND_OPERATOR,
-    OR_OPERATOR,
-  )
+private val BOOLEAN_OPERATORS = listOf(NOT_OPERATOR, AND_OPERATOR, OR_OPERATOR)
 private val ALLOWED_OPERATORS = LEAF_ONLY_OPERATORS + BOOLEAN_OPERATORS
 
 /**
