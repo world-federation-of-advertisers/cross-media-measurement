@@ -22,7 +22,6 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-
 /* Throw internal exceptions with reserved parameters
 
 Throw internal exception:
@@ -54,11 +53,11 @@ class ErrorContext {
   var accountActivationState: Int? = null
   var externalMeasurementConsumerId: Long? = null
   var externalMeasurementConsumerCertificateId: Long? = null
-  var externalMeasurementId: Long ?= null
+  var externalMeasurementId: Long? = null
   var providedMeasurementId: String? = null
   var measurementState: Int? = null
   var externalApiKeyId: Long? = null
-  var externalDataProviderId: Long ?= null
+  var externalDataProviderId: Long? = null
   var externalDataProviderCertificateId: Long? = null
   var externalEventGroupId: Long? = null
   var providedEventGroupId: String? = null
@@ -69,13 +68,12 @@ class ErrorContext {
   var computationState: Int? = null
   var externalRequisitionId: Long? = null
   var requisitionState: Int? = null
-  var externalFulfillingDuchyId: String ?= null;
+  var externalFulfillingDuchyId: String? = null
   var externalCertificateId: Long? = null
   var certificationRevocationState: Int? = null
   var externalRecurringExchangeId: Long? = null
   var externalModelProviderId: Long? = null
   var externalProtocolConfigId: String? = null
-
 
   private fun addMapItem(map: MutableMap<String, String>, key: String, value: String?) {
     if (!value.isNullOrEmpty()) {
@@ -88,16 +86,28 @@ class ErrorContext {
     addMapItem(map, "externalAccountId", externalAccountId?.toString())
     addMapItem(map, "accountActivationState", accountActivationState?.toString())
     addMapItem(map, "externalMeasurementConsumerId", externalMeasurementConsumerId?.toString())
-    addMapItem(map, "externalMeasurementConsumerCertificateId", externalMeasurementConsumerCertificateId?.toString())
+    addMapItem(
+      map,
+      "externalMeasurementConsumerCertificateId",
+      externalMeasurementConsumerCertificateId?.toString()
+    )
     addMapItem(map, "externalMeasurementId", externalMeasurementId?.toString())
     addMapItem(map, "providedMeasurementId", providedMeasurementId)
     addMapItem(map, "measurementState", measurementState?.toString())
     addMapItem(map, "externalApiKeyId", externalApiKeyId?.toString())
     addMapItem(map, "externalDataProviderId", externalDataProviderId?.toString())
-    addMapItem(map, "externalDataProviderCertificateId", externalDataProviderCertificateId?.toString())
+    addMapItem(
+      map,
+      "externalDataProviderCertificateId",
+      externalDataProviderCertificateId?.toString()
+    )
     addMapItem(map, "externalEventGroupId", externalEventGroupId?.toString())
     addMapItem(map, "providedEventGroupId", providedEventGroupId)
-    addMapItem(map, "externalEventGroupMetadataDescriptorId", externalEventGroupMetadataDescriptorId?.toString())
+    addMapItem(
+      map,
+      "externalEventGroupMetadataDescriptorId",
+      externalEventGroupMetadataDescriptorId?.toString()
+    )
     addMapItem(map, "externalDuchyId", externalDuchyId)
     addMapItem(map, "internalDuchyId", internalDuchyId?.toString())
     addMapItem(map, "externalComputationId", externalComputationId?.toString())
@@ -130,10 +140,7 @@ open class KingdomInternalException : Exception {
   fun throwStatusRuntimeException(
     status: Status = Status.INVALID_ARGUMENT,
     provideDescription: () -> String,
-  ): Nothing {
-
-    throwStatusRuntimeException(status, code, context, provideDescription)
-  }
+  ): Nothing = throwStatusRuntimeException(status, code, context, provideDescription)
 }
 
 fun throwStatusRuntimeException(
@@ -142,7 +149,6 @@ fun throwStatusRuntimeException(
   context: ErrorContext,
   provideDescription: () -> String,
 ): Nothing {
-
   val info = errorInfo {
     reason = code.toString()
     domain = ErrorInfo::class.qualifiedName.toString()
@@ -171,7 +177,7 @@ class MeasurementConsumerNotFoundError(
 
 class DataProviderNotFoundError(
   externalDataProviderId: Long,
-  provideDescription: () -> String
+  provideDescription: () -> String = { "" }
 ) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
   init {
     context.externalDataProviderId = externalDataProviderId
@@ -182,12 +188,9 @@ class MeasurementStateIllegalError(
   externalMeasurementId: Long,
   measurementState: Int,
   provideDescription: () -> String
-): KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
+) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
   init {
     context.externalMeasurementId = externalMeasurementId
     context.measurementState = measurementState
   }
 }
-
-
-
