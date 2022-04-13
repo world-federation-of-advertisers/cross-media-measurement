@@ -33,8 +33,8 @@ object EventFilters {
    * @param defaultEventMessage default instance for a [Message] that contains each type of event
    * template as fields. See `event_annotations.proto`.
    *
-   * @param operativeFields fields in this cel expression that will be kept after the normalization
-   * operation. If provided, the expression is normalized to operative negative normal form by
+   * @param operativeFields fields in [celExpr] that will be not be altered after the normalization
+   * operation. If provided, [celExpr] is normalized to operative negative normal form by
    * bubbling down all the negation operations to the leafs by applying De Morgan's laws recursively
    * and by setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than
    * the operative fields to true.
