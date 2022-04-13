@@ -62,8 +62,8 @@ class EventGroupMetadataParser() {
   }
 
   /**
-   * Returns the DynamicMessage from a set of FileDescriptors and message.Any type_url. Returns null
-   * if message cannot be parsed.
+   * Returns the DynamicMessage from a com.google.protobuf.Any message and corresponding
+   * FileDescriptorSet.
    */
   fun convertToDynamicMessage(
     message: com.google.protobuf.Any,
