@@ -34,10 +34,10 @@ object EventFilters {
    * template as fields. See `event_annotations.proto`.
    *
    * @param operativeFields fields in [celExpr] that will be not be altered after the normalization
-   * operation. If provided, [celExpr] is normalized to operative negation normal form by
-   * bubbling down all the negation operations to the leafs by applying De Morgan's laws recursively
-   * and by setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than
-   * the operative fields to true.
+   * operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
+   * down all the negation operations to the leafs by applying De Morgan's laws recursively and by
+   * setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
+   * operative fields to true.
    *
    * @throws [EventFilterValidationException] if [celExpr] is not valid. with the following codes:
    * * [EventFilterValidationException.Code.INVALID_CEL_EXPRESSION]
