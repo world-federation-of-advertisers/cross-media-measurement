@@ -42,8 +42,8 @@ class EventGroupMetadataParserTest {
   @Test
   fun `packed 'Any' message returns DynamicMessage`() {
     val fileDescriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
-    val result = EventGroupMetadataParser()
-      .convertToDynamicMessage(Any.pack(TEST_MESSAGE), fileDescriptorSet)
+    val result =
+      EventGroupMetadataParser().convertToDynamicMessage(Any.pack(TEST_MESSAGE), fileDescriptorSet)
     assertThat(TestMetadataMessage2.parseFrom(result!!.toByteString())).isEqualTo(TEST_MESSAGE)
   }
 
