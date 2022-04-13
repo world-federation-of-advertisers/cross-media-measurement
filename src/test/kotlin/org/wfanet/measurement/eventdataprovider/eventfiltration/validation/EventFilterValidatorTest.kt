@@ -76,6 +76,12 @@ class EventFilterValidatorTest {
     )
   }
 
+  private fun compileToNormalForm(
+    celExpression: String,
+    env: Env,
+    operativeFields: Set<String>
+  ): Expr = EventFilterValidator.compileToNormalForm(celExpression, env, operativeFields).getExpr()
+
   private fun assertFailsWithCode(celExpression: String, code: Code, env: Env = Env.newEnv()) {
     val e =
       assertFailsWith(EventFilterValidationException::class) {
@@ -245,17 +251,19 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with single operative field`() {
+    val expression = "vt.age.value in [0, 1]"
+    val expectedNormalizedExpression = "vt.age.value in [0, 1]"
+
     assertThat(
-        EventFilterValidator.compileToNormalForm(
-            "vt.age.value in [0, 1]",
-            envWithTestTemplateVars(videoTemplateVar("vt")),
-            setOf("vt.age.value")
-          )
-          .getExpr()
+        compileToNormalForm(
+          expression,
+          envWithTestTemplateVars(videoTemplateVar("vt")),
+          setOf("vt.age.value")
+        )
       )
       .isEqualTo(
         EventFilterValidator.compile(
-            "vt.age.value in [0, 1]",
+            expectedNormalizedExpression,
             envWithTestTemplateVars(videoTemplateVar("vt")),
           )
           .getExpr()
@@ -264,37 +272,43 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with single non operative field`() {
+    val expression = "vt.age.value in [0, 1]"
+    val expectedCompiledNormalizedExpression =
+      Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+
     assertThat(
-        EventFilterValidator.compileToNormalForm(
-            "vt.age.value in [0, 1]",
-            envWithTestTemplateVars(
-              videoTemplateVar("vt"),
-              privacyTemplateVar("pt"),
-            ),
-            setOf("pt.age.value")
-          )
-          .getExpr()
+        compileToNormalForm(
+          expression,
+          envWithTestTemplateVars(
+            videoTemplateVar("vt"),
+            privacyTemplateVar("pt"),
+          ),
+          setOf("pt.age.value")
+        )
       )
-      .isEqualTo(Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build())
+      .isEqualTo(expectedCompiledNormalizedExpression)
   }
 
   @Test
   fun `compiles to Normal Form correctly with non operative fields`() {
+
+    val expression = "bt.gender.value == 2 && vt.age.value == 1"
+    val expectedNormalizedExpression = "true && vt.age.value == 1"
+
     assertThat(
-        EventFilterValidator.compileToNormalForm(
-            "bt.gender.value == 2 && vt.age.value == 1",
-            envWithTestTemplateVars(
-              bannerTemplateVar("bt"),
-              videoTemplateVar("vt"),
-            ),
-            setOf("vt.age.value")
-          )
-          .getExpr()
+        compileToNormalForm(
+          expression,
+          envWithTestTemplateVars(
+            bannerTemplateVar("bt"),
+            videoTemplateVar("vt"),
+          ),
+          setOf("vt.age.value")
+        )
       )
       .ignoringFields(Expr.ID_FIELD_NUMBER)
       .isEqualTo(
         EventFilterValidator.compile(
-            "true && vt.age.value == 1",
+            expectedNormalizedExpression,
             envWithTestTemplateVars(
               bannerTemplateVar("bt"),
               videoTemplateVar("vt"),
@@ -306,20 +320,21 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with no non operative fields and negation`() {
+
+    val expression = "!(pt.gender.value == 2 && pt.age.value == 1)"
+    val expectedNormalizedExpression = "pt.gender.value == 2 || pt.age.value == 1"
+
     assertThat(
-        EventFilterValidator.compileToNormalForm(
-            "!(pt.gender.value == 2 && pt.age.value == 1)",
-            envWithTestTemplateVars(
-              privacyTemplateVar("pt"),
-            ),
-            setOf("pt.age.value", "pt.gender.value")
-          )
-          .getExpr()
+        compileToNormalForm(
+          expression,
+          envWithTestTemplateVars(privacyTemplateVar("pt")),
+          setOf("pt.age.value", "pt.gender.value")
+        )
       )
       .ignoringFields(Expr.ID_FIELD_NUMBER)
       .isEqualTo(
         EventFilterValidator.compile(
-            "pt.gender.value == 2 || pt.age.value == 1",
+            expectedNormalizedExpression,
             envWithTestTemplateVars(
               privacyTemplateVar("pt"),
             )
@@ -330,21 +345,24 @@ class EventFilterValidatorTest {
 
   @Test
   fun `compiles to Normal Form correctly with non operative fields and negation`() {
+
+    val expression = "!(pt.gender.value == 2 && pt.age.value == 1) && !(vt.age.value == 2)"
+    val expectedNormalizedExpression = "(pt.gender.value == 2 || pt.age.value == 1) && true"
+
     assertThat(
-        EventFilterValidator.compileToNormalForm(
-            "!(pt.gender.value == 2 && pt.age.value == 1) && !(vt.age.value == 2)",
-            envWithTestTemplateVars(
-              privacyTemplateVar("pt"),
-              videoTemplateVar("vt"),
-            ),
-            setOf("pt.age.value", "pt.gender.value")
-          )
-          .getExpr()
+        compileToNormalForm(
+          expression,
+          envWithTestTemplateVars(
+            privacyTemplateVar("pt"),
+            videoTemplateVar("vt"),
+          ),
+          setOf("pt.age.value", "pt.gender.value")
+        )
       )
       .ignoringFields(Expr.ID_FIELD_NUMBER)
       .isEqualTo(
         EventFilterValidator.compile(
-            "(pt.gender.value == 2 || pt.age.value == 1) && true",
+            expectedNormalizedExpression,
             envWithTestTemplateVars(
               privacyTemplateVar("pt"),
               videoTemplateVar("vt"),
@@ -357,23 +375,27 @@ class EventFilterValidatorTest {
   @Test
   fun `compiles to Normal Form correctly with complex expression`() {
 
+    val expression =
+      "!(pt.gender.value == 2  || vt.age.value == 1) && !(pt.age.value == 1 || " +
+        "(pt.age.value == 2 || !((vt.age.value == 1 && vt.age.value == 2))))"
+    val expectedNormalizedExpression =
+      "(pt.gender.value == 2  && true) && (pt.age.value == 1 && " +
+        "(pt.age.value == 2 && ((true && true))) )"
+
     assertThat(
-        EventFilterValidator.compileToNormalForm(
-            "!(pt.gender.value == 2  || vt.age.value == 1) && !(pt.age.value == 1 || " +
-              "(pt.age.value == 2 || !((vt.age.value == 1 && vt.age.value == 2))))",
-            envWithTestTemplateVars(
-              privacyTemplateVar("pt"),
-              videoTemplateVar("vt"),
-            ),
-            setOf("pt.age.value", "pt.gender.value")
-          )
-          .getExpr()
+        compileToNormalForm(
+          expression,
+          envWithTestTemplateVars(
+            privacyTemplateVar("pt"),
+            videoTemplateVar("vt"),
+          ),
+          setOf("pt.age.value", "pt.gender.value")
+        )
       )
       .ignoringFields(Expr.ID_FIELD_NUMBER)
       .isEqualTo(
         EventFilterValidator.compile(
-            "(pt.gender.value == 2  && true) && (pt.age.value == 1 && " +
-              "(pt.age.value == 2 && ((true && true))) )",
+            expectedNormalizedExpression,
             envWithTestTemplateVars(
               privacyTemplateVar("pt"),
               videoTemplateVar("vt"),
