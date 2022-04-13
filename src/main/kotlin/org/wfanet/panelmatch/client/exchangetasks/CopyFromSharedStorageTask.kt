@@ -34,7 +34,7 @@ class CopyFromSharedStorageTask(
   private val copyOptions: CopyOptions,
   private val sourceBlobKey: String,
   private val destinationBlobKey: String,
-  private val maxParallelTransfers: Int = 32,
+  private val maxParallelTransfers: Int = 16,
 ) : CustomIOExchangeTask() {
   override suspend fun execute() {
     val blob = source.getBlob(sourceBlobKey)
