@@ -22,49 +22,23 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 
-/**
- * Throw internal exceptions with reserved parameters
- *
- * Throw internal exception: throw MeasurementConsumerNotFoundError(id="123") {
- * "measurement_consumer not existing" }
- *
- * Catch internal exception and throw Grpc runtime exception to the client: catch(e:
- * KingdomInternalException) { when(e) { ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND -> { val
- * externalMeasurementConsumerId = e.context.externalMeasurementConsumerId ?: 0L
- * e.throwRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" } } else ->
- * {} } }
- *
- * The client receive the Grpc runtime exception and check reason and context: catch(e:
- * StatusRuntimeException) { val info = e.getErrorInfo() if(info.notNull() && info.reason =
- * MEASUREMENT_CONSUMER_NOT_FOUND.getName()) { val externalMeasurementConsumerId =
- * info.metadata.getOrDefault("externalMeasurementConsumerId", 0L) blame(measurementConsumerId) } }
- */
-
 class ErrorContext {
+  var state: Int? = null
   var externalAccountId: Long? = null
-  var accountActivationState: Int? = null
   var externalMeasurementConsumerId: Long? = null
+  var internalMeasurementConsumerId: Long? = null
   var externalMeasurementId: Long? = null
-  var providedMeasurementId: String? = null
-  var measurementState: Int? = null
+  var internalMeasurementId: Long? = null
   var externalApiKeyId: Long? = null
   var externalDataProviderId: Long? = null
   var externalEventGroupId: Long? = null
-  var providedEventGroupId: String? = null
-  var externalEventGroupMetadataDescriptorId: Long? = null
   var externalDuchyId: String? = null
   var internalDuchyId: Long? = null
   var externalComputationId: Long? = null
-  var computationState: Int? = null
   var externalRequisitionId: Long? = null
-  var requisitionState: Int? = null
-  var externalFulfillingDuchyId: String? = null
   var parentId: Long? = null
   var externalCertificateId: Long? = null
-  var certificationRevocationState: Int? = null
-  var externalRecurringExchangeId: Long? = null
   var externalModelProviderId: Long? = null
-  var externalProtocolConfigId: String? = null
 
   private fun addMapItem(map: MutableMap<String, String>, key: String, value: String?) {
     if (!value.isNullOrEmpty()) {
@@ -74,34 +48,22 @@ class ErrorContext {
 
   fun toMap(): Map<String, String> {
     val map = mutableMapOf<String, String>()
-    addMapItem(map, "externalAccountId", externalAccountId?.toString())
-    addMapItem(map, "accountActivationState", accountActivationState?.toString())
-    addMapItem(map, "externalMeasurementConsumerId", externalMeasurementConsumerId?.toString())
-    addMapItem(map, "externalMeasurementId", externalMeasurementId?.toString())
-    addMapItem(map, "providedMeasurementId", providedMeasurementId)
-    addMapItem(map, "measurementState", measurementState?.toString())
-    addMapItem(map, "externalApiKeyId", externalApiKeyId?.toString())
-    addMapItem(map, "externalDataProviderId", externalDataProviderId?.toString())
-    addMapItem(map, "externalEventGroupId", externalEventGroupId?.toString())
-    addMapItem(map, "providedEventGroupId", providedEventGroupId)
-    addMapItem(
-      map,
-      "externalEventGroupMetadataDescriptorId",
-      externalEventGroupMetadataDescriptorId?.toString()
-    )
-    addMapItem(map, "externalDuchyId", externalDuchyId)
-    addMapItem(map, "internalDuchyId", internalDuchyId?.toString())
-    addMapItem(map, "externalComputationId", externalComputationId?.toString())
-    addMapItem(map, "computationState", computationState?.toString())
-    addMapItem(map, "externalRequisitionId", externalRequisitionId?.toString())
-    addMapItem(map, "requisitionState", requisitionState?.toString())
-    addMapItem(map, "externalFulfillingDuchyId", externalFulfillingDuchyId)
-    addMapItem(map, "parentId", parentId?.toString())
-    addMapItem(map, "externalCertificateId", externalCertificateId?.toString())
-    addMapItem(map, "certificationRevocationState", externalCertificateId?.toString())
-    addMapItem(map, "externalRecurringExchangeId", externalRecurringExchangeId?.toString())
-    addMapItem(map, "externalModelProviderId", externalModelProviderId?.toString())
-    addMapItem(map, "externalProtocolConfigId", externalProtocolConfigId)
+    addMapItem(map, "state", state?.toString())
+    addMapItem(map, "external_account_id", externalAccountId?.toString())
+    addMapItem(map, "external_measurement_consumer_id", externalMeasurementConsumerId?.toString())
+    addMapItem(map, "internal_measurement_consumer_id", internalMeasurementConsumerId?.toString())
+    addMapItem(map, "external_measurement_id", externalMeasurementId?.toString())
+    addMapItem(map, "internal_measurement_id", internalMeasurementId?.toString())
+    addMapItem(map, "external_api_key_id", externalApiKeyId?.toString())
+    addMapItem(map, "external_data_provider_id", externalDataProviderId?.toString())
+    addMapItem(map, "external_event_group_id", externalEventGroupId?.toString())
+    addMapItem(map, "external_duchy_id", externalDuchyId)
+    addMapItem(map, "internal_duchy_id", internalDuchyId?.toString())
+    addMapItem(map, "external_computation_id", externalComputationId?.toString())
+    addMapItem(map, "external_requisition_id", externalRequisitionId?.toString())
+    addMapItem(map, "parent_id", parentId?.toString())
+    addMapItem(map, "external_certificate_id", externalCertificateId?.toString())
+    addMapItem(map, "external_model_provider_id", externalModelProviderId?.toString())
 
     return map
   }
@@ -109,14 +71,20 @@ class ErrorContext {
 
 open class KingdomInternalException : Exception {
   val code: ErrorCode
-  val context = ErrorContext()
+  val context: ErrorContext
 
-  constructor(code: ErrorCode) : super() {
+  constructor(code: ErrorCode, context: ErrorContext = ErrorContext()) : super() {
     this.code = code
+    this.context = context
   }
 
-  constructor(code: ErrorCode, buildMessage: () -> String) : super(buildMessage()) {
+  constructor(
+    code: ErrorCode,
+    context: ErrorContext = ErrorContext(),
+    buildMessage: () -> String
+  ) : super(buildMessage()) {
     this.code = code
+    this.context = context
   }
 
   fun throwStatusRuntimeException(
@@ -151,7 +119,12 @@ fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
 class MeasurementConsumerNotFound(
   externalMeasurementConsumerId: Long,
   provideDescription: () -> String = { "MeasurementConsumer not found" }
-) : KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
+) :
+  KingdomInternalException(
+    ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
+    ErrorContext(),
+    provideDescription
+  ) {
   init {
     context.externalMeasurementConsumerId = externalMeasurementConsumerId
   }
@@ -160,7 +133,8 @@ class MeasurementConsumerNotFound(
 class DataProviderNotFound(
   externalDataProviderId: Long,
   provideDescription: () -> String = { "DataProvider not found" }
-) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
+) :
+  KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, ErrorContext(), provideDescription) {
   init {
     context.externalDataProviderId = externalDataProviderId
   }
@@ -169,7 +143,8 @@ class DataProviderNotFound(
 class ModelProviderNotFound(
   externalModelProviderId: Long,
   provideDescription: () -> String = { "ModelProvider not found" }
-) : KingdomInternalException(ErrorCode.MODEL_PROVIDER_NOT_FOUND, provideDescription) {
+) :
+  KingdomInternalException(ErrorCode.MODEL_PROVIDER_NOT_FOUND, ErrorContext(), provideDescription) {
   init {
     context.externalModelProviderId = externalModelProviderId
   }
@@ -178,14 +153,14 @@ class ModelProviderNotFound(
 class DuchyNotFound(
   externalDuchyId: String,
   provideDescription: () -> String = { "Duchy not found" }
-) : KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND, provideDescription) {
+) : KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND, ErrorContext(), provideDescription) {
   init {
     context.externalDuchyId = externalDuchyId
   }
 }
 
-class MeasurementNotFound(provideDescription: () -> String)
-  : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+class MeasurementNotFound(provideDescription: () -> String) :
+  KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, ErrorContext(), provideDescription) {
   constructor(
     externalMeasurementConsumerId: Long,
     externalMeasurementId: Long,
@@ -202,8 +177,8 @@ class MeasurementNotFound(provideDescription: () -> String)
   }
 }
 
-class MeasurementConsumerCertificateNotFound(provideDescription: () -> String)
-  : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
+class CertificateNotFound(provideDescription: () -> String) :
+  KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, ErrorContext(), provideDescription) {
   constructor(
     parentId: Long,
     externalCertificateId: Long,
@@ -214,13 +189,136 @@ class MeasurementConsumerCertificateNotFound(provideDescription: () -> String)
   }
 }
 
-class MeasurementStateIllegal(
-  externalMeasurementId: Long,
-  measurementState: Int,
-  provideDescription: () -> String = { "" }
-) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
+class ComputationParticipantNotFound(provideDescription: () -> String) :
+  KingdomInternalException(
+    ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+    ErrorContext(),
+    provideDescription
+  ) {
+  constructor(
+    externalComputationId: Long,
+    externalDuchyId: String,
+    provideDescription: () -> String = { "ComputationParticipant not found" }
+  ) : this(provideDescription) {
+    context.externalComputationId = externalComputationId
+    context.externalDuchyId = externalDuchyId
+  }
+
+  constructor(
+    internalMeasurementConsumerId: Long,
+    internalMeasurementId: Long,
+    internalDuchyId: Long,
+    provideDescription: () -> String = { "ComputationParticipant not found" }
+  ) : this(provideDescription) {
+    context.internalMeasurementConsumerId = internalMeasurementConsumerId
+    context.internalMeasurementId = internalMeasurementId
+    context.internalDuchyId = internalDuchyId
+  }
+}
+
+class RequisitionNotFound(provideDescription: () -> String) :
+  KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, ErrorContext(), provideDescription) {
+  constructor(
+    externalComputationId: Long,
+    externalRequisitionId: Long,
+    provideDescription: () -> String = { "Requisition not found" }
+  ) : this(provideDescription) {
+    context.externalComputationId = externalComputationId
+    context.externalRequisitionId = externalRequisitionId
+  }
+}
+
+class AccountNotFound(
+  externalAccountId: Long,
+  provideDescription: () -> String = { "Account not found" }
+) : KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND, ErrorContext(), provideDescription) {
   init {
-    context.externalMeasurementId = externalMeasurementId
-    context.measurementState = measurementState
+    context.externalAccountId = externalAccountId
+  }
+}
+
+class ApiKeyNotFound(
+  externalApiKeyId: Long,
+  provideDescription: () -> String = { "ApiKey not found" }
+) : KingdomInternalException(ErrorCode.API_KEY_NOT_FOUND, ErrorContext(), provideDescription) {
+  init {
+    context.externalApiKeyId = externalApiKeyId
+  }
+}
+
+class EventGroupNotFound(
+  externalDataProviderId: Long,
+  externalEventGroupId: Long,
+  provideDescription: () -> String = { "EventGroup not found" }
+) : KingdomInternalException(ErrorCode.EVENT_GROUP_NOT_FOUND, ErrorContext(), provideDescription) {
+  init {
+    context.externalDataProviderId = externalDataProviderId
+    context.externalEventGroupId = externalEventGroupId
+  }
+}
+
+class MeasurementStateIllegal(
+  state: Int,
+  provideDescription: () -> String = { "Measurement state illegal" }
+) :
+  KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, ErrorContext(), provideDescription) {
+  init {
+    context.state = state
+  }
+}
+
+class CertificateRevocationStateIllegal(
+  state: Int,
+  provideDescription: () -> String = { "CertificateRevocation state illegal" }
+) :
+  KingdomInternalException(
+    ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
+    ErrorContext(),
+    provideDescription
+  ) {
+  init {
+    context.state = state
+  }
+}
+
+class ComputationParticipantStateIllegal(
+  state: Int,
+  provideDescription: () -> String = { "ComputationParticipant state illegal" }
+) :
+  KingdomInternalException(
+    ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
+    ErrorContext(),
+    provideDescription
+  ) {
+  init {
+    context.state = state
+  }
+}
+
+class RequisitionStateIllegal(
+  state: Int,
+  provideDescription: () -> String = { "Requisition state illegal" }
+) :
+  KingdomInternalException(
+    ErrorCode.REQUISITION_STATE_ILLEGAL,
+    ErrorContext(),
+    provideDescription
+  ) {
+  init {
+    context.state = state
+  }
+}
+
+class AccountActivationStateIllegal(
+  state: Int,
+  provideDescription: () -> String = { "AccountActivation state illegal" }
+) :
+  KingdomInternalException(
+    ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+    ErrorContext(),
+    provideDescription
+  ) {
+  init {
+    context.state = state
   }
 }

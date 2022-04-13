@@ -1,0 +1,13 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "KingdomInternalException",
+    srcs = ["KingdomInternalExceptionTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalExceptionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
+        "@wfa_common_jvm//imports/java/io/grpc/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
