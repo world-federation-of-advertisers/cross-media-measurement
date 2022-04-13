@@ -16,7 +16,7 @@ package org.wfanet.measurement.loadtest.config
 
 import com.google.common.hash.Hashing
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 
 object EventFilters {
 
