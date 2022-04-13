@@ -233,15 +233,16 @@ class FrontendSimulator(
       return null
     }
 
+    val resultPair = measurement.resultsList[0]
     val aggregatorCertificate =
-      certificateCache.getOrPut(measurement.aggregatorCertificate) {
+      certificateCache.getOrPut(resultPair.certificate) {
         certificatesClient
           .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = measurement.aggregatorCertificate })
+          .getCertificate(getCertificateRequest { name = resultPair.certificate })
       }
 
     val signedResult =
-      decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
+      decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
     @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
     val result = Result.parseFrom(signedResult.data)
 

@@ -56,9 +56,6 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
               ExternalId(request.externalMeasurementConsumerId),
               externalCertificateId
             )
-        ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
-          CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
-            .bindWhereClause(ExternalId(request.externalModelProviderId), externalCertificateId)
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(

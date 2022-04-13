@@ -28,7 +28,8 @@
 --   │   └── Measurements
 --   │       ├── ComputationParticipants
 --   │       ├── MeasurementLogEntries
---   │       └── Requisitions
+--   │       ├── Requisitions
+--   │       └── DuchyMeasurementResults
 --   └── Accounts
 --       ├── OpenIdConnectIdentities
 --       ├── OpenIdConnectClaims
@@ -285,9 +286,6 @@ CREATE TABLE Measurements (
   -- encoded as int
   State             INT64 NOT NULL,
 
-  AggregatorDuchyId INT64,
-  AggregatorCertificateId INT64,
-
   -- org.wfanet.measurement.internal.kingdom.Measurement.Details serialized
   -- proto
   MeasurementDetails     BYTES(MAX) NOT NULL,
@@ -295,8 +293,6 @@ CREATE TABLE Measurements (
 
   FOREIGN KEY (MeasurementConsumerId, CertificateId)
     REFERENCES MeasurementConsumerCertificates(MeasurementConsumerId, CertificateId),
-  FOREIGN KEY (AggregatorDuchyId, AggregatorCertificateId)
-    REFERENCES DuchyCertificates(DuchyId, CertificateId),
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
@@ -419,6 +415,23 @@ CREATE TABLE DuchyMeasurementLogEntries (
 
 CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
   ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
+
+CREATE TABLE DuchyMeasurementResults (
+  MeasurementConsumerId INT64 NOT NULL,
+  MeasurementId INT64 NOT NULL,
+  DuchyId INT64 NOT NULL,
+  CertificateId INT64 NOT NULL,
+
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  EncryptedResult BYTES(MAX) NOT NULL,
+
+  FOREIGN KEY (MeasurementConsumerId, MeasurementId)
+      REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+  FOREIGN KEY (DuchyId, CertificateId)
+      REFERENCES DuchyCertificates(DuchyId, CertificateId),
+) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DuchyId, CertificateId),
+  INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE TABLE Accounts (
   AccountId INT64 NOT NULL,

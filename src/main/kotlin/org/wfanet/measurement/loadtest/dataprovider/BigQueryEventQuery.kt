@@ -23,29 +23,48 @@ import com.google.cloud.bigquery.QueryParameterValue
 import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.yield
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 
 /** The mapping from the EDP Display name to the Publisher Id in the synthetic data. */
 private val DISPLAY_NAME_TO_PUBLISHER_MAP = (1..6).associateBy { "edp$it" }
 
+/** TODO(@uakyol): Delete once the GCS correctness test supports [EventFilter]s */
+private val DEFAULT_QUERY_PARAMETER =
+  QueryParameter(
+    beginDate = "2021-03-01",
+    endDate = "2021-03-28",
+    sex = Sex.FEMALE,
+    ageGroup = null,
+    socialGrade = SocialGrade.ABC1,
+    complete = Complete.COMPLETE
+  )
+
 /** Fulfill the query by querying the specified BigQuery table. */
 class BiqQueryEventQuery(
+  private val edpDisplayName: String,
   private val bigQuery: BigQuery,
   private val tableName: String,
 ) : EventQuery() {
 
-  override fun getUserVirtualIds(parameter: QueryParameter): Sequence<Long> {
+  /**
+   * Converts [eventFilter] to a select statement and fetches the virtual ids from [BigQuery],
+   *
+   * TODO(@uakyol): Use [eventFiltbiger] rather than DEFAULT_QUERY_PARAMETER once the GCS
+   * correctness test supports [EventFilter]s
+   */
+  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
     val publisher =
-      DISPLAY_NAME_TO_PUBLISHER_MAP[parameter.edpDisplayName]
-        ?: error("EDP ${parameter.edpDisplayName} not in the test data.")
+      DISPLAY_NAME_TO_PUBLISHER_MAP[edpDisplayName]
+        ?: error("EDP $edpDisplayName not in the test data.")
     val queryConfig =
       buildQueryConfig(
         publisher = publisher,
-        beginDate = parameter.beginDate,
-        endDate = parameter.endDate,
-        sex = parameter.sex,
-        ageGroup = parameter.ageGroup,
-        socialGrade = parameter.socialGrade,
-        complete = parameter.complete,
+        beginDate = DEFAULT_QUERY_PARAMETER.beginDate,
+        endDate = DEFAULT_QUERY_PARAMETER.endDate,
+        sex = DEFAULT_QUERY_PARAMETER.sex,
+        ageGroup = DEFAULT_QUERY_PARAMETER.ageGroup,
+        socialGrade = DEFAULT_QUERY_PARAMETER.socialGrade,
+        complete = DEFAULT_QUERY_PARAMETER.complete,
       )
 
     bigQuery.query(queryConfig)
