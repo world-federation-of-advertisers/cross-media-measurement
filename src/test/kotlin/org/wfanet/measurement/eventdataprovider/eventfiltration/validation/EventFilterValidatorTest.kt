@@ -83,7 +83,9 @@ class EventFilterValidatorTest {
     celExpression: String,
     env: Env,
     operativeFields: Set<String>
-  ): Expr = EventFilterValidator.compileToNormalForm(celExpression, env, operativeFields).getExpr()
+  ): Expr =
+    EventFilterValidator.compileToOperativeNegationNormalForm(celExpression, env, operativeFields)
+      .getExpr()
 
   private fun assertFailsWithCode(celExpression: String, code: Code, env: Env = Env.newEnv()) {
     val e =
@@ -259,8 +261,7 @@ class EventFilterValidatorTest {
     val operativeFields = setOf("vt.age.value")
     val expectedNormalizedExpression = "vt.age.value in [0, 1]"
 
-
-     compileToNormalForm(expression, env, operativeFields)
+    compileToNormalForm(expression, env, operativeFields)
       .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
   }
 

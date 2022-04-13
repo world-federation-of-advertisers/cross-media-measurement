@@ -169,7 +169,7 @@ object EventFilterValidator {
     validateExpr(expression)
   }
 
-  private fun Expr.toOperativeNegativeNormalForm(
+  private fun Expr.toOperativeNegationNormalForm(
     operativeFields: Set<String>,
     negate: Boolean = false
   ): Expr {
@@ -185,13 +185,13 @@ object EventFilterValidator {
       if (childExpr.nonOperativeComparisonNode(operativeFields)) {
         return TRUE_EXPRESSION
       }
-      return childExpr.toOperativeNegativeNormalForm(operativeFields, !negate)
+      return childExpr.toOperativeNegationNormalForm(operativeFields, !negate)
     }
     // OR Node
     // if negating recurse down with AND and distrubute negation to children (De Morgan's laws)
     // else recurse down with OR without altering.
     if (isDisjuction()) {
-      return buildToOperativeNegativeNormalForm(
+      return buildToOperativeNegationNormalForm(
         if (negate) AND_OPERATOR else OR_OPERATOR,
         operativeFields,
         negate
@@ -201,7 +201,7 @@ object EventFilterValidator {
     // if negating recurse down with OR and distrubute negation to children (De Morgan's laws)
     // else recurse down with AND without altering.
     if (isConjuction()) {
-      return buildToOperativeNegativeNormalForm(
+      return buildToOperativeNegationNormalForm(
         if (negate) OR_OPERATOR else AND_OPERATOR,
         operativeFields,
         negate
@@ -256,10 +256,14 @@ object EventFilterValidator {
     return ast
   }
 
-  fun compileToNormalForm(celExpression: String, env: Env, operativeFields: Set<String>): Ast {
+  fun compileToOperativeNegationNormalForm(
+    celExpression: String,
+    env: Env,
+    operativeFields: Set<String>
+  ): Ast {
     val expr = getAst(celExpression, env).expr
     validateExpression(expr)
-    val nnfExpr = expr.toOperativeNegativeNormalForm(operativeFields)
+    val nnfExpr = expr.toOperativeNegationNormalForm(operativeFields)
     return parsedExprToAst(ParsedExpr.newBuilder().setExpr(nnfExpr).build())
   }
 
@@ -271,11 +275,11 @@ object EventFilterValidator {
     val env = createEnv(eventMessage)
     val ast =
       if (operativeFields.isEmpty()) compile(celExpression, env)
-      else compileToNormalForm(celExpression, env, operativeFields)
+      else compileToOperativeNegationNormalForm(celExpression, env, operativeFields)
     return env.program(ast)
   }
 
-  private fun Expr.buildToOperativeNegativeNormalForm(
+  private fun Expr.buildToOperativeNegationNormalForm(
     func: String,
     operativeFields: Set<String>,
     negate: Boolean = false
@@ -287,7 +291,7 @@ object EventFilterValidator {
       } else {
         builder
           .getCallExprBuilder()
-          .addArgs(it.toOperativeNegativeNormalForm(operativeFields, negate))
+          .addArgs(it.toOperativeNegationNormalForm(operativeFields, negate))
       }
     }
     return builder.build()
