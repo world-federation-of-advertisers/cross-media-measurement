@@ -43,7 +43,8 @@ private val LEAF_ONLY_OPERATORS =
 private val BOOLEAN_OPERATORS = listOf(NOT_OPERATOR, AND_OPERATOR, OR_OPERATOR)
 private val ALLOWED_OPERATORS = LEAF_ONLY_OPERATORS + BOOLEAN_OPERATORS
 
-private val TRUE_EXPRESSION = Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+private val TRUE_EXPRESSION =
+  Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
 
 /**
  * Validates an Event Filtering CEL expression according to Halo rules.
