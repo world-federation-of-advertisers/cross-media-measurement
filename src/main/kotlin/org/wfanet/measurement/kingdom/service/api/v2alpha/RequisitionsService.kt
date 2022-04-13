@@ -24,6 +24,8 @@ import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -40,6 +42,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.getProviderFromContext
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -51,6 +55,9 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.common.Provider
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -60,6 +67,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
@@ -68,8 +76,10 @@ private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
 
-class RequisitionsService(private val internalRequisitionStub: RequisitionsCoroutineStub) :
-  RequisitionsCoroutineImplBase() {
+class RequisitionsService(
+  private val internalRequisitionStub: RequisitionsCoroutineStub,
+  private val callIdentityProvider: () -> Provider = ::getProviderFromContext
+) : RequisitionsCoroutineImplBase() {
 
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
@@ -191,6 +201,39 @@ class RequisitionsService(private val internalRequisitionStub: RequisitionsCorou
 
     return result.toRequisition()
   }
+
+  override suspend fun fulfillDirectRequisition(
+    request: FulfillDirectRequisitionRequest
+  ): FulfillDirectRequisitionResponse {
+    val key =
+      grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
+        "Resource name unspecified or invalid."
+      }
+    grpcRequire(request.nonce != 0L) { "nonce unspecified" }
+    grpcRequire(!request.encryptedData.isEmpty) { "encrypted_data must be provided" }
+    // Ensure that the caller is the data_provider who owns this requisition.
+    val caller = callIdentityProvider()
+    if (caller.type != Provider.Type.DATA_PROVIDER ||
+        externalIdToApiId(caller.externalId) != key.dataProviderId
+    ) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "The data_provider id doesn't match the caller's identity."
+      }
+    }
+
+    internalRequisitionStub.fulfillRequisition(
+      fulfillRequisitionRequest {
+        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        nonce = request.nonce
+        directParams = directRequisitionParams {
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+          encryptedData = request.encryptedData
+        }
+      }
+    )
+
+    return fulfillDirectRequisitionResponse { state = State.FULFILLED }
+  }
 }
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
@@ -223,7 +266,11 @@ private fun InternalRequisition.toRequisition(): Requisition {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
+    if (parentMeasurement.protocolConfig.protocolCase !=
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
+    }
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
@@ -247,6 +294,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
         message = details.refusal.message
       }
     }
+    measurementState = this@toRequisition.parentMeasurement.state.toState()
   }
 }
 
@@ -355,6 +403,7 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
   }
 
   val requisitionsStatesList = source.filter.statesList
+  val measurementsStatesList = source.filter.measurementStatesList
 
   return if (source.pageToken.isNotBlank()) {
     ListRequisitionsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
@@ -374,6 +423,11 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
         states.containsAll(requisitionsStatesList) && requisitionsStatesList.containsAll(states)
       ) { "Arguments must be kept the same when using a page token" }
 
+      grpcRequire(
+        measurementStates.containsAll(measurementsStatesList) &&
+          measurementsStatesList.containsAll(measurementStates)
+      ) { "Arguments must be kept the same when using a page token" }
+
       if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
         pageSize = source.pageSize
       }
@@ -391,6 +445,7 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
       this.externalMeasurementId = externalMeasurementId
       this.externalDataProviderId = externalDataProviderId
       states += requisitionsStatesList
+      measurementStates += measurementsStatesList
     }
   }
 }
@@ -411,6 +466,7 @@ private fun ListRequisitionsPageToken.toStreamRequisitionsRequest(): StreamRequi
           externalDataProviderIdAfter = source.lastRequisition.externalDataProviderId
           externalRequisitionIdAfter = source.lastRequisition.externalRequisitionId
         }
+        source.measurementStatesList.forEach { measurementStates += it.toInternalState() }
       }
   }
 }

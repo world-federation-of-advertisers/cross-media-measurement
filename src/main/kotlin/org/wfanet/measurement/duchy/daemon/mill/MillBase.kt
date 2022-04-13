@@ -223,14 +223,13 @@ abstract class MillBase(
   /** Sends measurement result to the kingdom's system computationsService. */
   protected suspend fun sendResultToKingdom(
     globalId: String,
-    certificate: X509Certificate,
+    certificate: Certificate,
     resultPublicKey: ByteString,
     encryptedResult: ByteString
   ) {
     val request = setComputationResultRequest {
       name = ComputationKey(globalId).toName()
-      // TODO(wangyaopw): set the cert resourceName when it is added to the protos.
-      aggregatorCertificate = ByteString.copyFrom(certificate.encoded)
+      aggregatorCertificate = certificate.name
       this.resultPublicKey = resultPublicKey
       this.encryptedResult = encryptedResult
     }
@@ -342,10 +341,10 @@ abstract class MillBase(
   protected suspend fun existingOutputOr(
     token: ComputationToken,
     block: suspend () -> ByteString
-  ): CachedResult {
+  ): ComputationResult {
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
-      return CachedResult(checkNotNull(dataClients.readSingleOutputBlob(token)), token)
+      return ComputationResult(checkNotNull(dataClients.readSingleOutputBlob(token)), token)
     }
     val newResult: ByteString =
       try {
@@ -357,7 +356,7 @@ abstract class MillBase(
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
       }
-    return CachedResult(flowOf(newResult), dataClients.writeSingleOutputBlob(token, newResult))
+    return ComputationResult(flowOf(newResult), dataClients.writeSingleOutputBlob(token, newResult))
   }
 
   /** Reads all input blobs and combines all the bytes together. */
@@ -441,7 +440,7 @@ const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
 const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
 
-data class CachedResult(val bytes: Flow<ByteString>, val token: ComputationToken)
+data class ComputationResult(val bytes: Flow<ByteString>, val token: ComputationToken)
 
 data class Certificate(
   // The public API name of this certificate.

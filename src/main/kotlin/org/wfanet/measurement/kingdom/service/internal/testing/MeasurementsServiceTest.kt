@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -750,9 +751,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult fails for wrong externalComputationId`() = runBlocking {
+    val aggregatorDuchyId = "Buck"
+    val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
     val request = setMeasurementResultRequest {
       externalComputationId = 1234L // externalComputationId for Measurement that doesn't exist
-      aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+      externalAggregatorDuchyId = aggregatorDuchyId
+      externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
     }
@@ -762,6 +766,34 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Measurement not found")
+  }
+
+  @Test
+  fun `setMeasurementResult fails for wrong aggregator certificate ID`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val aggregatorDuchyId = "Buck"
+    val request = setMeasurementResultRequest {
+      externalComputationId = createdMeasurement.externalComputationId
+      externalAggregatorDuchyId = aggregatorDuchyId
+      externalAggregatorCertificateId = 404L
+      resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+      encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { measurementsService.setMeasurementResult(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("certificate")
   }
 
   @Test
@@ -776,32 +808,43 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             measurementConsumer.certificate.externalCertificateId
         }
       )
+    val aggregatorDuchyId = "Buck"
+    val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
 
     val request = setMeasurementResultRequest {
       externalComputationId = createdMeasurement.externalComputationId
-      aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+      externalAggregatorDuchyId = aggregatorDuchyId
+      externalAggregatorCertificateId = duchyCertificate.externalCertificateId
       resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
       encryptedResult = ByteString.copyFromUtf8("encryptedResult")
     }
 
-    val measurementWithResult = measurementsService.setMeasurementResult(request)
+    val response = measurementsService.setMeasurementResult(request)
 
-    val expectedMeasurementDetails =
-      createdMeasurement.details.copy {
-        aggregatorCertificate = request.aggregatorCertificate
-        encryptedResult = request.encryptedResult
-      }
-    assertThat(measurementWithResult.updateTime.toInstant())
+    assertThat(response.updateTime.toInstant())
       .isGreaterThan(createdMeasurement.updateTime.toInstant())
-
-    assertThat(measurementWithResult)
+    assertThat(response)
       .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
-          details = expectedMeasurementDetails
+          results += resultInfo {
+            externalAggregatorDuchyId = aggregatorDuchyId
+            externalCertificateId = duchyCertificate.externalCertificateId
+            encryptedResult = request.encryptedResult
+          }
         }
       )
+
+    val succeededMeasurement =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+          externalMeasurementId = createdMeasurement.externalMeasurementId
+        }
+      )
+    assertThat(response).isEqualTo(succeededMeasurement)
+    assertThat(succeededMeasurement.resultsList.size).isEqualTo(1)
   }
 
   @Test
@@ -1021,6 +1064,55 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamMeasurements with duchy filter only returns measurements with duchy as participant`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          details =
+            details.copy {
+              clearProtocolConfig()
+              clearDuchyProtocolConfig()
+            }
+        }
+      )
+
+    val streamMeasurementsRequest = streamMeasurementsRequest {
+      limit = 2
+      filter = filter {
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      }
+      measurementView = Measurement.View.COMPUTATION
+    }
+
+    val measurements: List<Measurement> =
+      measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
+
+    assertThat(measurements).hasSize(1)
+    assertThat(measurements[0].externalMeasurementId).isEqualTo(measurement1.externalMeasurementId)
+    assertThat(measurements[0].externalMeasurementId)
+      .isNotEqualTo(measurement2.externalMeasurementId)
+  }
+
+  @Test
   fun `streamMeasurements respects limit`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -1117,14 +1209,19 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     // SUCCEED second measurement.
-    measurementsService.setMeasurementResult(
-      setMeasurementResultRequest {
-        externalComputationId = measurement2.externalComputationId
-        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
-        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
-        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
-      }
-    )
+    val aggregatorDuchyId = "Buck"
+    val aggregatorCertificate =
+      population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
+    val succeededMeasurement =
+      measurementsService.setMeasurementResult(
+        setMeasurementResultRequest {
+          externalComputationId = measurement2.externalComputationId
+          externalAggregatorDuchyId = aggregatorDuchyId
+          externalAggregatorCertificateId = aggregatorCertificate.externalCertificateId
+          resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+          encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+        }
+      )
 
     val measurements: List<Measurement> =
       measurementsService
@@ -1133,11 +1230,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(measurements)
-      .comparingExpectedFieldsOnly()
-      .ignoringFields(
-        Measurement.UPDATE_TIME_FIELD_NUMBER,
-      )
-      .containsExactly(measurement2.copy { state = Measurement.State.SUCCEEDED })
+    assertThat(measurements).containsExactly(succeededMeasurement)
   }
 }

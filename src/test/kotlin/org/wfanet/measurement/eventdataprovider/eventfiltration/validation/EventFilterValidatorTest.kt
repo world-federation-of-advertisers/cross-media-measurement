@@ -28,7 +28,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 
 @RunWith(JUnit4::class)
 class EventFilterValidatorTest {
@@ -64,22 +64,27 @@ class EventFilterValidatorTest {
     )
   }
 
-  private fun assertThatFailsWithCode(celExpression: String, code: Code, env: Env = Env.newEnv()) {
+  private fun assertFailsWithCode(celExpression: String, code: Code, env: Env = Env.newEnv()) {
     val e =
       assertFailsWith(EventFilterValidationException::class) {
-        EventFilterValidator.validate(celExpression, env)
+        EventFilterValidator.compile(celExpression, env)
       }
     assertThat(e.code).isEqualTo(code)
   }
 
   @Test
   fun `fails on invalid operation`() {
-    assertThatFailsWithCode("1 + 1", Code.UNSUPPORTED_OPERATION)
+    assertFailsWithCode("1 + 1", Code.UNSUPPORTED_OPERATION)
+  }
+
+  @Test
+  fun `fails on invalid expression`() {
+    assertFailsWithCode("+", Code.INVALID_CEL_EXPRESSION)
   }
 
   @Test
   fun `works on supported operation`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "age > 30",
       env(intVar("age")),
     )
@@ -87,7 +92,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `fails on comparing string to int`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "age > 30",
       Code.INVALID_CEL_EXPRESSION,
       env(stringVar("age")),
@@ -96,7 +101,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `fails on comparing int to boolean conditional`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "age && (date > 10)",
       Code.INVALID_CEL_EXPRESSION,
       env(
@@ -108,7 +113,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `comparing field to a list of constants is valid`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "age in [10, 20, 30]",
       env(intVar("age")),
     )
@@ -116,7 +121,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `comparing field to a list of constants fails if types don't match`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "age in [10, 20, 30]",
       Code.INVALID_CEL_EXPRESSION,
       env(stringVar("age")),
@@ -125,7 +130,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `variable is invalid within a list`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "age in [a, b, c]",
       Code.INVALID_VALUE_TYPE,
       env(
@@ -139,22 +144,22 @@ class EventFilterValidatorTest {
 
   @Test
   fun `constant is invalid at the left side of IN operator`() {
-    assertThatFailsWithCode("10 in [10, 20, 30]", Code.INVALID_VALUE_TYPE)
+    assertFailsWithCode("10 in [10, 20, 30]", Code.INVALID_VALUE_TYPE)
   }
 
   @Test
   fun `a single expression is invalid`() {
-    assertThatFailsWithCode("age", Code.EXPRESSION_IS_NOT_CONDITIONAL, env(stringVar("age")))
+    assertFailsWithCode("age", Code.EXPRESSION_IS_NOT_CONDITIONAL, env(stringVar("age")))
   }
 
   @Test
   fun `list is not valid outside @in operator`() {
-    assertThatFailsWithCode("[1, 2, 3] == [1, 2, 3]", Code.INVALID_VALUE_TYPE)
+    assertFailsWithCode("[1, 2, 3] == [1, 2, 3]", Code.INVALID_VALUE_TYPE)
   }
 
   @Test
   fun `fields should be compared only at leafs`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "field1 == (field2 != field3)",
       Code.FIELD_COMPARISON_OUTSIDE_LEAF,
       env(
@@ -167,7 +172,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `a complex comparison works`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "age < 20 || age > 50",
       env(intVar("age")),
     )
@@ -175,7 +180,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `it disallows operator outside leafs`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "(a == b) <= (field2 < field3)",
       Code.INVALID_OPERATION_OUTSIDE_LEAF,
       env(
@@ -189,7 +194,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `fields can be compared between each other`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "field1 == field2",
       env(
         intVar("field1"),
@@ -200,7 +205,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `fails on inexistant template field`() {
-    assertThatFailsWithCode(
+    assertFailsWithCode(
       "vt.date == 10",
       Code.INVALID_CEL_EXPRESSION,
       envWithTestTemplateVars(videoTemplateVar("vt"))
@@ -209,7 +214,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `can use valid template fields on comparison`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "bt.gender.value == 2 && vt.age.value == 1",
       envWithTestTemplateVars(
         bannerTemplateVar("bt"),
@@ -220,7 +225,7 @@ class EventFilterValidatorTest {
 
   @Test
   fun `can use template with IN operator`() {
-    EventFilterValidator.validate(
+    EventFilterValidator.compile(
       "vt.age.value in [0, 1]",
       envWithTestTemplateVars(videoTemplateVar("vt"))
     )

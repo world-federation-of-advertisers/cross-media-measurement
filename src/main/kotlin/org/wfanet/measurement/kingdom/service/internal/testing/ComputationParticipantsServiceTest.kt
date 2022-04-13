@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -138,7 +139,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -171,7 +172,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementConsumer.certificate.externalCertificateId
     val dataProvider = population.createDataProvider(dataProvidersService)
 
-    population.createMeasurement(
+    population.createComputedMeasurement(
       measurementsService,
       measurementConsumer,
       PROVIDED_MEASUREMENT_ID,
@@ -205,7 +206,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       val dataProvider = population.createDataProvider(dataProvidersService)
 
       val measurement =
-        population.createMeasurement(
+        population.createComputedMeasurement(
           measurementsService,
           measurementConsumer,
           PROVIDED_MEASUREMENT_ID,
@@ -240,7 +241,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -280,7 +281,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -320,7 +321,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -361,7 +362,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -404,7 +405,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         PROVIDED_MEASUREMENT_ID,
@@ -455,7 +456,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val dataProvider = population.createDataProvider(dataProvidersService)
       val externalComputationId =
-        population.createMeasurement(
+        population.createComputedMeasurement(
             measurementsService,
             measurementConsumer,
             PROVIDED_MEASUREMENT_ID,
@@ -504,7 +505,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   fun `confirmComputationParticipant succeeds for non-last duchy`(): Unit = runBlocking {
     createDuchyCertificates()
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
@@ -548,10 +549,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
       requisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
-          externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
-          externalFulfillingDuchyId = duchyId
           this.nonce = nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchyId
+          }
         }
       )
     }
@@ -589,7 +592,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
   fun `confirmComputationParticipant succeeds for last duchy`() = runBlocking {
     createDuchyCertificates()
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         population.createMeasurementConsumer(measurementConsumersService, accountsService),
         "measurement",
@@ -630,10 +633,12 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     for ((requisition, duchyId) in requisitions zip EXTERNAL_DUCHY_IDS) {
       requisitionsService.fulfillRequisition(
         fulfillRequisitionRequest {
-          externalComputationId = measurement.externalComputationId
           externalRequisitionId = requisition.externalRequisitionId
-          externalFulfillingDuchyId = duchyId
           this.nonce = nonce
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = duchyId
+          }
         }
       )
     }
@@ -666,7 +671,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",
@@ -688,7 +693,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     measurementsService.setMeasurementResult(
       setMeasurementResultRequest {
         externalComputationId = measurement.externalComputationId
-        aggregatorCertificate = ByteString.copyFromUtf8("aggregatorCertificate")
+        externalAggregatorDuchyId = request.externalDuchyId
+        externalAggregatorCertificateId = request.externalDuchyCertificateId
         resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
         encryptedResult = ByteString.copyFromUtf8("encryptedResult")
       }
@@ -715,7 +721,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     val dataProvider = population.createDataProvider(dataProvidersService)
 
     val measurement =
-      population.createMeasurement(
+      population.createComputedMeasurement(
         measurementsService,
         measurementConsumer,
         "measurement 1",

@@ -19,6 +19,7 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -36,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
@@ -187,10 +189,30 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    if (source.details.protocolConfig.protocolCase !=
+        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    ) {
+      protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    }
     state = source.state.toState()
-    aggregatorCertificate = source.details.aggregatorCertificate
-    encryptedResult = source.details.encryptedResult
+    results +=
+      source.resultsList.map {
+        val certificateApiId = externalIdToApiId(it.externalCertificateId)
+        resultPair {
+          if (it.externalAggregatorDuchyId.isNotBlank()) {
+            certificate =
+              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
+          } else if (it.externalDataProviderId != 0L) {
+            certificate =
+              DataProviderCertificateKey(
+                  externalIdToApiId(it.externalDataProviderId),
+                  certificateApiId
+                )
+                .toName()
+          }
+          encryptedResult = it.encryptedResult
+        }
+      }
     measurementReferenceId = source.providedMeasurementId
     failure = failure {
       reason = source.details.failure.reason.toReason()

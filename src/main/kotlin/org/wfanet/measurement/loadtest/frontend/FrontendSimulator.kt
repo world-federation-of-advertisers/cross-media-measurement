@@ -26,6 +26,8 @@ import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.estimation.Estimators
 import org.wfanet.estimation.ValueHistogram
+import org.wfanet.measurement.api.v2alpha.Certificate
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -34,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
@@ -48,15 +51,20 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -78,7 +86,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
-private const val DEFAULT_BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 
 data class MeasurementConsumerData(
@@ -101,28 +108,36 @@ class FrontendSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val requisitionsClient: RequisitionsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val certificatesClient: CertificatesCoroutineStub,
   private val sketchStore: SketchStore,
-  private val runId: String
+  /** Map of event template names to filter expressions. */
+  private val eventTemplateFilters: Map<String, String> = emptyMap()
 ) {
+  /** Cache of resource name to [Certificate]. */
+  private val certificateCache = mutableMapOf<String, Certificate>()
 
-  /** A sequence of operations done in the simulator. */
-  suspend fun process() {
+  /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
+  suspend fun executeReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val createdMeasurement = createMeasurement(measurementConsumer)
-    logger.info("Created measurement ${createdMeasurement.name}.")
+    val createdReachAndFrequencyMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
+    logger.info(
+      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+    )
 
     // Get the CMMS computed result and compare it with the expected result.
-    var mpcResult = getResult(createdMeasurement.name)
+    var mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
     while (mpcResult == null) {
       logger.info("Computation not done yet, wait for another 30 seconds.")
       delay(Duration.ofSeconds(30).toMillis())
-      mpcResult = getResult(createdMeasurement.name)
+      mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
     }
     logger.info("Got computed result from Kingdom: $mpcResult")
 
-    val liquidLegionV2Protocol = createdMeasurement.protocolConfig.liquidLegionsV2
-    val expectedResult = getExpectedResult(createdMeasurement.name, liquidLegionV2Protocol)
+    val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
+    val expectedResult =
+      getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
 
     assertDpResultsEqual(
@@ -131,6 +146,28 @@ class FrontendSimulator(
       liquidLegionV2Protocol.maximumFrequency.toLong()
     )
     logger.info("Computed result is equal to the expected result. Correctness Test passes.")
+  }
+
+  /** A sequence of operations done in the simulator involving an impression measurement. */
+  suspend fun executeImpression(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdImpressionMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
+    logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
+
+    // TODO(@tristanvuong): get result and compare it to the expected result
+  }
+
+  /** A sequence of operations done in the simulator involving a duration measurement. */
+  suspend fun executeDuration(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdDurationMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
+    logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
+
+    // TODO(@tristanvuong): get results and compare it to the expected result
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
@@ -148,9 +185,14 @@ class FrontendSimulator(
     }
   }
 
-  /** Creates a Measurement on behave of the [MeasurementConsumer]. */
-  private suspend fun createMeasurement(measurementConsumer: MeasurementConsumer): Measurement {
+  /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
+  private suspend fun createMeasurement(
+    measurementConsumer: MeasurementConsumer,
+    runId: String,
+    newMeasurementSpec: (data: ByteString, nonceHashes: MutableList<ByteString>) -> MeasurementSpec
+  ): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
+
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
       eventGroups.map {
@@ -177,24 +219,42 @@ class FrontendSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getResult(measurementName: String): Result? {
+  private suspend fun getComputedResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
         .getMeasurement(getMeasurementRequest { name = measurementName })
-    return if (measurement.state == Measurement.State.SUCCEEDED) {
-      val signedResult =
-        decryptResult(measurement.encryptedResult, measurementConsumerData.encryptionKey)
-      @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
-      val result = Result.parseFrom(signedResult.data)
-      val aggregatorCertificate = readCertificate(measurement.aggregatorCertificate)
-      if (!verifyResult(signedResult.signature, result, aggregatorCertificate)) {
-        error("Aggregator signature of the result is invalid.")
-      }
-      result
-    } else {
-      null
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state == Measurement.State.FAILED) {
+      logger.warning("Failure reason: " + measurement.failure.reason)
+      logger.warning("Failure message: " + measurement.failure.message)
     }
+    if (measurement.state != Measurement.State.SUCCEEDED) {
+      return null
+    }
+
+    val resultPair = measurement.resultsList[0]
+    val aggregatorCertificate =
+      certificateCache.getOrPut(resultPair.certificate) {
+        certificatesClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { name = resultPair.certificate })
+      }
+
+    val signedResult =
+      decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
+    @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
+    val result = Result.parseFrom(signedResult.data)
+
+    if (!verifyResult(
+        signedResult.signature,
+        result,
+        readCertificate(aggregatorCertificate.x509Der)
+      )
+    ) {
+      error("Aggregator signature of the result is invalid.")
+    }
+    return result
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
@@ -208,8 +268,7 @@ class FrontendSimulator(
     val anySketches =
       requisitions.map {
         val storedSketch =
-          sketchStore.get(it.name)?.read(DEFAULT_BUFFER_SIZE_BYTES)?.flatten()
-            ?: error("Sketch blob not found for ${it.name}.")
+          sketchStore.get(it)?.read()?.flatten() ?: error("Sketch blob not found for ${it.name}.")
         SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
       }
 
@@ -258,7 +317,7 @@ class FrontendSimulator(
       .getMeasurementConsumer(request)
   }
 
-  private fun newMeasurementSpec(
+  private fun newReachAndFrequencyMeasurementSpec(
     serializedMeasurementPublicKey: ByteString,
     nonceHashes: List<ByteString>
   ): MeasurementSpec {
@@ -268,6 +327,34 @@ class FrontendSimulator(
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
         vidSamplingInterval = vidSamplingInterval { width = 1.0f }
+      }
+      this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newImpressionMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      impression = impression {
+        privacyParams = outputDpParams
+        maximumFrequencyPerUser = 1
+      }
+      this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newDurationMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      duration = duration {
+        privacyParams = outputDpParams
+        maximumWatchDurationPerUser = 1
       }
       this.nonceHashes += nonceHashes
     }
@@ -307,16 +394,49 @@ class FrontendSimulator(
       .getDataProvider(request)
   }
 
+  /**
+   * Creates a CEL filter using Event Templates names to qualify each variable in expression.
+   *
+   * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
+   * wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
+   */
+  private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
+    val eventGroupTemplateNameMap: Map<String, String> =
+      registeredEventTemplates
+        .map { it to (EventTemplates.getEventTemplateForType(it)!!).name }
+        .toMap()
+
+    if (eventTemplateFilters.isEmpty()) {
+      return ""
+    }
+
+    return eventTemplateFilters
+      .map {
+        if (!eventGroupTemplateNameMap.containsKey(it.key)) {
+          error("EventGroup is not registered to the template ${it.key}")
+        }
+        "${eventGroupTemplateNameMap[it.key]}.${it.value}"
+      }
+      .reduce { acc, string -> "$acc && $string" }
+  }
+
   private suspend fun createDataProviderEntry(
     eventGroup: EventGroup,
     measurementConsumer: MeasurementConsumer,
     nonce: Long
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
+
+    val eventFilterExpression =
+      createFilterExpression(eventGroup.eventTemplatesList.map { it.type })
+
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {
         key = eventGroup.name
-        // TODO: populate other fields when the EventGroup design is done.
+        value =
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            filter = eventFilter { expression = eventFilterExpression }
+          }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce

@@ -27,12 +27,12 @@ import org.mockito.kotlin.any
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -42,7 +42,8 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
-import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PRIVATE_KEYSET
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
@@ -54,15 +55,13 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val API_AUTHENTICATION_KEY = "authentication key"
-private const val RUN_ID = "run id"
-private const val BUFFER_SIZE_BYTES = 1024 * 32 // 32 KiB
-private const val REQUISITION_ONE = "requisition_one"
-private const val REQUISITION_TWO = "requisition_two"
 
 private const val LLV2_DECAY_RATE = 12.0
 private const val LLV2_MAX_SIZE = 100_000L
 private const val MAX_FREQUENCY = 10
 
+private val REQUISITION_ONE = requisition { name = "requisition_one" }
+private val REQUISITION_TWO = requisition { name = "requisition_two" }
 private val SKETCH_CONFIG =
   SketchConfig.newBuilder()
     .apply {
@@ -102,18 +101,15 @@ class FrontendSimulatorImplTest {
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService()
   private val measurementsServiceMock: MeasurementsCoroutineImplBase = mockService()
   private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase = mockService()
-  private val requisitionsServiceMock: RequisitionsCoroutineImplBase =
-    mockService() {
-      onBlocking { listRequisitions(any()) }
-        .thenReturn(
-          ListRequisitionsResponse.newBuilder()
-            .apply {
-              addRequisitionsBuilder().name = REQUISITION_ONE
-              addRequisitionsBuilder().name = REQUISITION_TWO
-            }
-            .build()
-        )
-    }
+  private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { listRequisitions(any()) }
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += REQUISITION_ONE
+          requisitions += REQUISITION_TWO
+        }
+      )
+  }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -136,6 +132,9 @@ class FrontendSimulatorImplTest {
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub by lazy {
     MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
   }
+  private val certificatesStub: CertificatesCoroutineStub by lazy {
+    CertificatesCoroutineStub(grpcTestServerRule.channel)
+  }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
   }
@@ -153,8 +152,8 @@ class FrontendSimulatorImplTest {
         measurementsStub,
         requisitionsStub,
         measurementConsumersStub,
-        sketchStore,
-        RUN_ID
+        certificatesStub,
+        sketchStore
       )
 
     assertThat(frontendSimulator.getExpectedResult("foo", LIQUID_LEGIONS_V2_PROTOCOL_CONFIG))
@@ -214,8 +213,8 @@ class FrontendSimulatorImplTest {
             .build()
 
         sketchStore = SketchStore(FileSystemStorageClient(temporaryFolder.root))
-        sketchStore.write(REQUISITION_ONE, sketch1.toByteString().asBufferedFlow(BUFFER_SIZE_BYTES))
-        sketchStore.write(REQUISITION_TWO, sketch2.toByteString().asBufferedFlow(BUFFER_SIZE_BYTES))
+        sketchStore.write(REQUISITION_ONE, sketch1.toByteString())
+        sketchStore.write(REQUISITION_TWO, sketch2.toByteString())
       }
 
     private fun newRegister(index: Long, key: Long, count: Long): Sketch.Register {

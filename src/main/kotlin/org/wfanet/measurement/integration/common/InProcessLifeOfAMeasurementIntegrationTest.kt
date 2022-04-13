@@ -24,6 +24,7 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub as PublicAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
@@ -96,7 +97,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         displayName = it,
         storageClient = storageClient,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
-        duchyPublicApiChannel = duchies[1].publicApiChannel
+        duchyPublicApiChannel = duchies[1].publicApiChannel,
+        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
       )
     }
   }
@@ -117,6 +119,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private val publicMeasurementConsumersClient by lazy {
     PublicMeasurementConsumersCoroutineStub(kingdom.publicApiChannel)
   }
+  private val publicCertificatesClient by lazy {
+    PublicCertificatesCoroutineStub(kingdom.publicApiChannel)
+  }
   private val publicEventGroupsClient by lazy {
     PublicEventGroupsCoroutineStub(kingdom.publicApiChannel)
   }
@@ -133,6 +138,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private lateinit var apiAuthenticationKey: String
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
+  private lateinit var frontendSimulator: FrontendSimulator
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -163,6 +169,25 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
           )
           .name
       }
+
+    frontendSimulator =
+      FrontendSimulator(
+        MeasurementConsumerData(
+          mcResourceName,
+          MC_ENTITY_CONTENT.signingKey,
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
+        ),
+        OUTPUT_DP_PARAMS,
+        publicDataProvidersClient,
+        publicEventGroupsClient,
+        publicMeasurementsClient,
+        publicRequisitionsClient,
+        publicMeasurementConsumersClient,
+        publicCertificatesClient,
+        SketchStore(storageClient),
+        EVENT_TEMPLATES_TO_FILTERS_MAP
+      )
   }
 
   @Before
@@ -180,46 +205,52 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @After fun stopAllEdpSimulators() = runBlocking { edpSimulators.forEach { it.stop() } }
 
   @Test
-  fun `create a measurement and check the result is equal to the expected result`() = runBlocking {
-    // Wait until all EDPs finish creating eventGroups before the test starts.
-    val eventGroupList =
-      pollFor(timeoutMillis = 10_000) {
-        val eventGroups =
-          publicEventGroupsClient
-            .withAuthenticationKey(apiAuthenticationKey)
-            .listEventGroups(
-              listEventGroupsRequest {
-                parent = "dataProviders/-"
-                filter = ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }
-              }
-            )
-            .eventGroupsList
-        if (eventGroups.size == ALL_EDP_DISPLAY_NAMES.size) eventGroups else null
-      }
-    assertThat(eventGroupList).isNotNull()
+  fun `create a RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
 
-    // Runs the frontend simulator, which will
-    //   1. create a measurement.
-    //   2. keep polling from the kingdom until the measurement is done.
-    //   3. read raw sketches and compute the expected result.
-    //   4. assert that the computed result is equal to the expected result (within error tolerance)
-    FrontendSimulator(
-        MeasurementConsumerData(
-          mcResourceName,
-          MC_ENTITY_CONTENT.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
-          apiAuthenticationKey
-        ),
-        OUTPUT_DP_PARAMS,
-        publicDataProvidersClient,
-        publicEventGroupsClient,
-        publicMeasurementsClient,
-        publicRequisitionsClient,
-        publicMeasurementConsumersClient,
-        SketchStore(storageClient),
-        "1234"
-      )
-      .process()
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      frontendSimulator.executeReachAndFrequency("1234")
+    }
+
+  @Test
+  fun `create an impression measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create an impression measurement and verify its result.
+      frontendSimulator.executeImpression("1234")
+    }
+
+  @Test
+  fun `create a duration measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create a duration measurement and verify its result.
+      frontendSimulator.executeDuration("1234")
+    }
+
+  private suspend fun pollForEventGroups() {
+    pollFor(timeoutMillis = 10_000) {
+      val eventGroups =
+        publicEventGroupsClient
+          .withAuthenticationKey(apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = "dataProviders/-"
+              filter = ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }
+            }
+          )
+          .eventGroupsList
+      if (eventGroups.size == ALL_EDP_DISPLAY_NAMES.size) eventGroups else null
+    }
   }
 
   companion object {

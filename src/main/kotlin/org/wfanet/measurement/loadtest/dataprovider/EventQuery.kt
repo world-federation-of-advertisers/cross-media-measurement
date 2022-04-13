@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-// TODO(@wangyaopw): Switch to use EventTemplate, EventFields after they are implemented.
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
+
+/** TODO(@uakyol): Delete once the GCS correctness test supports [EventFilter]s */
 enum class Sex(val string: String) {
   MALE("M"),
   FEMALE("F")
@@ -37,7 +39,6 @@ enum class Complete(val integer: Int) {
 }
 
 data class QueryParameter(
-  val edpDisplayName: String,
   val beginDate: String,
   val endDate: String,
   val sex: Sex?,
@@ -48,5 +49,5 @@ data class QueryParameter(
 
 /** A query to get the list of user virtual IDs for a particular requisition. */
 abstract class EventQuery {
-  abstract fun getUserVirtualIds(parameter: QueryParameter): Sequence<Long>
+  abstract fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long>
 }

@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -37,13 +38,25 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
@@ -88,7 +101,6 @@ private val ENCRYPTED_REQUISITION_SPEC_HASH =
 private val MEASUREMENT_SPEC = ByteString.copyFromUtf8("a measurement spec.")
 private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
-private val AGGREGATOR_CERTIFICATE = ByteString.copyFromUtf8("aggregator certificate.")
 private val RESULT_PUBLIC_KEY = ByteString.copyFromUtf8("result public key.")
 private val ENCRYPTED_RESULT = ByteString.copyFromUtf8("encrypted result.")
 
@@ -153,28 +165,31 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
     }
     .build()
 
-private val INTERNAL_MEASUREMENT =
-  InternalMeasurement.newBuilder()
-    .apply {
-      externalComputationId = EXTERNAL_COMPUTATION_ID
-      state = InternalMeasurement.State.FAILED
-      detailsBuilder.apply {
-        apiVersion = PUBLIC_API_VERSION
-        measurementSpec = MEASUREMENT_SPEC
-        duchyProtocolConfigBuilder.liquidLegionsV2Builder.apply {
-          mpcNoiseBuilder.apply {
-            blindedHistogramNoiseBuilder.apply {
+private val INTERNAL_MEASUREMENT = internalMeasurement {
+  externalComputationId = EXTERNAL_COMPUTATION_ID
+  state = InternalMeasurement.State.FAILED
+  details = details {
+    apiVersion = PUBLIC_API_VERSION
+    measurementSpec = MEASUREMENT_SPEC
+    duchyProtocolConfig = duchyProtocolConfig {
+      liquidLegionsV2 =
+        DuchyProtocolConfigKt.liquidLegionsV2 {
+          mpcNoise = mpcNoise {
+            blindedHistogramNoise = differentialPrivacyParams {
               epsilon = 1.1
               delta = 2.1
             }
-            noiseForPublisherNoiseBuilder.apply {
+            noiseForPublisherNoise = differentialPrivacyParams {
               epsilon = 3.1
               delta = 4.1
             }
           }
         }
-        protocolConfigBuilder.liquidLegionsV2Builder.apply {
-          sketchParamsBuilder.apply {
+    }
+    protocolConfig = protocolConfig {
+      liquidLegionsV2 =
+        ProtocolConfigKt.liquidLegionsV2 {
+          sketchParams = liquidLegionsSketchParams {
             decayRate = 10.0
             maxSize = 100
             samplingIndicatorSize = 1000
@@ -182,13 +197,16 @@ private val INTERNAL_MEASUREMENT =
           ellipticCurveId = 123
           maximumFrequency = 12
         }
-        aggregatorCertificate = AGGREGATOR_CERTIFICATE
-        encryptedResult = ENCRYPTED_RESULT
-        addComputationParticipants(INTERNAL_COMPUTATION_PARTICIPANT)
-        addRequisitions(INTERNAL_REQUISITION)
-      }
     }
-    .build()
+  }
+  results += resultInfo {
+    externalAggregatorDuchyId = DUCHY_ID
+    externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+    encryptedResult = ENCRYPTED_RESULT
+  }
+  computationParticipants += INTERNAL_COMPUTATION_PARTICIPANT
+  requisitions += INTERNAL_REQUISITION
+}
 
 @RunWith(JUnit4::class)
 class ComputationsServiceTest {
@@ -225,7 +243,7 @@ class ComputationsServiceTest {
             publicApiVersion = PUBLIC_API_VERSION
             measurementSpec = MEASUREMENT_SPEC
             state = Computation.State.FAILED
-            aggregatorCertificate = AGGREGATOR_CERTIFICATE
+            aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
             encryptedResult = ENCRYPTED_RESULT
             mpcProtocolConfigBuilder.liquidLegionsV2Builder.apply {
               sketchParamsBuilder.apply {
@@ -343,25 +361,22 @@ class ComputationsServiceTest {
     fun expectedStreamMeasurementsRequest(
       updatedAfterSeconds: Long,
       lastSeenExternalComputationId: Long
-    ) =
-      StreamMeasurementsRequest.newBuilder()
-        .apply {
-          measurementView = InternalMeasurement.View.COMPUTATION
-          filterBuilder.apply {
-            addAllStates(
-              listOf(
-                InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
-                InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-                InternalMeasurement.State.PENDING_COMPUTATION,
-                InternalMeasurement.State.FAILED,
-                InternalMeasurement.State.CANCELLED
-              )
-            )
-            updatedAfterBuilder.seconds = updatedAfterSeconds
-            externalComputationIdAfter = lastSeenExternalComputationId
-          }
-        }
-        .build()
+    ): StreamMeasurementsRequest = streamMeasurementsRequest {
+      measurementView = InternalMeasurement.View.COMPUTATION
+      filter = filter {
+        states +=
+          listOf(
+            InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+            InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+            InternalMeasurement.State.PENDING_COMPUTATION,
+            InternalMeasurement.State.FAILED,
+            InternalMeasurement.State.CANCELLED
+          )
+        updatedAfter = timestamp { seconds = updatedAfterSeconds }
+        externalComputationIdAfter = lastSeenExternalComputationId
+        externalDuchyId = DUCHY_ID
+      }
+    }
 
     inOrder(internalMeasurementsServiceMock) {
       argumentCaptor<StreamMeasurementsRequest> {
@@ -387,7 +402,7 @@ class ComputationsServiceTest {
       SetComputationResultRequest.newBuilder()
         .apply {
           name = SYSTEM_COMPUTATION_NAME
-          aggregatorCertificate = AGGREGATOR_CERTIFICATE
+          aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
           resultPublicKey = RESULT_PUBLIC_KEY
           encryptedResult = ENCRYPTED_RESULT
         }
@@ -403,7 +418,8 @@ class ComputationsServiceTest {
         SetMeasurementResultRequest.newBuilder()
           .apply {
             externalComputationId = EXTERNAL_COMPUTATION_ID
-            aggregatorCertificate = AGGREGATOR_CERTIFICATE
+            externalAggregatorDuchyId = DUCHY_ID
+            externalAggregatorCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
             resultPublicKey = RESULT_PUBLIC_KEY
             encryptedResult = ENCRYPTED_RESULT
           }

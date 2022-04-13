@@ -41,6 +41,7 @@ import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.StageAttempt
+import org.wfanet.measurement.system.v1alpha.computation
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
 fun InternalRequisition.toSystemRequisition(): Requisition {
@@ -167,26 +168,34 @@ fun InternalComputationParticipant.State.toSystemRequisitionState(): Computation
 
 /** Converts a kingdom internal Measurement to system Api Computation. */
 fun InternalMeasurement.toSystemComputation(): Computation {
-  return Computation.newBuilder()
-    .also {
-      it.name = ComputationKey(externalIdToApiId(externalComputationId)).toName()
-      it.publicApiVersion = details.apiVersion
-      it.measurementSpec = details.measurementSpec
-      it.state = state.toSystemComputationState()
-      it.aggregatorCertificate = details.aggregatorCertificate
-      it.encryptedResult = details.encryptedResult
-      it.addAllComputationParticipants(
-        computationParticipantsList.map { participant ->
-          participant.toSystemComputationParticipant()
+  val source = this
+  val apiVersion = Version.fromString(details.apiVersion)
+  return computation {
+    name = ComputationKey(externalIdToApiId(externalComputationId)).toName()
+    publicApiVersion = details.apiVersion
+    measurementSpec = details.measurementSpec
+    state = source.state.toSystemComputationState()
+    val resultsList = source.resultsList
+    if (resultsList.isNotEmpty() && resultsList[0].externalAggregatorDuchyId.isNotBlank()) {
+      aggregatorCertificate =
+        when (apiVersion) {
+          Version.V2_ALPHA ->
+            DuchyCertificateKey(
+                resultsList[0].externalAggregatorDuchyId,
+                externalIdToApiId(resultsList[0].externalCertificateId)
+              )
+              .toName()
+          Version.VERSION_UNSPECIFIED -> error("Public API version is invalid or unspecified.")
         }
-      )
-      it.addAllRequisitions(
-        requisitionsList.map { requisition -> requisition.toSystemRequisition() }
-      )
-      it.mpcProtocolConfig =
-        buildMpcProtocolConfig(details.duchyProtocolConfig, details.protocolConfig)
+      encryptedResult = resultsList[0].encryptedResult
     }
-    .build()
+    computationParticipants +=
+      computationParticipantsList.map { participant ->
+        participant.toSystemComputationParticipant()
+      }
+    requisitions += requisitionsList.map { requisition -> requisition.toSystemRequisition() }
+    mpcProtocolConfig = buildMpcProtocolConfig(details.duchyProtocolConfig, details.protocolConfig)
+  }
 }
 
 /**

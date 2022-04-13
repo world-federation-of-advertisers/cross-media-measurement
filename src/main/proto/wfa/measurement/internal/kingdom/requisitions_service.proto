@@ -62,6 +62,7 @@ message StreamRequisitionsRequest {
     // for next page token, both after fields need to be set
     fixed64 external_data_provider_id_after = 6;
     fixed64 external_requisition_id_after = 7;
+    repeated Measurement.State measurement_states = 8;
   }
   Filter filter = 1;
 
@@ -71,15 +72,30 @@ message StreamRequisitionsRequest {
 }
 
 message FulfillRequisitionRequest {
-  fixed64 external_computation_id = 1;
-  fixed64 external_requisition_id = 2;
-
-  // The human-friendly external ID of the Duchy that marked this `Requisition`
-  // as `FULFILLED`.
-  string external_fulfilling_duchy_id = 3;
-
+  fixed64 external_requisition_id = 1;
   // Cryptographic nonce from the `RequisitionSpec`.
-  fixed64 nonce = 4;
+  fixed64 nonce = 2;
+
+  // Requisition parameters for a Computed Measurement
+  message ComputedRequisitionParams {
+    fixed64 external_computation_id = 1;
+    // The human-friendly external ID of the Duchy that marked this
+    // `Requisition` as `FULFILLED`.
+    string external_fulfilling_duchy_id = 2;
+  }
+
+  // Requisition parameters for a Direct Measurement
+  message DirectRequisitionParams {
+    fixed64 external_data_provider_id = 1;
+    // Encrypted `SignedData`containing the data for a direct and volumetric
+    // measurement.
+    bytes encrypted_data = 2;
+  }
+
+  oneof params {
+    ComputedRequisitionParams computed_params = 3;
+    DirectRequisitionParams direct_params = 4;
+  }
 }
 
 message RefuseRequisitionRequest {

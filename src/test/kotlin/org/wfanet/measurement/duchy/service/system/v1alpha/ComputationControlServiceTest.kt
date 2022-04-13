@@ -31,19 +31,23 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.whenever
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.identity.testing.SenderContext
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationRequest as AsyncAdvanceComputationRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationResponse as AsyncAdvanceComputationResponse
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.getOutputBlobMetadataRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.BlobSubject.Companion.assertThat
@@ -54,20 +58,29 @@ private const val RUNNING_DUCHY_NAME = "Alsace"
 private const val BAVARIA = "Bavaria"
 private const val CARINTHIA = "Carinthia"
 private val OTHER_DUCHY_NAMES = listOf(BAVARIA, CARINTHIA)
-private const val NEXT_BLOB_PATH = "just a path"
+private const val BLOB_ID = 1234L
 
 @RunWith(JUnit4::class)
 class ComputationControlServiceTest {
   private val mockAsyncControlService: AsyncComputationControlCoroutineImplBase = mockService()
   private val advanceAsyncComputationRequests = mutableListOf<AsyncAdvanceComputationRequest>()
-  private fun mockAsyncService() =
-    runBlocking<Unit> {
-      whenever(mockAsyncControlService.advanceComputation(any())).thenAnswer {
+  private fun stubAsyncService() {
+    mockAsyncControlService.stub {
+      onBlocking { advanceComputation(any()) }.thenAnswer {
         val req: AsyncAdvanceComputationRequest = it.getArgument(0)
         advanceAsyncComputationRequests.add(req)
         AsyncAdvanceComputationResponse.getDefaultInstance()
       }
+
+      onBlocking { getOutputBlobMetadata(any()) }
+        .thenReturn(
+          computationStageBlobMetadata {
+            dependencyType = ComputationBlobDependency.OUTPUT
+            blobId = BLOB_ID
+          }
+        )
     }
+  }
 
   private val tempDirectory = TemporaryFolder()
   private lateinit var computationStore: ComputationStore
@@ -79,7 +92,7 @@ class ComputationControlServiceTest {
 
   val grpcTestServerRule = GrpcTestServerRule {
     val storageClient = FileSystemStorageClient(tempDirectory.root)
-    computationStore = ComputationStore.forTesting(storageClient) { NEXT_BLOB_PATH }
+    computationStore = ComputationStore(storageClient)
     addService(mockAsyncControlService)
   }
 
@@ -93,7 +106,7 @@ class ComputationControlServiceTest {
 
   @Before
   fun initService() {
-    mockAsyncService()
+    stubAsyncService()
     bavaria = DuchyIdentity(BAVARIA)
     carinthia = DuchyIdentity(CARINTHIA)
     senderContext = SenderContext { duchyIdProvider ->
@@ -110,10 +123,21 @@ class ComputationControlServiceTest {
   @Test
   fun `liquid legions v2 send setup inputs`() = runBlocking {
     val id = "311311"
+    val blobKey = "$id/WAIT_SETUP_PHASE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.SETUP_PHASE_INPUT, id)
     withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
 
+    verifyProtoArgument(
+        mockAsyncControlService,
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+      )
+      .isEqualTo(
+        getOutputBlobMetadataRequest {
+          globalComputationId = id
+          dataOrigin = CARINTHIA
+        }
+      )
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
         AsyncAdvanceComputationRequest.newBuilder()
@@ -121,22 +145,33 @@ class ComputationControlServiceTest {
             globalComputationId = id
             computationStage =
               LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-            dataOrigin = CARINTHIA
-            blobPath = NEXT_BLOB_PATH
+            blobId = BLOB_ID
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
   fun `liquid legions v2 send reach phase inputs`() = runBlocking {
     val id = "444444"
+    val blobKey = "$id/WAIT_EXECUTION_PHASE_ONE_INPUTS/$BLOB_ID"
     val carinthiaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_ONE_INPUT, id)
     withSender(carinthia) { advanceComputation(carinthiaHeader.withContent("contents")) }
 
+    verifyProtoArgument(
+        mockAsyncControlService,
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+      )
+      .isEqualTo(
+        getOutputBlobMetadataRequest {
+          globalComputationId = id
+          dataOrigin = CARINTHIA
+        }
+      )
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
         AsyncAdvanceComputationRequest.newBuilder()
@@ -145,22 +180,33 @@ class ComputationControlServiceTest {
             computationStage =
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_ONE_INPUTS
                 .toProtocolStage()
-            dataOrigin = CARINTHIA
-            blobPath = NEXT_BLOB_PATH
+            blobId = BLOB_ID
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
   fun `liquid legions v2 send filtering phase inputs`() = runBlocking {
     val id = "55555"
+    val blobKey = "$id/WAIT_EXECUTION_PHASE_TWO_INPUTS/$BLOB_ID"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_TWO_INPUT, id)
     withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
 
+    verifyProtoArgument(
+        mockAsyncControlService,
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+      )
+      .isEqualTo(
+        getOutputBlobMetadataRequest {
+          globalComputationId = id
+          dataOrigin = BAVARIA
+        }
+      )
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
         AsyncAdvanceComputationRequest.newBuilder()
@@ -169,22 +215,34 @@ class ComputationControlServiceTest {
             computationStage =
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_TWO_INPUTS
                 .toProtocolStage()
-            dataOrigin = BAVARIA
-            blobPath = NEXT_BLOB_PATH
+            blobId = BLOB_ID
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 
   @Test
   fun `liquid legions v2 send frequency phase inputs`() = runBlocking {
     val id = "777777"
+    val blobKey = "$id/WAIT_EXECUTION_PHASE_THREE_INPUTS/$BLOB_ID"
     val bavariaHeader =
       advanceComputationHeader(LiquidLegionsV2.Description.EXECUTION_PHASE_THREE_INPUT, id)
     withSender(bavaria) { advanceComputation(bavariaHeader.withContent("contents")) }
 
+    verifyProtoArgument(
+        mockAsyncControlService,
+        AsyncComputationControlCoroutineImplBase::getOutputBlobMetadata
+      )
+      .isEqualTo(
+        getOutputBlobMetadataRequest {
+          globalComputationId = id
+          dataOrigin = BAVARIA
+        }
+      )
     assertThat(advanceAsyncComputationRequests)
       .containsExactly(
         AsyncAdvanceComputationRequest.newBuilder()
@@ -193,12 +251,12 @@ class ComputationControlServiceTest {
             computationStage =
               LiquidLegionsSketchAggregationV2.Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS
                 .toProtocolStage()
-            dataOrigin = BAVARIA
-            blobPath = NEXT_BLOB_PATH
+            blobId = BLOB_ID
+            blobPath = blobKey
           }
           .build()
       )
-    val data = assertNotNull(computationStore.get(NEXT_BLOB_PATH))
+    val data = assertNotNull(computationStore.get(blobKey))
     assertThat(data).contentEqualTo(ByteString.copyFromUtf8("contents"))
   }
 

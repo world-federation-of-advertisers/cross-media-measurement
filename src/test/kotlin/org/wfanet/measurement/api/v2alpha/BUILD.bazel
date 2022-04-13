@@ -1,11 +1,11 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "EventTemplateTypeRegistryTest",
-    srcs = ["EventTemplateTypeRegistryTest.kt"],
-    test_class = "org.wfanet.measurement.api.v2alpha.EventTemplateTypeRegistryTest",
+    name = "EventTemplatesTest",
+    srcs = ["EventTemplatesTest.kt"],
+    test_class = "org.wfanet.measurement.api.v2alpha.EventTemplatesTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_template_type_registry",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_java_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",

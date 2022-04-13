@@ -1,3 +1,5 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
 filegroup(
     name = "config",
     srcs = [
@@ -9,4 +11,13 @@ filegroup(
         "//src/test/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__pkg__",
     ],
+)
+
+kt_jvm_library(
+    name = "event_filters",
+    srcs = ["EventFilters.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
+    deps = ["@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler"],
 )

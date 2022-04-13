@@ -15,7 +15,9 @@
 package org.wfanet.measurement.loadtest.frontend
 
 import io.grpc.ManagedChannel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -26,6 +28,7 @@ import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.loadtest.config.EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
@@ -54,6 +57,7 @@ abstract class FrontendSimulatorRunner : Runnable {
     val requisitionsStub = RequisitionsCoroutineStub(v2alphaPublicApiChannel)
     val measurementsStub = MeasurementsCoroutineStub(v2alphaPublicApiChannel)
     val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)
+    val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
 
     val mcName = flags.mcResourceName
 
@@ -74,7 +78,8 @@ abstract class FrontendSimulatorRunner : Runnable {
 
     runBlocking {
       // Runs the frontend simulator.
-      FrontendSimulator(
+      val frontendSimulator =
+        FrontendSimulator(
           measurementConsumerData,
           outputDpParams,
           dataProvidersStub,
@@ -82,10 +87,14 @@ abstract class FrontendSimulatorRunner : Runnable {
           measurementsStub,
           requisitionsStub,
           measurementConsumersStub,
+          certificatesStub,
           SketchStore(storageClient),
-          flags.runId
+          EVENT_TEMPLATES_TO_FILTERS_MAP
         )
-        .process()
+
+      launch { frontendSimulator.executeReachAndFrequency(flags.runId + "-reach_frequency") }
+      launch { frontendSimulator.executeImpression(flags.runId + "-impression") }
+      launch { frontendSimulator.executeDuration(flags.runId + "-duration") }
     }
   }
 }

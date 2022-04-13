@@ -73,6 +73,7 @@ class SpannerMeasurementsService(
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
@@ -135,7 +136,10 @@ class SpannerMeasurementsService(
       return SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        ErrorCode.MEASUREMENT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+        ErrorCode.MEASUREMENT_NOT_FOUND -> failGrpc(Status.NOT_FOUND, e) { "Measurement not found" }
+        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND, e) { "Duchy not found" }
+        ErrorCode.CERTIFICATE_NOT_FOUND ->
+          failGrpc(Status.NOT_FOUND, e) { "Aggregator certificate not found" }
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.ACCOUNT_NOT_FOUND,
@@ -144,9 +148,7 @@ class SpannerMeasurementsService(
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.DUCHY_NOT_FOUND,
         ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
         ErrorCode.CERTIFICATE_IS_INVALID,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
@@ -156,6 +158,7 @@ class SpannerMeasurementsService(
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
+        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
@@ -200,6 +203,7 @@ class SpannerMeasurementsService(
           ErrorCode.REQUISITION_STATE_ILLEGAL,
           ErrorCode.EVENT_GROUP_INVALID_ARGS,
           ErrorCode.EVENT_GROUP_NOT_FOUND,
+          ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
           ErrorCode.UNKNOWN_ERROR,
           ErrorCode.UNRECOGNIZED -> throw e
         }

@@ -33,7 +33,6 @@ import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -75,7 +74,6 @@ import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatab
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
 import org.wfanet.measurement.duchy.storage.ComputationBlobContext
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
@@ -90,6 +88,8 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
+import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
@@ -126,7 +126,6 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.storage.Store.Blob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.storage.read
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationResponse
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -326,7 +325,7 @@ private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH =
 
 private val REQUISITION_1 =
   TEST_REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE_NAME).copy {
-    path = "foo/123"
+    path = RequisitionBlobContext(GLOBAL_ID, externalKey.externalRequisitionId).blobKey
   }
 private val REQUISITION_2 =
   TEST_REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO_NAME)
@@ -380,7 +379,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 @RunWith(JUnit4::class)
 class LiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { advanceComputation(any()) }.thenAnswer {
         val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
         computationControlRequests = runBlocking { request.toList() }
@@ -425,34 +424,10 @@ class LiquidLegionsV2MillTest {
 
   private val tempDirectory = TemporaryFolder()
 
-  private val blobCount = AtomicInteger()
-  private val generatedBlobKeys = mutableListOf<String>()
-  private fun generateComputationBlobKey(context: ComputationBlobContext): String {
-    return listOf(context.externalComputationId, blobCount.getAndIncrement())
-      .joinToString("/")
-      .also { generatedBlobKeys.add(it) }
-  }
-  private fun generateRequisitionBlobKey(context: RequisitionBlobContext): String {
-    return listOf(
-        context.globalComputationId,
-        context.externalRequisitionId,
-        blobCount.getAndIncrement()
-      )
-      .joinToString("/")
-      .also { generatedBlobKeys.add(it) }
-  }
-
   private val grpcTestServerRule = GrpcTestServerRule {
-    computationStore =
-      ComputationStore.forTesting(
-        FileSystemStorageClient(tempDirectory.root),
-        ::generateComputationBlobKey
-      )
-    requisitionStore =
-      RequisitionStore.forTesting(
-        FileSystemStorageClient(tempDirectory.root),
-        ::generateRequisitionBlobKey
-      )
+    val storageClient = FileSystemStorageClient(tempDirectory.root)
+    computationStore = ComputationStore(storageClient)
+    requisitionStore = RequisitionStore(storageClient)
     computationDataClients =
       ComputationDataClients.forTesting(
         ComputationsCoroutineStub(channel),
@@ -860,207 +835,199 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `confirmation phase, passed at non-aggregator`() =
-    runBlocking<Unit> {
-      // Stage 0. preparing the storage and set up mock
-      val computationDetailsWithoutPublicKey =
-        NON_AGGREGATOR_COMPUTATION_DETAILS
-          .toBuilder()
+  fun `confirmation phase, passed at non-aggregator`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val computationDetailsWithoutPublicKey =
+      NON_AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
+        .apply { liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
+        .build()
+    fakeComputationDb.addComputation(
+      globalId = GLOBAL_ID,
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
+      computationDetails = computationDetailsWithoutPublicKey,
+      requisitions = REQUISITIONS
+    )
+
+    whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+
+    // Stage 1. Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID]!!)
+      .isEqualTo(
+        ComputationToken.newBuilder()
           .apply {
-            liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey()
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_TO_START.toProtocolStage()
+            version = 3 // claimTask + updateComputationDetail + transitionStage
+            computationDetails =
+              NON_AGGREGATOR_COMPUTATION_DETAILS
+                .toBuilder()
+                .apply {
+                  liquidLegionsV2Builder.apply {
+                    combinedPublicKey = COMBINED_PUBLIC_KEY
+                    partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+                  }
+                }
+                .build()
+            addAllRequisitions(REQUISITIONS)
           }
           .build()
-      fakeComputationDb.addComputation(
-        globalId = GLOBAL_ID,
-        stage = CONFIRMATION_PHASE.toProtocolStage(),
-        computationDetails = computationDetailsWithoutPublicKey,
-        requisitions = REQUISITIONS
       )
 
-      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
-        .thenReturn(ComputationLogEntry.getDefaultInstance())
-
-      // Stage 1. Process the above computation
-      aggregatorMill.pollAndProcessNextComputation()
-
-      // Stage 2. Check the status of the computation
-      assertThat(fakeComputationDb[LOCAL_ID]!!)
-        .isEqualTo(
-          ComputationToken.newBuilder()
-            .apply {
-              globalComputationId = GLOBAL_ID
-              localComputationId = LOCAL_ID
-              attempt = 1
-              computationStage = WAIT_TO_START.toProtocolStage()
-              version = 3 // claimTask + updateComputationDetail + transitionStage
-              computationDetails =
-                NON_AGGREGATOR_COMPUTATION_DETAILS
-                  .toBuilder()
-                  .apply {
-                    liquidLegionsV2Builder.apply {
-                      combinedPublicKey = COMBINED_PUBLIC_KEY
-                      partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
-                    }
-                  }
-                  .build()
-              addAllRequisitions(REQUISITIONS)
-            }
-            .build()
-        )
-
-      verifyProtoArgument(
-          mockComputationParticipants,
-          SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
-        )
-        .isEqualTo(
-          ConfirmComputationParticipantRequest.newBuilder()
-            .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
-            .build()
-        )
-    }
+    verifyProtoArgument(
+        mockComputationParticipants,
+        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+      )
+      .isEqualTo(
+        ConfirmComputationParticipantRequest.newBuilder()
+          .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
+          .build()
+      )
+  }
 
   @Test
-  fun `confirmation phase, passed at aggregator`() =
-    runBlocking<Unit> {
-      // Stage 0. preparing the storage and set up mock
-      val computationDetailsWithoutPublicKey =
-        AGGREGATOR_COMPUTATION_DETAILS
-          .toBuilder()
+  fun `confirmation phase, passed at aggregator`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val computationDetailsWithoutPublicKey =
+      AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
+        .apply { liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
+        .build()
+    fakeComputationDb.addComputation(
+      globalId = GLOBAL_ID,
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
+      computationDetails = computationDetailsWithoutPublicKey,
+      requisitions = REQUISITIONS
+    )
+
+    whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+
+    // Stage 1. Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID]!!)
+      .isEqualTo(
+        ComputationToken.newBuilder()
           .apply {
-            liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey()
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
+            version = 3 // claimTask + updateComputationDetails + transitionStage
+            addAllBlobs(listOf(newEmptyOutputBlobMetadata(0), newEmptyOutputBlobMetadata(1)))
+            stageSpecificDetailsBuilder.apply {
+              liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
+                putExternalDuchyLocalBlobId("DUCHY_TWO", 0L)
+                putExternalDuchyLocalBlobId("DUCHY_THREE", 1L)
+              }
+            }
+            computationDetails =
+              AGGREGATOR_COMPUTATION_DETAILS
+                .toBuilder()
+                .apply {
+                  liquidLegionsV2Builder.apply {
+                    combinedPublicKey = COMBINED_PUBLIC_KEY
+                    partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
+                  }
+                }
+                .build()
+            addAllRequisitions(REQUISITIONS)
           }
           .build()
-      fakeComputationDb.addComputation(
-        globalId = GLOBAL_ID,
-        stage = CONFIRMATION_PHASE.toProtocolStage(),
-        computationDetails = computationDetailsWithoutPublicKey,
-        requisitions = REQUISITIONS
       )
 
-      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
-        .thenReturn(ComputationLogEntry.getDefaultInstance())
-
-      // Stage 1. Process the above computation
-      aggregatorMill.pollAndProcessNextComputation()
-
-      // Stage 2. Check the status of the computation
-      assertThat(fakeComputationDb[LOCAL_ID]!!)
-        .isEqualTo(
-          ComputationToken.newBuilder()
-            .apply {
-              globalComputationId = GLOBAL_ID
-              localComputationId = LOCAL_ID
-              attempt = 1
-              computationStage = WAIT_SETUP_PHASE_INPUTS.toProtocolStage()
-              version = 3 // claimTask + updateComputationDetails + transitionStage
-              addAllBlobs(listOf(newEmptyOutputBlobMetadata(0), newEmptyOutputBlobMetadata(1)))
-              stageSpecificDetailsBuilder.apply {
-                liquidLegionsV2Builder.waitSetupPhaseInputsDetailsBuilder.apply {
-                  putExternalDuchyLocalBlobId("DUCHY_TWO", 0L)
-                  putExternalDuchyLocalBlobId("DUCHY_THREE", 1L)
-                }
-              }
-              computationDetails =
-                AGGREGATOR_COMPUTATION_DETAILS
-                  .toBuilder()
-                  .apply {
-                    liquidLegionsV2Builder.apply {
-                      combinedPublicKey = COMBINED_PUBLIC_KEY
-                      partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
-                    }
-                  }
-                  .build()
-              addAllRequisitions(REQUISITIONS)
-            }
-            .build()
-        )
-
-      verifyProtoArgument(
-          mockComputationParticipants,
-          SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
-        )
-        .isEqualTo(
-          ConfirmComputationParticipantRequest.newBuilder()
-            .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
-            .build()
-        )
-    }
+    verifyProtoArgument(
+        mockComputationParticipants,
+        SystemComputationParticipantsCoroutineImplBase::confirmComputationParticipant
+      )
+      .isEqualTo(
+        ConfirmComputationParticipantRequest.newBuilder()
+          .apply { name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName() }
+          .build()
+      )
+  }
 
   @Test
-  fun `confirmation phase, failed due to invalid nonce and ElGamal key signature`() =
-    runBlocking<Unit> {
-      // Stage 0. preparing the storage and set up mock
-      val computationDetailsWithoutInvalidDuchySignature =
-        AGGREGATOR_COMPUTATION_DETAILS
-          .toBuilder()
+  fun `confirmation phase, failed due to invalid nonce and ElGamal key signature`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val computationDetailsWithoutInvalidDuchySignature =
+      AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
+        .apply {
+          liquidLegionsV2Builder.apply {
+            participantBuilderList[0].apply {
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("An invalid signature")
+            }
+          }
+        }
+        .build()
+    val requisitionWithInvalidNonce = REQUISITION_1.copy { details = details.copy { nonce = 404L } }
+    fakeComputationDb.addComputation(
+      globalId = GLOBAL_ID,
+      stage = CONFIRMATION_PHASE.toProtocolStage(),
+      computationDetails = computationDetailsWithoutInvalidDuchySignature,
+      requisitions = listOf(requisitionWithInvalidNonce)
+    )
+
+    whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+
+    // Stage 1. Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Stage 2. Check the status of the computation
+    assertThat(fakeComputationDb[LOCAL_ID]!!)
+      .isEqualTo(
+        ComputationToken.newBuilder()
           .apply {
-            liquidLegionsV2Builder.apply {
-              participantBuilderList[0].apply {
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("An invalid signature")
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = COMPLETE.toProtocolStage()
+            version = 2 // claimTask + transitionStage
+            computationDetails =
+              computationDetailsWithoutInvalidDuchySignature
+                .toBuilder()
+                .apply { endingState = CompletedReason.FAILED }
+                .build()
+            addAllRequisitions(listOf(requisitionWithInvalidNonce))
+          }
+          .build()
+      )
+
+    verifyProtoArgument(
+        mockComputationParticipants,
+        SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        FailComputationParticipantRequest.newBuilder()
+          .apply {
+            name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
+            failureBuilder.apply {
+              participantChildReferenceId = MILL_ID
+              errorMessage =
+                "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                  "Cannot verify participation of all DataProviders.\n" +
+                  "ElGamalPublicKey signature of DUCHY_TWO is invalid."
+              stageAttemptBuilder.apply {
+                stage = CONFIRMATION_PHASE.number
+                stageName = CONFIRMATION_PHASE.name
+                attemptNumber = 1
               }
             }
           }
           .build()
-      val requisitionWithInvalidNonce =
-        REQUISITION_1.copy { details = details.copy { nonce = 404L } }
-      fakeComputationDb.addComputation(
-        globalId = GLOBAL_ID,
-        stage = CONFIRMATION_PHASE.toProtocolStage(),
-        computationDetails = computationDetailsWithoutInvalidDuchySignature,
-        requisitions = listOf(requisitionWithInvalidNonce)
       )
-
-      whenever(mockComputationLogEntries.createComputationLogEntry(any()))
-        .thenReturn(ComputationLogEntry.getDefaultInstance())
-
-      // Stage 1. Process the above computation
-      aggregatorMill.pollAndProcessNextComputation()
-
-      // Stage 2. Check the status of the computation
-      assertThat(fakeComputationDb[LOCAL_ID]!!)
-        .isEqualTo(
-          ComputationToken.newBuilder()
-            .apply {
-              globalComputationId = GLOBAL_ID
-              localComputationId = LOCAL_ID
-              attempt = 1
-              computationStage = COMPLETE.toProtocolStage()
-              version = 2 // claimTask + transitionStage
-              computationDetails =
-                computationDetailsWithoutInvalidDuchySignature
-                  .toBuilder()
-                  .apply { endingState = CompletedReason.FAILED }
-                  .build()
-              addAllRequisitions(listOf(requisitionWithInvalidNonce))
-            }
-            .build()
-        )
-
-      verifyProtoArgument(
-          mockComputationParticipants,
-          SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
-        )
-        .comparingExpectedFieldsOnly()
-        .isEqualTo(
-          FailComputationParticipantRequest.newBuilder()
-            .apply {
-              name = ComputationParticipantKey(GLOBAL_ID, DUCHY_ONE_NAME).toName()
-              failureBuilder.apply {
-                participantChildReferenceId = MILL_ID
-                errorMessage =
-                  "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
-                    "Cannot verify participation of all DataProviders.\n" +
-                    "ElGamalPublicKey signature of DUCHY_TWO is invalid."
-                stageAttemptBuilder.apply {
-                  stage = CONFIRMATION_PHASE.number
-                  stageName = CONFIRMATION_PHASE.name
-                  attemptNumber = 1
-                }
-              }
-            }
-            .build()
-        )
-    }
+  }
 
   @Test
   fun `setup phase at non-aggregator using calculated result`() = runBlocking {
@@ -1071,18 +1038,16 @@ class LiquidLegionsV2MillTest {
           stage = SETUP_PHASE.toProtocolStage()
         )
         .build()
-    requisitionStore.writeString(
-      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
-      "local_requisition"
-    )
-    val requisitionListWithCorrectPath =
-      listOf(REQUISITION_1.copy { path = generatedBlobKeys.last() }, REQUISITION_2, REQUISITION_3)
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    val calculatedBlobContext = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
-      requisitions = requisitionListWithCorrectPath,
-      blobs = listOf(newEmptyOutputBlobMetadata(1L))
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3),
+      blobs = listOf(newEmptyOutputBlobMetadata(calculatedBlobContext.blobId))
     )
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
@@ -1098,7 +1063,7 @@ class LiquidLegionsV2MillTest {
     nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1109,16 +1074,16 @@ class LiquidLegionsV2MillTest {
             computationStage = WAIT_EXECUTION_PHASE_ONE_INPUTS.toProtocolStage()
             addBlobsBuilder().apply {
               dependencyType = ComputationBlobDependency.INPUT
-              blobId = 0
+              blobId = 0L
               path = blobKey
             }
             addBlobsBuilder().apply {
               dependencyType = ComputationBlobDependency.OUTPUT
-              blobId = 1
+              blobId = 1L
             }
             version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
-            addAllRequisitions(requisitionListWithCorrectPath)
+            addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
           }
           .build()
       )
@@ -1168,31 +1133,24 @@ class LiquidLegionsV2MillTest {
           stage = SETUP_PHASE.toProtocolStage()
         )
         .build()
-    requisitionStore.writeString(
-      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId),
-      "local_requisition_"
-    )
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage()),
-      "duchy_two_sketch_"
-    )
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage()),
-      "duchy_three_sketch_"
-    )
-    val requisitionListWithCorrectPath =
-      listOf(REQUISITION_1.copy { path = generatedBlobKeys[0] }, REQUISITION_2, REQUISITION_3)
+    val requisitionBlobContext =
+      RequisitionBlobContext(GLOBAL_ID, REQUISITION_1.externalKey.externalRequisitionId)
+    requisitionStore.writeString(requisitionBlobContext, "local_requisition_")
+    val inputBlob0Context = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 0L)
+    computationStore.writeString(inputBlob0Context, "duchy_two_sketch_")
+    val inputBlob1Context = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlob1Context, "duchy_three_sketch_")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
-          newInputBlobMetadata(0L, generatedBlobKeys[1]),
-          newInputBlobMetadata(1L, generatedBlobKeys[2]),
+          newInputBlobMetadata(0L, inputBlob0Context.blobKey),
+          newInputBlobMetadata(1L, inputBlob1Context.blobKey),
           newEmptyOutputBlobMetadata(3L)
         ),
-      requisitions = requisitionListWithCorrectPath
+      requisitions = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
     )
 
     var cryptoRequest = CompleteSetupPhaseRequest.getDefaultInstance()
@@ -1208,7 +1166,7 @@ class LiquidLegionsV2MillTest {
     aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = ComputationBlobContext(GLOBAL_ID, SETUP_PHASE.toProtocolStage(), 3L).blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1228,7 +1186,7 @@ class LiquidLegionsV2MillTest {
             }
             version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = AGGREGATOR_COMPUTATION_DETAILS
-            addAllRequisitions(requisitionListWithCorrectPath)
+            addAllRequisitions(listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3))
           }
           .build()
       )
@@ -1272,7 +1230,7 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
-  fun `execution phase one at non-aggregater using cached result`() = runBlocking {
+  fun `execution phase one at non-aggregator using cached result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken =
       FakeComputationsDatabase.newPartialToken(
@@ -1280,22 +1238,20 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_ONE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
-      "sketch"
-    )
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
-      "cached result"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 0L)
+    computationStore.writeString(inputBlobContext, "sketch")
+    val cachedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 1L)
+    computationStore.writeString(cachedBlobContext, "cached result")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
         listOf(
-          newInputBlobMetadata(0L, generatedBlobKeys[0]),
-          newOutputBlobMetadata(1L, generatedBlobKeys[1])
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          cachedBlobContext.toMetadata(ComputationBlobDependency.OUTPUT)
         ),
       requisitions = REQUISITIONS
     )
@@ -1306,26 +1262,24 @@ class LiquidLegionsV2MillTest {
     // Stage 2. Check the status of the computation
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
-        ComputationToken.newBuilder()
-          .apply {
-            globalComputationId = GLOBAL_ID
-            localComputationId = LOCAL_ID
-            attempt = 1
-            computationStage = WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
-            addBlobsBuilder().apply {
-              dependencyType = ComputationBlobDependency.INPUT
-              blobId = 0
-              path = generatedBlobKeys.last()
-            }
-            addBlobsBuilder().apply {
-              dependencyType = ComputationBlobDependency.OUTPUT
-              blobId = 1
-            }
-            version = 2 // claimTask + transitionStage
-            computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
-            addAllRequisitions(REQUISITIONS)
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          attempt = 1
+          computationStage = WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
+          blobs += computationStageBlobMetadata {
+            blobId = 0L
+            dependencyType = ComputationBlobDependency.INPUT
+            path = cachedBlobContext.blobKey
           }
-          .build()
+          blobs += computationStageBlobMetadata {
+            blobId = 1L
+            dependencyType = ComputationBlobDependency.OUTPUT
+          }
+          version = 2 // claimTask + transitionStage
+          computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
+          requisitions += REQUISITIONS
+        }
       )
 
     assertThat(computationControlRequests)
@@ -1344,16 +1298,20 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_ONE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
-      "data"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
-        listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
       requisitions = REQUISITIONS
     )
 
@@ -1370,7 +1328,7 @@ class LiquidLegionsV2MillTest {
     nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1381,12 +1339,12 @@ class LiquidLegionsV2MillTest {
             computationStage = WAIT_EXECUTION_PHASE_TWO_INPUTS.toProtocolStage()
             addBlobsBuilder().apply {
               dependencyType = ComputationBlobDependency.INPUT
-              blobId = 0
+              blobId = 0L
               path = blobKey
             }
             addBlobsBuilder().apply {
               dependencyType = ComputationBlobDependency.OUTPUT
-              blobId = 1
+              blobId = 1L
             }
             version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
@@ -1430,16 +1388,20 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_ONE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage()),
-      "data"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
-        listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
       requisitions = REQUISITIONS
     )
 
@@ -1456,7 +1418,7 @@ class LiquidLegionsV2MillTest {
     aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1523,16 +1485,20 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_TWO.toProtocolStage()
         )
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage()),
-      "data"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
-        listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
       requisitions = REQUISITIONS
     )
 
@@ -1549,7 +1515,7 @@ class LiquidLegionsV2MillTest {
     nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1615,10 +1581,11 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_TWO.toProtocolStage()
         )
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage()),
-      "data"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
     val computationDetailsWithVidSamplingWidth =
       AGGREGATOR_COMPUTATION_DETAILS.copy {
         kingdomComputation =
@@ -1631,7 +1598,10 @@ class LiquidLegionsV2MillTest {
       partialToken.computationStage,
       computationDetails = computationDetailsWithVidSamplingWidth,
       blobs =
-        listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
       requisitions = REQUISITIONS
     )
 
@@ -1652,7 +1622,7 @@ class LiquidLegionsV2MillTest {
     aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1732,16 +1702,20 @@ class LiquidLegionsV2MillTest {
           stage = EXECUTION_PHASE_THREE.toProtocolStage()
         )
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage()),
-      "data"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs =
-        listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
       requisitions = REQUISITIONS
     )
 
@@ -1758,7 +1732,7 @@ class LiquidLegionsV2MillTest {
     nonAggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1817,16 +1791,20 @@ class LiquidLegionsV2MillTest {
         .toBuilder()
         .apply { liquidLegionsV2Builder.apply { reachEstimateBuilder.reach = 123 } }
         .build()
-    computationStore.writeString(
-      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage()),
-      "data"
-    )
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_THREE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = computationDetailsWithReach,
       blobs =
-        listOf(newInputBlobMetadata(0L, generatedBlobKeys.last()), newEmptyOutputBlobMetadata(1L)),
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
       requisitions = REQUISITIONS
     )
 
@@ -1848,7 +1826,7 @@ class LiquidLegionsV2MillTest {
     aggregatorMill.pollAndProcessNextComputation()
 
     // Stage 2. Check the status of the computation
-    val blobKey = generatedBlobKeys.last()
+    val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
         ComputationToken.newBuilder()
@@ -1877,7 +1855,7 @@ class LiquidLegionsV2MillTest {
       .isEqualTo(
         setComputationResultRequest {
           name = "computations/$GLOBAL_ID"
-          aggregatorCertificate = CONSENT_SIGNALING_CERT_DER
+          aggregatorCertificate = CONSENT_SIGNALING_CERT_NAME
           resultPublicKey = ENCRYPTION_PUBLIC_KEY.toByteString()
         }
       )
@@ -1899,6 +1877,13 @@ class LiquidLegionsV2MillTest {
       )
   }
 }
+
+private fun ComputationBlobContext.toMetadata(dependencyType: ComputationBlobDependency) =
+  computationStageBlobMetadata {
+    blobId = this@toMetadata.blobId
+    path = blobKey
+    this.dependencyType = dependencyType
+  }
 
 private suspend fun Blob.readToString(): String = read().flatten().toStringUtf8()
 

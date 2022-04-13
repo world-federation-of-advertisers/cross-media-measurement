@@ -14,10 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
@@ -150,6 +152,36 @@ class CertificateReader(private val parentType: ParentType) :
     }
   }
 
+  suspend fun readDataProviderCertificateIdByExternalId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    externalCertificateId: ExternalId
+  ): InternalId? {
+    val idColumn = "CertificateId"
+    return readContext.readRowUsingIndex(
+        "DataProviderCertificates",
+        "DataProviderCertificatesByExternalId",
+        Key.of(dataProviderId.value, externalCertificateId.value),
+        idColumn
+      )
+      ?.let { struct -> InternalId(struct.getLong(idColumn)) }
+  }
+
+  suspend fun readMeasurementConsumerCertificateIdByExternalId(
+    readContext: AsyncDatabaseClient.ReadContext,
+    measurementConsumerId: InternalId,
+    externalCertificateId: ExternalId
+  ): InternalId? {
+    val idColumn = "CertificateId"
+    return readContext.readRowUsingIndex(
+        "MeasurementConsumerCertificates",
+        "MeasurementConsumerCertificatesByExternalId",
+        Key.of(measurementConsumerId.value, externalCertificateId.value),
+        idColumn
+      )
+      ?.let { struct -> InternalId(struct.getLong(idColumn)) }
+  }
+
   companion object {
     private fun buildBaseSql(parentType: ParentType): String {
       return when (parentType) {
@@ -237,6 +269,23 @@ class CertificateReader(private val parentType: ParentType) :
       revocationState =
         struct.getProtoEnum("RevocationState", Certificate.RevocationState::forNumber)
       details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
+    }
+
+    /** Returns the internal Certificate ID for a Duchy Certificate, or `null` if not found. */
+    suspend fun getDuchyCertificateId(
+      txn: AsyncDatabaseClient.TransactionContext,
+      duchyId: InternalId,
+      externalDuchyCertificateId: ExternalId
+    ): InternalId? {
+      val struct =
+        txn.readRowUsingIndex(
+          "DuchyCertificates",
+          "DuchyCertificatesByExternalId",
+          Key.of(duchyId.value, externalDuchyCertificateId.value),
+          "CertificateId"
+        )
+          ?: return null
+      return InternalId(struct.getLong("CertificateId"))
     }
   }
 }
