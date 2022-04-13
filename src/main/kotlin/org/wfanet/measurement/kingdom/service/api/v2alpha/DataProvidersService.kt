@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.CreateDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -27,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -41,27 +39,6 @@ private val API_VERSION = Version.V2_ALPHA
 
 class DataProvidersService(private val internalClient: DataProvidersCoroutineStub) :
   DataProvidersCoroutineService() {
-  override suspend fun createDataProvider(request: CreateDataProviderRequest): DataProvider {
-    val dataProvider = request.dataProvider
-
-    grpcRequire(!dataProvider.publicKey.data.isEmpty) { "public_key.data is missing" }
-    grpcRequire(!dataProvider.publicKey.signature.isEmpty) { "public_key.signature is missing" }
-
-    val internalResponse: InternalDataProvider =
-      internalClient.createDataProvider(
-        internalDataProvider {
-          certificate = parseCertificateDer(dataProvider.certificateDer)
-          details = details {
-            apiVersion = API_VERSION.string
-            publicKey = dataProvider.publicKey.data
-            publicKeySignature = dataProvider.publicKey.signature
-          }
-        }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#119): Add authenticated user
-        // as owner.
-        )
-    return internalResponse.toDataProvider()
-  }
 
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     val key: DataProviderKey =
