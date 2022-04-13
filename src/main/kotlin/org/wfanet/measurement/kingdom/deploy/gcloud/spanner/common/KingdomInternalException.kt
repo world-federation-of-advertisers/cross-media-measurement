@@ -44,13 +44,11 @@ class ErrorContext {
   var externalAccountId: Long? = null
   var accountActivationState: Int? = null
   var externalMeasurementConsumerId: Long? = null
-  var externalMeasurementConsumerCertificateId: Long? = null
   var externalMeasurementId: Long? = null
   var providedMeasurementId: String? = null
   var measurementState: Int? = null
   var externalApiKeyId: Long? = null
   var externalDataProviderId: Long? = null
-  var externalDataProviderCertificateId: Long? = null
   var externalEventGroupId: Long? = null
   var providedEventGroupId: String? = null
   var externalEventGroupMetadataDescriptorId: Long? = null
@@ -61,6 +59,7 @@ class ErrorContext {
   var externalRequisitionId: Long? = null
   var requisitionState: Int? = null
   var externalFulfillingDuchyId: String? = null
+  var parentId: Long? = null
   var externalCertificateId: Long? = null
   var certificationRevocationState: Int? = null
   var externalRecurringExchangeId: Long? = null
@@ -78,21 +77,11 @@ class ErrorContext {
     addMapItem(map, "externalAccountId", externalAccountId?.toString())
     addMapItem(map, "accountActivationState", accountActivationState?.toString())
     addMapItem(map, "externalMeasurementConsumerId", externalMeasurementConsumerId?.toString())
-    addMapItem(
-      map,
-      "externalMeasurementConsumerCertificateId",
-      externalMeasurementConsumerCertificateId?.toString()
-    )
     addMapItem(map, "externalMeasurementId", externalMeasurementId?.toString())
     addMapItem(map, "providedMeasurementId", providedMeasurementId)
     addMapItem(map, "measurementState", measurementState?.toString())
     addMapItem(map, "externalApiKeyId", externalApiKeyId?.toString())
     addMapItem(map, "externalDataProviderId", externalDataProviderId?.toString())
-    addMapItem(
-      map,
-      "externalDataProviderCertificateId",
-      externalDataProviderCertificateId?.toString()
-    )
     addMapItem(map, "externalEventGroupId", externalEventGroupId?.toString())
     addMapItem(map, "providedEventGroupId", providedEventGroupId)
     addMapItem(
@@ -107,6 +96,7 @@ class ErrorContext {
     addMapItem(map, "externalRequisitionId", externalRequisitionId?.toString())
     addMapItem(map, "requisitionState", requisitionState?.toString())
     addMapItem(map, "externalFulfillingDuchyId", externalFulfillingDuchyId)
+    addMapItem(map, "parentId", parentId?.toString())
     addMapItem(map, "externalCertificateId", externalCertificateId?.toString())
     addMapItem(map, "certificationRevocationState", externalCertificateId?.toString())
     addMapItem(map, "externalRecurringExchangeId", externalRecurringExchangeId?.toString())
@@ -194,12 +184,33 @@ class DuchyNotFound(
   }
 }
 
-class MeasurementNotFound(
-  externalMeasurementId: Long,
-  provideDescription: () -> String = { "Measurement not found" }
-) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
-  init {
+class MeasurementNotFound(provideDescription: () -> String)
+  : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+  constructor(
+    externalMeasurementConsumerId: Long,
+    externalMeasurementId: Long,
+    provideDescription: () -> String = { "Measurement not found" }
+  ) : this(provideDescription) {
+    context.externalMeasurementConsumerId = externalMeasurementConsumerId
     context.externalMeasurementId = externalMeasurementId
+  }
+  constructor(
+    externalComputationId: Long,
+    provideDescription: () -> String = { "Measurement not found" }
+  ) : this(provideDescription) {
+    context.externalComputationId = externalComputationId
+  }
+}
+
+class MeasurementConsumerCertificateNotFound(provideDescription: () -> String)
+  : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
+  constructor(
+    parentId: Long,
+    externalCertificateId: Long,
+    provideDescription: () -> String = { "Certificate not found" }
+  ) : this(provideDescription) {
+    context.parentId = parentId
+    context.externalCertificateId = externalCertificateId
   }
 }
 
