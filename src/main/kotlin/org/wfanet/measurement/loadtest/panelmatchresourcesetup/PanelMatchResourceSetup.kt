@@ -33,7 +33,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelProviderKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange as InternalRecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
@@ -87,7 +86,7 @@ class PanelMatchResourceSetup(
     logger.info("Starting with RunID: $runId ...")
 
     // Step 2a: Create the MP.
-    val externalModelProviderId = createModelProvider(modelProviderContent)
+    val externalModelProviderId = createModelProvider()
     val modelProviderName = ModelProviderKey(externalIdToApiId(externalModelProviderId)).toName()
     logger.info("Successfully created model provider: $modelProviderName")
 
@@ -165,28 +164,6 @@ class PanelMatchResourceSetup(
       .externalDataProviderId
   }
 
-  /** Create an internal modelProvider, and return its corresponding public API resource name. */
-  suspend fun createModelProvider(modelProviderContent: EntityContent): Long {
-    val encryptionPublicKey = modelProviderContent.encryptionPublicKey
-    val signedPublicKey =
-      signEncryptionPublicKey(encryptionPublicKey, modelProviderContent.signingKey)
-    val certificateDer =
-      parseCertificateDer(modelProviderContent.signingKey.certificate.encoded.toByteString())
-
-    return modelProvidersStub.createModelProvider(
-        internalModelProvider {
-          certificate = certificateDer
-          details =
-            ModelProviderKt.details {
-              apiVersion = API_VERSION.string
-              publicKey = signedPublicKey.data
-              publicKeySignature = signedPublicKey.signature
-            }
-        }
-      )
-      .externalModelProviderId
-  }
-
   private suspend fun createDataProvider(): Long {
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
     return dataProvidersStub.createDataProvider(
@@ -211,25 +188,7 @@ class PanelMatchResourceSetup(
   }
 
   private suspend fun createModelProvider(): Long {
-    return modelProvidersStub.createModelProvider(
-        internalModelProvider {
-          certificate = certificate {
-            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-            details =
-              CertificateKt.details {
-                x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-              }
-          }
-          details =
-            ModelProviderKt.details {
-              apiVersion = "2"
-              publicKey = ByteString.copyFromUtf8("This is a  public key.")
-              publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
-            }
-        }
-      )
-      .externalModelProviderId
+    return modelProvidersStub.createModelProvider(internalModelProvider {}).externalModelProviderId
   }
 
   private suspend fun createRecurringExchange(
