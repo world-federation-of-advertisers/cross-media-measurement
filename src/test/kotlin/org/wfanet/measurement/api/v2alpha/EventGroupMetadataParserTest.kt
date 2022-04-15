@@ -53,7 +53,7 @@ val TEST_MESSAGE_2 = testMetadataMessage2 {
 @RunWith(JUnit4::class)
 class EventGroupMetadataParserTest {
   @Test
-  fun `packed 'Any' message returns DynamicMessage`() {
+  fun `parser converting eventGroupMetadataDescriptor returns expected DynamicMessage`() {
     val eventGroupMetadataDescriptor1 = eventGroupMetadataDescriptor {
       externalDataProviderId = 1L
       externalEventGroupMetadataDescriptorId = 2L
