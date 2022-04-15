@@ -14,29 +14,37 @@
 
 package org.wfanet.measurement.api.v2alpha
 
-import com.google.protobuf.Any
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.DynamicMessage
 import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventGroup.Metadata
+import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 
-class EventGroupMetadataParser() {
-  private lateinit var typeRegistry: TypeRegistry
-  private lateinit var fileDescriptorProtoMap: Map<String, FileDescriptorProto>
-  private var fileDescriptorMap: MutableMap<String, FileDescriptor> = mutableMapOf()
-  private var registryBuilder = TypeRegistry.newBuilder()
+class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor>) {
+  private var typeRegistry: TypeRegistry
 
-  private fun initializeTypeRegistry(fileDescriptorSet: FileDescriptorSet) {
-    fileDescriptorProtoMap = fileDescriptorSet.getFileList().map { it.name to it }.toMap()
-    for (proto in fileDescriptorSet.getFileList()) {
-      buildFileDescriptors(proto)
+  init {
+    val registryBuilder: TypeRegistry.Builder = TypeRegistry.newBuilder()
+    for (eventGroupMetadataDescriptor in eventGroupMetadataDescriptors) {
+      val fileList: List<FileDescriptorProto> =
+        eventGroupMetadataDescriptor.details.descriptorSet.fileList
+      val fileDescriptorProtoMap = fileList.map { it.name to it }.toMap()
+      val fileDescriptorMap: MutableMap<String, FileDescriptor> = mutableMapOf()
+      for (proto in fileList) {
+        buildFileDescriptors(proto, fileDescriptorMap, fileDescriptorProtoMap, registryBuilder)
+      }
     }
 
     typeRegistry = registryBuilder.build()
   }
 
-  private fun buildFileDescriptors(proto: FileDescriptorProto): FileDescriptor {
+  private fun buildFileDescriptors(
+    proto: FileDescriptorProto,
+    fileDescriptorMap: MutableMap<String, FileDescriptor>,
+    fileDescriptorProtoMap: Map<String, FileDescriptorProto>,
+    registryBuilder: TypeRegistry.Builder
+  ): FileDescriptor {
     if (fileDescriptorMap[proto.getName()] != null) return fileDescriptorMap[proto.getName()]!!
 
     var dependenciesList: MutableList<FileDescriptor> = mutableListOf()
@@ -45,34 +53,30 @@ class EventGroupMetadataParser() {
       if (fileDescriptorMap[dependencyName] != null) {
         dependenciesList.add(fileDescriptorMap[dependencyName]!!)
       } else {
-        dependenciesList.add(buildFileDescriptors(fileDescriptorProtoMap[dependencyName]!!))
+        dependenciesList.add(
+          buildFileDescriptors(
+            fileDescriptorProtoMap[dependencyName]!!,
+            fileDescriptorMap,
+            fileDescriptorProtoMap,
+            registryBuilder
+          )
+        )
       }
     }
 
     val builtDescriptor = FileDescriptor.buildFrom(proto, dependenciesList.toTypedArray())
     fileDescriptorMap[proto.getName()] = builtDescriptor
-    addDescriptorMessageTypesToRegistry(builtDescriptor)
+    for (descriptor in builtDescriptor.getMessageTypes()) {
+      registryBuilder.add(descriptor)
+    }
     return builtDescriptor
   }
 
-  private fun addDescriptorMessageTypesToRegistry(fileDescriptor: FileDescriptor) {
-    for (descriptor in fileDescriptor.getMessageTypes()) {
-      registryBuilder.add(descriptor)
-    }
-  }
-
-  /**
-   * Returns the DynamicMessage from a com.google.protobuf.Any message and corresponding
-   * FileDescriptorSet.
-   */
-  fun convertToDynamicMessage(
-    message: com.google.protobuf.Any,
-    fileDescriptorSet: FileDescriptorSet
-  ): DynamicMessage? {
-    initializeTypeRegistry(fileDescriptorSet)
-    // A packed Any message appends a "type.googleapis.com/" prefix to the typeUrl.
-    val messageName = message.typeUrl.split("/")[1]
-
-    return DynamicMessage.parseFrom(typeRegistry.find(messageName), message.value)
+  /** Returns the DynamicMessage from an EventGroup.Metadata message. */
+  fun convertToDynamicMessage(eventGroupMetadata: EventGroup.Metadata): DynamicMessage? {
+    return DynamicMessage.parseFrom(
+      typeRegistry.getDescriptorForTypeUrl(eventGroupMetadata.metadata.typeUrl),
+      eventGroupMetadata.metadata.value
+    )
   }
 }

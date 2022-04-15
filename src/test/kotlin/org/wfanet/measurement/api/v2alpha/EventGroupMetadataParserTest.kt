@@ -24,10 +24,14 @@ import com.google.protobuf.Duration
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage2
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage2
+import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
+import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
 
+private const val API_VERSION = "v2alpha"
 val TEST_MESSAGE = testMetadataMessage2 {
   name = "Alice"
   message = testMetadataMessage {
@@ -37,14 +41,49 @@ val TEST_MESSAGE = testMetadataMessage2 {
   }
 }
 
+val TEST_MESSAGE_2 = testMetadataMessage2 {
+  name = "Joe"
+  message = testMetadataMessage {
+    name = "Susan"
+    value = 2
+    duration = Duration.newBuilder().setSeconds(60).build()
+  }
+}
+
 @RunWith(JUnit4::class)
 class EventGroupMetadataParserTest {
   @Test
   fun `packed 'Any' message returns DynamicMessage`() {
-    val fileDescriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
-    val result =
-      EventGroupMetadataParser().convertToDynamicMessage(Any.pack(TEST_MESSAGE), fileDescriptorSet)
+    val eventGroupMetadataDescriptor1 = eventGroupMetadataDescriptor {
+      externalDataProviderId = 1L
+      externalEventGroupMetadataDescriptorId = 2L
+      details = details {
+        apiVersion = API_VERSION
+        descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
+      }
+    }
+    val eventGroupMetadataDescriptor2 = eventGroupMetadataDescriptor {
+      details = details {
+        apiVersion = API_VERSION
+        descriptorSet = TEST_MESSAGE_2.getDescriptorForType().getFileDescriptorSet()
+      }
+    }
+    val parser =
+      EventGroupMetadataParser(listOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2))
+
+    val eventGroupMetadata1 = metadata {
+      eventGroupMetadataDescriptor = "dataProviders/123/eventGroupMetadataDescriptors/abc"
+      metadata = Any.pack(TEST_MESSAGE)
+    }
+    val eventGroupMetadata2 = metadata {
+      eventGroupMetadataDescriptor = "dataProviders/234/eventGroupMetadataDescriptors/def"
+      metadata = Any.pack(TEST_MESSAGE_2)
+    }
+    val result = parser.convertToDynamicMessage(eventGroupMetadata1)
+    val result2 = parser.convertToDynamicMessage(eventGroupMetadata2)
+
     assertThat(TestMetadataMessage2.parseFrom(result!!.toByteString())).isEqualTo(TEST_MESSAGE)
+    assertThat(TestMetadataMessage2.parseFrom(result2!!.toByteString())).isEqualTo(TEST_MESSAGE_2)
   }
 
   fun Descriptor.getFileDescriptorSet(): FileDescriptorSet {
