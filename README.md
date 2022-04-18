@@ -163,14 +163,8 @@ production code.
 
 ## Developer Guide
 
-### Developer Environment
-See [Dev Guide](docs/dev-standards.md)
-
-### How to Build
-
-See [Building](docs/building.md).
-
-### How to Deploy
+   *  [Dev Standards](docs/dev-standards.md)
+   *  [Building](docs/building.md)
 
 ## Documentation
 
