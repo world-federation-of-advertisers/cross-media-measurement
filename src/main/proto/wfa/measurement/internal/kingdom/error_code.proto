@@ -30,42 +30,52 @@ enum ErrorCode {
   MODEL_PROVIDER_NOT_FOUND = 3;
   /** Duchy resource queried could not be found. */
   DUCHY_NOT_FOUND = 4;
-  /** Measurement resource queried could not be found. */
-  MEASUREMENT_NOT_FOUND = 5;
+  /** Measurement resource queried could not be found by ComputationId. */
+  MEASUREMENT_NOT_FOUND_BY_COMPUTATION = 5;
+  /** Measurement resource queried could not be found by MeasurementConsumerId. */
+  MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER = 6;
   /** Measurement is in an illegal state for the operation. */
-  MEASUREMENT_STATE_ILLEGAL = 6;
+  MEASUREMENT_STATE_ILLEGAL = 7;
   /** Certificate with the same subject key identifier (SKID) already exists.
    */
-  CERT_SUBJECT_KEY_ID_ALREADY_EXISTS = 7;
-  /** Certificate resource queried could not be found. */
-  CERTIFICATE_NOT_FOUND = 8;
+  CERT_SUBJECT_KEY_ID_ALREADY_EXISTS = 8;
+  /** DataProvider's Certificate resource queried could not be found. */
+  DATA_PROVIDER_CERTIFICATE_NOT_FOUND = 9;
+  /** MeasurementConsumer's Certificate resource queried could not be found. */
+  MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND = 10;
+  /** Duchy's Certificate resource queried could not be found. */
+  DUCHY_CERTIFICATE_NOT_FOUND = 11;
   /** Certificate is in an illegal revocation state for the operation. */
-  CERTIFICATE_REVOCATION_STATE_ILLEGAL = 9;
+  CERTIFICATE_REVOCATION_STATE_ILLEGAL = 12;
   /** Certificate is invalid and cannot be used in the creation of entities.
    */
-  CERTIFICATE_IS_INVALID = 10;
+  CERTIFICATE_IS_INVALID = 13;
   /** Computation Participant should have been in another state. */
-  COMPUTATION_PARTICIPANT_STATE_ILLEGAL = 11;
+  COMPUTATION_PARTICIPANT_STATE_ILLEGAL = 14;
+  /** Computation Participant resource queried could not be found by ComputationId. */
+  COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION = 15;
   /** Computation Participant resource queried could not be found. */
-  COMPUTATION_PARTICIPANT_NOT_FOUND = 12;
-  /** Requisition entity could not be found. */
-  REQUISITION_NOT_FOUND = 13;
+  COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT = 16;
+  /** Requisition entity could not be found by ComputationId. */
+  REQUISITION_NOT_FOUND_BY_COMPUTATION = 17;
+  /** Requisition entity could not be found by data provider id. */
+  REQUISITION_NOT_FOUND_BY_DATA_PROVIDER = 18;
   /** Requisition is in an illegal state for the operation. */
-  REQUISITION_STATE_ILLEGAL = 14;
+  REQUISITION_STATE_ILLEGAL = 19;
   /** Account resource queried could not be found. */
-  ACCOUNT_NOT_FOUND = 15;
+  ACCOUNT_NOT_FOUND = 20;
   /** Account already exists with the identity. */
-  DUPLICATE_ACCOUNT_IDENTITY = 16;
+  DUPLICATE_ACCOUNT_IDENTITY = 21;
   /** Account activation state is in an illegal state for the operation. */
-  ACCOUNT_ACTIVATION_STATE_ILLEGAL = 17;
+  ACCOUNT_ACTIVATION_STATE_ILLEGAL = 22;
   /** Permission is not given for the operation. */
-  PERMISSION_DENIED = 18;
+  PERMISSION_DENIED = 23;
   /** Api Key resource queried could not be found. */
-  API_KEY_NOT_FOUND = 19;
+  API_KEY_NOT_FOUND = 24;
   /** EventGroup could not be found. */
-  EVENT_GROUP_NOT_FOUND = 20;
+  EVENT_GROUP_NOT_FOUND = 25;
   /** EventGroup modification args are invalid. */
-  EVENT_GROUP_INVALID_ARGS = 21;
+  EVENT_GROUP_INVALID_ARGS = 26;
   /** EventGroupMetadataDescriptor could not be found. */
-  EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND = 22;
+  EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND = 27;
 }

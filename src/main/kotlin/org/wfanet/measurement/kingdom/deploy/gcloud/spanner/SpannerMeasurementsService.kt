@@ -55,20 +55,25 @@ class SpannerMeasurementsService(
         ErrorCode.DATA_PROVIDER_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "DataProvider not found" }
         ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.INVALID_ARGUMENT) { "Duchy not found" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.INVALID_ARGUMENT) { "Certificate not found" }
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.ACCOUNT_NOT_FOUND,
         ErrorCode.API_KEY_NOT_FOUND,
         ErrorCode.PERMISSION_DENIED,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
         ErrorCode.MEASUREMENT_STATE_ILLEGAL,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
@@ -136,10 +141,14 @@ class SpannerMeasurementsService(
       return SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        ErrorCode.MEASUREMENT_NOT_FOUND -> failGrpc(Status.NOT_FOUND, e) { "Measurement not found" }
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER ->
+          failGrpc(Status.NOT_FOUND, e) { "Measurement not found" }
         ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND, e) { "Duchy not found" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND, e) { "Aggregator certificate not found" }
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.ACCOUNT_NOT_FOUND,
@@ -152,8 +161,10 @@ class SpannerMeasurementsService(
         ErrorCode.CERTIFICATE_IS_INVALID,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
@@ -182,7 +193,8 @@ class SpannerMeasurementsService(
     } catch (e: KingdomInternalException) {
       val status =
         when (e.code) {
-          ErrorCode.MEASUREMENT_NOT_FOUND -> Status.NOT_FOUND
+          ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+          ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER -> Status.NOT_FOUND
           ErrorCode.MEASUREMENT_STATE_ILLEGAL -> Status.FAILED_PRECONDITION
           ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
           ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
@@ -194,11 +206,15 @@ class SpannerMeasurementsService(
           ErrorCode.MODEL_PROVIDER_NOT_FOUND,
           ErrorCode.DUCHY_NOT_FOUND,
           ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-          ErrorCode.CERTIFICATE_NOT_FOUND,
+          ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
+          ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
           ErrorCode.CERTIFICATE_IS_INVALID,
           ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-          ErrorCode.REQUISITION_NOT_FOUND,
+          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+          ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
+          ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
           ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
           ErrorCode.REQUISITION_STATE_ILLEGAL,
           ErrorCode.EVENT_GROUP_INVALID_ARGS,

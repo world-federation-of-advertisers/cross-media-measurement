@@ -46,13 +46,16 @@ class SpannerComputationParticipantsService(
           failGrpc(Status.FAILED_PRECONDITION) {
             "Measurement not in PENDING_REQUISITION_PARAMS state."
           }
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
         ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.FAILED_PRECONDITION) {
-            "Certificate for Computation participant not found."
+            "DuchyCertificate for Computation participant not found."
           }
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.CERTIFICATE_IS_INVALID ->
@@ -64,8 +67,10 @@ class SpannerComputationParticipantsService(
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
@@ -84,7 +89,8 @@ class SpannerComputationParticipantsService(
       return FailComputationParticipant(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
         ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
@@ -94,15 +100,19 @@ class SpannerComputationParticipantsService(
         ErrorCode.ACCOUNT_NOT_FOUND,
         ErrorCode.API_KEY_NOT_FOUND,
         ErrorCode.PERMISSION_DENIED,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
         ErrorCode.CERTIFICATE_IS_INVALID,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
@@ -123,7 +133,8 @@ class SpannerComputationParticipantsService(
       when (e.code) {
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Computation participant in illegal state." }
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
         ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
@@ -132,14 +143,18 @@ class SpannerComputationParticipantsService(
         ErrorCode.API_KEY_NOT_FOUND,
         ErrorCode.PERMISSION_DENIED,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
         ErrorCode.CERTIFICATE_IS_INVALID,
         ErrorCode.MEASUREMENT_STATE_ILLEGAL,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,

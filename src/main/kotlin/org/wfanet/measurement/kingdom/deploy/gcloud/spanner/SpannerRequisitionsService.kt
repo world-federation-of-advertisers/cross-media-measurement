@@ -109,7 +109,8 @@ class SpannerRequisitionsService(
     } catch (e: KingdomInternalException) {
       val status: Status =
         when (e.code) {
-          ErrorCode.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
+          ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
+          ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER -> Status.NOT_FOUND
           ErrorCode.REQUISITION_STATE_ILLEGAL,
           ErrorCode.MEASUREMENT_STATE_ILLEGAL,
           ErrorCode.DUCHY_NOT_FOUND -> Status.FAILED_PRECONDITION
@@ -118,16 +119,20 @@ class SpannerRequisitionsService(
           ErrorCode.ACCOUNT_NOT_FOUND,
           ErrorCode.API_KEY_NOT_FOUND,
           ErrorCode.PERMISSION_DENIED,
-          ErrorCode.MEASUREMENT_NOT_FOUND,
+          ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
+          ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
           ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
           ErrorCode.DATA_PROVIDER_NOT_FOUND,
           ErrorCode.MODEL_PROVIDER_NOT_FOUND,
           ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-          ErrorCode.CERTIFICATE_NOT_FOUND,
+          ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+          ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
+          ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
           ErrorCode.CERTIFICATE_IS_INVALID,
           ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
           ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
           ErrorCode.EVENT_GROUP_INVALID_ARGS,
           ErrorCode.EVENT_GROUP_NOT_FOUND,
           ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
@@ -154,27 +159,33 @@ class SpannerRequisitionsService(
       return RefuseRequisition(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
-        ErrorCode.REQUISITION_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Requisition not found" }
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER ->
+          failGrpc(Status.NOT_FOUND) { "Requisition not found" }
         ErrorCode.REQUISITION_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Requisition is in wrong state" }
         ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Measurement is in wrong state" }
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.ACCOUNT_NOT_FOUND,
         ErrorCode.API_KEY_NOT_FOUND,
         ErrorCode.PERMISSION_DENIED,
         ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
         ErrorCode.CERTIFICATE_IS_INVALID,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
         ErrorCode.EVENT_GROUP_NOT_FOUND,
         ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,

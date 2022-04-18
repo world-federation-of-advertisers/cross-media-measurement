@@ -47,8 +47,10 @@ class SpannerEventGroupsService(
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
         ErrorCode.CERTIFICATE_IS_INVALID ->
           failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
         ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
         ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
         ErrorCode.ACCOUNT_NOT_FOUND,
@@ -57,11 +59,14 @@ class SpannerEventGroupsService(
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
         ErrorCode.MEASUREMENT_STATE_ILLEGAL,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.EVENT_GROUP_INVALID_ARGS,
@@ -82,8 +87,10 @@ class SpannerEventGroupsService(
           failGrpc(Status.INVALID_ARGUMENT) { "EventGroup modification param is invalid" }
         ErrorCode.CERTIFICATE_IS_INVALID ->
           failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
+        ErrorCode.MEASUREMENT_CONSUMER_CERTIFICATE_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
+        ErrorCode.DATA_PROVIDER_CERTIFICATE_NOT_FOUND,
+        ErrorCode.DUCHY_CERTIFICATE_NOT_FOUND,
         ErrorCode.EVENT_GROUP_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
         ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
@@ -96,11 +103,14 @@ class SpannerEventGroupsService(
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
         ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.MEASUREMENT_NOT_FOUND_BY_MEASUREMENT_CONSUMER,
         ErrorCode.MEASUREMENT_STATE_ILLEGAL,
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND_BY_MEASUREMENT,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_COMPUTATION,
+        ErrorCode.REQUISITION_NOT_FOUND_BY_DATA_PROVIDER,
         ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
         ErrorCode.REQUISITION_STATE_ILLEGAL,
         ErrorCode.UNKNOWN_ERROR,
