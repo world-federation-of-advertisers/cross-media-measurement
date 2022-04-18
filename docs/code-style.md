@@ -112,4 +112,4 @@ This means that if someone wants more information about this TODO, the best
 person to ask would be GitHub user @SanjayVas.
 
 ## See Also
-The [Dev Guide](dev-guide.md) has more useful information.
+The [Dev Standards](dev-standards.md) guide has more useful information.
