@@ -4,7 +4,6 @@ Originally by efoxepstein@google.com, sanjayvas@google.com / August 2021
 ## What Is This?
 This guide lays out the standards and practices for developers contributing to repositories owned by the WFA.
 
-It is the intention that eventually this doc is converted to Markdown and put in one of the WFA GitHub repositories.
 ## Code Review
 ### Pull Request Description
 The title of a pull request (PR) should be a short summary of what is being done by the PR. This should be a complete imperative (written as if it were an order) sentence. For example, "Delete the Foo method from the Bar service." as opposed to "Deletes the Foo method from the Bar service."
@@ -13,11 +12,11 @@ The body of a PR description is optional, and should be used to add additional c
 
 [Example pull request:](https://github.com/world-federation-of-advertisers/common-jvm/pull/90)
 
-![example pull request body](img/dev-std-image-1.png)
+![example pull request body](dev-std-body-ex.png)
 
 Make sure to adjust the final merge description when merging a PR, as GitHub by default generates an undesirable body.
 
-![example pull request title+body](img/dev-std-image-2.png)
+![example pull request title+body](dev-std-title-body-ex.png)
 
 ### Use Reviewable
 Use https://reviewable.io for code reviews. GitHub’s code review tool does not work very well for our purposes at time of writing. Make sure to read through the [Reviewable user guide](https://docs.reviewable.io/introduction.html), particularly the section on [Code review discussions](https://docs.reviewable.io/discussions.html).
