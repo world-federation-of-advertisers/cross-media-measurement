@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.common.beam
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.protobuf.stringValue
 import java.io.File
@@ -32,6 +33,20 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 @RunWith(JUnit4::class)
 class WriteShardedDataTest : BeamTestBase() {
   @get:Rule val temporaryFolder = TemporaryFolder()
+
+  @Test
+  fun assignToShardReturnsNonNegativeValueForIntMinValue() {
+    val shardCount = 10
+    val item =
+      object {
+        override fun hashCode(): Int = Int.MIN_VALUE
+      }
+
+    val shard = item.assignToShard(shardCount)
+
+    assertThat(shard).isAtLeast(0)
+    assertThat(shard).isLessThan(shardCount)
+  }
 
   @Test
   fun addsAllFilesInFileSpec() = runBlockingTest {
