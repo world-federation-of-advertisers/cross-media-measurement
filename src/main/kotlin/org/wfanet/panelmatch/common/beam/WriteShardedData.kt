@@ -68,7 +68,7 @@ class WriteShardedData<T : Message>(
 
     val groupedData: PCollection<KV<Int, Iterable<T>>> =
       input
-        .keyBy("Key by Blob") { abs(it.hashCode()) % shardCount }
+        .keyBy("Key by Blob") { it.assignToShard(shardCount) }
         .apply("Group by Blob", GroupByKey.create())
 
     val missingFiles: PCollection<KV<Int, Iterable<T>>> =
@@ -109,4 +109,11 @@ private class WriteFilesFn<T : Message>(
 
     context.output(blobKey)
   }
+}
+
+/** Returns an [Int] shard index for [this]. */
+fun Any.assignToShard(shardCount: Int): Int {
+  // The conversion to Long avoids the special case where abs(Int.MIN_VALUE) returns Int.MIN_VALUE.
+  val longShard = abs(hashCode().toLong()) % shardCount
+  return longShard.toInt()
 }
