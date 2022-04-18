@@ -164,6 +164,7 @@ production code.
 ## Developer Guide
 
 ### Developer Environment
+See [Dev Guide](docs/dev-standards.md)
 
 ### How to Build
 
