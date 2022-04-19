@@ -8,9 +8,6 @@
     *   [Services and Daemons](#servers-and-daemons)
     *   [Common Directories](#common-directories)
 *   [Developer Guide](#developer-guide)
-    *   [Developer Environment](#developer-environment)
-    *   [How to Build](#how-to-build)
-    *   [How to Deploy](#how-to-deploy)
 *   [Documentation](#documentation)
     *   [Dependencies](#dependencies)
 *   [Contributing](#contributing)
@@ -163,13 +160,8 @@ production code.
 
 ## Developer Guide
 
-### Developer Environment
-
-### How to Build
-
-See [Building](docs/building.md).
-
-### How to Deploy
+   *  [Dev Standards](docs/dev-standards.md)
+   *  [Building](docs/building.md)
 
 ## Documentation
 

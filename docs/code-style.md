@@ -110,3 +110,6 @@ upgraded to v2.`
 
 This means that if someone wants more information about this TODO, the best
 person to ask would be GitHub user @SanjayVas.
+
+## See Also
+The [Dev Standards](dev-standards.md) guide has more useful information.
