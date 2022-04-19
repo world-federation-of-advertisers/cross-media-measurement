@@ -30,25 +30,14 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "event_group_entry_proto",
-    srcs = ["event_group_entry.proto"],
+    name = "metric",
+    srcs = ["metric.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":reporting_set_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
-        "@com_google_protobuf//:timestamp_proto",
     ],
-)
-
-java_proto_library(
-    name = "event_group_entry_java_proto",
-    deps = [":event_group_entry_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "event_group_entry_kt_jvm_proto",
-    srcs = [":event_group_entry_proto"],
-    deps = [":event_group_entry_java_proto"],
 )
 
 proto_library(
@@ -56,8 +45,9 @@ proto_library(
     srcs = ["report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
-        ":event_group_entry_proto",
-        ":report_parameter_proto",
+        ":metric",
+        ":time_interval_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
@@ -74,20 +64,24 @@ kt_jvm_proto_library(
 )
 
 proto_library(
-    name = "report_parameter_proto",
-    srcs = ["report_parameter.proto"],
+    name = "reporting_set_proto",
+    srcs = ["reporting_set.proto"],
     strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
 )
 
-java_proto_library(
-    name = "report_parameter_java_proto",
-    deps = [":report_parameter_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "report_parameter_kt_jvm_proto",
-    srcs = [":report_parameter_proto"],
-    deps = [":report_parameter_java_proto"],
+proto_library(
+    name = "time_interval_proto",
+    srcs = ["time_interval.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 # Services.
