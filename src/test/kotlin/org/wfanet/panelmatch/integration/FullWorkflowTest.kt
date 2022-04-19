@@ -37,6 +37,7 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCo
 import org.wfanet.panelmatch.common.compression.compressionParameters
 import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.toDelimitedByteString
+import org.wfanet.panelmatch.integration.testing.TEST_PADDING_NONCE_PREFIX
 import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
 private val PLAINTEXT_JOIN_KEYS = joinKeyAndIdCollection {
@@ -122,5 +123,13 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
       )
 
     assertThat(decryptedEvents).hasSize(3) // 1 padding nonce expected
+
+    val paddingNonce = decryptedEvents.firstOrNull { it.first.isEmpty() }
+    assertNotNull(paddingNonce)
+    assertThat(paddingNonce.second).hasSize(1)
+
+    val paddingNonceValue = paddingNonce.second.single()
+    assertThat(paddingNonceValue).startsWith(TEST_PADDING_NONCE_PREFIX)
+    assertThat(paddingNonceValue.length).isAtLeast(TEST_PADDING_NONCE_PREFIX.length + 8)
   }
 }
