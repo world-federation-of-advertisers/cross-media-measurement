@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.duration
 import java.nio.file.Paths
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -42,7 +43,9 @@ import org.wfanet.anysketch.sketchConfig
 import org.wfanet.anysketch.uniformDistribution
 import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
@@ -50,6 +53,9 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -62,6 +68,7 @@ import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
@@ -70,9 +77,12 @@ import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.consent.client.common.signMessage
+import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
@@ -188,11 +198,14 @@ class EdpSimulator(
 
       if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       ) {
-        logger.info(
-          "Skipping requisition ${requisition.name}, only LIQUID_LEGIONS_V2 is supported..."
-        )
-        // TODO(@tristanvuong): fulfill direct measurements
-        continue
+        when (measurementSpec.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
+            fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
+          MeasurementSpec.MeasurementTypeCase.DURATION ->
+            fulfillDurationMeasurement(requisition, requisitionSpec, measurementSpec)
+          else ->
+            logger.info("Skipping requisition ${requisition.name}, unsupported measurement type")
+        }
       } else {
         fulfillRequisitionForReachAndFrequencyMeasurement(
           requisition,
@@ -371,6 +384,64 @@ class EdpSimulator(
     }
 
     return requisitionsStub.listRequisitions(request).requisitionsList
+  }
+
+  private suspend fun fulfillImpressionMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec
+  ) {
+    val requisitionData =
+      MeasurementKt.result {
+        impression = impression {
+          // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
+          // TODO: Calculate impression from data.
+          value = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+        }
+      }
+
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+  }
+
+  private suspend fun fulfillDurationMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec
+  ) {
+    val requisitionData =
+      MeasurementKt.result {
+        watchDuration = watchDuration {
+          value = duration {
+            // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
+            seconds = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+          }
+        }
+      }
+
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+  }
+
+  private suspend fun fulfillDirectMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec,
+    requisitionData: Measurement.Result
+  ) {
+    val measurementEncryptionPublicKey =
+      EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
+
+    val signedData = signMessage(requisitionData, edpData.signingKey)
+
+    val encryptedData =
+      measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedData.toByteString())
+
+    requisitionsStub.fulfillDirectRequisition(
+      fulfillDirectRequisitionRequest {
+        name = requisition.name
+        this.encryptedData = encryptedData
+        nonce = requisitionSpec.nonce
+      }
+    )
   }
 
   companion object {
