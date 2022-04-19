@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -64,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -136,21 +138,21 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
 
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
-  private val internalRequisitionMock: RequisitionsCoroutineImplBase =
-    mockService() {
-      onBlocking { refuseRequisition(any()) }
-        .thenReturn(
-          INTERNAL_REQUISITION.copy {
-            state = InternalState.REFUSED
-            details = details {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
-            }
+  private val internalRequisitionMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { refuseRequisition(any()) }
+      .thenReturn(
+        INTERNAL_REQUISITION.copy {
+          state = InternalState.REFUSED
+          details = details {
+            refusal =
+              InternalRequisitionKt.refusal {
+                justification = InternalRefusal.Justification.UNFULFILLABLE
+              }
           }
-        )
-    }
+        }
+      )
+    onBlocking { getRequisitionByDataProviderId(any()) }.thenReturn(INTERNAL_REQUISITION)
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalRequisitionMock) }
 
@@ -936,6 +938,22 @@ class RequisitionsServiceTest {
   }
 
   @Test
+  fun `fulfillDirectRequisition throw FAILED_PRECONDITION when nonce is wrong`() = runBlocking {
+    val request = fulfillDirectRequisitionRequest {
+      name = REQUISITION_NAME
+      encryptedData = REQUISITION_ENCRYPTED_DATA
+      nonce = NONCE + 1L
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.fulfillDirectRequisition(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `fulfillDirectRequisition throw PERMISSION_DENIED when EDP doesn't match`() = runBlocking {
     val request = fulfillDirectRequisitionRequest {
       name = REQUISITION_NAME
@@ -971,6 +989,7 @@ class RequisitionsServiceTest {
         externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
         externalCertificateId = 7L
       }
+      details = details { nonceHash = hashSha256(NONCE) }
       parentMeasurement = parentMeasurement {
         apiVersion = Version.V2_ALPHA.string
         externalMeasurementConsumerCertificateId = 8L
@@ -979,6 +998,9 @@ class RequisitionsServiceTest {
           liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
         state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+        measurementSpec =
+          measurementSpec { nonceHashes += this@internalRequisition.details.nonceHash }
+            .toByteString()
       }
     }
 

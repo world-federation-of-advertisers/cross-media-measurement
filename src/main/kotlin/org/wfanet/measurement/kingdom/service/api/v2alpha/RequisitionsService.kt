@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
@@ -50,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -68,6 +70,7 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
@@ -221,12 +224,31 @@ class RequisitionsService(
       }
     }
 
+    val externalRequisitionId = apiIdToExternalId(key.requisitionId)
+    val externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+    val internalRequisition =
+      internalRequisitionStub.getRequisitionByDataProviderId(
+        getRequisitionByDataProviderIdRequest {
+          this.externalRequisitionId = externalRequisitionId
+          this.externalDataProviderId = externalDataProviderId
+        }
+      )
+
+    val nonceHash = hashSha256(request.nonce)
+    val measurementSpec =
+      MeasurementSpec.parseFrom(internalRequisition.parentMeasurement.measurementSpec)
+    if (internalRequisition.details.nonceHash != nonceHash ||
+        !measurementSpec.nonceHashesList.contains(nonceHash)
+    ) {
+      failGrpc(Status.FAILED_PRECONDITION) { "Nonce is invalid" }
+    }
+
     internalRequisitionStub.fulfillRequisition(
       fulfillRequisitionRequest {
-        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        this.externalRequisitionId = externalRequisitionId
         nonce = request.nonce
         directParams = directRequisitionParams {
-          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+          this.externalDataProviderId = externalDataProviderId
           encryptedData = request.encryptedData
         }
       }
