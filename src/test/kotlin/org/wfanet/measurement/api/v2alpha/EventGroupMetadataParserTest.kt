@@ -28,8 +28,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage2
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage2
-import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
-import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
 
 private const val API_VERSION = "v2alpha"
 val TEST_MESSAGE = testMetadataMessage2 {
@@ -50,23 +48,19 @@ val TEST_MESSAGE_2 = testMetadataMessage2 {
   }
 }
 
+const val NAME = "dataProviders/123/eventGroupMetadataDescriptors/abc"
+
 @RunWith(JUnit4::class)
 class EventGroupMetadataParserTest {
   @Test
   fun `parser converting eventGroupMetadataDescriptor returns expected DynamicMessage`() {
     val eventGroupMetadataDescriptor1 = eventGroupMetadataDescriptor {
-      externalDataProviderId = 1L
-      externalEventGroupMetadataDescriptorId = 2L
-      details = details {
-        apiVersion = API_VERSION
-        descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
-      }
+      name = NAME
+      descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
     }
     val eventGroupMetadataDescriptor2 = eventGroupMetadataDescriptor {
-      details = details {
-        apiVersion = API_VERSION
-        descriptorSet = TEST_MESSAGE_2.getDescriptorForType().getFileDescriptorSet()
-      }
+      name = NAME
+      descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
     }
     val parser =
       EventGroupMetadataParser(listOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2))
