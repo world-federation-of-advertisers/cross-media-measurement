@@ -69,24 +69,6 @@ class KingdomInternalExceptionTest {
   }
 
   @Test
-  fun `customized StatusRunTimeException works`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        throwStatusRuntimeException(
-          Status.FAILED_PRECONDITION,
-          ErrorCode.ACCOUNT_NOT_FOUND,
-          mapOf("external_account_id" to EXTERNAL_ACCOUNT_ID.toString()),
-        ) { "Account with ID $EXTERNAL_ACCOUNT_ID not found" }
-      }
-    verifyErrorInfo(
-      exception,
-      "ACCOUNT_NOT_FOUND",
-      mapOf("external_account_id" to EXTERNAL_ACCOUNT_ID.toString()),
-      "FAILED_PRECONDITION: Account with ID $EXTERNAL_ACCOUNT_ID not found"
-    )
-  }
-
-  @Test
   fun `MeasurementConsumerNotFound works  as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -211,9 +193,9 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          MeasurementStateIllegal(Measurement.State.PENDING_REQUISITION_PARAMS.toString())
+          MeasurementStateIllegal(Measurement.State.PENDING_REQUISITION_PARAMS)
         assertThat(internalException.state)
-          .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS.toString())
+          .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Measurement is in wrong state of ${internalException.state}"
         }
@@ -221,7 +203,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "MEASUREMENT_STATE_ILLEGAL",
-      mapOf("state" to Measurement.State.PENDING_REQUISITION_PARAMS.toString()),
+      mapOf("measurement_state" to Measurement.State.PENDING_REQUISITION_PARAMS.toString()),
       "FAILED_PRECONDITION: Measurement is in wrong state of ${Measurement.State.PENDING_REQUISITION_PARAMS}"
     )
   }
@@ -325,8 +307,8 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          CertificateRevocationStateIllegal(Certificate.RevocationState.HOLD.toString())
-        assertThat(internalException.state).isEqualTo(Certificate.RevocationState.HOLD.toString())
+          CertificateRevocationStateIllegal(Certificate.RevocationState.HOLD)
+        assertThat(internalException.state).isEqualTo(Certificate.RevocationState.HOLD)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Certificate revocation is in wrong state of ${internalException.state}"
         }
@@ -334,7 +316,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "CERTIFICATE_REVOCATION_STATE_ILLEGAL",
-      mapOf("state" to Certificate.RevocationState.HOLD.toString()),
+      mapOf("certificate_revocation_state" to Certificate.RevocationState.HOLD.toString()),
       "FAILED_PRECONDITION: Certificate revocation is in wrong state of ${Certificate.RevocationState.HOLD}"
     )
   }
@@ -361,9 +343,9 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          ComputationParticipantStateIllegal(ComputationParticipant.State.FAILED.toString())
+          ComputationParticipantStateIllegal(ComputationParticipant.State.FAILED)
         assertThat(internalException.state)
-          .isEqualTo(ComputationParticipant.State.FAILED.toString())
+          .isEqualTo(ComputationParticipant.State.FAILED)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "ComputationParticipant is in wrong state of ${internalException.state}"
         }
@@ -371,7 +353,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "COMPUTATION_PARTICIPANT_STATE_ILLEGAL",
-      mapOf("state" to ComputationParticipant.State.FAILED.toString()),
+      mapOf("computation_participant_state" to ComputationParticipant.State.FAILED.toString()),
       "FAILED_PRECONDITION: ComputationParticipant is in wrong state of ${ComputationParticipant.State.FAILED}"
     )
   }
@@ -487,8 +469,8 @@ class KingdomInternalExceptionTest {
   fun `RequisitionStateIllegal works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = RequisitionStateIllegal(Requisition.State.PENDING_PARAMS.toString())
-        assertThat(internalException.state).isEqualTo(Requisition.State.PENDING_PARAMS.toString())
+        val internalException = RequisitionStateIllegal(Requisition.State.PENDING_PARAMS)
+        assertThat(internalException.state).isEqualTo(Requisition.State.PENDING_PARAMS)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Requisition is in wrong state of ${internalException.state}"
         }
@@ -496,7 +478,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "REQUISITION_STATE_ILLEGAL",
-      mapOf("state" to Requisition.State.PENDING_PARAMS.toString()),
+      mapOf("requisition_state" to Requisition.State.PENDING_PARAMS.toString()),
       "FAILED_PRECONDITION: Requisition is in wrong state of ${Requisition.State.PENDING_PARAMS}"
     )
   }
@@ -548,9 +530,9 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          AccountActivationStateIllegal(Account.ActivationState.UNRECOGNIZED.toString())
+          AccountActivationStateIllegal(Account.ActivationState.UNRECOGNIZED)
         assertThat(internalException.state)
-          .isEqualTo(Account.ActivationState.UNRECOGNIZED.toString())
+          .isEqualTo(Account.ActivationState.UNRECOGNIZED)
         internalException.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
           "Account Activation is in wrong state of ${Account.ActivationState.UNRECOGNIZED}"
         }
@@ -558,7 +540,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "ACCOUNT_ACTIVATION_STATE_ILLEGAL",
-      mapOf("state" to Account.ActivationState.UNRECOGNIZED.toString()),
+      mapOf("account_activation_state" to Account.ActivationState.UNRECOGNIZED.toString()),
       "PERMISSION_DENIED: Account Activation is in wrong state of ${Account.ActivationState.UNRECOGNIZED}"
     )
   }

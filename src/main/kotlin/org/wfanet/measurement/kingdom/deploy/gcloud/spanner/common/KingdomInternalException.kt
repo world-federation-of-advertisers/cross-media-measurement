@@ -20,7 +20,12 @@ import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
+import org.wfanet.measurement.internal.kingdom.Account
+import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ErrorCode
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.Requisition
 
 sealed class KingdomInternalException : Exception {
   val code: ErrorCode
@@ -40,7 +45,7 @@ sealed class KingdomInternalException : Exception {
   ): Nothing = throwStatusRuntimeException(status, code, context, provideDescription)
 }
 
-fun throwStatusRuntimeException(
+private fun throwStatusRuntimeException(
   status: Status = Status.INVALID_ARGUMENT,
   code: ErrorCode,
   context: Map<String, String>,
@@ -117,10 +122,10 @@ class MeasurementNotFoundByMeasurementConsumer(
 }
 
 class MeasurementStateIllegal(
-  val state: String,
+  val state: Measurement.State,
   provideDescription: () -> String = { "Measurement state illegal" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL, provideDescription) {
-  override var context: Map<String, String> = mapOf("state" to state)
+  override var context: Map<String, String> = mapOf("measurement_state" to state.toString())
 }
 
 class CertSubjectKeyIdAlreadyExists(
@@ -170,10 +175,10 @@ class DuchyCertificateNotFound(
 }
 
 class CertificateRevocationStateIllegal(
-  val state: String,
+  val state: Certificate.RevocationState,
   provideDescription: () -> String = { "Certificate revocation state illegal" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL, provideDescription) {
-  override var context: Map<String, String> = mapOf("state" to state)
+  override var context: Map<String, String> = mapOf("certificate_revocation_state" to state.toString())
 }
 
 class CertificateIsInvalid(provideDescription: () -> String = { "Certificate is invalid" }) :
@@ -182,10 +187,10 @@ class CertificateIsInvalid(provideDescription: () -> String = { "Certificate is 
 }
 
 class ComputationParticipantStateIllegal(
-  val state: String,
+  val state: ComputationParticipant.State,
   provideDescription: () -> String = { "ComputationParticipant state illegal" }
 ) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL, provideDescription) {
-  override var context: Map<String, String> = mapOf("state" to state)
+  override var context: Map<String, String> = mapOf("computation_participant_state" to state.toString())
 }
 
 class ComputationParticipantNotFoundByComputation(
@@ -247,10 +252,10 @@ class RequisitionNotFoundByDataProvider(
 }
 
 class RequisitionStateIllegal(
-  val state: String,
+  val state: Requisition.State,
   provideDescription: () -> String = { "ComputationParticipant state illegal" }
 ) : KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL, provideDescription) {
-  override var context: Map<String, String> = mapOf("state" to state)
+  override var context: Map<String, String> = mapOf("requisition_state" to state.toString())
 }
 
 class AccountNotFound(
@@ -276,10 +281,10 @@ class DuplicateAccountIdentity(
 }
 
 class AccountActivationStateIllegal(
-  val state: String,
+  val state: Account.ActivationState,
   provideDescription: () -> String = { "Account activation state illegal" }
 ) : KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL, provideDescription) {
-  override var context: Map<String, String> = mapOf("state" to state)
+  override var context: Map<String, String> = mapOf("account_activation_state" to state.toString())
 }
 
 class PermissionDenied(provideDescription: () -> String = { "Permission Denied" }) :
