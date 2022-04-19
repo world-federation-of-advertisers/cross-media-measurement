@@ -28,9 +28,9 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
     for (eventGroupMetadataDescriptor in eventGroupMetadataDescriptors) {
       val fileList: List<FileDescriptorProto> = eventGroupMetadataDescriptor.descriptorSet.fileList
       val fileDescriptorProtoMap = fileList.associateBy { it.name }
-      val fileDescriptorMap: MutableMap<String, FileDescriptor> = mutableMapOf()
+      val builtFileDescriptorMap: MutableMap<String, FileDescriptor> = mutableMapOf()
       for (proto in fileList) {
-        buildFileDescriptors(proto, fileDescriptorMap, fileDescriptorProtoMap, registryBuilder)
+        buildFileDescriptors(proto, builtFileDescriptorMap, fileDescriptorProtoMap, registryBuilder)
       }
     }
 
@@ -39,21 +39,21 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
 
   private fun buildFileDescriptors(
     proto: FileDescriptorProto,
-    fileDescriptorMap: MutableMap<String, FileDescriptor>,
+    builtFileDescriptorMap: MutableMap<String, FileDescriptor>,
     fileDescriptorProtoMap: Map<String, FileDescriptorProto>,
     registryBuilder: TypeRegistry.Builder
   ): FileDescriptor {
-    if (proto.name in fileDescriptorMap) return fileDescriptorMap.getValue(proto.name)
+    if (proto.name in builtFileDescriptorMap) return builtFileDescriptorMap.getValue(proto.name)
 
     var dependenciesList: MutableList<FileDescriptor> = mutableListOf()
     for (dependencyName in proto.dependencyList) {
-      if (fileDescriptorMap[dependencyName] != null) {
-        dependenciesList.add(fileDescriptorMap.getValue(dependencyName))
+      if (builtFileDescriptorMap[dependencyName] != null) {
+        dependenciesList.add(builtFileDescriptorMap.getValue(dependencyName))
       } else {
         dependenciesList.add(
           buildFileDescriptors(
             fileDescriptorProtoMap.getValue(dependencyName),
-            fileDescriptorMap,
+            builtFileDescriptorMap,
             fileDescriptorProtoMap,
             registryBuilder
           )
@@ -62,7 +62,7 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
     }
 
     val builtDescriptor = FileDescriptor.buildFrom(proto, dependenciesList.toTypedArray())
-    fileDescriptorMap[proto.name] = builtDescriptor
+    builtFileDescriptorMap[proto.name] = builtDescriptor
     for (descriptor in builtDescriptor.messageTypes) {
       registryBuilder.add(descriptor)
     }
