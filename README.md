@@ -171,6 +171,16 @@ this README alone. More details are covered in:
 *   [A System Design for Privacy-Preserving Reach and Frequency Estimation](https://research.google/pubs/pub49526/)
 *   [Privacy-Preserving Secure Cardinality and Frequency Estimation](https://research.google/pubs/pub49177/)
 
+
+### Differential Privacy
+
+This project makes wide use of the data protection technique known as differential privacy.  So we have also included some useful introductions to said topic.
+
+
+*   [Differential Privacy from the Ground Up](docs/do_intro/differential_privacy_from_the_ground_up.pdf)
+*   [Introduction to Differential Privacy (Slides)](docs/dp_intro/intro_to_differential_privacy_slides.pdf)
+*   [Differential Privacy and Randomized Response](docs/dp_intro/differential_privacy_and_randomized_response.pdf)
+
 ### Technologies
 
 *   [Bazel](https://bazel.build/)
