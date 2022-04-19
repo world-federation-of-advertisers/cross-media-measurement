@@ -68,11 +68,11 @@ fun queryIdOf(id: Int): QueryId = queryId { this.id = id }
 
 /** Constructs a [UnencryptedQuery]. */
 fun unencryptedQueryOf(shardId: ShardId, bucketId: BucketId, queryId: QueryId): UnencryptedQuery =
-    unencryptedQuery {
-  this.shardId = shardId
-  this.bucketId = bucketId
-  this.queryId = queryId
-}
+  unencryptedQuery {
+    this.shardId = shardId
+    this.bucketId = bucketId
+    this.queryId = queryId
+  }
 
 /** Constructs a [DecryptedQueryResult]. */
 fun decryptedQueryResultOf(
@@ -132,26 +132,26 @@ fun joinKeyAndIdOf(key: ByteString, id: ByteString): JoinKeyAndId = joinKeyAndId
 
 /** Constructs a [JoinKeyAndIdCollection]. */
 fun joinKeyAndIdCollectionOf(items: List<JoinKeyAndId>): JoinKeyAndIdCollection =
-    joinKeyAndIdCollection {
-  joinKeyAndIds += items
-}
+  joinKeyAndIdCollection {
+    joinKeyAndIds += items
+  }
 
 /** Constructs a [EncryptedEntry]. */
 fun encryptedEntryOf(data: ByteString): EncryptedEntry = encryptedEntry { this.data = data }
 
 /** Constructs a [DatabaseEntry]. */
 fun databaseEntryOf(lookupKey: LookupKey, encryptedEntry: EncryptedEntry): DatabaseEntry =
-    databaseEntry {
-  this.lookupKey = lookupKey
-  this.encryptedEntry = encryptedEntry
-}
+  databaseEntry {
+    this.lookupKey = lookupKey
+    this.encryptedEntry = encryptedEntry
+  }
 
 /** Constructs a [UnprocessedEvent]. */
 fun unprocessedEventOf(eventId: ByteString, eventData: ByteString): UnprocessedEvent =
-    unprocessedEvent {
-  id = eventId
-  data = eventData
-}
+  unprocessedEvent {
+    id = eventId
+    data = eventData
+  }
 
 /** Constructs a [LookupKey]. */
 fun lookupKeyOf(key: Long): LookupKey = lookupKey { this.key = key }

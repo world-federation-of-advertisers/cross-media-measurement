@@ -29,11 +29,10 @@ fun buildWorkflow(
   return exchangeWorkflow {
     steps += testedStep
 
-    exchangeIdentifiers =
-      exchangeIdentifiers {
-        dataProvider = dataProviderName
-        modelProvider = modelProviderName
-      }
+    exchangeIdentifiers = exchangeIdentifiers {
+      dataProvider = dataProviderName
+      modelProvider = modelProviderName
+    }
   }
 }
 
