@@ -29,6 +29,7 @@ import org.wfanet.estimation.ValueHistogram
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -77,6 +78,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -156,7 +158,22 @@ class FrontendSimulator(
       createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
     logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
 
-    // TODO(@tristanvuong): get result and compare it to the expected result
+    var impressionResults = getImpressionResults(createdImpressionMeasurement.name)
+    while (impressionResults.isEmpty()) {
+      logger.info("Fulfillment not done yet, wait for another 30 seconds.")
+      delay(Duration.ofSeconds(30).toMillis())
+      impressionResults = getImpressionResults(createdImpressionMeasurement.name)
+    }
+
+    impressionResults.forEach {
+      val result = parseAndVerifyResult(it)
+      assertThat(result.impression.value)
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
+    }
+    logger.info("Impression result is equal to the expected result. Correctness Test passes.")
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
@@ -167,7 +184,22 @@ class FrontendSimulator(
       createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
     logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
 
-    // TODO(@tristanvuong): get results and compare it to the expected result
+    var durationResults = getDurationResults(createdDurationMeasurement.name)
+    while (durationResults.isEmpty()) {
+      logger.info("Fulfillment not done yet, wait for another 30 seconds.")
+      delay(Duration.ofSeconds(30).toMillis())
+      durationResults = getDurationResults(createdDurationMeasurement.name)
+    }
+
+    durationResults.forEach {
+      val result = parseAndVerifyResult(it)
+      assertThat(result.watchDuration.value.seconds)
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
+    }
+    logger.info("Duration result is equal to the expected result. Correctness Test passes.")
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
@@ -189,7 +221,10 @@ class FrontendSimulator(
   private suspend fun createMeasurement(
     measurementConsumer: MeasurementConsumer,
     runId: String,
-    newMeasurementSpec: (data: ByteString, nonceHashes: MutableList<ByteString>) -> MeasurementSpec
+    newMeasurementSpec:
+      (
+        serializedMeasurementPublicKey: ByteString,
+        nonceHashes: MutableList<ByteString>) -> MeasurementSpec
   ): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
 
@@ -219,6 +254,34 @@ class FrontendSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
+  private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state == Measurement.State.FAILED) {
+      logger.warning("Failure reason: " + measurement.failure.reason)
+      logger.warning("Failure message: " + measurement.failure.message)
+    }
+    return measurement.resultsList.toList()
+  }
+
+  /** Gets the result of a [Measurement] if it is succeeded. */
+  private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state == Measurement.State.FAILED) {
+      logger.warning("Failure reason: " + measurement.failure.reason)
+      logger.warning("Failure message: " + measurement.failure.message)
+    }
+    return measurement.resultsList.toList()
+  }
+
+  /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getComputedResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
@@ -234,7 +297,11 @@ class FrontendSimulator(
     }
 
     val resultPair = measurement.resultsList[0]
-    val aggregatorCertificate =
+    return parseAndVerifyResult(resultPair)
+  }
+
+  private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
+    val certificate =
       certificateCache.getOrPut(resultPair.certificate) {
         certificatesClient
           .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -246,13 +313,8 @@ class FrontendSimulator(
     @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
     val result = Result.parseFrom(signedResult.data)
 
-    if (!verifyResult(
-        signedResult.signature,
-        result,
-        readCertificate(aggregatorCertificate.x509Der)
-      )
-    ) {
-      error("Aggregator signature of the result is invalid.")
+    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+      error("Signature of the result is invalid.")
     }
     return result
   }
@@ -402,13 +464,7 @@ class FrontendSimulator(
    */
   private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
     val eventGroupTemplateNameMap: Map<String, String> =
-      registeredEventTemplates
-        .map { it to (EventTemplates.getEventTemplateForType(it)!!).name }
-        .toMap()
-
-    if (eventTemplateFilters.isEmpty()) {
-      return ""
-    }
+      registeredEventTemplates.associateWith { (EventTemplates.getEventTemplateForType(it)!!).name }
 
     return eventTemplateFilters
       .map {
