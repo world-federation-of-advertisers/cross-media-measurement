@@ -101,11 +101,8 @@ absl::Status Decompress(const CompressionParameters& compression_parameters,
                    MakeCompressor(compression_parameters));
   for (auto& data_set : *response.mutable_event_data_sets()) {
     for (Plaintext& plaintext : *data_set.mutable_decrypted_event_data()) {
-      absl::StatusOr<std::string> decompressed_payload =
-          compressor->Decompress(plaintext.payload());
-      if (decompressed_payload.ok()) {
-        *plaintext.mutable_payload() = *std::move(decompressed_payload);
-      }
+      ASSIGN_OR_RETURN(*plaintext.mutable_payload(),
+                       compressor->Decompress(plaintext.payload()));
     }
   }
   return absl::OkStatus();
@@ -117,6 +114,20 @@ absl::StatusOr<DecryptQueryResultsResponse> DecryptQueryResults(
   // Step 1: Decrypt the encrypted query response
   ASSIGN_OR_RETURN(ClientDecryptQueriesResponse client_decrypt_queries_response,
                    RemoveRlwe(request));
+
+  // If this is for a padding query, don't attempt to remove AES or decompress.
+  if (request.decrypted_join_key().key().empty()) {
+    DecryptQueryResultsResponse result;
+    for (const ClientDecryptedQueryResult& client_decrypted_query_result :
+         client_decrypt_queries_response.result()) {
+      DecryptedEventDataSet* decrypted_data_set = result.add_event_data_sets();
+      decrypted_data_set->mutable_query_id()->set_id(
+          client_decrypted_query_result.query_metadata().query_id());
+      decrypted_data_set->add_decrypted_event_data()->set_payload(
+          client_decrypted_query_result.result());
+    }
+    return result;
+  }
 
   // Step 2: Decrypt the encrypted event data
   ASSIGN_OR_RETURN(DecryptQueryResultsResponse result,

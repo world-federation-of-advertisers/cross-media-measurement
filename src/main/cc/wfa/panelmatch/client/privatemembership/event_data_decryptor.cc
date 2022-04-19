@@ -49,12 +49,6 @@ absl::StatusOr<DecryptedEventDataSet> DecryptEventData(
   for (const std::string& encrypted_event : request.encrypted_event_data_set()
                                                 .encrypted_event_data()
                                                 .ciphertexts()) {
-    if (key.empty()) {
-      Plaintext* decrypted_event_data = response.add_decrypted_event_data();
-      decrypted_event_data->set_payload(encrypted_event);
-      continue;
-    }
-
     absl::StatusOr<std::string> plaintext = aes_hkdf.Decrypt(
         encrypted_event, key, SecretDataFromStringView(request.hkdf_pepper()));
     if (plaintext.ok()) {
