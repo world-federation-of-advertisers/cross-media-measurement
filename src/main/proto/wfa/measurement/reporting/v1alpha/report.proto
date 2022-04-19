@@ -16,14 +16,15 @@ syntax = "proto3";
 
 package wfa.measurement.reporting.v1alpha;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/reporting/v1alpha/event_group_entry.proto";
-import "wfa/measurement/reporting/v1alpha/report_parameter.proto";
+import "wfa/measurement/reporting/v1alpha/metric.proto";
+import "wfa/measurement/reporting/v1alpha/time_interval.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
 
-// A representation of a book
+// Resource representing a report.
 message Report {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/Report"
@@ -37,9 +38,29 @@ message Report {
     type: "halo.wfanet.org/MeasurementConsumer"
   }];
 
-  repeated EventGroupEntry event_group_entries = 3;
+  message EventGroupFilter {
+    // Key of the map entry, which is an `EventGroup` resource name. Required.
+    string key = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/EventGroup"
+      }
+    ];
 
-  ReportParameter report_parameter = 4;
+    // Filter predicate in CEL.
+    string value = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Map of EventGroup to filter predicate.
+  repeated EventGroupFilter event_group_filters = 3
+      [(google.api.field_behavior) = REQUIRED];
+
+  oneof time {
+    TimeIntervals time_intervals = 4;
+    PeriodicTimeInterval periodic_time_interval = 5;
+  }
+
+  repeated Metric metrics = 6 [(google.api.field_behavior) = REQUIRED];
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -49,9 +70,10 @@ message Report {
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
-  };
+  }
 
-  State state = 5;
+  State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  string result = 6;
+  // Result in CSV format.
+  string result = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
