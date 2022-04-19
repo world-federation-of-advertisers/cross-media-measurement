@@ -48,3 +48,11 @@ command.
 
 Our [`dev`](../../src/main/k8s/dev/) configuration uses a policy to deny ingress
 and egress by default, and then defines specific policies for subsets of pods.
+
+## Encrypting Kubernetes Secrets
+
+K8s secrets can be encrypted at the application layer using a key from Cloud
+KMS. Use the `--database-encryption-key` option if you're creating a cluster
+using the `gcloud` CLI. See
+[Encrypt secrets at the application layer](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets)
+for more information.

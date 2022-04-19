@@ -146,3 +146,35 @@ k8s_apply = rule(
     },
     executable = True,
 )
+
+def _k8s_apply_kustomization_impl(ctx):
+    if len(ctx.files.srcs) != 1:
+        fail("Expecting exactly one kustomization archive in srcs")
+    kustomization_archive = ctx.files.srcs[0]
+    runfiles = [kustomization_archive]
+
+    command = "tar -xf {archive_path} && kubectl apply -k .".format(
+        archive_path = kustomization_archive.short_path,
+    )
+
+    output = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.write(output, command, is_executable = True)
+
+    return [
+        DefaultInfo(
+            executable = output,
+            runfiles = ctx.runfiles(files = runfiles),
+        ),
+    ]
+
+k8s_apply_kustomization = rule(
+    implementation = _k8s_apply_kustomization_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            doc = "A single tar archive containing a kustomization directory",
+            allow_files = [".tar"],
+            allow_empty = False,
+        ),
+    },
+    executable = True,
+)

@@ -419,7 +419,7 @@ acts as one of the 6 different EDPs.
     by the EDP simulators.
 
     ```shell
-    kubectl apply -k src/main/k8s/testing/secretfiles/
+    bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
     ```
 
     Since we are using the same files to create the secret, the name of the k8s
@@ -495,7 +495,7 @@ a measurement. Then, the frontendSimulator will
 2.  Create the k8s secret
 
     ```shell
-    kubectl apply -k src/main/k8s/testing/secretfiles/
+    bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
     ```
 
 3.  Deploy the frontend simulator job ( replace the mc_name and mc_api_key

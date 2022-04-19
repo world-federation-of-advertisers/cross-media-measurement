@@ -16,7 +16,7 @@ environment. See [Building](../../../../docs/building.md).
 ### Create Secret
 
 ```shell
-kubectl apply -k src/main/k8s/testing/secretfiles/
+bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 ```
 
 The secret name will be printed on creation, but it can also be obtained later
