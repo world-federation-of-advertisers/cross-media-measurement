@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.integration.testing
 
 import org.wfanet.panelmatch.client.eventpreprocessing.CombinedEvents
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
+import org.wfanet.panelmatch.client.privatemembership.PADDING_QUERY_JOIN_KEY_IDENTIFIER
 
 data class ParsedPlaintextResults(val joinKey: String, val plaintexts: List<String>)
 
@@ -26,16 +27,20 @@ data class ParsedPlaintextResults(val joinKey: String, val plaintexts: List<Stri
 fun parsePlaintextResults(
   combinedTexts: Iterable<KeyedDecryptedEventDataSet>
 ): List<ParsedPlaintextResults> {
-  return combinedTexts.map {
+  return combinedTexts.map { keyedDecryptedEventDataSet ->
+    val keyAndId = keyedDecryptedEventDataSet.plaintextJoinKeyAndId
+    val joinKey = requireNotNull(keyAndId.joinKey).key.toStringUtf8()
     val payload =
-      it.decryptedEventDataList.flatMap { plaintext ->
-        CombinedEvents.parseFrom(plaintext.payload).serializedEventsList.map { serializedEvent ->
-          serializedEvent.toStringUtf8()
+      if (keyAndId.joinKeyIdentifier.id == PADDING_QUERY_JOIN_KEY_IDENTIFIER.id) {
+        val element = keyedDecryptedEventDataSet.decryptedEventDataList.single().payload
+        listOf("Padding Nonce: ${element.toStringUtf8()}")
+      } else {
+        keyedDecryptedEventDataSet.decryptedEventDataList.flatMap { plaintext ->
+          CombinedEvents.parseFrom(plaintext.payload).serializedEventsList.map { serializedEvent ->
+            serializedEvent.toStringUtf8()
+          }
         }
       }
-    ParsedPlaintextResults(
-      joinKey = requireNotNull(it.plaintextJoinKeyAndId.joinKey).key.toStringUtf8(),
-      plaintexts = payload
-    )
+    ParsedPlaintextResults(joinKey = joinKey, plaintexts = payload)
   }
 }

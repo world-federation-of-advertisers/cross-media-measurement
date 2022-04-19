@@ -60,13 +60,12 @@ private fun makeDatabaseEntry(index: Int): DatabaseEntry {
     hkdfPepper = EDP_HKDF_PEPPER
     identifierHashPepper = EDP_IDENTIFIER_HASH_PEPPER
     compressionParameters = EDP_COMPRESSION_PARAMETERS
-    unprocessedEvents +=
-      unprocessedEvent {
-        id = "join-key-$index".toByteStringUtf8()
-        data =
-          combinedEvents { serializedEvents += "payload-for-join-key-$index".toByteStringUtf8() }
-            .toByteString()
-      }
+    unprocessedEvents += unprocessedEvent {
+      id = "join-key-$index".toByteStringUtf8()
+      data =
+        combinedEvents { serializedEvents += "payload-for-join-key-$index".toByteStringUtf8() }
+          .toByteString()
+    }
   }
   val response = JniEventPreprocessor().preprocess(request)
   val processedEvent = response.processedEventsList.single()
@@ -76,7 +75,7 @@ private fun makeDatabaseEntry(index: Int): DatabaseEntry {
   )
 }
 
-private val EDP_DATABASE_ENTRIES = (0 until 100).map { makeDatabaseEntry(it) }
+private val EDP_DATABASE_ENTRIES = (0 until 10).map { makeDatabaseEntry(it) }
 
 private val EDP_ENCRYPTED_EVENT_DATA_BLOB =
   EDP_DATABASE_ENTRIES.map { it.toDelimitedByteString() }.flatten()
@@ -117,9 +116,11 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
         it.joinKey to it.plaintexts
       }
     assertThat(decryptedEvents)
-      .containsExactly(
+      .containsAtLeast(
         "join-key-1" to listOf("payload-for-join-key-1"),
         "join-key-2" to listOf("payload-for-join-key-2"),
       )
+
+    assertThat(decryptedEvents).hasSize(3) // 1 padding nonce expected
   }
 }

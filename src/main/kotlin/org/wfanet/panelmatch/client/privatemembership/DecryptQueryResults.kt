@@ -33,6 +33,7 @@ import org.wfanet.panelmatch.client.common.joinKeyOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
+import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -158,14 +159,18 @@ private class DecryptQueryResults(
       plaintextJoinKeyAndIds.keyBy("Key PlaintextJoinKeys By JoinKeyIdentifier") {
         it.joinKeyIdentifier
       }
-    return groupedDecryptedResults.strictOneToOneJoin(
+    return groupedDecryptedResults.oneToOneJoin(
         keyedPlaintextJoinKeyAndIds,
         name = "Join Decrypted Result to Plaintext Joinkeys"
       )
       .map("Map to KeyedDecryptedEventDataSet") {
         keyedDecryptedEventDataSet {
-          plaintextJoinKeyAndId = it.value
-          decryptedEventData += it.key
+          plaintextJoinKeyAndId =
+            it.value ?: joinKeyAndId { joinKeyIdentifier = PADDING_QUERY_JOIN_KEY_IDENTIFIER }
+          decryptedEventData +=
+            requireNotNull(it.key) {
+              "Missing result for ${plaintextJoinKeyAndId.joinKeyIdentifier.id}"
+            }
         }
       }
   }

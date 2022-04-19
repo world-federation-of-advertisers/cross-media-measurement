@@ -101,8 +101,11 @@ absl::Status Decompress(const CompressionParameters& compression_parameters,
                    MakeCompressor(compression_parameters));
   for (auto& data_set : *response.mutable_event_data_sets()) {
     for (Plaintext& plaintext : *data_set.mutable_decrypted_event_data()) {
-      ASSIGN_OR_RETURN(*plaintext.mutable_payload(),
-                       compressor->Decompress(plaintext.payload()));
+      absl::StatusOr<std::string> decompressed_payload =
+          compressor->Decompress(plaintext.payload());
+      if (decompressed_payload.ok()) {
+        *plaintext.mutable_payload() = *std::move(decompressed_payload);
+      }
     }
   }
   return absl::OkStatus();

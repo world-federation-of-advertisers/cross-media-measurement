@@ -311,26 +311,25 @@ steps {
 
   generate_serialized_rlwe_key_pair_step {
     parameters: {
-        [type.googleapis.com/private_membership.batch.Parameters]
-        {
-            shard_parameters: {
-                number_of_shards: 1
-                number_of_buckets_per_shard: 11
-                required_queries_per_shard: 1
-                enable_padding_nonces: 1
-            }
-            crypto_parameters: {
-                request_modulus: 18446744073708380161
-                request_modulus: 137438953471
-                response_modulus: 2056193
-                log_degree: 12
-                log_t: 1
-                variance: 8
-                levels_of_recursion: 2
-                log_compression_factor: 4
-                log_decomposition_modulus: 10
-            }
+      [type.googleapis.com/private_membership.batch.Parameters] {
+        shard_parameters: {
+          number_of_shards: 1
+          number_of_buckets_per_shard: 11
+          required_queries_per_shard: 3
+          enable_padding_nonces: 1
         }
+        crypto_parameters: {
+          request_modulus: 18446744073708380161
+          request_modulus: 137438953471
+          response_modulus: 2056193
+          log_degree: 12
+          log_t: 1
+          variance: 8
+          levels_of_recursion: 2
+          log_compression_factor: 4
+          log_decomposition_modulus: 10
+        }
+      }
     }
   }
 
@@ -345,33 +344,32 @@ steps {
 
   build_private_membership_queries_step {
     parameters: {
-        [type.googleapis.com/private_membership.batch.Parameters]
-        {
-            shard_parameters: {
-                number_of_shards: 1
-                number_of_buckets_per_shard: 11
-                required_queries_per_shard: 1
-                enable_padding_nonces: 1
-            }
-            crypto_parameters: {
-                request_modulus: 18446744073708380161
-                request_modulus: 137438953471
-                response_modulus: 2056193
-                log_degree: 12
-                log_t: 1
-                variance: 8
-                levels_of_recursion: 2
-                log_compression_factor: 4
-                log_decomposition_modulus: 10
-            }
+      [type.googleapis.com/private_membership.batch.Parameters] {
+        shard_parameters: {
+          number_of_shards: 1
+          number_of_buckets_per_shard: 11
+          required_queries_per_shard: 3
+          enable_padding_nonces: 1
         }
+        crypto_parameters: {
+          request_modulus: 18446744073708380161
+          request_modulus: 137438953471
+          response_modulus: 2056193
+          log_degree: 12
+          log_t: 1
+          variance: 8
+          levels_of_recursion: 2
+          log_compression_factor: 4
+          log_decomposition_modulus: 10
+        }
+      }
     }
     encrypted_query_bundle_file_count: 1
     query_id_to_ids_file_count: 1
     num_shards: 1
     num_buckets_per_shard: 10
-    num_queries_per_shard: 10
-    add_padding_queries: false
+    num_queries_per_shard: 3
+    add_padding_queries: true
   }
 
   input_labels { key: "lookup-keys" value: "mp-lookup-keys" }
@@ -475,26 +473,25 @@ steps {
 
   execute_private_membership_queries_step {
     parameters: {
-        [type.googleapis.com/private_membership.batch.Parameters]
-        {
-            shard_parameters: {
-                number_of_shards: 1
-                number_of_buckets_per_shard: 11
-                required_queries_per_shard: 1
-                enable_padding_nonces: 1
-            }
-            crypto_parameters: {
-                request_modulus: 18446744073708380161
-                request_modulus: 137438953471
-                response_modulus: 2056193
-                log_degree: 12
-                log_t: 1
-                variance: 8
-                levels_of_recursion: 2
-                log_compression_factor: 4
-                log_decomposition_modulus: 10
-            }
+      [type.googleapis.com/private_membership.batch.Parameters] {
+        shard_parameters: {
+          number_of_shards: 1
+          number_of_buckets_per_shard: 11
+          required_queries_per_shard: 3
+          enable_padding_nonces: 1
         }
+        crypto_parameters: {
+          request_modulus: 18446744073708380161
+          request_modulus: 137438953471
+          response_modulus: 2056193
+          log_degree: 12
+          log_t: 1
+          variance: 8
+          levels_of_recursion: 2
+          log_compression_factor: 4
+          log_decomposition_modulus: 10
+        }
+      }
     }
     encrypted_query_result_file_count: 1
     num_shards: 1
@@ -539,26 +536,25 @@ steps {
 
   decrypt_private_membership_query_results_step {
     parameters: {
-        [type.googleapis.com/private_membership.batch.Parameters]
-        {
-            shard_parameters: {
-                number_of_shards: 1
-                number_of_buckets_per_shard: 11
-                required_queries_per_shard: 1
-                enable_padding_nonces: 1
-            }
-            crypto_parameters: {
-                request_modulus: 18446744073708380161
-                request_modulus: 137438953471
-                response_modulus: 2056193
-                log_degree: 12
-                log_t: 1
-                variance: 8
-                levels_of_recursion: 2
-                log_compression_factor: 4
-                log_decomposition_modulus: 10
-            }
+      [type.googleapis.com/private_membership.batch.Parameters] {
+        shard_parameters: {
+          number_of_shards: 1
+          number_of_buckets_per_shard: 11
+          required_queries_per_shard: 3
+          enable_padding_nonces: 1
         }
+        crypto_parameters: {
+          request_modulus: 18446744073708380161
+          request_modulus: 137438953471
+          response_modulus: 2056193
+          log_degree: 12
+          log_t: 1
+          variance: 8
+          levels_of_recursion: 2
+          log_compression_factor: 4
+          log_decomposition_modulus: 10
+        }
+      }
     }
     decrypt_event_data_set_file_count: 1
   }
