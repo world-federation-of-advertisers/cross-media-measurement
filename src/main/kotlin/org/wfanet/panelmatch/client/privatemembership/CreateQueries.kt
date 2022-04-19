@@ -27,16 +27,21 @@ import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.values.KV
 import org.apache.beam.sdk.values.PCollection
+import org.apache.beam.sdk.values.PCollectionList
 import org.apache.beam.sdk.values.PCollectionTuple
 import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
 import org.wfanet.panelmatch.client.common.bucketIdOf
 import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
 import org.wfanet.panelmatch.client.common.queryIdOf
+import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
+import org.wfanet.panelmatch.common.beam.combineIntoList
 import org.wfanet.panelmatch.common.beam.filter
+import org.wfanet.panelmatch.common.beam.flatten
 import org.wfanet.panelmatch.common.beam.groupByKey
+import org.wfanet.panelmatch.common.beam.keys
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.parDo
@@ -112,10 +117,31 @@ private class CreateQueries(
     if (!parameters.padQueries) return queries
     val totalQueriesPerShard = parameters.maxQueriesPerShard
     val paddingNonceBucket = bucketIdOf(parameters.numBucketsPerShard)
-    return queries.parDo(
-      EqualizeQueriesPerShardFn(totalQueriesPerShard, paddingNonceBucket),
-      name = "Equalize Queries per Shard"
-    )
+    val numShards = parameters.numShards
+
+    val missingShards: PCollection<KV<ShardId, Iterable<@JvmWildcard BucketQuery>>> =
+      queries
+        .keys("Add Missing Shards/Present Shard Ids")
+        .combineIntoList("Add Missing Shards/Combine Into List")
+        .parDo<List<ShardId>, KV<ShardId, Iterable<@JvmWildcard BucketQuery>>>(
+          "Add Missing Shards"
+        ) { shardIds ->
+          val presentShards = shardIds.map { it.id }.toHashSet()
+          for (shardIndex in 0 until numShards) {
+            if (shardIndex !in presentShards) {
+              yield(kvOf(shardIdOf(shardIndex), emptyList()))
+            }
+          }
+        }
+        .setCoder(queries.coder)
+
+    return PCollectionList.of(queries)
+      .and(missingShards)
+      .flatten("Combine Queries and Missing Shards")
+      .parDo(
+        EqualizeQueriesPerShardFn(totalQueriesPerShard, paddingNonceBucket),
+        name = "Equalize Queries per Shard"
+      )
   }
 
   /**

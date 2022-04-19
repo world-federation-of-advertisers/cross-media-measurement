@@ -42,6 +42,7 @@ import org.wfanet.panelmatch.client.privatemembership.QueryIdAndId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.createQueries
 import org.wfanet.panelmatch.client.privatemembership.lookupKeyAndId
+import org.wfanet.panelmatch.common.beam.count
 import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.join
 import org.wfanet.panelmatch.common.beam.keyBy
@@ -53,7 +54,7 @@ import org.wfanet.panelmatch.common.beam.values
 @RunWith(JUnit4::class)
 abstract class AbstractCreateQueriesTest : BeamTestBase() {
   private val lookupKeyAndIds by lazy {
-    getLookupKeyAndIds(
+    createLookupKeysAndIdsOf(
       53L to "abc",
       58L to "def",
       71L to "hij",
@@ -127,8 +128,44 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
       )
     assertThat(decodedQueries.values()).satisfies { shardedQueries ->
       for (i in 0 until numShards) {
-        val resultsPerShard = shardedQueries.filter { it.shardId == shardIdOf(i) }
-        assertThat(resultsPerShard.count()).isEqualTo(totalQueriesPerShard)
+        assertThat(shardedQueries.count { it.shardId.id == i }).isEqualTo(totalQueriesPerShard)
+      }
+      null
+    }
+    assertThat(runPipelineAndGetNumberOfDiscardedQueries()).isEqualTo(0)
+  }
+
+  @Test
+  fun addsPaddingQueriesToMissingShards() {
+    val numShards = 7 // Needs to exceed the number of lookup keys and ids.
+
+    assertThat(lookupKeyAndIds.count()).satisfies {
+      assertThat(it.single()).isLessThan(numShards)
+      null
+    }
+
+    val totalQueriesPerShard = 10
+    val numBucketsPerShard = 5
+    val parameters =
+      CreateQueriesParameters(
+        numShards = numShards,
+        numBucketsPerShard = numBucketsPerShard,
+        maxQueriesPerShard = totalQueriesPerShard,
+        padQueries = true
+      )
+    val (queryIdAndJoinKeys, encryptedQueries) = runWorkflow(privateMembershipCryptor, parameters)
+    val decodedQueries =
+      decodeEncryptedQueryBundle(privateMembershipCryptorHelper, encryptedQueries)
+    assertThat(getPanelistQueries(decodedQueries, queryIdAndJoinKeys)).satisfies { panelistQueries
+      ->
+      val joinKeyIdentifiers = panelistQueries.map { it.value.joinKeyIdentifier.id.toStringUtf8() }
+      assertThat(joinKeyIdentifiers).containsExactly("abc", "def", "hij", "klm", "nop", "qrs")
+      null
+    }
+
+    assertThat(decodedQueries.values()).satisfies { shardedQueries ->
+      for (i in 0 until numShards) {
+        assertThat(shardedQueries.count { it.shardId.id == i }).isEqualTo(totalQueriesPerShard)
       }
       null
     }
@@ -153,8 +190,7 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
       decodeEncryptedQueryBundle(privateMembershipCryptorHelper, encryptedResults)
     assertThat(decodedQueries.values()).satisfies { shardedQueries ->
       for (i in 0 until numShards) {
-        val resultsPerShard = shardedQueries.filter { it.shardId == shardIdOf(i) }
-        assertThat(resultsPerShard.count()).isEqualTo(totalQueriesPerShard)
+        assertThat(shardedQueries.count { it.shardId.id == i }).isEqualTo(totalQueriesPerShard)
       }
       null
     }
@@ -172,7 +208,9 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     return metrics.distributions.map { it.committed.max }.first()
   }
 
-  private fun getLookupKeyAndIds(vararg entries: Pair<Long, String>): PCollection<LookupKeyAndId> {
+  private fun createLookupKeysAndIdsOf(
+    vararg entries: Pair<Long, String>
+  ): PCollection<LookupKeyAndId> {
     return pcollectionOf(
       "Create LookupKeys+Ids",
       entries.map {
