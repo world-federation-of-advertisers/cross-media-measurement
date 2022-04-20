@@ -46,8 +46,13 @@ internal constructor(
     val cryptoKey = input.getValue(INPUT_CRYPTO_KEY_LABEL).toByteString()
     val serializedInputs = input.getValue(inputDataLabel).toByteString()
     val inputList = JoinKeyAndIdCollection.parseFrom(serializedInputs).joinKeyAndIdsList
+
     val joinKeys = inputList.map { it.joinKey.key }
+    require(joinKeys.toSet().size == joinKeys.size) { "JoinKeys are not distinct" }
+
     val joinKeyIds = inputList.map { it.joinKeyIdentifier }
+    require(joinKeyIds.toSet().size == joinKeyIds.size) { "JoinKeyIdentifiers are not distinct" }
+
     val results = operation(cryptoKey, joinKeys)
     val serializedOutput =
       joinKeyAndIdCollection {
