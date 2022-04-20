@@ -76,8 +76,8 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalMeasurementConsumerId)
           .isEqualTo(EXTERNAL_MEASUREMENT_CONSUMER_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "MeasurementConsumer with external ID ${internalException.externalMeasurementConsumerId}" +
-            " not found"
+          "MeasurementConsumer with external ID " +
+            "${internalException.externalMeasurementConsumerId} not found"
         }
       }
     verifyErrorInfo(
@@ -268,7 +268,7 @@ class KingdomInternalExceptionTest {
         "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
       ),
       "FAILED_PRECONDITION: DataProvider's Certificate with ExternalDataProviderId " +
-        "${EXTERNAL_DATA_PROVIDER_ID}, ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
+        "$EXTERNAL_DATA_PROVIDER_ID, ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
     )
   }
 
@@ -297,7 +297,7 @@ class KingdomInternalExceptionTest {
         "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
       ),
       "FAILED_PRECONDITION: DataProvider's Certificate with " +
-        "InternalDataProviderId ${INTERNAL_DATA_PROVIDER_ID}, ExternalCertificateId " +
+        "InternalDataProviderId $INTERNAL_DATA_PROVIDER_ID, ExternalCertificateId " +
         "$EXTERNAL_CERTIFICATE_ID not found"
     )
   }
@@ -383,7 +383,7 @@ class KingdomInternalExceptionTest {
         "internal_duchy_id" to INTERNAL_DUCHY_ID.toString(),
         "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
       ),
-      "FAILED_PRECONDITION: Duchy's Certificate with InternalDuchyId ${INTERNAL_DUCHY_ID}, " +
+      "FAILED_PRECONDITION: Duchy's Certificate with InternalDuchyId $INTERNAL_DUCHY_ID, " +
         "ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
     )
   }
