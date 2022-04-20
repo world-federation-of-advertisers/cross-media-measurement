@@ -1,5 +1,3 @@
-
-
 /**
  * Copyright 2022 The Cross-Media Measurement Authors
  *
@@ -22,10 +20,8 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
-object PbmConstants {
-  const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
-  const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
-}
+private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
+private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
 
 /**
  * Instantiates a privacy budget manager.
@@ -38,8 +34,8 @@ object PbmConstants {
  */
 class PrivacyBudgetManager(
   val backingStore: PrivacyBudgetLedgerBackingStore,
-  val maximumPrivacyBudget: Float = PbmConstants.MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
-  val maximumTotalDelta: Float = PbmConstants.MAXIMUM_DELTA_PER_BUCKET,
+  val maximumPrivacyBudget: Float = MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
+  val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
 ) {
 
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
@@ -56,10 +52,16 @@ class PrivacyBudgetManager(
    * exceptions could include running out of privacy budget or a failure to commit the transaction
    * to the database.
    */
-  fun chargePrivacyBudget(requisitionSpec: RequisitionSpec, measurementSpec: MeasurementSpec) {
-    val affectedPrivacyBuckets = getPrivacyBucketGroups(measurementSpec, requisitionSpec)
-
+  fun chargePrivacyBudget(
+    measurementConsumerId: String,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec
+  ) {
+    val affectedPrivacyBuckets =
+      getPrivacyBucketGroups(measurementConsumerId, measurementSpec, requisitionSpec)
+    // affectedPrivacyBuckets.forEach{println(it)}
     val chargeList = mutableListOf<PrivacyCharge>()
+
     when (measurementSpec.measurementTypeCase) {
       MeasurementTypeCase.REACH_AND_FREQUENCY ->
         chargeList.add(

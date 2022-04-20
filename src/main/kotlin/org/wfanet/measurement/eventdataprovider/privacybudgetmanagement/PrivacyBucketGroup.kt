@@ -67,11 +67,17 @@ data class PrivacyBucketGroup(
       return false
     }
 
-    val vidSampleEnd1 = this.vidSampleStart + this.vidSampleWidth
-    val vidSampleEnd2 = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
+    val thisVidSampleEnd = this.vidSampleStart + this.vidSampleWidth
+    val otherVidSampleEnd = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
 
-    return (this.vidSampleStart <= vidSampleEnd2) &&
-      (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
+    // Vid ranges are non inclusive. vid(0.1, 0.2) does not overlap with vid(0.2, 0.3)
+    if (otherVidSampleEnd <= this.vidSampleStart ||
+        thisVidSampleEnd <= otherBucketGroup.vidSampleStart
+    ) {
+      return false
+    }
+
+    return true
   }
 }
 
