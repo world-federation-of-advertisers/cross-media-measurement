@@ -22,6 +22,9 @@ import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProvider
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegal
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 /**
@@ -40,15 +43,17 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
-      throw KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL) {
+      throw RequisitionStateIllegal(requisition.externalRequisitionId, state) {
         "Expected ${Requisition.State.UNFULFILLED}, got $state"
       }
     }
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
-      throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
-        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
-      }
+      throw MeasurementStateIllegal(
+        requisition.externalMeasurementConsumerId,
+        requisition.externalMeasurementId,
+        measurementState
+      ) { "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState" }
     }
 
     val updatedDetails = requisition.details.copy { refusal = request.refusal }
@@ -91,7 +96,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
           externalDataProviderId = externalDataProviderId,
           externalRequisitionId = externalRequisitionId
         )
-        ?: throw KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND) {
+        ?: throw RequisitionNotFoundByDataProvider(externalDataProviderId, externalRequisitionId) {
           "Requisition with external DataProvider ID $externalDataProviderId and external " +
             "Requisition ID $externalRequisitionId not found"
         }

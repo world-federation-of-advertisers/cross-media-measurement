@@ -18,9 +18,9 @@ import com.google.cloud.spanner.Value
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgs
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
@@ -34,11 +34,17 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           eventGroup.externalDataProviderId,
           eventGroup.externalEventGroupId
         )
-        ?: throw KingdomInternalException(ErrorCode.EVENT_GROUP_NOT_FOUND)
+        ?: throw EventGroupNotFound(
+          eventGroup.externalDataProviderId,
+          eventGroup.externalEventGroupId
+        )
     if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
         eventGroup.externalMeasurementConsumerId
     ) {
-      throw KingdomInternalException(ErrorCode.EVENT_GROUP_INVALID_ARGS)
+      throw EventGroupInvalidArgs(
+        internalEventGroupResult.eventGroup.externalMeasurementConsumerId,
+        eventGroup.externalMeasurementConsumerId
+      )
     }
     val measurementConsumerCertificateId =
       if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
@@ -47,7 +53,7 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
             eventGroup.externalMeasurementConsumerId,
             transactionContext
           )
-          ?.value
+          .value
       else null
     val providedEventGroupId =
       if (eventGroup.providedEventGroupId.isNotBlank()) {

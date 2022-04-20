@@ -20,7 +20,9 @@ import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.internal.kingdom.ErrorCode
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ApiKeyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerApiKeyReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
@@ -60,11 +62,11 @@ class DeleteApiKey(
     MeasurementConsumerReader()
       .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
       ?.measurementConsumerId
-      ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
+      ?: throw MeasurementConsumerNotFound(externalMeasurementConsumerId.value)
 
   private suspend fun TransactionScope.readApiKey(
     externalApiKeyId: ExternalId
   ): MeasurementConsumerApiKeyReader.Result =
     MeasurementConsumerApiKeyReader().readByExternalId(transactionContext, externalApiKeyId)
-      ?: throw KingdomInternalException(ErrorCode.API_KEY_NOT_FOUND)
+      ?: throw ApiKeyNotFound(externalApiKeyId.value)
 }

@@ -30,14 +30,13 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByMeasurement
 
 private val BASE_SQL =
   """
@@ -225,9 +224,11 @@ suspend fun readComputationParticipantState(
       listOf(column)
     )
     ?.getProtoEnum(column, ComputationParticipant.State::forNumber)
-    ?: throw KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND) {
-      "ComputationParticipant not found $duchyId"
-    }
+    ?: throw ComputationParticipantNotFoundByMeasurement(
+      measurementConsumerId.value,
+      measurementConsumerId.value,
+      duchyId.value
+    ) { "ComputationParticipant not found $duchyId" }
 }
 
 suspend fun computationParticipantsInState(

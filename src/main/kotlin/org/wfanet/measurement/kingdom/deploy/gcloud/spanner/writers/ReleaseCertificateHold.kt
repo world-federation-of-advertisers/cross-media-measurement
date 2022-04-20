@@ -26,8 +26,12 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByExternal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternal
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
@@ -45,35 +49,49 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val externalCertificateId = ExternalId(request.externalCertificateId)
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    val reader: BaseSpannerReader<CertificateReader.Result> =
+    val certificateResult =
       when (request.parentCase) {
-        ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-          CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-            .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
-        ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-          CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-            .bindWhereClause(
-              ExternalId(request.externalMeasurementConsumerId),
-              externalCertificateId
+        ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+          val reader =
+            CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+              .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw DataProviderCertificateNotFoundByExternal(
+              request.externalDataProviderId,
+              externalCertificateId.value
             )
+        }
+        ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+          val reader =
+            CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+              .bindWhereClause(
+                ExternalId(request.externalMeasurementConsumerId),
+                externalCertificateId
+              )
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw MeasurementConsumerCertificateNotFoundByExternal(
+              request.externalMeasurementConsumerId,
+              externalCertificateId.value
+            ) { "Certificate not found." }
+        }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) { " Duchy not found." }
+                ?: throw DuchyNotFound(request.externalDuchyId) { " Duchy not found." }
             )
-          CertificateReader(CertificateReader.ParentType.DUCHY)
-            .bindWhereClause(duchyId, externalCertificateId)
+          val reader =
+            CertificateReader(CertificateReader.ParentType.DUCHY)
+              .bindWhereClause(duchyId, externalCertificateId)
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw DuchyCertificateNotFound(
+              request.externalMeasurementConsumerId,
+              externalCertificateId.value
+            ) { "Certificate not found." }
         }
         ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET ->
           throw IllegalStateException("ReleaseCertificateHoldRequest is missing parent field.")
       }
-
-    val certificateResult =
-      reader.execute(transactionContext).singleOrNull()
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND) {
-          "Certificate not found."
-        }
 
     val certificateRevocationState = certificateResult.certificate.revocationState
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -88,9 +106,10 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
         }
       }
       RevocationState.REVOKED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
-        throw KingdomInternalException(ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL) {
-          "Certificate is in $certificateRevocationState state, cannot release hold."
-        }
+        throw CertificateRevocationStateIllegal(
+          externalCertificateId.value,
+          certificateRevocationState
+        ) { "Certificate is in $certificateRevocationState state, cannot release hold." }
       RevocationState.UNRECOGNIZED ->
         throw IllegalStateException("Certificate RevocationState field is unrecognized.")
     }

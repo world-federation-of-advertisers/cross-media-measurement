@@ -18,8 +18,9 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.ErrorCode
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalid
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternal
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
@@ -30,7 +31,7 @@ suspend fun checkValidCertificate(
   measurementConsumerCertificateId: Long,
   measurementConsumerId: Long,
   transactionContext: AsyncDatabaseClient.TransactionContext
-): InternalId? {
+): InternalId {
   val reader =
     CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
       .bindWhereClause(
@@ -40,8 +41,11 @@ suspend fun checkValidCertificate(
 
   return reader.execute(transactionContext).singleOrNull()?.let {
     if (!it.isValid) {
-      throw KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID)
+      throw CertificateIsInvalid()
     } else it.certificateId
   }
-    ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
+    ?: throw MeasurementConsumerCertificateNotFoundByExternal(
+      measurementConsumerId,
+      measurementConsumerCertificateId
+    )
 }

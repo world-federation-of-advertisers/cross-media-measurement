@@ -21,6 +21,9 @@ import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuplicateAccountIdentity
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
@@ -41,13 +44,16 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
 
   override suspend fun TransactionScope.runTransaction(): Account {
     if (isIdentityDuplicate(issuer = issuer, subject = subject)) {
-      throw KingdomInternalException(ErrorCode.DUPLICATE_ACCOUNT_IDENTITY)
+      throw DuplicateAccountIdentity(externalAccountId.value, issuer, subject)
     }
 
     val readAccountResult = readAccount(externalAccountId)
 
     if (readAccountResult.account.activationState == Account.ActivationState.UNACTIVATED) {
-      throw KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
+      throw AccountActivationStateIllegal(
+        externalAccountId.value,
+        readAccountResult.account.activationState
+      )
     }
 
     OpenIdConnectIdentityReader()
@@ -60,7 +66,10 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
           set("Subject" to subject)
         }
       }
-      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL)
+      ?: throw AccountActivationStateIllegal(
+        externalAccountId.value,
+        Account.ActivationState.UNACTIVATED
+      )
 
     val source = this@ReplaceAccountIdentityWithNewOpenIdConnectIdentity
     return readAccountResult.account.copy {
@@ -86,5 +95,5 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
+      ?: throw AccountNotFound(externalAccountId.value)
 }

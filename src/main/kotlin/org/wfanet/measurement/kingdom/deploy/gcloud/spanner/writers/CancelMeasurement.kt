@@ -19,6 +19,8 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumer
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegal
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 /**
@@ -36,7 +38,10 @@ class CancelMeasurement(
     val (measurementConsumerId, measurementId, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalIds(transactionContext, externalMeasurementConsumerId, externalMeasurementId)
-        ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND) {
+        ?: throw MeasurementNotFoundByMeasurementConsumer(
+          externalMeasurementConsumerId.value,
+          externalMeasurementId.value
+        ) {
           "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
             "external Measurement ID $externalMeasurementId not found"
         }
@@ -51,9 +56,11 @@ class CancelMeasurement(
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED -> {
-        throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
-          "Unexpected Measurement state $state (${state.number})"
-        }
+        throw MeasurementStateIllegal(
+          externalMeasurementConsumerId.value,
+          externalMeasurementId.value,
+          state
+        ) { "Unexpected Measurement state $state (${state.number})" }
       }
     }
 

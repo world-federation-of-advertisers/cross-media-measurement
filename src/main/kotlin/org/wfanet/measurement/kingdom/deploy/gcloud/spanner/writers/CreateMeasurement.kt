@@ -33,7 +33,12 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalid
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByInternal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
@@ -148,15 +153,17 @@ class CreateMeasurement(private val measurement: Measurement) :
     externalComputationId: ExternalId?,
     initialMeasurementState: Measurement.State
   ) {
+    val externalMeasurementConsumerId =
+      ExternalId(measurement.externalMeasurementConsumerCertificateId)
     val reader =
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-        .bindWhereClause(
-          measurementConsumerId,
-          ExternalId(measurement.externalMeasurementConsumerCertificateId)
-        )
+        .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
     val measurementConsumerCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
+        ?: throw MeasurementConsumerCertificateNotFoundByExternal(
+          externalMeasurementConsumerId.value,
+          externalMeasurementId.value
+        )
 
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -228,7 +235,10 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     val dataProviderCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
+        ?: throw DataProviderCertificateNotFoundByInternal(
+          dataProviderId.value,
+          dataProviderValue.externalDataProviderCertificateId
+        )
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -303,7 +313,7 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
       column
     )
     ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND) {
+    ?: throw MeasurementConsumerNotFound(externalMeasurementConsumerId.value) {
       "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
     }
 }
@@ -319,7 +329,7 @@ private suspend fun TransactionScope.readDataProviderId(
       column
     )
     ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND) {
+    ?: throw DataProviderNotFound(externalDataProviderId.value) {
       "DataProvider with external ID $externalDataProviderId not found"
     }
 }
@@ -334,7 +344,7 @@ private fun validateCertificate(
   certificateResult: CertificateReader.Result,
 ): InternalId {
   if (!certificateResult.isValid) {
-    throw KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID)
+    throw CertificateIsInvalid()
   }
 
   return certificateResult.certificateId
