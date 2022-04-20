@@ -42,6 +42,7 @@ private val OPERATIVE_PRIVACY_BUDGET_FIELDS =
  * single privacy bucket.
  */
 fun getPrivacyBucketGroups(
+  measurementConsumerId: String,
   measurementSpec: MeasurementSpec,
   requisitionSpec: RequisitionSpec
 ): List<PrivacyBucketGroup> {
@@ -52,11 +53,19 @@ fun getPrivacyBucketGroups(
 
   return requisitionSpec
     .getEventGroupsList()
-    .flatMap { getPrivacyBucketGroups(it.value, vidSamplingIntervalStart, vidSamplingIntervalEnd) }
+    .flatMap {
+      getPrivacyBucketGroups(
+        measurementConsumerId,
+        it.value,
+        vidSamplingIntervalStart,
+        vidSamplingIntervalEnd
+      )
+    }
     .toList()
 }
 
 private fun getPrivacyBucketGroups(
+  measurementConsumerId: String,
   eventGroupEntryValue: EventGroupEntry.Value,
   vidSamplingIntervalStart: Float,
   vidSamplingIntervalEnd: Float
@@ -95,7 +104,7 @@ private fun getPrivacyBucketGroups(
           for (gender in PrivacyLandscape.genders) {
             val privacyBucketGroup =
               PrivacyBucketGroup(
-                "ACME",
+                measurementConsumerId,
                 date,
                 date,
                 ageGroup,

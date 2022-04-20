@@ -73,6 +73,7 @@ data class PrivacyBucketGroup(
     return (this.vidSampleStart <= vidSampleEnd2) &&
       (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
   }
+}
 
 /**
  * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
@@ -100,4 +101,5 @@ fun PrivacyBucketGroup.toEventProto(): TestEvent {
             value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
           }
     }
+  }
 }

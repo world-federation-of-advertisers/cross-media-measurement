@@ -17,6 +17,8 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.toProtoTime
 
+private const val MEASUREMENT_CONSUMER_ID = "ACME"
+
 private val MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency = reachAndFrequency {
     vidSamplingInterval = vidSamplingInterval {
@@ -46,7 +48,7 @@ class PrivacyBucketMapperTest {
     }
 
     assertFailsWith<PrivacyBudgetManagerException> {
-      getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec)
+      getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, MEASUREMENT_SPEC, requisitionSpec)
     }
   }
 
@@ -70,10 +72,10 @@ class PrivacyBucketMapperTest {
       }
     }
 
-    assertThat(getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec))
+    assertThat(getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, MEASUREMENT_SPEC, requisitionSpec))
       .containsExactly(
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now(),
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
@@ -82,7 +84,7 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now().minusDays(1),
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
@@ -91,7 +93,7 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now(),
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
@@ -100,7 +102,7 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now().minusDays(1),
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
@@ -133,10 +135,10 @@ class PrivacyBucketMapperTest {
       }
     }
 
-    assertThat(getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec))
+    assertThat(getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, MEASUREMENT_SPEC, requisitionSpec))
       .containsExactly(
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now(),
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
@@ -145,7 +147,7 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now().minusDays(1),
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
@@ -154,7 +156,7 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now(),
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
@@ -163,7 +165,7 @@ class PrivacyBucketMapperTest {
           0.01f
         ),
         PrivacyBucketGroup(
-          "ACME",
+          MEASUREMENT_CONSUMER_ID,
           LocalDate.now().minusDays(1),
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
@@ -195,7 +197,7 @@ class PrivacyBucketMapperTest {
           }
       }
     }
-    val result = getPrivacyBucketGroups(MEASUREMENT_SPEC, requisitionSpec)
+    val result = getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, MEASUREMENT_SPEC, requisitionSpec)
     assertThat(result).hasSize(24)
   }
 }
