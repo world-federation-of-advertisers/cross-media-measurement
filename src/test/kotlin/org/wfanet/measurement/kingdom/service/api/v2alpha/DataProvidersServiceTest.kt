@@ -30,8 +30,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.createDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -55,7 +53,6 @@ import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as InternalDataProvidersService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersClient
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
-import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
 
@@ -72,10 +69,7 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
   private val internalServiceMock: InternalDataProvidersService =
-    mockService() {
-      onBlocking { createDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-      onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
-    }
+    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER) }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
@@ -84,62 +78,6 @@ class DataProvidersServiceTest {
   @Before
   fun initService() {
     service = DataProvidersService(InternalDataProvidersClient(grpcTestServerRule.channel))
-  }
-
-  @Test
-  fun `create fills created resource names`() {
-    val request = createDataProviderRequest {
-      dataProvider = dataProvider {
-        certificateDer = SERVER_CERTIFICATE_DER
-        publicKey = SIGNED_PUBLIC_KEY
-      }
-    }
-
-    val createdDataProvider = runBlocking { service.createDataProvider(request) }
-
-    val expectedDataProvider =
-      request.dataProvider.copy {
-        name = DATA_PROVIDER_NAME
-        certificate = CERTIFICATE_NAME
-      }
-    assertThat(createdDataProvider).isEqualTo(expectedDataProvider)
-    verifyProtoArgument(internalServiceMock, InternalDataProvidersService::createDataProvider)
-      .isEqualTo(
-        INTERNAL_DATA_PROVIDER.copy {
-          clearExternalDataProviderId()
-          certificate =
-            certificate.copy {
-              clearExternalDataProviderId()
-              clearExternalCertificateId()
-            }
-        }
-      )
-  }
-
-  @Test
-  fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
-    val request = createDataProviderRequest {
-      dataProvider = dataProvider { publicKey = SIGNED_PUBLIC_KEY }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createDataProvider(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  }
-
-  @Test
-  fun `create throws INVALID_ARGUMENT when public key is missing`() {
-    val request = createDataProviderRequest {
-      dataProvider = dataProvider { certificateDer = SERVER_CERTIFICATE_DER }
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        runBlocking { service.createDataProvider(request) }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

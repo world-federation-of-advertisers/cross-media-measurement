@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -34,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.de
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -109,6 +111,44 @@ class EventGroupMetadataDescriptorsService(
       .toEventGroupMetadataDescriptor()
   }
 
+  override suspend fun updateEventGroupMetadataDescriptor(
+    request: UpdateEventGroupMetadataDescriptorRequest
+  ): EventGroupMetadataDescriptor {
+    val eventGroupMetadataDescriptorKey =
+      grpcRequireNotNull(
+        EventGroupMetadataDescriptorKey.fromName(request.eventGroupMetadataDescriptor.name)
+      ) { "EventGroupMetadataDescriptor name is either unspecified or invalid" }
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is DataProviderKey -> {
+        if (resourceKey.dataProviderId != eventGroupMetadataDescriptorKey.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot update EventGroupMetadataDescriptors for another DataProvider"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to update EventGroupMetadataDescriptors"
+        }
+      }
+    }
+
+    return internalEventGroupMetadataDescriptorsStub
+      .updateEventGroupMetadataDescriptor(
+        updateEventGroupMetadataDescriptorRequest {
+          eventGroupMetadataDescriptor =
+            request.eventGroupMetadataDescriptor.toInternal(
+              eventGroupMetadataDescriptorKey.dataProviderId,
+              eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId
+            )
+        }
+      )
+      .toEventGroupMetadataDescriptor()
+  }
+
   /**
    * Converts an internal [InternalEventGroupMetadataDescriptor] to a public
    * [EventGroupMetadataDescriptor].
@@ -131,10 +171,13 @@ class EventGroupMetadataDescriptorsService(
    * [InternalEventGroupMetadataDescriptor].
    */
   private fun EventGroupMetadataDescriptor.toInternal(
-    dataProviderId: String
+    dataProviderId: String,
+    eventGroupMetadataDescriptorId: String = ""
   ): InternalEventGroupMetadataDescriptor {
     return internalEventGroupMetadataDescriptor {
       externalDataProviderId = apiIdToExternalId(dataProviderId)
+      if (eventGroupMetadataDescriptorId != "")
+        externalEventGroupMetadataDescriptorId = apiIdToExternalId(eventGroupMetadataDescriptorId)
 
       details = details {
         apiVersion = API_VERSION.string

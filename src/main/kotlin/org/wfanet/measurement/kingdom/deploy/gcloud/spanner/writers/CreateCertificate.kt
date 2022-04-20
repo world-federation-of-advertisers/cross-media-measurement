@@ -32,7 +32,6 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProviderReader
 
 /**
  * Creates a certificate in the database.
@@ -49,7 +48,6 @@ class CreateCertificate(private val certificate: Certificate) :
       Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
       Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-      Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> "ModelProvider"
       Certificate.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of Certificate is not set")
     }
@@ -96,14 +94,6 @@ class CreateCertificate(private val certificate: Certificate) :
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
         DuchyIds.getInternalId(certificate.externalDuchyId)
           ?: throw KingdomInternalException(InternalErrorCode.DUCHY_NOT_FOUND)
-      Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
-        ModelProviderReader()
-          .readByExternalModelProviderId(
-            transactionContext,
-            ExternalId(certificate.externalModelProviderId)
-          )
-          ?.modelProviderId
-          ?: throw KingdomInternalException(InternalErrorCode.MODEL_PROVIDER_NOT_FOUND)
       Certificate.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of Certificate is not set")
     }

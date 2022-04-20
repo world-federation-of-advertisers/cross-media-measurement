@@ -42,7 +42,37 @@ data class PrivacyBucketGroup(
   val gender: Gender,
   val vidSampleStart: Float,
   val vidSampleWidth: Float
-)
+) {
+  init {
+    if (this.vidSampleStart + this.vidSampleWidth > 1) {
+      throw Exception("start + width cannot be larger than 1")
+    }
+  }
+
+  fun overlapsWith(
+    otherBucketGroup: PrivacyBucketGroup,
+  ): Boolean {
+    if (this.measurementConsumerId != otherBucketGroup.measurementConsumerId) {
+      return false
+    }
+    if (otherBucketGroup.endingDate.isBefore(this.startingDate) ||
+        this.endingDate.isBefore(otherBucketGroup.startingDate)
+    ) {
+      return false
+    }
+    if (this.ageGroup != otherBucketGroup.ageGroup) {
+      return false
+    }
+    if (this.gender != otherBucketGroup.gender) {
+      return false
+    }
+
+    val vidSampleEnd1 = this.vidSampleStart + this.vidSampleWidth
+    val vidSampleEnd2 = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
+
+    return (this.vidSampleStart <= vidSampleEnd2) &&
+      (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
+  }
 
 /**
  * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
@@ -70,5 +100,4 @@ fun PrivacyBucketGroup.toEventProto(): TestEvent {
             value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
           }
     }
-  }
 }

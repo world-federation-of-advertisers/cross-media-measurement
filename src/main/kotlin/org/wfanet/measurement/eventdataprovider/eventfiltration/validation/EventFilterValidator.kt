@@ -40,13 +40,11 @@ private val LEAF_ONLY_OPERATORS =
     "_<=_",
     "@in",
   )
-private val BOOLEAN_OPERATORS =
-  listOf(
-    NOT_OPERATOR,
-    AND_OPERATOR,
-    OR_OPERATOR,
-  )
+private val BOOLEAN_OPERATORS = listOf(NOT_OPERATOR, AND_OPERATOR, OR_OPERATOR)
 private val ALLOWED_OPERATORS = LEAF_ONLY_OPERATORS + BOOLEAN_OPERATORS
+
+private val TRUE_EXPRESSION =
+  Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
 
 /**
  * Validates an Event Filtering CEL expression according to Halo rules.
@@ -164,46 +162,57 @@ object EventFilterValidator {
     }
   }
 
-  fun validateExpression(expr: Expr) {
-    if (!expr.hasCallExpr()) {
+  fun validateExpression(expression: Expr) {
+    if (!expression.hasCallExpr()) {
       failOnSingleToplevelValue()
     }
-    validateExpr(expr)
+    validateExpr(expression)
   }
 
-  private fun toNnf(input: Expr, operativeFields: Set<String>, negate: Boolean = false): Expr {
-    // Leaf Node, should never be achieved if the EventFilter is valid. The leaf nodes are always
+  private fun Expr.toOperativeNegationNormalForm(
+    operativeFields: Set<String>,
+    negate: Boolean = false
+  ): Expr {
+    // Leaf Node, should never be reached if the EventFilter is valid. The leaf nodes are always
     // checked from the parent.
-    if (!input.hasCallExpr()) {
+    if (!hasCallExpr()) {
       failOnSingleToplevelValue()
     }
     // Negation Node. Flip the negate flag and recurse down. If the child is a non operative
     // comparison node, return true.
-    if (input.isNegation()) {
-      val childExpr: Expr = input.getCallExpr().getArgsList().single()
+    if (isNegation()) {
+      val childExpr: Expr = getCallExpr().getArgsList().single()
       if (childExpr.nonOperativeComparisonNode(operativeFields)) {
-        return trueExpression()
+        return TRUE_EXPRESSION
       }
-      return toNnf(childExpr, operativeFields, !negate)
+      return childExpr.toOperativeNegationNormalForm(operativeFields, !negate)
     }
     // OR Node
     // if negating recurse down with AND and distrubute negation to children (De Morgan's laws)
-    // else recurse down with OR.
-    if (input.isDisjuction()) {
-      return input.buildToNnf(if (negate) AND_OPERATOR else OR_OPERATOR, operativeFields, negate)
+    // else recurse down with OR without altering.
+    if (isDisjuction()) {
+      return buildToOperativeNegationNormalForm(
+        if (negate) AND_OPERATOR else OR_OPERATOR,
+        operativeFields,
+        negate
+      )
     }
     // AND Node
     // if negating recurse down with OR and distrubute negation to children (De Morgan's laws)
-    // else recurse down with AND.
-    if (input.isConjuction()) {
-      return input.buildToNnf(if (negate) OR_OPERATOR else AND_OPERATOR, operativeFields, negate)
+    // else recurse down with AND without altering.
+    if (isConjuction()) {
+      return buildToOperativeNegationNormalForm(
+        if (negate) OR_OPERATOR else AND_OPERATOR,
+        operativeFields,
+        negate
+      )
     }
-    // Comparison Node (e.g. x == 47).  If it is for a non operative, return true.
-    if (input.nonOperativeComparisonNode(operativeFields)) {
-      return trueExpression()
+    // Comparison Node (e.g. x == 47).  If it is for a non operative comparison, return true.
+    if (nonOperativeComparisonNode(operativeFields)) {
+      return TRUE_EXPRESSION
     }
     // Operative comparison node, valid statement that should not be altered.
-    return input
+    return this
   }
 
   private fun createEnv(eventMessage: Message): Env {
@@ -247,10 +256,14 @@ object EventFilterValidator {
     return ast
   }
 
-  fun compileToNormalForm(celExpression: String, env: Env, operativeFields: Set<String>): Ast {
+  fun compileToOperativeNegationNormalForm(
+    celExpression: String,
+    env: Env,
+    operativeFields: Set<String>
+  ): Ast {
     val expr = getAst(celExpression, env).expr
     validateExpression(expr)
-    val nnfExpr = toNnf(expr, operativeFields)
+    val nnfExpr = expr.toOperativeNegationNormalForm(operativeFields)
     return parsedExprToAst(ParsedExpr.newBuilder().setExpr(nnfExpr).build())
   }
 
@@ -262,21 +275,23 @@ object EventFilterValidator {
     val env = createEnv(eventMessage)
     val ast =
       if (operativeFields.isEmpty()) compile(celExpression, env)
-      else compileToNormalForm(celExpression, env, operativeFields)
+      else compileToOperativeNegationNormalForm(celExpression, env, operativeFields)
     return env.program(ast)
   }
 
-  private fun Expr.buildToNnf(
+  private fun Expr.buildToOperativeNegationNormalForm(
     func: String,
     operativeFields: Set<String>,
     negate: Boolean = false
   ): Expr {
-    val builder: Builder = this.getBuilderWithFunction(func)
-    this.getCallExpr().getArgsList().forEach {
+    val builder: Builder = toBuilderWithFunction(func)
+    getCallExpr().getArgsList().forEach {
       if (it.nonOperativeComparisonNode(operativeFields)) {
-        builder.getCallExprBuilder().addArgs(trueExpression())
+        builder.getCallExprBuilder().addArgs(TRUE_EXPRESSION)
       } else {
-        builder.getCallExprBuilder().addArgs(toNnf(it, operativeFields, negate))
+        builder
+          .getCallExprBuilder()
+          .addArgs(it.toOperativeNegationNormalForm(operativeFields, negate))
       }
     }
     return builder.build()
@@ -291,9 +306,9 @@ private fun getFieldName(selectExpr: Expr.Select): String {
 }
 
 private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boolean {
-  if (this.hasCallExpr()) {
+  if (hasCallExpr()) {
 
-    if (LEAF_ONLY_OPERATORS.contains(this.callExpr.function)) {
+    if (LEAF_ONLY_OPERATORS.contains(callExpr.function)) {
       val selectExpr =
         listOf(callExpr.argsList[0], callExpr.argsList[1])
           .filter { it.hasSelectExpr() }
@@ -312,21 +327,18 @@ private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boole
   return false
 }
 
-private fun Expr.getBuilderWithFunction(func: String): Builder {
-  val builder: Builder = this.toBuilder()
+private fun Expr.toBuilderWithFunction(func: String): Builder {
+  val builder: Builder = toBuilder()
   builder.getCallExprBuilder().clearArgs()
   builder.getCallExprBuilder().setFunction(func)
   return builder
 }
 
-private fun trueExpression() =
-  Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
-
 private fun Expr.functionMatches(funcPattern: String) =
-  this.hasCallExpr() && this.getCallExpr().getFunction().matches(funcPattern.toRegex())
+  hasCallExpr() && getCallExpr().getFunction().matches(funcPattern.toRegex())
 
-private fun Expr.isNegation(): Boolean = this.functionMatches("_*[!]_*")
+private fun Expr.isNegation(): Boolean = functionMatches("_*[!]_*")
 
-private fun Expr.isConjuction(): Boolean = this.functionMatches("_*[&][&]_*")
+private fun Expr.isConjuction(): Boolean = functionMatches("_*[&][&]_*")
 
-private fun Expr.isDisjuction(): Boolean = this.functionMatches("_*[|][|]_*")
+private fun Expr.isDisjuction(): Boolean = functionMatches("_*[|][|]_*")

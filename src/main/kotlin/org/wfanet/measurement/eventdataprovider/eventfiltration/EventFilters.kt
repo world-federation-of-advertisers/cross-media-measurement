@@ -26,15 +26,18 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 object EventFilters {
   /**
    * Compiles a [Program] that should be fed into [matches] function to indicate if an [Event]
-   * should be filtered or not, based on the filtering CEL expression.
+   * should be filtered or not, based on the filtering [celExpr].
    *
-   * @param defaultEventMessage is a protobuf Message default instance for a message that contains
-   * each type of event template as fields. See `event_annotations.proto`.
+   * @param celExpr string descrbing the event filter in common expression language format.
    *
-   * @param operativeFields are fields in this cel expression that will be kept after the
-   * normalization operation. If provided, the expression is normalized by bubbling down all the
-   * negation operations to the leafs and deleting all the leaf nodes that contain any field other
-   * than the operative fields.
+   * @param defaultEventMessage default instance for a [Message] that contains each type of event
+   * template as fields. See `event_annotations.proto`.
+   *
+   * @param operativeFields fields in [celExpr] that will be not be altered after the normalization
+   * operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
+   * down all the negation operations to the leafs by applying De Morgan's laws recursively and by
+   * setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
+   * operative fields to true.
    *
    * Throws a [EventFilterValidationException].
    */
@@ -52,7 +55,7 @@ object EventFilters {
   /**
    * Validates an Event Filtering CEL expression according to Halo rules.
    *
-   * Throws a [EventFilterValidationException] on [compile] with the following codes:
+   * @throws [EventFilterValidationException] if [celExpr] is not valid. with the following codes:
    * * [EventFilterValidationException.Code.INVALID_CEL_EXPRESSION]
    * * [EventFilterValidationException.Code.INVALID_VALUE_TYPE]
    * * [EventFilterValidationException.Code.UNSUPPORTED_OPERATION]

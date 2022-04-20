@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package src.main.kotlin.org.wfanet.measurement.integration.deploy.postgres
 
-package wfa.measurement.internal.kingdom;
+import java.io.File
+import java.nio.file.Paths
+import org.wfanet.measurement.common.getRuntimePath
 
-import "wfa/measurement/internal/kingdom/certificate.proto";
+private val SCHEMA_DIR =
+  Paths.get(
+    "wfa_measurement_system",
+    "src",
+    "main",
+    "kotlin",
+    "org",
+    "wfanet",
+    "measurement",
+    "integration",
+    "deploy",
+    "postgres",
+  )
 
-option java_package = "org.wfanet.measurement.internal.kingdom";
-option java_multiple_files = true;
-
-// Represents an entity that builds and contributes VID models to the system.
-message ModelProvider {
-  fixed64 external_model_provider_id = 1;
-}
+val POSTGRES_LEDGER_SCHEMA_FILE: File =
+  checkNotNull(getRuntimePath(SCHEMA_DIR.resolve("ledger.sql"))).toFile()
