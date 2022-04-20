@@ -202,23 +202,55 @@ class PostgresBackingStoreTransactionContext(
   }
 
   override fun mergePreviousTransaction(previousTransactionId: Long) {
+    require(previousTransactionId != 0L) { "Special transaction ID of zero cannot be merged" }
     throwIfTransactionHasEnded(emptyList())
-    val updateTransactionSql =
+    val mergeTransactionSql =
       """
-        UPDATE LedgerEntries
-        SET
-          TransactionId = 0
+        WITH
+        transactionEntries AS (
+          SELECT *
+          FROM LedgerEntries
+          WHERE
+            TransactionId = ?
+        ),
+        entriesMergedIntoRepetitionCount AS (
+          UPDATE LedgerEntries
+          SET
+            RepetitionCount =
+              LedgerEntries.RepetitionCount + transactionEntries.RepetitionCount
+          FROM transactionEntries
+          WHERE
+            LedgerEntries.TransactionId = 0
+            AND LedgerEntries.MeasurementConsumerID = transactionEntries.MeasurementConsumerID
+            AND LedgerEntries.Date = transactionEntries.Date
+            AND LedgerEntries.AgeGroup = transactionEntries.AgeGroup
+            AND LedgerEntries.Gender = transactionEntries.Gender
+            AND LedgerEntries.VidStart = transactionEntries.VidStart
+            AND LedgerEntries.Delta = transactionEntries.Delta
+            AND LedgerEntries.Epsilon = transactionEntries.Epsilon
+          RETURNING transactionEntries.LedgerEntryId
+        )
+        DELETE
+        FROM LedgerEntries
+        USING entriesMergedIntoRepetitionCount
         WHERE
-          TransactionId = ?
+          LedgerEntries.LedgerEntryId = entriesMergedIntoRepetitionCount.LedgerEntryId;
+
+        UPDATE LedgerEntries
+        SET TransactionId = 0
+        WHERE
+          TransactionId = ?;
       """.trimIndent()
-    connection.prepareStatement(updateTransactionSql).use { statement: PreparedStatement ->
+    connection.prepareStatement(mergeTransactionSql).use { statement: PreparedStatement ->
       statement.setLong(1, previousTransactionId)
+      statement.setLong(2, previousTransactionId)
       statement.executeUpdate()
     }
   }
 
   override fun undoPreviousTransaction(previousTransactionId: Long) {
     throwIfTransactionHasEnded(emptyList())
+    require(previousTransactionId != 0L) { "Special transaction ID of zero cannot be undone" }
     val deleteTransactionSql =
       """
         DELETE FROM LedgerEntries

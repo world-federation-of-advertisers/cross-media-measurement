@@ -28,7 +28,10 @@ data class PrivacyBudgetLedgerEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
   val repetitionCount: Int
-)
+) {
+  fun canBeMergedWith(otherEntry: PrivacyBudgetLedgerEntry): Boolean =
+    privacyCharge == otherEntry.privacyCharge && privacyBucketGroup == otherEntry.privacyBucketGroup
+}
 
 /** Manages the persistence of privacy budget data. */
 interface PrivacyBudgetLedgerBackingStore : Closeable {
@@ -77,7 +80,7 @@ interface PrivacyBudgetLedgerTransactionContext : Closeable {
    *
    * One possible implementation is to represent the permanently merged privacy budget charges using
    * a special transaction ID (for example, 0). When merging a row, if there is an existing row with
-   * the special transaction ID that has the same privacy charge, then the repetition count can be
+   * the special transaction ID that has the same privacy charge, then the repetition count shall be
    * increased and the merged row can be deleted. Otherwise, the transaction ID for the merged row
    * can be set to the special transaction ID.
    */

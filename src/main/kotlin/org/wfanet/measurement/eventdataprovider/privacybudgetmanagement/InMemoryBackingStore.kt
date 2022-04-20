@@ -65,18 +65,29 @@ class InMemoryBackingStoreTransactionContext(
   }
 
   override fun mergePreviousTransaction(previousTransactionId: Long) {
-    for (i in transactionLedger.indices) {
-      if (transactionLedger[i].transactionId == previousTransactionId) {
-        transactionLedger[i] =
-          PrivacyBudgetLedgerEntry(
-            transactionLedger[i].rowId,
-            0L,
-            transactionLedger[i].privacyBucketGroup,
-            transactionLedger[i].privacyCharge,
-            transactionLedger[i].repetitionCount
-          )
+    val ledgerAsIndexedPairs = transactionLedger.mapIndexed { index, entry -> Pair(index, entry) }
+    val transactionEntries =
+      ledgerAsIndexedPairs.filter { it.second.transactionId == previousTransactionId }
+    val mergedEntries = ledgerAsIndexedPairs.filter { it.second.transactionId == 0L }
+    var entriesToRemove = mutableListOf<PrivacyBudgetLedgerEntry>()
+    transactionEntries.forEach { (transactionEntryIndex, transactionEntry) ->
+      var foundMatchingEntry = false
+      for ((mergedEntryIndex, mergedEntry) in mergedEntries) {
+        if (mergedEntry.canBeMergedWith(transactionEntry)) {
+          transactionLedger[mergedEntryIndex] =
+            mergedEntry.copy(
+              repetitionCount = mergedEntry.repetitionCount + transactionEntry.repetitionCount
+            )
+          entriesToRemove.add(transactionEntry)
+          foundMatchingEntry = true
+          break
+        }
+      }
+      if (!foundMatchingEntry) {
+        transactionLedger[transactionEntryIndex] = transactionEntry.copy(transactionId = 0L)
       }
     }
+    transactionLedger.removeAll(entriesToRemove)
   }
 
   override fun undoPreviousTransaction(previousTransactionId: Long) {
