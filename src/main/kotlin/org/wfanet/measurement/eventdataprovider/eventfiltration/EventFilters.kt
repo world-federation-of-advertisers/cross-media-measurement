@@ -39,7 +39,7 @@ object EventFilters {
    * setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
    * operative fields to true.
    *
-   * Throws a [EventFilterValidationException].
+   * @throws [EventFilterValidationException] if [celExpr] is not valid.
    */
   fun compileProgram(
     celExpr: String,
