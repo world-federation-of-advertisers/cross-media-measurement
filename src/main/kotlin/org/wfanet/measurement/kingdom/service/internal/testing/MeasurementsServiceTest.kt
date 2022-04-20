@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -827,20 +828,23 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
-          externalAggregatorDuchyId = aggregatorDuchyId
-          externalAggregatorCertificateId = duchyCertificate.externalCertificateId
-          details = createdMeasurement.details.copy { encryptedResult = request.encryptedResult }
+          results += resultInfo {
+            externalAggregatorDuchyId = aggregatorDuchyId
+            externalCertificateId = duchyCertificate.externalCertificateId
+            encryptedResult = request.encryptedResult
+          }
         }
       )
-    assertThat(response)
-      .isEqualTo(
-        measurementsService.getMeasurement(
-          getMeasurementRequest {
-            externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-            externalMeasurementId = createdMeasurement.externalMeasurementId
-          }
-        )
+
+    val succeededMeasurement =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+          externalMeasurementId = createdMeasurement.externalMeasurementId
+        }
       )
+    assertThat(response).isEqualTo(succeededMeasurement)
+    assertThat(succeededMeasurement.resultsList.size).isEqualTo(1)
   }
 
   @Test

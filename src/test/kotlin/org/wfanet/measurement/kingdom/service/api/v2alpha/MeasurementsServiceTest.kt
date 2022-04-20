@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2.alpha.listMeasurementsPageToken
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequestKt.filter
@@ -50,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -83,6 +85,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
@@ -116,6 +119,8 @@ private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
   apiIdToExternalId(
     MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
   )
+private val ENCRYPTED_DATA = ByteString.copyFromUtf8("data")
+private val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAAHs"
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -244,6 +249,7 @@ class MeasurementsServiceTest {
           clearUpdateTime()
           clearExternalMeasurementId()
           details = details.copy { clearFailure() }
+          results.clear()
         }
       )
 
@@ -301,6 +307,7 @@ class MeasurementsServiceTest {
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
             }
+          results.clear()
         }
       )
 
@@ -358,6 +365,7 @@ class MeasurementsServiceTest {
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
             }
+          results.clear()
         }
       )
 
@@ -1318,6 +1326,14 @@ class MeasurementsServiceTest {
         reason = Failure.Reason.CERTIFICATE_REVOKED
         message = "Measurement Consumer Certificate has been revoked"
       }
+      results += resultPair {
+        certificate = DATA_PROVIDERS_CERTIFICATE_NAME
+        encryptedResult = ENCRYPTED_DATA
+      }
+      results += resultPair {
+        certificate = DUCHY_CERTIFICATE_NAME
+        encryptedResult = ENCRYPTED_DATA
+      }
     }
 
     private val INTERNAL_MEASUREMENT = internalMeasurement {
@@ -1361,6 +1377,23 @@ class MeasurementsServiceTest {
               message = MEASUREMENT.failure.message
             }
         }
+      results += resultInfo {
+        externalAggregatorDuchyId = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.duchyId
+        externalCertificateId =
+          apiIdToExternalId(DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!.certificateId)
+        encryptedResult = ENCRYPTED_DATA
+      }
+      results += resultInfo {
+        externalDataProviderId =
+          apiIdToExternalId(
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.dataProviderId
+          )
+        externalCertificateId =
+          apiIdToExternalId(
+            DataProviderCertificateKey.fromName(DATA_PROVIDERS_CERTIFICATE_NAME)!!.certificateId
+          )
+        encryptedResult = ENCRYPTED_DATA
+      }
     }
   }
 }

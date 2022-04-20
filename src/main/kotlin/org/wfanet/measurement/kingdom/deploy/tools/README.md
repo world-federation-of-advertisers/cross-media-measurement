@@ -48,13 +48,13 @@ This assumes that you have built the `CreateResource` target, which outputs to
 `bazel-bin` by default. For brevity, the examples to not include the full path
 to the executable.
 
-*   Creating a `ModelProvider` in the `dev` environment
+*   Creating a `DataProvider` in the `dev` environment
 
     Assuming you have a serialized `EncryptionPublicKey` message containing
-    [`mp1_enc_public.tink`](../../../../../../../k8s/testing/secretfiles/mp1_enc_public.tink)
-    at `/tmp/mp1_enc_public.pb`, and a signature of that using
-    [`mp1_cs_private.der`](../../../../../../../k8s/testing/secretfiles/mp1_cs_private.der)
-    at `/tmp/mp1_enc_public_sig.sha256`.
+    [`edp1_enc_public.tink`](../../../../../../../k8s/testing/secretfiles/edp1_enc_public.tink)
+    at `/tmp/edp1_enc_public.pb`, and a signature of that using
+    [`edp1_cs_private.der`](../../../../../../../k8s/testing/secretfiles/edp1_cs_private.der)
+    at `/tmp/edp1_enc_public_sig.sha256`.
 
     ```shell
     CreateResource \
@@ -62,8 +62,19 @@ to the executable.
       --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
       --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
-      model-provider \
-      --certificate-der-file=src/main/k8s/testing/secretfiles/mp1_cs_cert.der \
-      --encryption-public-key-file=/tmp/mp1_enc_public.pb \
-      --encryption-public-key-signature-file=/tmp/mp1_enc_public_sig.sha256
+      data-provider \
+      --certificate-der-file=src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
+      --encryption-public-key-file=/tmp/edp1_enc_public.pb \
+      --encryption-public-key-signature-file=/tmp/edp1_enc_public_sig.sha256
+    ```
+
+*   Creating a `ModelProvider` in the `dev` environment
+
+    ```shell
+    CreateResource \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+      --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
+      model-provider
     ```

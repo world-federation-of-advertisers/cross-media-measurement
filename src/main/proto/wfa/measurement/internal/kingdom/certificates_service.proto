@@ -41,9 +41,8 @@ message GetCertificateRequest {
     fixed64 external_data_provider_id = 1;
     fixed64 external_measurement_consumer_id = 2;
     string external_duchy_id = 3;
-    fixed64 external_model_provider_id = 4;
   }
-  fixed64 external_certificate_id = 5;
+  fixed64 external_certificate_id = 4;
 }
 
 message RevokeCertificateRequest {
@@ -51,11 +50,10 @@ message RevokeCertificateRequest {
     fixed64 external_data_provider_id = 1;
     fixed64 external_measurement_consumer_id = 2;
     string external_duchy_id = 3;
-    fixed64 external_model_provider_id = 4;
   }
-  fixed64 external_certificate_id = 5;
+  fixed64 external_certificate_id = 4;
 
-  Certificate.RevocationState revocation_state = 6;
+  Certificate.RevocationState revocation_state = 5;
 }
 
 message ReleaseCertificateHoldRequest {
@@ -63,7 +61,6 @@ message ReleaseCertificateHoldRequest {
     fixed64 external_data_provider_id = 1;
     fixed64 external_measurement_consumer_id = 2;
     string external_duchy_id = 3;
-    fixed64 external_model_provider_id = 4;
   }
-  fixed64 external_certificate_id = 5;
+  fixed64 external_certificate_id = 4;
 }
