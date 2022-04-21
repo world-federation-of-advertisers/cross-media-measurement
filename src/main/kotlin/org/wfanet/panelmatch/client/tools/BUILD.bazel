@@ -70,6 +70,30 @@ java_binary(
 )
 
 kt_jvm_library(
+    name = "parse_decrypted_event_data",
+    srcs = ["ParseDecryptedEventData.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/common",
+        "//src/main/proto/wfa/panelmatch/client/eventpreprocessing:combined_events_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/exchangetasks:join_key_exchange_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/privatemembership:decrypt_event_data_kt_jvm_proto",
+        "//src/main/proto/wfa/panelmatch/client/tools:data_provider_event_set_kt_jvm_proto",
+        "//src/main/proto/wfa/virtual_people/common:event_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+java_binary(
+    name = "ParseDecryptedEventData",
+    main_class = "org.wfanet.panelmatch.client.tools.ParseDecryptedEventDataKt",
+    tags = ["manual"],
+    runtime_deps = [
+        ":parse_decrypted_event_data",
+    ],
+)
+
+kt_jvm_library(
     name = "generate_synthetic_data",
     srcs = [
         "GenerateSyntheticData.kt",
