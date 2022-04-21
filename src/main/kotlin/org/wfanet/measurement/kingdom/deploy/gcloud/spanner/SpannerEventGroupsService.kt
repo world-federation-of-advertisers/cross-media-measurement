@@ -75,14 +75,11 @@ class SpannerEventGroupsService(
   }
 
   override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
+    grpcRequire(request.eventGroup.externalDataProviderId > 0L) {
+      "ExternalDataProviderId unspecified"
+    }
+    grpcRequire(request.eventGroup.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
     try {
-      grpcRequire(request.eventGroup.externalDataProviderId > 0L) {
-        "ExternalDataProviderId unspecified"
-      }
-      grpcRequire(request.eventGroup.externalEventGroupId > 0L) {
-        "ExternalEventGroupId unspecified"
-      }
-
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
