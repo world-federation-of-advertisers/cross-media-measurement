@@ -21,9 +21,9 @@ import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFound
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuplicateAccountIdentity
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuplicateAccountIdentityException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
@@ -44,14 +44,14 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
 
   override suspend fun TransactionScope.runTransaction(): Account {
     if (isIdentityDuplicate(issuer = issuer, subject = subject)) {
-      throw DuplicateAccountIdentity(externalAccountId.value, issuer, subject)
+      throw DuplicateAccountIdentityException(externalAccountId, issuer, subject)
     }
 
     val readAccountResult = readAccount(externalAccountId)
 
     if (readAccountResult.account.activationState == Account.ActivationState.UNACTIVATED) {
-      throw AccountActivationStateIllegal(
-        externalAccountId.value,
+      throw AccountActivationStateIllegalException(
+        externalAccountId,
         readAccountResult.account.activationState
       )
     }
@@ -66,8 +66,8 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
           set("Subject" to subject)
         }
       }
-      ?: throw AccountActivationStateIllegal(
-        externalAccountId.value,
+      ?: throw AccountActivationStateIllegalException(
+        externalAccountId,
         Account.ActivationState.UNACTIVATED
       )
 
@@ -95,5 +95,5 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw AccountNotFound(externalAccountId.value)
+      ?: throw AccountNotFoundException(externalAccountId)
 }

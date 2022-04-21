@@ -18,9 +18,9 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalid
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
@@ -41,11 +41,11 @@ suspend fun checkValidCertificate(
 
   return reader.execute(transactionContext).singleOrNull()?.let {
     if (!it.isValid) {
-      throw CertificateIsInvalid()
+      throw CertificateIsInvalidException()
     } else it.certificateId
   }
-    ?: throw MeasurementConsumerCertificateNotFoundByExternal(
-      measurementConsumerId,
-      measurementConsumerCertificateId
+    ?: throw MeasurementConsumerCertificateNotFoundByExternalException(
+      ExternalId(measurementConsumerId),
+      ExternalId(measurementConsumerCertificateId)
     )
 }

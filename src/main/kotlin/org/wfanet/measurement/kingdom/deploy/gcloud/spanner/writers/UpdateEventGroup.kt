@@ -15,12 +15,13 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgs
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
@@ -34,16 +35,16 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           eventGroup.externalDataProviderId,
           eventGroup.externalEventGroupId
         )
-        ?: throw EventGroupNotFound(
-          eventGroup.externalDataProviderId,
-          eventGroup.externalEventGroupId
+        ?: throw EventGroupNotFoundException(
+          ExternalId(eventGroup.externalDataProviderId),
+          ExternalId(eventGroup.externalEventGroupId)
         )
     if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
         eventGroup.externalMeasurementConsumerId
     ) {
-      throw EventGroupInvalidArgs(
-        internalEventGroupResult.eventGroup.externalMeasurementConsumerId,
-        eventGroup.externalMeasurementConsumerId
+      throw EventGroupInvalidArgsException(
+        ExternalId(internalEventGroupResult.eventGroup.externalMeasurementConsumerId),
+        ExternalId(eventGroup.externalMeasurementConsumerId)
       )
     }
     val measurementConsumerCertificateId =

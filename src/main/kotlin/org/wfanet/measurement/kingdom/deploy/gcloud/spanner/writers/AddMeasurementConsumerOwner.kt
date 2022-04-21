@@ -21,9 +21,9 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
@@ -53,12 +53,12 @@ class AddMeasurementConsumerOwner(
 
   private suspend fun TransactionScope.readAccountId(externalAccountId: ExternalId): InternalId =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
-      ?: throw AccountNotFound(externalAccountId.value)
+      ?: throw AccountNotFoundException(externalAccountId)
 
   private suspend fun TransactionScope.readMeasurementConsumerResult(
     externalMeasurementConsumerId: ExternalId
   ): MeasurementConsumerReader.Result =
     MeasurementConsumerReader()
       .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?: throw MeasurementConsumerNotFound(externalMeasurementConsumerId.value)
+      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

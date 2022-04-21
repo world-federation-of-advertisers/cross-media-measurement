@@ -22,6 +22,8 @@ import kotlin.test.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -29,25 +31,25 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 
 private const val ERROR_DOMAIN = "com.google.rpc.ErrorInfo"
-private const val EXTERNAL_ACCOUNT_ID = 100L
-private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 101L
-private const val INTERNAL_MEASUREMENT_CONSUMER_ID = 1010L
-private const val EXTERNAL_MEASUREMENT_ID = 102L
-private const val INTERNAL_MEASUREMENT_ID = 1020L
-private const val EXTERNAL_MEASUREMENT_ID_2 = 1022L
-private const val EXTERNAL_REQUISITION_ID = 103L
-private const val EXTERNAL_DATA_PROVIDER_ID = 104L
-private const val INTERNAL_DATA_PROVIDER_ID = 1040L
-private const val EXTERNAL_MODEL_PROVIDER_ID = 105L
-private const val EXTERNAL_COMPUTATION_ID = 106L
-private const val EXTERNAL_CERTIFICATE_ID = 107L
+private val EXTERNAL_ACCOUNT_ID = ExternalId(100L)
+private val EXTERNAL_MEASUREMENT_CONSUMER_ID = ExternalId(101L)
+private val INTERNAL_MEASUREMENT_CONSUMER_ID = InternalId(1010L)
+private val EXTERNAL_MEASUREMENT_ID = ExternalId(102L)
+private val INTERNAL_MEASUREMENT_ID = InternalId(1020L)
+private val EXTERNAL_MEASUREMENT_ID_2 = ExternalId(1022L)
+private val EXTERNAL_REQUISITION_ID = ExternalId(103L)
+private val EXTERNAL_DATA_PROVIDER_ID = ExternalId(104L)
+private val INTERNAL_DATA_PROVIDER_ID = InternalId(1040L)
+private val EXTERNAL_MODEL_PROVIDER_ID = ExternalId(105L)
+private val EXTERNAL_COMPUTATION_ID = ExternalId(106L)
+private val EXTERNAL_CERTIFICATE_ID = ExternalId(107L)
 private const val EXTERNAL_DUCHY_ID = "worker1"
-private const val INTERNAL_DUCHY_ID = 108L
+private val INTERNAL_DUCHY_ID = InternalId(108L)
 private const val ISSUER = "issuer"
 private const val SUBJECT = "subject"
-private const val EXTERNAL_API_KEY_ID = 109L
-private const val EXTERNAL_EVENT_GROUP_ID = 110L
-private const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID = 111L
+private val EXTERNAL_API_KEY_ID = ExternalId(109L)
+private val EXTERNAL_EVENT_GROUP_ID = ExternalId(110L)
+private val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID = ExternalId(111L)
 
 @RunWith(JUnit4::class)
 class KingdomInternalExceptionTest {
@@ -72,9 +74,10 @@ class KingdomInternalExceptionTest {
   fun `MeasurementConsumerNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = MeasurementConsumerNotFound(EXTERNAL_MEASUREMENT_CONSUMER_ID)
-        assertThat(internalException.externalMeasurementConsumerId)
-          .isEqualTo(EXTERNAL_MEASUREMENT_CONSUMER_ID)
+        val internalException =
+          MeasurementConsumerNotFoundException(EXTERNAL_MEASUREMENT_CONSUMER_ID)
+        assertThat(internalException.externalMeasurementConsumerId.value)
+          .isEqualTo(EXTERNAL_MEASUREMENT_CONSUMER_ID.value)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "MeasurementConsumer with external ID " +
             "${internalException.externalMeasurementConsumerId} not found"
@@ -93,7 +96,7 @@ class KingdomInternalExceptionTest {
   fun `DataProviderNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = DataProviderNotFound(EXTERNAL_DATA_PROVIDER_ID)
+        val internalException = DataProviderNotFoundException(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "DataProvider with external ID ${internalException.externalDataProviderId} not found"
@@ -111,7 +114,7 @@ class KingdomInternalExceptionTest {
   fun `ModelProviderNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = ModelProviderNotFound(EXTERNAL_MODEL_PROVIDER_ID)
+        val internalException = ModelProviderNotFoundException(EXTERNAL_MODEL_PROVIDER_ID)
         assertThat(internalException.externalModelProviderId).isEqualTo(EXTERNAL_MODEL_PROVIDER_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "ModelProvider with external ID ${internalException.externalModelProviderId} " +
@@ -131,7 +134,7 @@ class KingdomInternalExceptionTest {
   fun `DuchyNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = DuchyNotFound(EXTERNAL_DUCHY_ID)
+        val internalException = DuchyNotFoundException(EXTERNAL_DUCHY_ID)
         assertThat(internalException.externalDuchyId).isEqualTo(EXTERNAL_DUCHY_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Duchy with external ID ${internalException.externalDuchyId} not found"
@@ -149,7 +152,7 @@ class KingdomInternalExceptionTest {
   fun `MeasurementNotFoundByComputation with computationId works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = MeasurementNotFoundByComputation(EXTERNAL_COMPUTATION_ID)
+        val internalException = MeasurementNotFoundByComputationException(EXTERNAL_COMPUTATION_ID)
         assertThat(internalException.externalComputationId).isEqualTo(EXTERNAL_COMPUTATION_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Measurement with external computation ID ${internalException.externalComputationId}" +
@@ -170,7 +173,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          MeasurementNotFoundByMeasurementConsumer(
+          MeasurementNotFoundByMeasurementConsumerException(
             EXTERNAL_MEASUREMENT_CONSUMER_ID,
             EXTERNAL_MEASUREMENT_ID
           )
@@ -200,7 +203,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          MeasurementStateIllegal(
+          MeasurementStateIllegalException(
             EXTERNAL_MEASUREMENT_CONSUMER_ID,
             EXTERNAL_MEASUREMENT_ID,
             Measurement.State.PENDING_REQUISITION_PARAMS
@@ -230,7 +233,7 @@ class KingdomInternalExceptionTest {
   fun `CertSubjectKeyIdAlreadyExists works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = CertSubjectKeyIdAlreadyExists()
+        val internalException = CertSubjectKeyIdAlreadyExistsException()
         internalException.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
           "Certificate with the same subject key identifier (SKID) already exists."
         }
@@ -248,7 +251,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          DataProviderCertificateNotFoundByExternal(
+          DataProviderCertificateNotFoundByExternalException(
             EXTERNAL_DATA_PROVIDER_ID,
             EXTERNAL_CERTIFICATE_ID
           )
@@ -277,7 +280,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          DataProviderCertificateNotFoundByInternal(
+          DataProviderCertificateNotFoundByInternalException(
             INTERNAL_DATA_PROVIDER_ID,
             EXTERNAL_CERTIFICATE_ID
           )
@@ -292,10 +295,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
-      mapOf(
-        "internal_data_provider_id" to INTERNAL_DATA_PROVIDER_ID.toString(),
-        "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
-      ),
+      mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
       "FAILED_PRECONDITION: DataProvider's Certificate with " +
         "InternalDataProviderId $INTERNAL_DATA_PROVIDER_ID, ExternalCertificateId " +
         "$EXTERNAL_CERTIFICATE_ID not found"
@@ -307,7 +307,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          MeasurementConsumerCertificateNotFoundByExternal(
+          MeasurementConsumerCertificateNotFoundByExternalException(
             EXTERNAL_MEASUREMENT_CONSUMER_ID,
             EXTERNAL_CERTIFICATE_ID
           )
@@ -338,7 +338,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          MeasurementConsumerCertificateNotFoundByInternal(
+          MeasurementConsumerCertificateNotFoundByInternalException(
             INTERNAL_MEASUREMENT_CONSUMER_ID,
             EXTERNAL_CERTIFICATE_ID
           )
@@ -354,10 +354,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
-      mapOf(
-        "internal_measurement_consumer_id" to INTERNAL_MEASUREMENT_CONSUMER_ID.toString(),
-        "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
-      ),
+      mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
       "FAILED_PRECONDITION: MeasurementConsumer's Certificate with " +
         "InternalMeasurementConsumerId $INTERNAL_MEASUREMENT_CONSUMER_ID, " +
         "ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
@@ -368,7 +365,8 @@ class KingdomInternalExceptionTest {
   fun `DuchyCertificateNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = DuchyCertificateNotFound(INTERNAL_DUCHY_ID, EXTERNAL_CERTIFICATE_ID)
+        val internalException =
+          DuchyCertificateNotFoundException(INTERNAL_DUCHY_ID, EXTERNAL_CERTIFICATE_ID)
         assertThat(internalException.internalDuchyId).isEqualTo(INTERNAL_DUCHY_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
@@ -379,10 +377,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
-      mapOf(
-        "internal_duchy_id" to INTERNAL_DUCHY_ID.toString(),
-        "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
-      ),
+      mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
       "FAILED_PRECONDITION: Duchy's Certificate with InternalDuchyId $INTERNAL_DUCHY_ID, " +
         "ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
     )
@@ -393,7 +388,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          CertificateRevocationStateIllegal(
+          CertificateRevocationStateIllegalException(
             EXTERNAL_CERTIFICATE_ID,
             Certificate.RevocationState.HOLD
           )
@@ -419,7 +414,7 @@ class KingdomInternalExceptionTest {
   fun `CertificateIsInvalid works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = CertificateIsInvalid()
+        val internalException = CertificateIsInvalidException()
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Certificate is invalid"
         }
@@ -437,7 +432,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          ComputationParticipantStateIllegal(
+          ComputationParticipantStateIllegalException(
             EXTERNAL_COMPUTATION_ID,
             EXTERNAL_DUCHY_ID,
             ComputationParticipant.State.FAILED
@@ -471,7 +466,10 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          ComputationParticipantNotFoundByComputation(EXTERNAL_COMPUTATION_ID, EXTERNAL_DUCHY_ID)
+          ComputationParticipantNotFoundByComputationException(
+            EXTERNAL_COMPUTATION_ID,
+            EXTERNAL_DUCHY_ID
+          )
         assertThat(internalException.externalComputationId).isEqualTo(EXTERNAL_COMPUTATION_ID)
         assertThat(internalException.externalDuchyId).isEqualTo(EXTERNAL_DUCHY_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
@@ -497,7 +495,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          ComputationParticipantNotFoundByMeasurement(
+          ComputationParticipantNotFoundByMeasurementException(
             INTERNAL_MEASUREMENT_CONSUMER_ID,
             INTERNAL_MEASUREMENT_ID,
             INTERNAL_DUCHY_ID
@@ -516,11 +514,7 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "COMPUTATION_PARTICIPANT_NOT_FOUND",
-      mapOf(
-        "internal_measurement_consumer_id" to INTERNAL_MEASUREMENT_CONSUMER_ID.toString(),
-        "internal_measurement_id" to INTERNAL_MEASUREMENT_ID.toString(),
-        "internal_duchy_id" to INTERNAL_DUCHY_ID.toString()
-      ),
+      mapOf(),
       "NOT_FOUND: ComputationParticipant with InternalMeasurementConsumerId " +
         "$INTERNAL_MEASUREMENT_CONSUMER_ID, InternalMeasurementId $INTERNAL_MEASUREMENT_ID, " +
         "InternalDuchyId $INTERNAL_DUCHY_ID not found"
@@ -532,7 +526,10 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          RequisitionNotFoundByComputation(EXTERNAL_COMPUTATION_ID, EXTERNAL_REQUISITION_ID)
+          RequisitionNotFoundByComputationException(
+            EXTERNAL_COMPUTATION_ID,
+            EXTERNAL_REQUISITION_ID
+          )
         assertThat(internalException.externalComputationId).isEqualTo(EXTERNAL_COMPUTATION_ID)
         assertThat(internalException.externalRequisitionId).isEqualTo(EXTERNAL_REQUISITION_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
@@ -557,7 +554,10 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          RequisitionNotFoundByDataProvider(EXTERNAL_DATA_PROVIDER_ID, EXTERNAL_REQUISITION_ID)
+          RequisitionNotFoundByDataProviderException(
+            EXTERNAL_DATA_PROVIDER_ID,
+            EXTERNAL_REQUISITION_ID
+          )
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalRequisitionId).isEqualTo(EXTERNAL_REQUISITION_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
@@ -582,7 +582,10 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          RequisitionStateIllegal(EXTERNAL_REQUISITION_ID, Requisition.State.PENDING_PARAMS)
+          RequisitionStateIllegalException(
+            EXTERNAL_REQUISITION_ID,
+            Requisition.State.PENDING_PARAMS
+          )
         assertThat(internalException.externalRequisitionId).isEqualTo(EXTERNAL_REQUISITION_ID)
         assertThat(internalException.state).isEqualTo(Requisition.State.PENDING_PARAMS)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
@@ -604,7 +607,7 @@ class KingdomInternalExceptionTest {
   fun `AccountNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = AccountNotFound(EXTERNAL_ACCOUNT_ID)
+        val internalException = AccountNotFoundException(EXTERNAL_ACCOUNT_ID)
         assertThat(internalException.externalAccountId).isEqualTo(EXTERNAL_ACCOUNT_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "Account with external ID ${internalException.externalAccountId} not found"
@@ -622,7 +625,8 @@ class KingdomInternalExceptionTest {
   fun `DuplicateAccountIdentity works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = DuplicateAccountIdentity(EXTERNAL_ACCOUNT_ID, ISSUER, SUBJECT)
+        val internalException =
+          DuplicateAccountIdentityException(EXTERNAL_ACCOUNT_ID, ISSUER, SUBJECT)
         assertThat(internalException.externalAccountId).isEqualTo(EXTERNAL_ACCOUNT_ID)
         assertThat(internalException.issuer).isEqualTo(ISSUER)
         assertThat(internalException.subject).isEqualTo(SUBJECT)
@@ -647,7 +651,10 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          AccountActivationStateIllegal(EXTERNAL_ACCOUNT_ID, Account.ActivationState.UNRECOGNIZED)
+          AccountActivationStateIllegalException(
+            EXTERNAL_ACCOUNT_ID,
+            Account.ActivationState.UNRECOGNIZED
+          )
         assertThat(internalException.externalAccountId).isEqualTo(EXTERNAL_ACCOUNT_ID)
         assertThat(internalException.state).isEqualTo(Account.ActivationState.UNRECOGNIZED)
         internalException.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
@@ -670,7 +677,7 @@ class KingdomInternalExceptionTest {
   fun `PermissionDenied works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = PermissionDenied()
+        val internalException = PermissionDeniedException()
         internalException.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
           "Permission Denied"
         }
@@ -682,7 +689,7 @@ class KingdomInternalExceptionTest {
   fun `ApiKeyNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        val internalException = ApiKeyNotFound(EXTERNAL_API_KEY_ID)
+        val internalException = ApiKeyNotFoundException(EXTERNAL_API_KEY_ID)
         assertThat(internalException.externalApiKeyId).isEqualTo(EXTERNAL_API_KEY_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
           "API key with external ID ${internalException.externalApiKeyId} not found"
@@ -701,7 +708,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          EventGroupNotFound(EXTERNAL_DATA_PROVIDER_ID, EXTERNAL_EVENT_GROUP_ID)
+          EventGroupNotFoundException(EXTERNAL_DATA_PROVIDER_ID, EXTERNAL_EVENT_GROUP_ID)
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalEventGroupId).isEqualTo(EXTERNAL_EVENT_GROUP_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
@@ -726,7 +733,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          EventGroupInvalidArgs(EXTERNAL_MEASUREMENT_ID, EXTERNAL_MEASUREMENT_ID_2)
+          EventGroupInvalidArgsException(EXTERNAL_MEASUREMENT_ID, EXTERNAL_MEASUREMENT_ID_2)
         assertThat(internalException.originalExternalMeasurementId)
           .isEqualTo(EXTERNAL_MEASUREMENT_ID)
         assertThat(internalException.providedExternalMeasurementId)
@@ -754,7 +761,7 @@ class KingdomInternalExceptionTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          EventGroupMetadataDescriptorNotFound(
+          EventGroupMetadataDescriptorNotFoundException(
             EXTERNAL_DATA_PROVIDER_ID,
             EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID
           )

@@ -26,10 +26,10 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputation
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FAILED
@@ -49,7 +49,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
 
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
-        ?: throw DuchyNotFound(request.externalDuchyId)
+        ?: throw DuchyNotFoundException(request.externalDuchyId)
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
@@ -58,8 +58,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
         )
-        ?: throw ComputationParticipantNotFoundByComputation(
-          request.externalComputationId,
+        ?: throw ComputationParticipantNotFoundByComputationException(
+          ExternalId(request.externalComputationId),
           request.externalDuchyId
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
@@ -84,9 +84,9 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED, -> {
-        throw MeasurementStateIllegal(
-          computationParticipant.externalMeasurementConsumerId,
-          computationParticipant.externalMeasurementId,
+        throw MeasurementStateIllegalException(
+          ExternalId(computationParticipant.externalMeasurementConsumerId),
+          ExternalId(computationParticipant.externalMeasurementId),
           measurementState
         ) { "Unexpected Measurement state $measurementState (${measurementState.number})" }
       }

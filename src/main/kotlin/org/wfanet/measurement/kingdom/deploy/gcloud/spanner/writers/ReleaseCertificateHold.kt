@@ -26,12 +26,12 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByExternal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFound
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByExternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
@@ -56,9 +56,9 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
             CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
               .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
           reader.execute(transactionContext).singleOrNull()
-            ?: throw DataProviderCertificateNotFoundByExternal(
-              request.externalDataProviderId,
-              externalCertificateId.value
+            ?: throw DataProviderCertificateNotFoundByExternalException(
+              ExternalId(request.externalDataProviderId),
+              externalCertificateId
             )
         }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
@@ -69,25 +69,24 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
                 externalCertificateId
               )
           reader.execute(transactionContext).singleOrNull()
-            ?: throw MeasurementConsumerCertificateNotFoundByExternal(
-              request.externalMeasurementConsumerId,
-              externalCertificateId.value
+            ?: throw MeasurementConsumerCertificateNotFoundByExternalException(
+              ExternalId(request.externalMeasurementConsumerId),
+              externalCertificateId
             ) { "Certificate not found." }
         }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw DuchyNotFound(request.externalDuchyId) { " Duchy not found." }
+                ?: throw DuchyNotFoundException(request.externalDuchyId) { " Duchy not found." }
             )
           val reader =
             CertificateReader(CertificateReader.ParentType.DUCHY)
               .bindWhereClause(duchyId, externalCertificateId)
           reader.execute(transactionContext).singleOrNull()
-            ?: throw DuchyCertificateNotFound(
-              request.externalMeasurementConsumerId,
-              externalCertificateId.value
-            ) { "Certificate not found." }
+            ?: throw DuchyCertificateNotFoundException(duchyId, externalCertificateId) {
+              "Certificate not found."
+            }
         }
         ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET ->
           throw IllegalStateException("ReleaseCertificateHoldRequest is missing parent field.")
@@ -106,8 +105,8 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
         }
       }
       RevocationState.REVOKED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
-        throw CertificateRevocationStateIllegal(
-          externalCertificateId.value,
+        throw CertificateRevocationStateIllegalException(
+          ExternalId(externalCertificateId.value),
           certificateRevocationState
         ) { "Certificate is in $certificateRevocationState state, cannot release hold." }
       RevocationState.UNRECOGNIZED ->
