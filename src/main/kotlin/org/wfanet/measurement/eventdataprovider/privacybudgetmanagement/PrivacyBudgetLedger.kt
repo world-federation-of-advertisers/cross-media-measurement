@@ -57,15 +57,11 @@ class PrivacyBudgetLedger(
     val failedBucketList = mutableListOf<PrivacyBucketGroup>()
     for (queryBucketGroup in privacyBucketGroupList) {
       val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
-      // println("ANY MATCHING???")
-      // println(matchingLedgerEntries)
       if (privacyBudgetIsExceeded(matchingLedgerEntries, privacyChargesList)) {
         failedBucketList.add(queryBucketGroup)
       }
     }
     if (failedBucketList.size > 0) {
-      // println("FAILED???")
-      // failedBucketList.forEach{println(it)}
       context.commit()
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,

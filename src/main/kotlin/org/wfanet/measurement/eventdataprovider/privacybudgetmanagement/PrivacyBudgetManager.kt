@@ -59,7 +59,6 @@ class PrivacyBudgetManager(
   ) {
     val affectedPrivacyBuckets =
       getPrivacyBucketGroups(measurementConsumerId, measurementSpec, requisitionSpec)
-    // affectedPrivacyBuckets.forEach{println(it)}
     val chargeList = mutableListOf<PrivacyCharge>()
 
     when (measurementSpec.measurementTypeCase) {
@@ -72,8 +71,8 @@ class PrivacyBudgetManager(
               measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat()
           )
         )
-      // TODO: After the privacy budget accounting is switched to using the Gaussian mechanism,
-      // replace the above lines with the following.  This will further improve the
+      // TODO(@uakyol): After the privacy budget accounting is switched to using the Gaussian
+      // mechanism, replace the above lines with the following.  This will further improve the
       // efficiency of privacy budget usage for reach and frequency queries.
       //
       // {
