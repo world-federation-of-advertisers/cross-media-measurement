@@ -85,14 +85,13 @@ class SpannerEventGroupMetadataDescriptorsService(
   override suspend fun updateEventGroupMetadataDescriptor(
     request: UpdateEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
+    grpcRequire(request.eventGroupMetadataDescriptor.externalDataProviderId > 0L) {
+      "ExternalDataProviderId unspecified"
+    }
+    grpcRequire(request.eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId > 0L) {
+      "ExternalEventGroupMetadataDescriptorId unspecified"
+    }
     try {
-      grpcRequire(request.eventGroupMetadataDescriptor.externalDataProviderId > 0L) {
-        "ExternalDataProviderId unspecified"
-      }
-      grpcRequire(
-        request.eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId > 0L
-      ) { "ExternalEventGroupMetadataDescriptorId unspecified" }
-
       return UpdateEventGroupMetadataDescriptor(request.eventGroupMetadataDescriptor)
         .execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
