@@ -25,11 +25,11 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputation
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
 
@@ -50,7 +50,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
 
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
-        ?: throw DuchyNotFound(request.externalDuchyId)
+        ?: throw DuchyNotFoundException(request.externalDuchyId)
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
@@ -59,8 +59,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
         )
-        ?: throw ComputationParticipantNotFoundByComputation(
-          request.externalComputationId,
+        ?: throw ComputationParticipantNotFoundByComputationException(
+          ExternalId(request.externalComputationId),
           request.externalDuchyId
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
@@ -72,7 +72,11 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     val measurementConsumerId = computationParticipantResult.measurementConsumerId
     val measurementState = computationParticipantResult.measurementState
     if (measurementState != Measurement.State.PENDING_PARTICIPANT_CONFIRMATION) {
-      throw MeasurementStateIllegal(measurementConsumerId, measurementId, measurementState) {
+      throw MeasurementStateIllegalException(
+        ExternalId(computationParticipant.externalMeasurementConsumerId),
+        ExternalId(computationParticipant.externalMeasurementId),
+        measurementState
+      ) {
         "Measurement for external computation Id ${request.externalComputationId} " +
           "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
           "It should have been in state ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION}  " +
@@ -80,8 +84,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       }
     }
     if (computationParticipant.state != ComputationParticipant.State.REQUISITION_PARAMS_SET) {
-      throw ComputationParticipantStateIllegal(
-        request.externalComputationId,
+      throw ComputationParticipantStateIllegalException(
+        ExternalId(request.externalComputationId),
         request.externalDuchyId,
         computationParticipant.state
       ) {

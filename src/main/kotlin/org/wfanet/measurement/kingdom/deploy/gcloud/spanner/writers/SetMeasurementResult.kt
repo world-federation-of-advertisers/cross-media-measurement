@@ -27,10 +27,10 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFound
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputation
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
@@ -51,12 +51,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val (measurementConsumerId, measurementId, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
-        ?: throw MeasurementNotFoundByComputation(request.externalComputationId) {
-          "Measurement for external computation ID ${request.externalComputationId} not found"
-        }
+        ?: throw MeasurementNotFoundByComputationException(
+          ExternalId(request.externalComputationId)
+        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
     val aggregatorDuchyId =
       DuchyIds.getInternalId(request.externalAggregatorDuchyId)
-        ?: throw DuchyNotFound(request.externalAggregatorDuchyId) {
+        ?: throw DuchyNotFoundException(request.externalAggregatorDuchyId) {
           "Duchy with external ID ${request.externalAggregatorDuchyId} not found"
         }
     val aggregatorCertificateId =
@@ -65,9 +65,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         InternalId(aggregatorDuchyId),
         ExternalId(request.externalAggregatorCertificateId)
       )
-        ?: throw DuchyCertificateNotFound(
-          aggregatorDuchyId,
-          request.externalAggregatorCertificateId
+        ?: throw DuchyCertificateNotFoundException(
+          InternalId(aggregatorDuchyId),
+          ExternalId(request.externalAggregatorCertificateId)
         ) { "Aggregator certificate ${request.externalAggregatorCertificateId} not found" }
 
     transactionContext.bufferInsertMutation("DuchyMeasurementResults") {

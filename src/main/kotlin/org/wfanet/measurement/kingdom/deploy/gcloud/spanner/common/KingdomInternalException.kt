@@ -20,6 +20,8 @@ import io.grpc.Metadata
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -29,7 +31,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 
 sealed class KingdomInternalException : Exception {
   val code: ErrorCode
-  abstract val context: Map<String, String>
+  protected abstract val context: Map<String, String>
 
   constructor(code: ErrorCode) : super() {
     this.code = code
@@ -42,25 +44,18 @@ sealed class KingdomInternalException : Exception {
   fun throwStatusRuntimeException(
     status: Status = Status.INVALID_ARGUMENT,
     provideDescription: () -> String,
-  ): Nothing = throwStatusRuntimeException(status, code, context, provideDescription)
-}
+  ): Nothing {
+    val info = errorInfo {
+      reason = code.toString()
+      domain = ErrorInfo::class.qualifiedName.toString()
+      metadata.putAll(context)
+    }
 
-private fun throwStatusRuntimeException(
-  status: Status = Status.INVALID_ARGUMENT,
-  code: ErrorCode,
-  context: Map<String, String>,
-  provideDescription: () -> String,
-): Nothing {
-  val info = errorInfo {
-    reason = code.toString()
-    domain = ErrorInfo::class.qualifiedName.toString()
-    metadata.putAll(context)
+    val metadata = Metadata()
+    metadata.put(ProtoUtils.keyForProto(info), info)
+
+    throw status.withDescription(provideDescription()).asRuntimeException(metadata)
   }
-
-  val metadata = Metadata()
-  metadata.put(ProtoUtils.keyForProto(info), info)
-
-  throw status.withDescription(provideDescription()).asRuntimeException(metadata)
 }
 
 fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
@@ -68,31 +63,31 @@ fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
   return trailers?.get(key)
 }
 
-class MeasurementConsumerNotFound(
-  val externalMeasurementConsumerId: Long,
+class MeasurementConsumerNotFoundException(
+  val externalMeasurementConsumerId: ExternalId,
   provideDescription: () -> String = { "MeasurementConsumer not found" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_measurement_consumer_id" to externalMeasurementConsumerId.toString())
 }
 
-class DataProviderNotFound(
-  val externalDataProviderId: Long,
+class DataProviderNotFoundException(
+  val externalDataProviderId: ExternalId,
   provideDescription: () -> String = { "DataProvider not found" }
 ) : KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_data_provider_id" to externalDataProviderId.toString())
 }
 
-class ModelProviderNotFound(
-  val externalModelProviderId: Long,
+class ModelProviderNotFoundException(
+  val externalModelProviderId: ExternalId,
   provideDescription: () -> String = { "ModelProvider not found" }
 ) : KingdomInternalException(ErrorCode.MODEL_PROVIDER_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_model_provider_id" to externalModelProviderId.toString())
 }
 
-class DuchyNotFound(
+class DuchyNotFoundException(
   val externalDuchyId: String,
   provideDescription: () -> String = { "Duchy not found" }
 ) : KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND, provideDescription) {
@@ -100,17 +95,17 @@ class DuchyNotFound(
     get() = mapOf("external_duchy_id" to externalDuchyId)
 }
 
-class MeasurementNotFoundByComputation(
-  val externalComputationId: Long,
+class MeasurementNotFoundByComputationException(
+  val externalComputationId: ExternalId,
   provideDescription: () -> String = { "Measurement not found by ComputationId" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_computation_id" to externalComputationId.toString())
 }
 
-class MeasurementNotFoundByMeasurementConsumer(
-  val externalMeasurementConsumerId: Long,
-  val externalMeasurementId: Long,
+class MeasurementNotFoundByMeasurementConsumerException(
+  val externalMeasurementConsumerId: ExternalId,
+  val externalMeasurementId: ExternalId,
   provideDescription: () -> String = { "Measurement not found by MeasurementConsumerId" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
   override val context
@@ -121,9 +116,9 @@ class MeasurementNotFoundByMeasurementConsumer(
       )
 }
 
-class MeasurementStateIllegal(
-  val externalMeasurementConsumerId: Long,
-  val externalMeasurementId: Long,
+class MeasurementStateIllegalException(
+  val externalMeasurementConsumerId: ExternalId,
+  val externalMeasurementId: ExternalId,
   val state: Measurement.State,
   provideDescription: () -> String = { "Measurement state illegal" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL, provideDescription) {
@@ -136,16 +131,16 @@ class MeasurementStateIllegal(
       )
 }
 
-class CertSubjectKeyIdAlreadyExists(
+class CertSubjectKeyIdAlreadyExistsException(
   provideDescription: () -> String = { "Cert subject key id already exists" }
 ) : KingdomInternalException(ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS, provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
 
-class DataProviderCertificateNotFoundByExternal(
-  val externalDataProviderId: Long,
-  val externalCertificateId: Long,
+class DataProviderCertificateNotFoundByExternalException(
+  val externalDataProviderId: ExternalId,
+  val externalCertificateId: ExternalId,
   provideDescription: () -> String = { "DataProvider's Certificate not found by external id" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
@@ -156,22 +151,18 @@ class DataProviderCertificateNotFoundByExternal(
       )
 }
 
-class DataProviderCertificateNotFoundByInternal(
-  val internalDataProviderId: Long,
-  val externalCertificateId: Long,
+class DataProviderCertificateNotFoundByInternalException(
+  val internalDataProviderId: InternalId,
+  val externalCertificateId: ExternalId,
   provideDescription: () -> String = { "DataProvider's Certificate not found by internal id" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
-    get() =
-      mapOf(
-        "internal_data_provider_id" to internalDataProviderId.toString(),
-        "external_certificate_id" to externalCertificateId.toString()
-      )
+    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
 }
 
-class MeasurementConsumerCertificateNotFoundByExternal(
-  val externalMeasurementConsumerId: Long,
-  val externalCertificateId: Long,
+class MeasurementConsumerCertificateNotFoundByExternalException(
+  val externalMeasurementConsumerId: ExternalId,
+  val externalCertificateId: ExternalId,
   provideDescription: () -> String = {
     "MeasurementConsumer's Certificate not found by external id"
   }
@@ -184,36 +175,28 @@ class MeasurementConsumerCertificateNotFoundByExternal(
       )
 }
 
-class MeasurementConsumerCertificateNotFoundByInternal(
-  val internalMeasurementConsumerId: Long,
-  val externalCertificateId: Long,
+class MeasurementConsumerCertificateNotFoundByInternalException(
+  val internalMeasurementConsumerId: InternalId,
+  val externalCertificateId: ExternalId,
   provideDescription: () -> String = {
     "MeasurementConsumer's Certificate not found by internal id"
   }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
-    get() =
-      mapOf(
-        "internal_measurement_consumer_id" to internalMeasurementConsumerId.toString(),
-        "external_certificate_id" to externalCertificateId.toString()
-      )
+    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
 }
 
-class DuchyCertificateNotFound(
-  val internalDuchyId: Long,
-  val externalCertificateId: Long,
+class DuchyCertificateNotFoundException(
+  val internalDuchyId: InternalId,
+  val externalCertificateId: ExternalId,
   provideDescription: () -> String = { "Duchy's Certificate not found" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
-    get() =
-      mapOf(
-        "internal_duchy_id" to internalDuchyId.toString(),
-        "external_certificate_id" to externalCertificateId.toString()
-      )
+    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
 }
 
-class CertificateRevocationStateIllegal(
-  val externalCertificateId: Long,
+class CertificateRevocationStateIllegalException(
+  val externalCertificateId: ExternalId,
   val state: Certificate.RevocationState,
   provideDescription: () -> String = { "Certificate revocation state illegal" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL, provideDescription) {
@@ -225,14 +208,15 @@ class CertificateRevocationStateIllegal(
       )
 }
 
-class CertificateIsInvalid(provideDescription: () -> String = { "Certificate is invalid" }) :
-  KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID, provideDescription) {
+class CertificateIsInvalidException(
+  provideDescription: () -> String = { "Certificate is invalid" }
+) : KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID, provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
 
-class ComputationParticipantStateIllegal(
-  val externalComputationId: Long,
+class ComputationParticipantStateIllegalException(
+  val externalComputationId: ExternalId,
   val externalDuchyId: String,
   val state: ComputationParticipant.State,
   provideDescription: () -> String = { "ComputationParticipant state illegal" }
@@ -246,8 +230,8 @@ class ComputationParticipantStateIllegal(
       )
 }
 
-class ComputationParticipantNotFoundByComputation(
-  val externalComputationId: Long,
+class ComputationParticipantNotFoundByComputationException(
+  val externalComputationId: ExternalId,
   val externalDuchyId: String,
   provideDescription: () -> String = { "ComputationParticipant not found by ComputationId" }
 ) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND, provideDescription) {
@@ -259,24 +243,19 @@ class ComputationParticipantNotFoundByComputation(
       )
 }
 
-class ComputationParticipantNotFoundByMeasurement(
-  val internalMeasurementConsumerId: Long,
-  val internalMeasurementId: Long,
-  val internalDuchyId: Long,
+class ComputationParticipantNotFoundByMeasurementException(
+  val internalMeasurementConsumerId: InternalId,
+  val internalMeasurementId: InternalId,
+  val internalDuchyId: InternalId,
   provideDescription: () -> String = { "ComputationParticipant not found by MeasurementId" }
 ) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND, provideDescription) {
   override val context
-    get() =
-      mapOf(
-        "internal_measurement_consumer_id" to internalMeasurementConsumerId.toString(),
-        "internal_measurement_id" to internalMeasurementId.toString(),
-        "internal_duchy_id" to internalDuchyId.toString()
-      )
+    get() = emptyMap<String, String>()
 }
 
-class RequisitionNotFoundByComputation(
-  val externalComputationId: Long,
-  val externalRequisitionId: Long,
+class RequisitionNotFoundByComputationException(
+  val externalComputationId: ExternalId,
+  val externalRequisitionId: ExternalId,
   provideDescription: () -> String = { "Requisition not found by Computation" }
 ) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
   override val context
@@ -287,9 +266,9 @@ class RequisitionNotFoundByComputation(
       )
 }
 
-class RequisitionNotFoundByDataProvider(
-  val externalDataProviderId: Long,
-  val externalRequisitionId: Long,
+class RequisitionNotFoundByDataProviderException(
+  val externalDataProviderId: ExternalId,
+  val externalRequisitionId: ExternalId,
   provideDescription: () -> String = { "Requisition not found by DataProvider" }
 ) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
   override val context
@@ -300,8 +279,8 @@ class RequisitionNotFoundByDataProvider(
       )
 }
 
-class RequisitionStateIllegal(
-  val externalRequisitionId: Long,
+class RequisitionStateIllegalException(
+  val externalRequisitionId: ExternalId,
   val state: Requisition.State,
   provideDescription: () -> String = { "ComputationParticipant state illegal" }
 ) : KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL, provideDescription) {
@@ -313,16 +292,16 @@ class RequisitionStateIllegal(
       )
 }
 
-class AccountNotFound(
-  val externalAccountId: Long,
+class AccountNotFoundException(
+  val externalAccountId: ExternalId,
   provideDescription: () -> String = { "Account not found" }
 ) : KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_account_id" to externalAccountId.toString())
 }
 
-class DuplicateAccountIdentity(
-  val externalAccountId: Long,
+class DuplicateAccountIdentityException(
+  val externalAccountId: ExternalId,
   val issuer: String,
   val subject: String,
   provideDescription: () -> String = { "Duplicated account identity" }
@@ -336,8 +315,8 @@ class DuplicateAccountIdentity(
       )
 }
 
-class AccountActivationStateIllegal(
-  val externalAccountId: Long,
+class AccountActivationStateIllegalException(
+  val externalAccountId: ExternalId,
   val state: Account.ActivationState,
   provideDescription: () -> String = { "Account activation state illegal" }
 ) : KingdomInternalException(ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL, provideDescription) {
@@ -349,23 +328,23 @@ class AccountActivationStateIllegal(
       )
 }
 
-class PermissionDenied(provideDescription: () -> String = { "Permission Denied" }) :
+class PermissionDeniedException(provideDescription: () -> String = { "Permission Denied" }) :
   KingdomInternalException(ErrorCode.PERMISSION_DENIED, provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
 
-class ApiKeyNotFound(
-  val externalApiKeyId: Long,
+class ApiKeyNotFoundException(
+  val externalApiKeyId: ExternalId,
   provideDescription: () -> String = { "ApiKey not found" }
 ) : KingdomInternalException(ErrorCode.API_KEY_NOT_FOUND, provideDescription) {
   override val context
     get() = mapOf("external_api_key_id" to externalApiKeyId.toString())
 }
 
-class EventGroupNotFound(
-  val externalDataProviderId: Long,
-  val externalEventGroupId: Long,
+class EventGroupNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val externalEventGroupId: ExternalId,
   provideDescription: () -> String = { "EventGroup not found" }
 ) : KingdomInternalException(ErrorCode.EVENT_GROUP_NOT_FOUND, provideDescription) {
   override val context
@@ -376,9 +355,9 @@ class EventGroupNotFound(
       )
 }
 
-class EventGroupInvalidArgs(
-  val originalExternalMeasurementId: Long,
-  val providedExternalMeasurementId: Long,
+class EventGroupInvalidArgsException(
+  val originalExternalMeasurementId: ExternalId,
+  val providedExternalMeasurementId: ExternalId,
   provideDescription: () -> String = { "EventGroup invalid arguments" }
 ) : KingdomInternalException(ErrorCode.EVENT_GROUP_INVALID_ARGS, provideDescription) {
   override val context
@@ -389,9 +368,9 @@ class EventGroupInvalidArgs(
       )
 }
 
-class EventGroupMetadataDescriptorNotFound(
-  val externalDataProviderId: Long,
-  val externalEventGroupMetadataDescriptorId: Long,
+class EventGroupMetadataDescriptorNotFoundException(
+  val externalDataProviderId: ExternalId,
+  val externalEventGroupMetadataDescriptorId: ExternalId,
   provideDescription: () -> String = { "EventGroup metadata descriptor not found" }
 ) :
   KingdomInternalException(

@@ -36,7 +36,7 @@ import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByMeasurement
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByMeasurementException
 
 private val BASE_SQL =
   """
@@ -224,10 +224,10 @@ suspend fun readComputationParticipantState(
       listOf(column)
     )
     ?.getProtoEnum(column, ComputationParticipant.State::forNumber)
-    ?: throw ComputationParticipantNotFoundByMeasurement(
-      measurementConsumerId.value,
-      measurementConsumerId.value,
-      duchyId.value
+    ?: throw ComputationParticipantNotFoundByMeasurementException(
+      measurementConsumerId,
+      measurementConsumerId,
+      duchyId
     ) { "ComputationParticipant not found $duchyId" }
 }
 

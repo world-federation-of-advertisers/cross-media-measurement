@@ -24,10 +24,10 @@ import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDenied
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDeniedException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerCreationTokenReader
 
@@ -63,8 +63,8 @@ class CreateMeasurementConsumer(
 
     val accountResult = readAccount(externalAccountId)
     if (accountResult.account.activationState != Account.ActivationState.ACTIVATED) {
-      throw AccountActivationStateIllegal(
-        accountResult.account.externalAccountId,
+      throw AccountActivationStateIllegalException(
+        ExternalId(accountResult.account.externalAccountId),
         accountResult.account.activationState
       )
     }
@@ -114,11 +114,11 @@ class CreateMeasurementConsumer(
         transactionContext,
         measurementConsumerCreationTokenHash
       )
-      ?: throw PermissionDenied()
+      ?: throw PermissionDeniedException()
 
   private suspend fun TransactionScope.readAccount(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw AccountNotFound(externalAccountId.value)
+      ?: throw AccountNotFoundException(externalAccountId)
 }

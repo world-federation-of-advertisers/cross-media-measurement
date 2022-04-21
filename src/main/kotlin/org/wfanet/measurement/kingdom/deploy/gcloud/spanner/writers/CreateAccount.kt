@@ -21,9 +21,9 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.account
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDenied
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDeniedException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerOwnerReader
 
@@ -64,7 +64,7 @@ class CreateAccount(
                 externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
                 set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
               }
-              ?: throw PermissionDenied()
+              ?: throw PermissionDeniedException()
           }
         }
 
@@ -86,5 +86,5 @@ class CreateAccount(
     externalAccountId: ExternalId
   ): AccountReader.Result =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw AccountNotFound(externalAccountId.value)
+      ?: throw AccountNotFoundException(externalAccountId)
 }

@@ -33,13 +33,13 @@ import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRe
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalid
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputation
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFound
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
@@ -64,7 +64,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
-        ?: throw DuchyNotFound(request.externalDuchyId)
+        ?: throw DuchyNotFoundException(request.externalDuchyId)
     val duchyCertificateId =
       readDuchyCertificateId(InternalId(duchyId), ExternalId(request.externalDuchyCertificateId))
 
@@ -79,7 +79,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         .single()
 
     if (!certificateResult.isValid) {
-      throw CertificateIsInvalid()
+      throw CertificateIsInvalidException()
     }
 
     val computationParticipantResult: ComputationParticipantReader.Result =
@@ -89,8 +89,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
         )
-        ?: throw ComputationParticipantNotFoundByComputation(
-          request.externalComputationId,
+        ?: throw ComputationParticipantNotFoundByComputationException(
+          ExternalId(request.externalComputationId),
           request.externalDuchyId
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
@@ -101,9 +101,9 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     if (computationParticipantResult.measurementState !=
         Measurement.State.PENDING_REQUISITION_PARAMS
     ) {
-      throw MeasurementStateIllegal(
-        computationParticipant.externalMeasurementConsumerId,
-        computationParticipant.externalMeasurementId,
+      throw MeasurementStateIllegalException(
+        ExternalId(computationParticipant.externalMeasurementConsumerId),
+        ExternalId(computationParticipant.externalMeasurementId),
         computationParticipantResult.measurementState
       )
     }
@@ -112,8 +112,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     val measurementConsumerId = computationParticipantResult.measurementConsumerId
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
-      throw ComputationParticipantStateIllegal(
-        request.externalComputationId,
+      throw ComputationParticipantStateIllegalException(
+        ExternalId(request.externalComputationId),
         request.externalDuchyId,
         computationParticipant.state
       ) {
@@ -193,7 +193,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         column
       )
       ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw DuchyCertificateNotFound(duchyId.value, externalCertificateId.value) {
+      ?: throw DuchyCertificateNotFoundException(duchyId, externalCertificateId) {
         "Certificate for Duchy ${duchyId.value} with external ID " +
           "$externalCertificateId not found"
       }

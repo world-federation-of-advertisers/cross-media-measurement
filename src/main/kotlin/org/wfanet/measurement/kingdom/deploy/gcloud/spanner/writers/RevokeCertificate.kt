@@ -29,11 +29,11 @@ import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByExternal
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFound
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByExternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternal
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
@@ -67,9 +67,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
               .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
           reader.execute(transactionContext).singleOrNull()
-            ?: throw DataProviderCertificateNotFoundByExternal(
-              request.externalDataProviderId,
-              externalCertificateId.value
+            ?: throw DataProviderCertificateNotFoundByExternalException(
+              ExternalId(request.externalDataProviderId),
+              externalCertificateId
             ) { "Certificate not found." }
         }
         RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
@@ -80,22 +80,22 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
                 externalCertificateId
               )
           reader.execute(transactionContext).singleOrNull()
-            ?: throw MeasurementConsumerCertificateNotFoundByExternal(
-              request.externalMeasurementConsumerId,
-              externalCertificateId.value
+            ?: throw MeasurementConsumerCertificateNotFoundByExternalException(
+              ExternalId(request.externalMeasurementConsumerId),
+              externalCertificateId
             ) { "Certificate not found." }
         }
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw DuchyNotFound(request.externalDuchyId) { " Duchy not found." }
+                ?: throw DuchyNotFoundException(request.externalDuchyId) { " Duchy not found." }
             )
           val reader =
             CertificateReader(CertificateReader.ParentType.DUCHY)
               .bindWhereClause(duchyId, externalCertificateId)
           reader.execute(transactionContext).singleOrNull()
-            ?: throw DuchyCertificateNotFound(duchyId.value, externalCertificateId.value) {
+            ?: throw DuchyCertificateNotFoundException(duchyId, externalCertificateId) {
               "Certificate not found."
             }
         }

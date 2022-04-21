@@ -21,7 +21,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFound
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
@@ -36,7 +36,9 @@ class CreateEventGroupMetadataDescriptor(
           ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
         )
         ?.dataProviderId
-        ?: throw DataProviderNotFound(eventGroupMetadataDescriptor.externalDataProviderId)
+        ?: throw DataProviderNotFoundException(
+          ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
+        )
     return if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId == 0L) {
       createNewEventGroupMetadataDescriptor(dataProviderId)
     } else {
