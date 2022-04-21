@@ -18,6 +18,7 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -75,6 +76,13 @@ class SpannerEventGroupsService(
 
   override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
     try {
+      grpcRequire(request.eventGroup.externalDataProviderId > 0L) {
+        "ExternalDataProviderId unspecified"
+      }
+      grpcRequire(request.eventGroup.externalEventGroupId > 0L) {
+        "ExternalEventGroupId unspecified"
+      }
+
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {

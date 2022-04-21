@@ -290,8 +290,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ExternalDataProviderId unspecified")
   }
 
   @Test

@@ -196,8 +196,10 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception).hasMessageThat().contains("EventGroupMetadataDescriptor not found")
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("ExternalEventGroupMetadataDescriptorId unspecified")
     }
 
   @Test
