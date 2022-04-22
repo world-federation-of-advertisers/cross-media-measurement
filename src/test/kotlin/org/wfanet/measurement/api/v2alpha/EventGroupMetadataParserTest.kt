@@ -21,25 +21,23 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.Duration
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage2
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
-import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage2
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 
-private const val API_VERSION = "v2alpha"
-val TEST_MESSAGE = testMetadataMessage2 {
-  name = "Alice"
-  message = testMetadataMessage {
-    name = "Bob"
-    value = 1
-    duration = Duration.newBuilder().setSeconds(30).build()
-  }
+private val TEST_MESSAGE = testMetadataMessage {
+  name = "Bob"
+  value = 1
+  duration = Duration.newBuilder().setSeconds(30).build()
 }
 
-val TEST_MESSAGE_2 = testMetadataMessage2 {
+private val TEST_PARENT_MESSAGE = testParentMetadataMessage {
   name = "Joe"
   message = testMetadataMessage {
     name = "Susan"
@@ -48,36 +46,53 @@ val TEST_MESSAGE_2 = testMetadataMessage2 {
   }
 }
 
-const val NAME = "dataProviders/123/eventGroupMetadataDescriptors/abc"
+private const val NAME = "dataProviders/123/eventGroupMetadataDescriptors/abc"
+
+private val EVENT_GROUP_METADATA = metadata {
+  eventGroupMetadataDescriptor = NAME
+  metadata = Any.pack(TEST_MESSAGE)
+}
+private val PARENT_EVENT_GROUP_METADATA = metadata {
+  eventGroupMetadataDescriptor = NAME
+  metadata = Any.pack(TEST_PARENT_MESSAGE)
+}
 
 @RunWith(JUnit4::class)
 class EventGroupMetadataParserTest {
   @Test
   fun `parser converting eventGroupMetadataDescriptor returns expected DynamicMessage`() {
-    val eventGroupMetadataDescriptor1 = eventGroupMetadataDescriptor {
+    val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
       name = NAME
       descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
     }
-    val eventGroupMetadataDescriptor2 = eventGroupMetadataDescriptor {
+    val parentEventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
       name = NAME
-      descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
+      descriptorSet = TEST_PARENT_MESSAGE.getDescriptorForType().getFileDescriptorSet()
     }
     val parser =
-      EventGroupMetadataParser(listOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2))
+      EventGroupMetadataParser(
+        listOf(eventGroupMetadataDescriptor, parentEventGroupMetadataDescriptor)
+      )
 
-    val eventGroupMetadata1 = metadata {
-      eventGroupMetadataDescriptor = "dataProviders/123/eventGroupMetadataDescriptors/abc"
-      metadata = Any.pack(TEST_MESSAGE)
-    }
-    val eventGroupMetadata2 = metadata {
-      eventGroupMetadataDescriptor = "dataProviders/234/eventGroupMetadataDescriptors/def"
-      metadata = Any.pack(TEST_MESSAGE_2)
-    }
-    val result = parser.convertToDynamicMessage(eventGroupMetadata1)
-    val result2 = parser.convertToDynamicMessage(eventGroupMetadata2)
+    val result = parser.convertToDynamicMessage(EVENT_GROUP_METADATA)
+    val result2 = parser.convertToDynamicMessage(PARENT_EVENT_GROUP_METADATA)
 
-    assertThat(TestMetadataMessage2.parseFrom(result!!.toByteString())).isEqualTo(TEST_MESSAGE)
-    assertThat(TestMetadataMessage2.parseFrom(result2!!.toByteString())).isEqualTo(TEST_MESSAGE_2)
+    assertThat(TestMetadataMessage.parseFrom(result!!.toByteString())).isEqualTo(TEST_MESSAGE)
+    assertThat(TestParentMetadataMessage.parseFrom(result2!!.toByteString()))
+      .isEqualTo(TEST_PARENT_MESSAGE)
+  }
+
+  @Test
+  fun `parser unable to parse eventGroupMetadataDescriptor throws exception`() {
+    val eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+      name = NAME
+      descriptorSet = TEST_MESSAGE.getDescriptorForType().getFileDescriptorSet()
+    }
+    val parser = EventGroupMetadataParser(listOf(eventGroupMetadataDescriptor))
+
+    assertFailsWith<NullPointerException> {
+      parser.convertToDynamicMessage(PARENT_EVENT_GROUP_METADATA)
+    }
   }
 
   fun Descriptor.getFileDescriptorSet(): FileDescriptorSet {

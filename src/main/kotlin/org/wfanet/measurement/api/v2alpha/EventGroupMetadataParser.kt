@@ -25,37 +25,49 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
 
   init {
     val registryBuilder: TypeRegistry.Builder = TypeRegistry.newBuilder()
-    for (eventGroupMetadataDescriptor in eventGroupMetadataDescriptors) {
-      val fileList: List<FileDescriptorProto> = eventGroupMetadataDescriptor.descriptorSet.fileList
-      val fileDescriptorProtoMap = fileList.associateBy { it.name }
-      val builtFileDescriptorMap: MutableMap<String, FileDescriptor> = mutableMapOf()
-      for (proto in fileList) {
-        buildFileDescriptors(proto, builtFileDescriptorMap, fileDescriptorProtoMap, registryBuilder)
-      }
+    eventGroupMetadataDescriptors
+      .flatMap { buildFileDescriptors(it) }
+      .flatMap { it.messageTypes }
+      .forEach { registryBuilder.add(it) }
+    typeRegistry = registryBuilder.build()
+  }
+
+  private fun buildFileDescriptors(
+    eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
+  ): List<FileDescriptor> {
+    val fileList: List<FileDescriptorProto> = eventGroupMetadataDescriptor.descriptorSet.fileList
+    val fileDescriptorProtoMap = fileList.associateBy { it.name }
+    val fileDescriptorList: MutableList<FileDescriptor> = mutableListOf()
+    for (proto in fileList) {
+      fileDescriptorList.add(
+        buildFileDescriptors(
+          proto,
+          /*buildFileDescriptorMap=*/ mutableMapOf(),
+          fileDescriptorProtoMap
+        )
+      )
     }
 
-    typeRegistry = registryBuilder.build()
+    return fileDescriptorList
   }
 
   private fun buildFileDescriptors(
     proto: FileDescriptorProto,
     builtFileDescriptorMap: MutableMap<String, FileDescriptor>,
-    fileDescriptorProtoMap: Map<String, FileDescriptorProto>,
-    registryBuilder: TypeRegistry.Builder
+    fileDescriptorProtoMap: Map<String, FileDescriptorProto>
   ): FileDescriptor {
     if (proto.name in builtFileDescriptorMap) return builtFileDescriptorMap.getValue(proto.name)
 
     var dependenciesList: MutableList<FileDescriptor> = mutableListOf()
     for (dependencyName in proto.dependencyList) {
-      if (builtFileDescriptorMap[dependencyName] != null) {
+      if (dependencyName in builtFileDescriptorMap) {
         dependenciesList.add(builtFileDescriptorMap.getValue(dependencyName))
       } else {
         dependenciesList.add(
           buildFileDescriptors(
             fileDescriptorProtoMap.getValue(dependencyName),
             builtFileDescriptorMap,
-            fileDescriptorProtoMap,
-            registryBuilder
+            fileDescriptorProtoMap
           )
         )
       }
@@ -63,9 +75,6 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
 
     val builtDescriptor = FileDescriptor.buildFrom(proto, dependenciesList.toTypedArray())
     builtFileDescriptorMap[proto.name] = builtDescriptor
-    for (descriptor in builtDescriptor.messageTypes) {
-      registryBuilder.add(descriptor)
-    }
     return builtDescriptor
   }
 

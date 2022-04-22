@@ -21,7 +21,7 @@ import "wfa/measurement/api/v2alpha/event_group_metadata/testing/test_metadata_m
 option java_package = "org.wfanet.measurement.api.v2alpha.event_group_metadata.testing";
 option java_multiple_files = true;
 
-message TestMetadataMessage2 {
+message TestParentMetadataMessage {
   optional string name = 1;
   optional TestMetadataMessage message = 2;
 }
