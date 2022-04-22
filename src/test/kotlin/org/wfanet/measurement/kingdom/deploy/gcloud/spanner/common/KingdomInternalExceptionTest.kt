@@ -79,16 +79,15 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalMeasurementConsumerId.value)
           .isEqualTo(EXTERNAL_MEASUREMENT_CONSUMER_ID.value)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "MeasurementConsumer with external ID " +
-            "${internalException.externalMeasurementConsumerId} not found"
+          "Measurement Consumer not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "MEASUREMENT_CONSUMER_NOT_FOUND",
       mapOf("external_measurement_consumer_id" to EXTERNAL_MEASUREMENT_CONSUMER_ID.toString()),
-      "FAILED_PRECONDITION: MeasurementConsumer with external " +
-        "ID $EXTERNAL_MEASUREMENT_CONSUMER_ID not found"
+      "FAILED_PRECONDITION: Measurement Consumer not found. " +
+        "external_measurement_consumer_id=$EXTERNAL_MEASUREMENT_CONSUMER_ID"
     )
   }
 
@@ -99,14 +98,15 @@ class KingdomInternalExceptionTest {
         val internalException = DataProviderNotFoundException(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "DataProvider with external ID ${internalException.externalDataProviderId} not found"
+          "Data Provider not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "DATA_PROVIDER_NOT_FOUND",
       mapOf("external_data_provider_id" to EXTERNAL_DATA_PROVIDER_ID.toString()),
-      "FAILED_PRECONDITION: DataProvider with external ID $EXTERNAL_DATA_PROVIDER_ID " + "not found"
+      "FAILED_PRECONDITION: Data Provider not found. " +
+        "external_data_provider_id=$EXTERNAL_DATA_PROVIDER_ID"
     )
   }
 
@@ -117,16 +117,15 @@ class KingdomInternalExceptionTest {
         val internalException = ModelProviderNotFoundException(EXTERNAL_MODEL_PROVIDER_ID)
         assertThat(internalException.externalModelProviderId).isEqualTo(EXTERNAL_MODEL_PROVIDER_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "ModelProvider with external ID ${internalException.externalModelProviderId} " +
-            "not found"
+          "Model Provider not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "MODEL_PROVIDER_NOT_FOUND",
       mapOf("external_model_provider_id" to EXTERNAL_MODEL_PROVIDER_ID.toString()),
-      "FAILED_PRECONDITION: ModelProvider with external ID $EXTERNAL_MODEL_PROVIDER_ID " +
-        "not found"
+      "FAILED_PRECONDITION: Model Provider not found. " +
+        "external_model_provider_id=$EXTERNAL_MODEL_PROVIDER_ID"
     )
   }
 
@@ -137,14 +136,14 @@ class KingdomInternalExceptionTest {
         val internalException = DuchyNotFoundException(EXTERNAL_DUCHY_ID)
         assertThat(internalException.externalDuchyId).isEqualTo(EXTERNAL_DUCHY_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Duchy with external ID ${internalException.externalDuchyId} not found"
+          "Duchy not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "DUCHY_NOT_FOUND",
       mapOf("external_duchy_id" to EXTERNAL_DUCHY_ID),
-      "FAILED_PRECONDITION: Duchy with external ID $EXTERNAL_DUCHY_ID not found"
+      "FAILED_PRECONDITION: Duchy not found. " + "external_duchy_id=$EXTERNAL_DUCHY_ID"
     )
   }
 
@@ -155,16 +154,15 @@ class KingdomInternalExceptionTest {
         val internalException = MeasurementNotFoundByComputationException(EXTERNAL_COMPUTATION_ID)
         assertThat(internalException.externalComputationId).isEqualTo(EXTERNAL_COMPUTATION_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Measurement with external computation ID ${internalException.externalComputationId}" +
-            " not found"
+          "Measurement not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "MEASUREMENT_NOT_FOUND",
       mapOf("external_computation_id" to EXTERNAL_COMPUTATION_ID.toString()),
-      "FAILED_PRECONDITION: Measurement with external computation " +
-        "ID $EXTERNAL_COMPUTATION_ID not found"
+      "FAILED_PRECONDITION: Measurement not found. " +
+        "external_computation_id=$EXTERNAL_COMPUTATION_ID"
     )
   }
 
@@ -181,9 +179,7 @@ class KingdomInternalExceptionTest {
           .isEqualTo(EXTERNAL_MEASUREMENT_CONSUMER_ID)
         assertThat(internalException.externalMeasurementId).isEqualTo(EXTERNAL_MEASUREMENT_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Measurement with external measurement consumer " +
-            "ID ${internalException.externalMeasurementConsumerId}, measurement " +
-            "ID ${internalException.externalMeasurementId} not found"
+          "Measurement not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -193,8 +189,9 @@ class KingdomInternalExceptionTest {
         "external_measurement_consumer_id" to EXTERNAL_MEASUREMENT_CONSUMER_ID.toString(),
         "external_measurement_id" to EXTERNAL_MEASUREMENT_ID.toString()
       ),
-      "FAILED_PRECONDITION: Measurement with external measurement consumer " +
-        "ID $EXTERNAL_MEASUREMENT_CONSUMER_ID, measurement ID $EXTERNAL_MEASUREMENT_ID not found"
+      "FAILED_PRECONDITION: Measurement not found. " +
+        "external_measurement_consumer_id=$EXTERNAL_MEASUREMENT_CONSUMER_ID " +
+        "external_measurement_id=$EXTERNAL_MEASUREMENT_ID"
     )
   }
 
@@ -213,7 +210,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalMeasurementId).isEqualTo(EXTERNAL_MEASUREMENT_ID)
         assertThat(internalException.state).isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Measurement is in wrong state of ${internalException.state}"
+          "Measurement state illegal. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -224,8 +221,10 @@ class KingdomInternalExceptionTest {
         "external_measurement_id" to EXTERNAL_MEASUREMENT_ID.toString(),
         "measurement_state" to Measurement.State.PENDING_REQUISITION_PARAMS.toString()
       ),
-      "FAILED_PRECONDITION: Measurement is in wrong state " +
-        "of ${Measurement.State.PENDING_REQUISITION_PARAMS}"
+      "FAILED_PRECONDITION: Measurement state illegal. " +
+        "external_measurement_consumer_id=$EXTERNAL_MEASUREMENT_CONSUMER_ID " +
+        "external_measurement_id=$EXTERNAL_MEASUREMENT_ID " +
+        "measurement_state=${Measurement.State.PENDING_REQUISITION_PARAMS}"
     )
   }
 
@@ -235,14 +234,14 @@ class KingdomInternalExceptionTest {
       assertFailsWith<StatusRuntimeException> {
         val internalException = CertSubjectKeyIdAlreadyExistsException()
         internalException.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
-          "Certificate with the same subject key identifier (SKID) already exists."
+          "Certificate subject key id already exists."
         }
       }
     verifyErrorInfo(
       exception,
       "CERT_SUBJECT_KEY_ID_ALREADY_EXISTS",
       mapOf(),
-      "ALREADY_EXISTS: Certificate with the same subject key identifier (SKID) already exists."
+      "ALREADY_EXISTS: Certificate subject key id already exists."
     )
   }
 
@@ -258,9 +257,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "DataProvider's Certificate with ExternalDataProviderId " +
-            "${internalException.externalDataProviderId}, ExternalCertificateId " +
-            "${internalException.externalCertificateId} not found"
+          "Data Provider's Certificate not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -270,8 +267,9 @@ class KingdomInternalExceptionTest {
         "external_data_provider_id" to EXTERNAL_DATA_PROVIDER_ID.toString(),
         "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
       ),
-      "FAILED_PRECONDITION: DataProvider's Certificate with ExternalDataProviderId " +
-        "$EXTERNAL_DATA_PROVIDER_ID, ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
+      "FAILED_PRECONDITION: Data Provider's Certificate not found. " +
+        "external_data_provider_id=$EXTERNAL_DATA_PROVIDER_ID " +
+        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
     )
   }
 
@@ -287,18 +285,15 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.internalDataProviderId).isEqualTo(INTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "DataProvider's Certificate with InternalDataProviderId " +
-            "${internalException.internalDataProviderId}, ExternalCertificateId " +
-            "${internalException.externalCertificateId} not found"
+          "Data Provider's Certificate not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
       mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
-      "FAILED_PRECONDITION: DataProvider's Certificate with " +
-        "InternalDataProviderId $INTERNAL_DATA_PROVIDER_ID, ExternalCertificateId " +
-        "$EXTERNAL_CERTIFICATE_ID not found"
+      "FAILED_PRECONDITION: Data Provider's Certificate not found. " +
+        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
     )
   }
 
@@ -315,9 +310,7 @@ class KingdomInternalExceptionTest {
           .isEqualTo(EXTERNAL_MEASUREMENT_CONSUMER_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "MeasurementConsumer's Certificate with ExternalMeasurementConsumerId " +
-            "${internalException.externalMeasurementConsumerId}, ExternalCertificateId " +
-            "${internalException.externalCertificateId} not found"
+          "Measurement Consumer's Certificate not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -327,9 +320,9 @@ class KingdomInternalExceptionTest {
         "external_measurement_consumer_id" to EXTERNAL_MEASUREMENT_CONSUMER_ID.toString(),
         "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
       ),
-      "FAILED_PRECONDITION: MeasurementConsumer's Certificate with " +
-        "ExternalMeasurementConsumerId $EXTERNAL_MEASUREMENT_CONSUMER_ID, " +
-        "ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
+      "FAILED_PRECONDITION: Measurement Consumer's Certificate not found. " +
+        "external_measurement_consumer_id=$EXTERNAL_MEASUREMENT_CONSUMER_ID " +
+        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
     )
   }
 
@@ -346,18 +339,15 @@ class KingdomInternalExceptionTest {
           .isEqualTo(INTERNAL_MEASUREMENT_CONSUMER_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "MeasurementConsumer's Certificate with InternalMeasurementConsumerId " +
-            "${internalException.internalMeasurementConsumerId}, ExternalCertificateId " +
-            "${internalException.externalCertificateId} not found"
+          "Measurement Consumer's Certificate not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
       mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
-      "FAILED_PRECONDITION: MeasurementConsumer's Certificate with " +
-        "InternalMeasurementConsumerId $INTERNAL_MEASUREMENT_CONSUMER_ID, " +
-        "ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
+      "FAILED_PRECONDITION: Measurement Consumer's Certificate not found. " +
+        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
     )
   }
 
@@ -370,16 +360,15 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.internalDuchyId).isEqualTo(INTERNAL_DUCHY_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Duchy's Certificate with InternalDuchyId ${internalException.internalDuchyId}, " +
-            "ExternalCertificateId ${internalException.externalCertificateId} not found"
+          "Duchy's Certificate not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
       mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
-      "FAILED_PRECONDITION: Duchy's Certificate with InternalDuchyId $INTERNAL_DUCHY_ID, " +
-        "ExternalCertificateId $EXTERNAL_CERTIFICATE_ID not found"
+      "FAILED_PRECONDITION: Duchy's Certificate not found. " +
+        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
     )
   }
 
@@ -395,7 +384,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         assertThat(internalException.state).isEqualTo(Certificate.RevocationState.HOLD)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Certificate revocation is in wrong state of ${internalException.state}"
+          "Certificate revocation state illegal. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -405,8 +394,9 @@ class KingdomInternalExceptionTest {
         "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString(),
         "certificate_revocation_state" to Certificate.RevocationState.HOLD.toString()
       ),
-      "FAILED_PRECONDITION: Certificate revocation is in wrong state " +
-        "of ${Certificate.RevocationState.HOLD}"
+      "FAILED_PRECONDITION: Certificate revocation state illegal. " +
+        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID " +
+        "certificate_revocation_state=${Certificate.RevocationState.HOLD}"
     )
   }
 
@@ -416,14 +406,14 @@ class KingdomInternalExceptionTest {
       assertFailsWith<StatusRuntimeException> {
         val internalException = CertificateIsInvalidException()
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Certificate is invalid"
+          "Certificate is invalid."
         }
       }
     verifyErrorInfo(
       exception,
       "CERTIFICATE_IS_INVALID",
       mapOf(),
-      "FAILED_PRECONDITION: Certificate is invalid"
+      "FAILED_PRECONDITION: Certificate is invalid."
     )
   }
 
@@ -441,10 +431,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalDuchyId).isEqualTo(EXTERNAL_DUCHY_ID)
         assertThat(internalException.state).isEqualTo(ComputationParticipant.State.FAILED)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "ComputationParticipant for external computation Id " +
-            "${internalException.externalComputationId} and external duchy ID " +
-            "${internalException.externalDuchyId} has the wrong state of " +
-            "${internalException.state}."
+          "Computation Participant state illegal. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -455,9 +442,10 @@ class KingdomInternalExceptionTest {
         "external_duchy_id" to EXTERNAL_DUCHY_ID,
         "computation_participant_state" to ComputationParticipant.State.FAILED.toString()
       ),
-      "FAILED_PRECONDITION: ComputationParticipant for external computation Id " +
-        "$EXTERNAL_COMPUTATION_ID and external duchy ID $EXTERNAL_DUCHY_ID has the wrong state " +
-        "of ${ComputationParticipant.State.FAILED}."
+      "FAILED_PRECONDITION: Computation Participant state illegal. " +
+        "external_computation_id=$EXTERNAL_COMPUTATION_ID " +
+        "external_duchy_id=$EXTERNAL_DUCHY_ID " +
+        "computation_participant_state=${ComputationParticipant.State.FAILED}"
     )
   }
 
@@ -473,9 +461,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalComputationId).isEqualTo(EXTERNAL_COMPUTATION_ID)
         assertThat(internalException.externalDuchyId).isEqualTo(EXTERNAL_DUCHY_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
-          "ComputationParticipant with ExternalComputationId " +
-            "${internalException.externalComputationId}, ExternalDuchyId " +
-            "${internalException.externalDuchyId} not found"
+          "Computation Participant not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -485,8 +471,9 @@ class KingdomInternalExceptionTest {
         "external_computation_id" to EXTERNAL_COMPUTATION_ID.toString(),
         "external_duchy_id" to EXTERNAL_DUCHY_ID
       ),
-      "NOT_FOUND: ComputationParticipant with ExternalComputationId $EXTERNAL_COMPUTATION_ID, " +
-        "ExternalDuchyId $EXTERNAL_DUCHY_ID not found"
+      "NOT_FOUND: Computation Participant not found. " +
+        "external_computation_id=$EXTERNAL_COMPUTATION_ID " +
+        "external_duchy_id=$EXTERNAL_DUCHY_ID"
     )
   }
 
@@ -505,19 +492,14 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.internalMeasurementId).isEqualTo(INTERNAL_MEASUREMENT_ID)
         assertThat(internalException.internalDuchyId).isEqualTo(INTERNAL_DUCHY_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
-          "ComputationParticipant with InternalMeasurementConsumerId " +
-            "${internalException.internalMeasurementConsumerId}, InternalMeasurementId " +
-            "${internalException.internalMeasurementId}, InternalDuchyId " +
-            "${internalException.internalDuchyId} not found"
+          "Computation Participant not found."
         }
       }
     verifyErrorInfo(
       exception,
       "COMPUTATION_PARTICIPANT_NOT_FOUND",
       mapOf(),
-      "NOT_FOUND: ComputationParticipant with InternalMeasurementConsumerId " +
-        "$INTERNAL_MEASUREMENT_CONSUMER_ID, InternalMeasurementId $INTERNAL_MEASUREMENT_ID, " +
-        "InternalDuchyId $INTERNAL_DUCHY_ID not found"
+      "NOT_FOUND: Computation Participant not found."
     )
   }
 
@@ -533,8 +515,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalComputationId).isEqualTo(EXTERNAL_COMPUTATION_ID)
         assertThat(internalException.externalRequisitionId).isEqualTo(EXTERNAL_REQUISITION_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
-          "Requisition with ExternalComputationId ${internalException.externalComputationId}, " +
-            "ExternalRequisitionId ${internalException.externalRequisitionId} not found"
+          "Requisition not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -544,8 +525,9 @@ class KingdomInternalExceptionTest {
         "external_computation_id" to EXTERNAL_COMPUTATION_ID.toString(),
         "external_requisition_id" to EXTERNAL_REQUISITION_ID.toString(),
       ),
-      "NOT_FOUND: Requisition with ExternalComputationId $EXTERNAL_COMPUTATION_ID, " +
-        "ExternalRequisitionId $EXTERNAL_REQUISITION_ID not found"
+      "NOT_FOUND: Requisition not found. " +
+        "external_computation_id=$EXTERNAL_COMPUTATION_ID " +
+        "external_requisition_id=$EXTERNAL_REQUISITION_ID"
     )
   }
 
@@ -561,8 +543,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalRequisitionId).isEqualTo(EXTERNAL_REQUISITION_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
-          "Requisition with ExternalDataProviderId ${internalException.externalDataProviderId}, " +
-            "ExternalRequisitionId ${internalException.externalRequisitionId} not found"
+          "Requisition not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -572,8 +553,9 @@ class KingdomInternalExceptionTest {
         "external_data_provider_id" to EXTERNAL_DATA_PROVIDER_ID.toString(),
         "external_requisition_id" to EXTERNAL_REQUISITION_ID.toString(),
       ),
-      "NOT_FOUND: Requisition with ExternalDataProviderId $EXTERNAL_DATA_PROVIDER_ID, " +
-        "ExternalRequisitionId $EXTERNAL_REQUISITION_ID not found"
+      "NOT_FOUND: Requisition not found. " +
+        "external_data_provider_id=$EXTERNAL_DATA_PROVIDER_ID " +
+        "external_requisition_id=$EXTERNAL_REQUISITION_ID"
     )
   }
 
@@ -589,7 +571,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalRequisitionId).isEqualTo(EXTERNAL_REQUISITION_ID)
         assertThat(internalException.state).isEqualTo(Requisition.State.PENDING_PARAMS)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Requisition is in wrong state of ${internalException.state}"
+          "Requisition state illegal. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -599,7 +581,9 @@ class KingdomInternalExceptionTest {
         "external_requisition_id" to EXTERNAL_REQUISITION_ID.toString(),
         "requisition_state" to Requisition.State.PENDING_PARAMS.toString()
       ),
-      "FAILED_PRECONDITION: Requisition is in wrong state of ${Requisition.State.PENDING_PARAMS}"
+      "FAILED_PRECONDITION: Requisition state illegal. " +
+        "external_requisition_id=$EXTERNAL_REQUISITION_ID " +
+        "requisition_state=${Requisition.State.PENDING_PARAMS}"
     )
   }
 
@@ -610,14 +594,14 @@ class KingdomInternalExceptionTest {
         val internalException = AccountNotFoundException(EXTERNAL_ACCOUNT_ID)
         assertThat(internalException.externalAccountId).isEqualTo(EXTERNAL_ACCOUNT_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Account with external ID ${internalException.externalAccountId} not found"
+          "Account not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "ACCOUNT_NOT_FOUND",
       mapOf("external_account_id" to EXTERNAL_ACCOUNT_ID.toString()),
-      "FAILED_PRECONDITION: Account with external ID $EXTERNAL_ACCOUNT_ID not found"
+      "FAILED_PRECONDITION: Account not found. " + "external_account_id=$EXTERNAL_ACCOUNT_ID"
     )
   }
 
@@ -631,7 +615,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.issuer).isEqualTo(ISSUER)
         assertThat(internalException.subject).isEqualTo(SUBJECT)
         internalException.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-          "Issuer and subject pair already exists"
+          "Duplicate Account identity. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -642,7 +626,9 @@ class KingdomInternalExceptionTest {
         "issuer" to ISSUER,
         "subject" to SUBJECT
       ),
-      "INVALID_ARGUMENT: Issuer and subject pair already exists"
+      "INVALID_ARGUMENT: Duplicate Account identity. " +
+        "external_account_id=$EXTERNAL_ACCOUNT_ID " +
+        "issuer=$ISSUER subject=$SUBJECT"
     )
   }
 
@@ -658,7 +644,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalAccountId).isEqualTo(EXTERNAL_ACCOUNT_ID)
         assertThat(internalException.state).isEqualTo(Account.ActivationState.UNRECOGNIZED)
         internalException.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
-          "Account Activation is in wrong state of ${Account.ActivationState.UNRECOGNIZED}"
+          "Account activation state illegal. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -668,8 +654,9 @@ class KingdomInternalExceptionTest {
         "external_account_id" to EXTERNAL_ACCOUNT_ID.toString(),
         "account_activation_state" to Account.ActivationState.UNRECOGNIZED.toString()
       ),
-      "PERMISSION_DENIED: Account Activation is in wrong state of " +
-        "${Account.ActivationState.UNRECOGNIZED}"
+      "PERMISSION_DENIED: Account activation state illegal. " +
+        "external_account_id=$EXTERNAL_ACCOUNT_ID " +
+        "account_activation_state=${Account.ActivationState.UNRECOGNIZED}"
     )
   }
 
@@ -679,10 +666,15 @@ class KingdomInternalExceptionTest {
       assertFailsWith<StatusRuntimeException> {
         val internalException = PermissionDeniedException()
         internalException.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
-          "Permission Denied"
+          "Permission Denied."
         }
       }
-    verifyErrorInfo(exception, "PERMISSION_DENIED", mapOf(), "PERMISSION_DENIED: Permission Denied")
+    verifyErrorInfo(
+      exception,
+      "PERMISSION_DENIED",
+      mapOf(),
+      "PERMISSION_DENIED: Permission Denied."
+    )
   }
 
   @Test
@@ -692,14 +684,14 @@ class KingdomInternalExceptionTest {
         val internalException = ApiKeyNotFoundException(EXTERNAL_API_KEY_ID)
         assertThat(internalException.externalApiKeyId).isEqualTo(EXTERNAL_API_KEY_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "API key with external ID ${internalException.externalApiKeyId} not found"
+          "API Key not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
       exception,
       "API_KEY_NOT_FOUND",
       mapOf("external_api_key_id" to EXTERNAL_API_KEY_ID.toString()),
-      "FAILED_PRECONDITION: API key with external ID $EXTERNAL_API_KEY_ID not found"
+      "FAILED_PRECONDITION: API Key not found. " + "external_api_key_id=$EXTERNAL_API_KEY_ID"
     )
   }
 
@@ -712,8 +704,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalDataProviderId).isEqualTo(EXTERNAL_DATA_PROVIDER_ID)
         assertThat(internalException.externalEventGroupId).isEqualTo(EXTERNAL_EVENT_GROUP_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
-          "EventGroup with ExternalDataProviderId ${internalException.externalDataProviderId}, " +
-            "ExternalEventGroupId ${internalException.externalEventGroupId} not found"
+          "Event Group not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -723,8 +714,9 @@ class KingdomInternalExceptionTest {
         "external_data_provider_id" to EXTERNAL_DATA_PROVIDER_ID.toString(),
         "external_event_group_id" to EXTERNAL_EVENT_GROUP_ID.toString()
       ),
-      "NOT_FOUND: EventGroup with ExternalDataProviderId $EXTERNAL_DATA_PROVIDER_ID, " +
-        "ExternalEventGroupId $EXTERNAL_EVENT_GROUP_ID not found"
+      "NOT_FOUND: Event Group not found. " +
+        "external_data_provider_id=$EXTERNAL_DATA_PROVIDER_ID " +
+        "external_event_group_id=$EXTERNAL_EVENT_GROUP_ID"
     )
   }
 
@@ -739,9 +731,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.providedExternalMeasurementId)
           .isEqualTo(EXTERNAL_MEASUREMENT_ID_2)
         internalException.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-          "EventGroup invalid arguments with original MeasurementId " +
-            "${internalException.originalExternalMeasurementId}, provided MeasurementId " +
-            "${internalException.providedExternalMeasurementId}"
+          "Event Group has invalid arguments. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -751,8 +741,9 @@ class KingdomInternalExceptionTest {
         "original_external_measurement_id" to EXTERNAL_MEASUREMENT_ID.toString(),
         "provided_external_measurement_id" to EXTERNAL_MEASUREMENT_ID_2.toString()
       ),
-      "INVALID_ARGUMENT: EventGroup invalid arguments with original MeasurementId " +
-        "$EXTERNAL_MEASUREMENT_ID, provided MeasurementId $EXTERNAL_MEASUREMENT_ID_2"
+      "INVALID_ARGUMENT: Event Group has invalid arguments. " +
+        "original_external_measurement_id=$EXTERNAL_MEASUREMENT_ID " +
+        "provided_external_measurement_id=$EXTERNAL_MEASUREMENT_ID_2"
     )
   }
 
@@ -769,9 +760,7 @@ class KingdomInternalExceptionTest {
         assertThat(internalException.externalEventGroupMetadataDescriptorId)
           .isEqualTo(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID)
         internalException.throwStatusRuntimeException(Status.NOT_FOUND) {
-          "EventGroupMetadataDescriptor with ExternalDataProviderId " +
-            "${internalException.externalDataProviderId}, ExternalEventGroupMetadataDescriptorId " +
-            "${internalException.externalEventGroupMetadataDescriptorId} not found"
+          "Event Group Metadata Descriptor not found. " + internalException.contextToString()
         }
       }
     verifyErrorInfo(
@@ -782,9 +771,9 @@ class KingdomInternalExceptionTest {
         "external_event_group_metadata_descriptor_id" to
           EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID.toString()
       ),
-      "NOT_FOUND: EventGroupMetadataDescriptor with ExternalDataProviderId " +
-        "$EXTERNAL_DATA_PROVIDER_ID, ExternalEventGroupMetadataDescriptorId " +
-        "$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID not found"
+      "NOT_FOUND: Event Group Metadata Descriptor not found. " +
+        "external_data_provider_id=$EXTERNAL_DATA_PROVIDER_ID " +
+        "external_event_group_metadata_descriptor_id=$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID"
     )
   }
 }

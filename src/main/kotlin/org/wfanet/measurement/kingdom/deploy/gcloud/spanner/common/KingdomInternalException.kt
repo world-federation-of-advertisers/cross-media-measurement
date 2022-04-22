@@ -56,6 +56,8 @@ sealed class KingdomInternalException : Exception {
 
     throw status.withDescription(provideDescription()).asRuntimeException(metadata)
   }
+
+  fun contextToString() = context.entries.joinToString(separator = " ")
 }
 
 fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
