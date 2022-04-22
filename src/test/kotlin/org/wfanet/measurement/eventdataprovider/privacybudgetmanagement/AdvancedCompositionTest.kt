@@ -19,18 +19,17 @@ import org.junit.Test
 class AdvancedCompositionTest {
   @Test
   fun `binomial coefficients compute as expected`() {
-    val binom = Binom()
-    assertEquals(binom.coeff(0, 0), 1.0f)
-    assertEquals(binom.coeff(1, 0), 1.0f)
-    assertEquals(binom.coeff(1, 1), 1.0f)
-    assertEquals(binom.coeff(2, 0), 1.0f)
-    assertEquals(binom.coeff(2, 1), 2.0f)
-    assertEquals(binom.coeff(2, 2), 1.0f)
-    assertEquals(binom.coeff(3, 0), 1.0f)
-    assertEquals(binom.coeff(3, 1), 3.0f)
-    assertEquals(binom.coeff(3, 2), 3.0f)
-    assertEquals(binom.coeff(3, 3), 1.0f)
-    assertEquals(binom.coeff(20, 10), 184756.0f)
+    assertEquals(Binom.coeff(0, 0), 1.0f)
+    assertEquals(Binom.coeff(1, 0), 1.0f)
+    assertEquals(Binom.coeff(1, 1), 1.0f)
+    assertEquals(Binom.coeff(2, 0), 1.0f)
+    assertEquals(Binom.coeff(2, 1), 2.0f)
+    assertEquals(Binom.coeff(2, 2), 1.0f)
+    assertEquals(Binom.coeff(3, 0), 1.0f)
+    assertEquals(Binom.coeff(3, 1), 3.0f)
+    assertEquals(Binom.coeff(3, 2), 3.0f)
+    assertEquals(Binom.coeff(3, 3), 1.0f)
+    assertEquals(Binom.coeff(20, 10), 184756.0f)
   }
 
   @Test
