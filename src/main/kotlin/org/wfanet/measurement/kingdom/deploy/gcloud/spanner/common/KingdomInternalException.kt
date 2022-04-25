@@ -140,10 +140,10 @@ class CertSubjectKeyIdAlreadyExistsException(
     get() = emptyMap<String, String>()
 }
 
-class DataProviderCertificateNotFoundByExternalException(
+class DataProviderCertificateNotFoundException(
   val externalDataProviderId: ExternalId,
   val externalCertificateId: ExternalId,
-  provideDescription: () -> String = { "DataProvider's Certificate not found by external id" }
+  provideDescription: () -> String = { "DataProvider's Certificate not found" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
     get() =
@@ -153,21 +153,10 @@ class DataProviderCertificateNotFoundByExternalException(
       )
 }
 
-class DataProviderCertificateNotFoundByInternalException(
-  val internalDataProviderId: InternalId,
-  val externalCertificateId: ExternalId,
-  provideDescription: () -> String = { "DataProvider's Certificate not found by internal id" }
-) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
-  override val context
-    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
-}
-
-class MeasurementConsumerCertificateNotFoundByExternalException(
+class MeasurementConsumerCertificateNotFoundException(
   val externalMeasurementConsumerId: ExternalId,
   val externalCertificateId: ExternalId,
-  provideDescription: () -> String = {
-    "MeasurementConsumer's Certificate not found by external id"
-  }
+  provideDescription: () -> String = { "MeasurementConsumer's Certificate not found" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
     get() =
@@ -177,24 +166,18 @@ class MeasurementConsumerCertificateNotFoundByExternalException(
       )
 }
 
-class MeasurementConsumerCertificateNotFoundByInternalException(
-  val internalMeasurementConsumerId: InternalId,
-  val externalCertificateId: ExternalId,
-  provideDescription: () -> String = {
-    "MeasurementConsumer's Certificate not found by internal id"
-  }
-) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
-  override val context
-    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
-}
-
 class DuchyCertificateNotFoundException(
   val internalDuchyId: InternalId,
+  val externalDuchyId: String,
   val externalCertificateId: ExternalId,
   provideDescription: () -> String = { "Duchy's Certificate not found" }
 ) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
   override val context
-    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
+    get() =
+      mapOf(
+        "external_duchy_id" to externalDuchyId,
+        "external_certificate_id" to externalCertificateId.toString()
+      )
 }
 
 class CertificateRevocationStateIllegalException(

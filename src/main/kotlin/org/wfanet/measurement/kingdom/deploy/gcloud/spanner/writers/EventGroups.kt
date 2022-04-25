@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
@@ -44,7 +44,7 @@ suspend fun checkValidCertificate(
       throw CertificateIsInvalidException()
     } else it.certificateId
   }
-    ?: throw MeasurementConsumerCertificateNotFoundByExternalException(
+    ?: throw MeasurementConsumerCertificateNotFoundException(
       ExternalId(measurementConsumerId),
       ExternalId(measurementConsumerCertificateId)
     )

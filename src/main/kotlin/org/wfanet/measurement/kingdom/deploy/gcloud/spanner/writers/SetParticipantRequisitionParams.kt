@@ -193,7 +193,11 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         column
       )
       ?.let { struct -> InternalId(struct.getLong(column)) }
-      ?: throw DuchyCertificateNotFoundException(duchyId, externalCertificateId) {
+      ?: throw DuchyCertificateNotFoundException(
+        duchyId,
+        request.externalDuchyId,
+        externalCertificateId
+      ) {
         "Certificate for Duchy ${duchyId.value} with external ID " +
           "$externalCertificateId not found"
       }
