@@ -38,12 +38,13 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
     val fileList: List<FileDescriptorProto> = eventGroupMetadataDescriptor.descriptorSet.fileList
     val fileDescriptorProtoMap = fileList.associateBy { it.name }
     val fileDescriptorList: MutableList<FileDescriptor> = mutableListOf()
+    val builtFileDescriptorMap: MutableMap<String, FileDescriptor> = mutableMapOf()
     for (proto in fileList) {
       fileDescriptorList.add(
         buildFileDescriptors(
-          proto,
-          /*buildFileDescriptorMap=*/ mutableMapOf(),
-          fileDescriptorProtoMap
+          proto = proto,
+          builtFileDescriptorMap = builtFileDescriptorMap,
+          fileDescriptorProtoMap = fileDescriptorProtoMap
         )
       )
     }
@@ -80,9 +81,8 @@ class EventGroupMetadataParser(eventGroupMetadataDescriptors: List<EventGroupMet
 
   /** Returns the [DynamicMessage] from an [EventGroup.Metadata] message. */
   fun convertToDynamicMessage(eventGroupMetadata: EventGroup.Metadata): DynamicMessage? {
-    return DynamicMessage.parseFrom(
-      typeRegistry.getDescriptorForTypeUrl(eventGroupMetadata.metadata.typeUrl),
-      eventGroupMetadata.metadata.value
-    )
+    val descriptor =
+      typeRegistry.getDescriptorForTypeUrl(eventGroupMetadata.metadata.typeUrl) ?: return null
+    return DynamicMessage.parseFrom(descriptor, eventGroupMetadata.metadata.value)
   }
 }

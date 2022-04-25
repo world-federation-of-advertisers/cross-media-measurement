@@ -21,7 +21,7 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.Duration
-import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -90,9 +90,7 @@ class EventGroupMetadataParserTest {
     }
     val parser = EventGroupMetadataParser(listOf(eventGroupMetadataDescriptor))
 
-    assertFailsWith<NullPointerException> {
-      parser.convertToDynamicMessage(PARENT_EVENT_GROUP_METADATA)
-    }
+    assertNull(parser.convertToDynamicMessage(PARENT_EVENT_GROUP_METADATA))
   }
 
   fun Descriptor.getFileDescriptorSet(): FileDescriptorSet {
