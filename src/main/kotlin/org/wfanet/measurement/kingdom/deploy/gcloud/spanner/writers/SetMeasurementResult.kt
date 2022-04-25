@@ -67,6 +67,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       )
         ?: throw DuchyCertificateNotFoundException(
           InternalId(aggregatorDuchyId),
+          request.externalAggregatorDuchyId,
           ExternalId(request.externalAggregatorCertificateId)
         ) { "Aggregator certificate ${request.externalAggregatorCertificateId} not found" }
 

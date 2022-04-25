@@ -24,10 +24,10 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
@@ -61,8 +61,8 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           InternalId(measurementConsumerResult.measurementConsumerId),
           ExternalId(request.externalCertificateId)
         )
-        ?: throw MeasurementConsumerCertificateNotFoundByInternalException(
-          InternalId(measurementConsumerResult.measurementConsumerId),
+        ?: throw MeasurementConsumerCertificateNotFoundException(
+          ExternalId(request.externalMeasurementConsumerId),
           ExternalId(request.externalCertificateId)
         )
 
@@ -93,8 +93,8 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           InternalId(dataProviderResult.dataProviderId),
           ExternalId(request.externalCertificateId)
         )
-        ?: throw DataProviderCertificateNotFoundByInternalException(
-          InternalId(dataProviderResult.dataProviderId),
+        ?: throw DataProviderCertificateNotFoundException(
+          ExternalId(request.externalDataProviderId),
           ExternalId(request.externalCertificateId)
         )
 

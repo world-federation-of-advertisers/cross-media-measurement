@@ -246,11 +246,11 @@ class KingdomInternalExceptionTest {
   }
 
   @Test
-  fun `DataProviderCertificateNotFoundByExternal works as expected`() {
+  fun `DataProviderCertificateNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          DataProviderCertificateNotFoundByExternalException(
+          DataProviderCertificateNotFoundException(
             EXTERNAL_DATA_PROVIDER_ID,
             EXTERNAL_CERTIFICATE_ID
           )
@@ -274,35 +274,11 @@ class KingdomInternalExceptionTest {
   }
 
   @Test
-  fun `DataProviderCertificateNotFoundByInternal works as expected`() {
+  fun `MeasurementConsumerCertificateNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          DataProviderCertificateNotFoundByInternalException(
-            INTERNAL_DATA_PROVIDER_ID,
-            EXTERNAL_CERTIFICATE_ID
-          )
-        assertThat(internalException.internalDataProviderId).isEqualTo(INTERNAL_DATA_PROVIDER_ID)
-        assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
-        internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Data Provider's Certificate not found. " + internalException.contextToString()
-        }
-      }
-    verifyErrorInfo(
-      exception,
-      "CERTIFICATE_NOT_FOUND",
-      mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
-      "FAILED_PRECONDITION: Data Provider's Certificate not found. " +
-        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
-    )
-  }
-
-  @Test
-  fun `MeasurementConsumerCertificateNotFoundByExternal works as expected`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        val internalException =
-          MeasurementConsumerCertificateNotFoundByExternalException(
+          MeasurementConsumerCertificateNotFoundException(
             EXTERNAL_MEASUREMENT_CONSUMER_ID,
             EXTERNAL_CERTIFICATE_ID
           )
@@ -327,36 +303,16 @@ class KingdomInternalExceptionTest {
   }
 
   @Test
-  fun `MeasurementConsumerCertificateNotFoundByInternal works as expected`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        val internalException =
-          MeasurementConsumerCertificateNotFoundByInternalException(
-            INTERNAL_MEASUREMENT_CONSUMER_ID,
-            EXTERNAL_CERTIFICATE_ID
-          )
-        assertThat(internalException.internalMeasurementConsumerId)
-          .isEqualTo(INTERNAL_MEASUREMENT_CONSUMER_ID)
-        assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
-        internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-          "Measurement Consumer's Certificate not found. " + internalException.contextToString()
-        }
-      }
-    verifyErrorInfo(
-      exception,
-      "CERTIFICATE_NOT_FOUND",
-      mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
-      "FAILED_PRECONDITION: Measurement Consumer's Certificate not found. " +
-        "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
-    )
-  }
-
-  @Test
   fun `DuchyCertificateNotFound works as expected`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         val internalException =
-          DuchyCertificateNotFoundException(INTERNAL_DUCHY_ID, EXTERNAL_CERTIFICATE_ID)
+          DuchyCertificateNotFoundException(
+            INTERNAL_DUCHY_ID,
+            EXTERNAL_DUCHY_ID,
+            EXTERNAL_CERTIFICATE_ID
+          )
+        assertThat(internalException.externalDuchyId).isEqualTo(EXTERNAL_DUCHY_ID)
         assertThat(internalException.internalDuchyId).isEqualTo(INTERNAL_DUCHY_ID)
         assertThat(internalException.externalCertificateId).isEqualTo(EXTERNAL_CERTIFICATE_ID)
         internalException.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
@@ -366,8 +322,12 @@ class KingdomInternalExceptionTest {
     verifyErrorInfo(
       exception,
       "CERTIFICATE_NOT_FOUND",
-      mapOf("external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()),
+      mapOf(
+        "external_duchy_id" to EXTERNAL_DUCHY_ID,
+        "external_certificate_id" to EXTERNAL_CERTIFICATE_ID.toString()
+      ),
       "FAILED_PRECONDITION: Duchy's Certificate not found. " +
+        "external_duchy_id=$EXTERNAL_DUCHY_ID " +
         "external_certificate_id=$EXTERNAL_CERTIFICATE_ID"
     )
   }

@@ -34,10 +34,10 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundByInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundByExternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
@@ -160,7 +160,7 @@ class CreateMeasurement(private val measurement: Measurement) :
         .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
     val measurementConsumerCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw MeasurementConsumerCertificateNotFoundByExternalException(
+        ?: throw MeasurementConsumerCertificateNotFoundException(
           externalMeasurementConsumerId,
           externalMeasurementId
         )
@@ -212,6 +212,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       insertRequisition(
         measurementConsumerId,
         measurementId,
+        ExternalId(externalDataProviderId),
         dataProviderId,
         dataProviderValue,
         initialRequisitionState
@@ -222,6 +223,7 @@ class CreateMeasurement(private val measurement: Measurement) :
   private suspend fun TransactionScope.insertRequisition(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
+    externalDataProviderId: ExternalId,
     dataProviderId: InternalId,
     dataProviderValue: Measurement.DataProviderValue,
     initialRequisitionState: Requisition.State
@@ -235,8 +237,8 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     val dataProviderCertificateId =
       reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw DataProviderCertificateNotFoundByInternalException(
-          dataProviderId,
+        ?: throw DataProviderCertificateNotFoundException(
+          externalDataProviderId,
           ExternalId(dataProviderValue.externalDataProviderCertificateId)
         )
 
