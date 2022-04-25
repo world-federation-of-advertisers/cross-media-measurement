@@ -51,7 +51,7 @@ private object Params {
  * * [ErrorCode.DUCHY_NOT_FOUND]
  */
 class FulfillRequisition(private val request: FulfillRequisitionRequest) :
-  SpannerWriter<Requisition, Requisition>() {
+    SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
@@ -65,32 +65,34 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
       throw MeasurementStateIllegalException(
-        ExternalId(requisition.externalMeasurementConsumerId),
-        ExternalId(requisition.externalMeasurementId),
-        measurementState
-      ) { "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState" }
+          ExternalId(requisition.externalMeasurementConsumerId),
+          ExternalId(requisition.externalMeasurementId),
+          measurementState) {
+        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
+      }
     }
 
     val updatedDetails =
-      requisition.details.copy {
-        nonce = request.nonce
-        if (request.hasDirectParams()) {
-          encryptedData = request.directParams.encryptedData
+        requisition.details.copy {
+          nonce = request.nonce
+          if (request.hasDirectParams()) {
+            encryptedData = request.directParams.encryptedData
+          }
         }
-      }
 
     val nonFulfilledRequisitionIds =
-      readRequisitionsNotInState(measurementConsumerId, measurementId, Requisition.State.FULFILLED)
+        readRequisitionsNotInState(
+            measurementConsumerId, measurementId, Requisition.State.FULFILLED)
     val updatedMeasurementState: Measurement.State? =
-      if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
-        val nextState =
-          if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
-          else Measurement.State.SUCCEEDED
-        // All other Requisitions are already FULFILLED, so update Measurement state.
-        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
-      } else {
-        null
-      }
+        if (nonFulfilledRequisitionIds.singleOrNull() == requisitionId) {
+          val nextState =
+              if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
+              else Measurement.State.SUCCEEDED
+          // All other Requisitions are already FULFILLED, so update Measurement state.
+          nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
+        } else {
+          null
+        }
 
     val fulfillDuchyId = if (request.hasComputedParams()) getFulfillDuchyId() else null
     updateRequisition(readResult, Requisition.State.FULFILLED, updatedDetails, fulfillDuchyId)
@@ -116,52 +118,46 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     if (request.hasComputedParams()) {
       val externalComputationId = request.computedParams.externalComputationId
       return RequisitionReader()
-        .readByExternalComputationId(
-          transactionContext,
-          externalComputationId = externalComputationId,
-          externalRequisitionId = externalRequisitionId
-        )
-        ?: throw RequisitionNotFoundByComputationException(
-          ExternalId(externalComputationId),
-          ExternalId(externalRequisitionId)
-        ) {
-          "Requisition with external Computation ID $externalComputationId and external " +
-            "Requisition ID $externalRequisitionId not found"
-        }
+          .readByExternalComputationId(
+              transactionContext,
+              externalComputationId = externalComputationId,
+              externalRequisitionId = externalRequisitionId)
+          ?: throw RequisitionNotFoundByComputationException(
+              ExternalId(externalComputationId), ExternalId(externalRequisitionId)) {
+            "Requisition with external Computation ID $externalComputationId and external " +
+                "Requisition ID $externalRequisitionId not found"
+          }
     } else {
       val externalDataProviderId = request.directParams.externalDataProviderId
       return RequisitionReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          externalDataProviderId = externalDataProviderId,
-          externalRequisitionId = externalRequisitionId
-        )
-        ?: throw RequisitionNotFoundByDataProviderException(
-          ExternalId(externalDataProviderId),
-          ExternalId(externalRequisitionId)
-        ) {
-          "Requisition with external DataProvider ID $externalDataProviderId and external " +
-            "Requisition ID $externalRequisitionId not found"
-        }
+          .readByExternalDataProviderId(
+              transactionContext,
+              externalDataProviderId = externalDataProviderId,
+              externalRequisitionId = externalRequisitionId)
+          ?: throw RequisitionNotFoundByDataProviderException(
+              ExternalId(externalDataProviderId), ExternalId(externalRequisitionId)) {
+            "Requisition with external DataProvider ID $externalDataProviderId and external " +
+                "Requisition ID $externalRequisitionId not found"
+          }
     }
   }
 
   private fun getFulfillDuchyId(): InternalId {
     val externalDuchyId: String = request.computedParams.externalFulfillingDuchyId
     return DuchyIds.getInternalId(externalDuchyId)?.let { InternalId(it) }
-      ?: throw DuchyNotFoundException(externalDuchyId) {
-        "Duchy with external ID $externalDuchyId not found"
-      }
+        ?: throw DuchyNotFoundException(externalDuchyId) {
+          "Duchy with external ID $externalDuchyId not found"
+        }
   }
 
   companion object {
     private fun TransactionScope.readRequisitionsNotInState(
-      measurementConsumerId: InternalId,
-      measurementId: InternalId,
-      state: Requisition.State
+        measurementConsumerId: InternalId,
+        measurementId: InternalId,
+        state: Requisition.State
     ): Flow<InternalId> {
       val sql =
-        """
+          """
         SELECT RequisitionId
         FROM Requisitions
         WHERE
@@ -170,11 +166,11 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           AND State != @${Params.REQUISITION_STATE}
         """.trimIndent()
       val query =
-        statement(sql) {
-          bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-          bind(Params.MEASUREMENT_ID to measurementId)
-          bind(Params.REQUISITION_STATE to state)
-        }
+          statement(sql) {
+            bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
+            bind(Params.MEASUREMENT_ID to measurementId)
+            bind(Params.REQUISITION_STATE to state)
+          }
       return transactionContext.executeQuery(query).map { struct ->
         InternalId(struct.getLong("RequisitionId"))
       }

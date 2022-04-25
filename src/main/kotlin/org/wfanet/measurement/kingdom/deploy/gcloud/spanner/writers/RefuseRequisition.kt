@@ -37,7 +37,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
  * * [ErrorCode.REQUISITION_NOT_FOUND]
  */
 class RefuseRequisition(private val request: RefuseRequisitionRequest) :
-  SpannerWriter<Requisition, Requisition>() {
+    SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, _, requisition, measurementDetails) = readResult
@@ -51,29 +51,26 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
       throw MeasurementStateIllegalException(
-        ExternalId(requisition.externalMeasurementConsumerId),
-        ExternalId(requisition.externalMeasurementId),
-        measurementState
-      ) { "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState" }
+          ExternalId(requisition.externalMeasurementConsumerId),
+          ExternalId(requisition.externalMeasurementId),
+          measurementState) {
+        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
+      }
     }
 
     val updatedDetails = requisition.details.copy { refusal = request.refusal }
     val updatedMeasurementDetails =
-      measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-            message =
-              "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
-          }
-      }
+        measurementDetails.copy {
+          failure =
+              MeasurementKt.failure {
+                reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+                message =
+                    "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
+              }
+        }
     updateRequisition(readResult, Requisition.State.REFUSED, updatedDetails)
     updateMeasurementState(
-      measurementConsumerId,
-      measurementId,
-      Measurement.State.FAILED,
-      updatedMeasurementDetails
-    )
+        measurementConsumerId, measurementId, Measurement.State.FAILED, updatedMeasurementDetails)
 
     return requisition.copy {
       this.state = Requisition.State.REFUSED
@@ -91,19 +88,16 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     val externalRequisitionId = request.externalRequisitionId
 
     val readResult: RequisitionReader.Result =
-      RequisitionReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          externalDataProviderId = externalDataProviderId,
-          externalRequisitionId = externalRequisitionId
-        )
-        ?: throw RequisitionNotFoundByDataProviderException(
-          ExternalId(externalDataProviderId),
-          ExternalId(externalRequisitionId)
-        ) {
-          "Requisition with external DataProvider ID $externalDataProviderId and external " +
-            "Requisition ID $externalRequisitionId not found"
-        }
+        RequisitionReader()
+            .readByExternalDataProviderId(
+                transactionContext,
+                externalDataProviderId = externalDataProviderId,
+                externalRequisitionId = externalRequisitionId)
+            ?: throw RequisitionNotFoundByDataProviderException(
+                ExternalId(externalDataProviderId), ExternalId(externalRequisitionId)) {
+              "Requisition with external DataProvider ID $externalDataProviderId and external " +
+                  "Requisition ID $externalRequisitionId not found"
+            }
     return readResult
   }
 }

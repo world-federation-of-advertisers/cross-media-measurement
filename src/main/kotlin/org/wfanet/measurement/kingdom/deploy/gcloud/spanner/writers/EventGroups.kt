@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
@@ -25,27 +26,26 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
 
 /**
  * Checks that a given Measurement Consumer certificate is valid and returns its ID.
- * @throws KingdomInternalException if not found or invalid.
+ * @throws KingdomInternalException with the following codes/conditions:
+ * * [ErrorCode.CERTIFICATE_NOT_FOUND]
+ * * [ErrorCode.CERTIFICATE_IS_INVALID]
  */
 suspend fun checkValidCertificate(
-  measurementConsumerCertificateId: Long,
-  measurementConsumerId: Long,
-  transactionContext: AsyncDatabaseClient.TransactionContext
+    measurementConsumerCertificateId: Long,
+    measurementConsumerId: Long,
+    transactionContext: AsyncDatabaseClient.TransactionContext
 ): InternalId {
+  val externalMeasurementConsumerId = ExternalId(measurementConsumerId)
+  val externalMeasurementConsumerCertificateId = ExternalId(measurementConsumerCertificateId)
   val reader =
-    CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-      .bindWhereClause(
-        ExternalId(measurementConsumerId),
-        ExternalId(measurementConsumerCertificateId)
-      )
+      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+          .bindWhereClause(externalMeasurementConsumerId, externalMeasurementConsumerCertificateId)
 
   return reader.execute(transactionContext).singleOrNull()?.let {
     if (!it.isValid) {
       throw CertificateIsInvalidException()
     } else it.certificateId
   }
-    ?: throw MeasurementConsumerCertificateNotFoundException(
-      ExternalId(measurementConsumerId),
-      ExternalId(measurementConsumerCertificateId)
-    )
+      ?: throw MeasurementConsumerCertificateNotFoundException(
+          externalMeasurementConsumerId, externalMeasurementConsumerCertificateId)
 }

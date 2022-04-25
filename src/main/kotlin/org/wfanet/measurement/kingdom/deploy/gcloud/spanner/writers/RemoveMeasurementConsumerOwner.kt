@@ -39,8 +39,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [ErrorCode.PERMISSION_DENIED]
  */
 class RemoveMeasurementConsumerOwner(
-  private val externalAccountId: ExternalId,
-  private val externalMeasurementConsumerId: ExternalId
+    private val externalAccountId: ExternalId,
+    private val externalMeasurementConsumerId: ExternalId
 ) : SimpleSpannerWriter<MeasurementConsumer>() {
 
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
@@ -49,32 +49,29 @@ class RemoveMeasurementConsumerOwner(
 
     if (MeasurementConsumerOwnerReader()
         .checkOwnershipExist(
-          transactionContext,
-          internalAccountId = accountId,
-          externalMeasurementConsumerId = externalMeasurementConsumerId
-        ) == null
-    ) {
+            transactionContext,
+            internalAccountId = accountId,
+            externalMeasurementConsumerId = externalMeasurementConsumerId) == null) {
       throw PermissionDeniedException()
     }
 
     transactionContext.buffer(
-      Mutation.delete(
-        "MeasurementConsumerOwners",
-        KeySet.singleKey(Key.of(accountId.value, measurementConsumerResult.measurementConsumerId))
-      )
-    )
+        Mutation.delete(
+            "MeasurementConsumerOwners",
+            KeySet.singleKey(
+                Key.of(accountId.value, measurementConsumerResult.measurementConsumerId))))
 
     return measurementConsumerResult.measurementConsumer
   }
 
   private suspend fun TransactionScope.readAccountId(externalAccountId: ExternalId): InternalId =
-    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
-      ?: throw AccountNotFoundException(externalAccountId)
+      AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
+          ?: throw AccountNotFoundException(externalAccountId)
 
   private suspend fun TransactionScope.readMeasurementConsumerResult(
-    externalMeasurementConsumerId: ExternalId
+      externalMeasurementConsumerId: ExternalId
   ): MeasurementConsumerReader.Result =
-    MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      MeasurementConsumerReader()
+          .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

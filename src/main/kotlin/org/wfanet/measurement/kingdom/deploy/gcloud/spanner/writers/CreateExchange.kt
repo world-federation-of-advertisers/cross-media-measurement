@@ -29,13 +29,11 @@ private val INITIAL_STATE: Exchange.State = Exchange.State.ACTIVE
 class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Exchange>() {
   override suspend fun TransactionScope.runTransaction(): Exchange {
     val recurringExchangeId =
-      RecurringExchangeReader()
-        .readByExternalRecurringExchangeId(
-          transactionContext,
-          ExternalId(exchange.externalRecurringExchangeId)
-        )
-        ?.recurringExchangeId
-        ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
+        RecurringExchangeReader()
+            .readByExternalRecurringExchangeId(
+                transactionContext, ExternalId(exchange.externalRecurringExchangeId))
+            ?.recurringExchangeId
+            ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
 
     transactionContext.bufferInsertMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)

@@ -40,23 +40,22 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
  */
 class CreateMeasurementConsumer(
-  private val measurementConsumer: MeasurementConsumer,
-  private val externalAccountId: ExternalId,
-  private val measurementConsumerCreationTokenHash: ByteString,
+    private val measurementConsumer: MeasurementConsumer,
+    private val externalAccountId: ExternalId,
+    private val measurementConsumerCreationTokenHash: ByteString,
 ) : SpannerWriter<MeasurementConsumer, MeasurementConsumer>() {
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
     val internalCertificateId = idGenerator.generateInternalId()
 
     val measurementConsumerCreationTokenResult =
-      readMeasurementConsumerCreationToken(measurementConsumerCreationTokenHash)
+        readMeasurementConsumerCreationToken(measurementConsumerCreationTokenHash)
     deleteMeasurementConsumerCreationToken(
-      measurementConsumerCreationTokenResult.measurementConsumerCreationTokenId
-    )
+        measurementConsumerCreationTokenResult.measurementConsumerCreationTokenId)
 
     measurementConsumer
-      .certificate
-      .toInsertMutation(internalCertificateId)
-      .bufferTo(transactionContext)
+        .certificate
+        .toInsertMutation(internalCertificateId)
+        .bufferTo(transactionContext)
 
     val internalMeasurementConsumerId = idGenerator.generateInternalId()
     val externalMeasurementConsumerId = idGenerator.generateExternalId()
@@ -64,9 +63,8 @@ class CreateMeasurementConsumer(
     val accountResult = readAccount(externalAccountId)
     if (accountResult.account.activationState != Account.ActivationState.ACTIVATED) {
       throw AccountActivationStateIllegalException(
-        ExternalId(accountResult.account.externalAccountId),
-        accountResult.account.activationState
-      )
+          ExternalId(accountResult.account.externalAccountId),
+          accountResult.account.activationState)
     }
 
     transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {
@@ -88,17 +86,17 @@ class CreateMeasurementConsumer(
       set("MeasurementConsumerId" to internalMeasurementConsumerId)
       set("CertificateId" to internalCertificateId)
       set(
-        "ExternalMeasurementConsumerCertificateId" to externalMeasurementConsumerCertificateId.value
-      )
+          "ExternalMeasurementConsumerCertificateId" to
+              externalMeasurementConsumerCertificateId.value)
     }
 
     return measurementConsumer.copy {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
       certificate =
-        certificate.copy {
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
-          externalCertificateId = externalMeasurementConsumerCertificateId.value
-        }
+          certificate.copy {
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId.value
+            externalCertificateId = externalMeasurementConsumerCertificateId.value
+          }
     }
   }
 
@@ -107,18 +105,16 @@ class CreateMeasurementConsumer(
   }
 
   private suspend fun TransactionScope.readMeasurementConsumerCreationToken(
-    measurementConsumerCreationTokenHash: ByteString
+      measurementConsumerCreationTokenHash: ByteString
   ): MeasurementConsumerCreationTokenReader.Result =
-    MeasurementConsumerCreationTokenReader()
-      .readByMeasurementConsumerCreationTokenHash(
-        transactionContext,
-        measurementConsumerCreationTokenHash
-      )
-      ?: throw PermissionDeniedException()
+      MeasurementConsumerCreationTokenReader()
+          .readByMeasurementConsumerCreationTokenHash(
+              transactionContext, measurementConsumerCreationTokenHash)
+          ?: throw PermissionDeniedException()
 
   private suspend fun TransactionScope.readAccount(
-    externalAccountId: ExternalId
+      externalAccountId: ExternalId
   ): AccountReader.Result =
-    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-      ?: throw AccountNotFoundException(externalAccountId)
+      AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
+          ?: throw AccountNotFoundException(externalAccountId)
 }
