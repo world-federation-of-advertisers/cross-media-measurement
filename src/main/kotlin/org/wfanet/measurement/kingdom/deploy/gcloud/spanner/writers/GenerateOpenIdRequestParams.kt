@@ -21,7 +21,7 @@ import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.openIdRequestParams
 
 class GenerateOpenIdRequestParams(private val validSeconds: Long) :
-  SimpleSpannerWriter<OpenIdRequestParams>() {
+    SimpleSpannerWriter<OpenIdRequestParams>() {
   override suspend fun TransactionScope.runTransaction(): OpenIdRequestParams {
     val internalOpenIdRequestParamsId = idGenerator.generateInternalId()
     val externalOpenIdRequestParamsId = idGenerator.generateExternalId()

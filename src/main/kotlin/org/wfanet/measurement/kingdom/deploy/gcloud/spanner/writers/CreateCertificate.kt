@@ -42,28 +42,25 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * subjectKeyIdentifier of [certificate] collides with a certificate already in the database.
  */
 class CreateCertificate(private val certificate: Certificate) :
-  SpannerWriter<Certificate, Certificate>() {
+    SpannerWriter<Certificate, Certificate>() {
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   private val ownerTableName: String =
-    when (certificate.parentCase) {
-      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
-      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
-      Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
-      Certificate.ParentCase.PARENT_NOT_SET ->
-        throw IllegalArgumentException("Parent field of Certificate is not set")
-    }
+      when (certificate.parentCase) {
+        Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
+        Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
+        Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+        Certificate.ParentCase.PARENT_NOT_SET ->
+            throw IllegalArgumentException("Parent field of Certificate is not set")
+      }
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val certificateId = idGenerator.generateInternalId()
     val externalMapId = idGenerator.generateExternalId()
     certificate.toInsertMutation(certificateId).bufferTo(transactionContext)
     createCertificateMapTableMutation(
-        getOwnerInternalId(transactionContext),
-        certificateId.value,
-        externalMapId.value
-      )
-      .bufferTo(transactionContext)
+            getOwnerInternalId(transactionContext), certificateId.value, externalMapId.value)
+        .bufferTo(transactionContext)
     return certificate.toBuilder().setExternalCertificateId(externalMapId.value).build()
   }
 
@@ -72,41 +69,37 @@ class CreateCertificate(private val certificate: Certificate) :
   }
 
   private suspend fun getOwnerInternalId(
-    transactionContext: AsyncDatabaseClient.TransactionContext
+      transactionContext: AsyncDatabaseClient.TransactionContext
   ): Long {
     // TODO: change all of the reads below to use index lookups or simple queries.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (certificate.parentCase) {
-      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+        val externalDataProviderId = ExternalId(certificate.externalDataProviderId)
         DataProviderReader()
-          .readByExternalDataProviderId(
-            transactionContext,
-            ExternalId(certificate.externalDataProviderId)
-          )
-          ?.dataProviderId
-          ?: throw DataProviderNotFoundException(ExternalId(certificate.externalDataProviderId))
-      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+            .readByExternalDataProviderId(transactionContext, externalDataProviderId)
+            ?.dataProviderId
+            ?: throw DataProviderNotFoundException(externalDataProviderId)
+      }
+      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+        val externalMeasurementConsumerId = ExternalId(certificate.externalMeasurementConsumerId)
         MeasurementConsumerReader()
-          .readByExternalMeasurementConsumerId(
-            transactionContext,
-            ExternalId(certificate.externalMeasurementConsumerId)
-          )
-          ?.measurementConsumerId
-          ?: throw MeasurementConsumerNotFoundException(
-            ExternalId(certificate.externalMeasurementConsumerId)
-          )
+            .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
+            ?.measurementConsumerId
+            ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      }
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
-        DuchyIds.getInternalId(certificate.externalDuchyId)
-          ?: throw DuchyNotFoundException(certificate.externalDuchyId)
+          DuchyIds.getInternalId(certificate.externalDuchyId)
+              ?: throw DuchyNotFoundException(certificate.externalDuchyId)
       Certificate.ParentCase.PARENT_NOT_SET ->
-        throw IllegalArgumentException("Parent field of Certificate is not set")
+          throw IllegalArgumentException("Parent field of Certificate is not set")
     }
   }
 
   private fun createCertificateMapTableMutation(
-    internalOwnerId: Long,
-    internalCertificateId: Long,
-    externalMapId: Long
+      internalOwnerId: Long,
+      internalCertificateId: Long,
+      externalMapId: Long
   ): Mutation {
     val tableName = "${ownerTableName}Certificates"
     val internalIdField = "${ownerTableName}Id"

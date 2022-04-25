@@ -40,12 +40,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasur
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 private val PENDING_MEASUREMENT_STATES =
-  listOf(
-    Measurement.State.PENDING_COMPUTATION,
-    Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-    Measurement.State.PENDING_REQUISITION_FULFILLMENT,
-    Measurement.State.PENDING_REQUISITION_PARAMS
-  )
+    listOf(
+        Measurement.State.PENDING_COMPUTATION,
+        Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+        Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+        Measurement.State.PENDING_REQUISITION_PARAMS)
 
 /**
  * Revokes a certificate in the database.
@@ -54,56 +53,53 @@ private val PENDING_MEASUREMENT_STATES =
  * * [ErrorCode.CERTIFICATE_NOT_FOUND]
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
-  SpannerWriter<Certificate, Certificate>() {
+    SpannerWriter<Certificate, Certificate>() {
 
   override suspend fun TransactionScope.runTransaction(): Certificate {
     val externalCertificateId = ExternalId(request.externalCertificateId)
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     val certificateResult =
-      when (request.parentCase) {
-        RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
-          val reader =
-            CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-              .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
-          reader.execute(transactionContext).singleOrNull()
-            ?: throw DataProviderCertificateNotFoundException(
-              ExternalId(request.externalDataProviderId),
-              externalCertificateId
-            ) { "Certificate not found." }
+        when (request.parentCase) {
+          RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+            val reader =
+                CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+                    .bindWhereClause(
+                        ExternalId(request.externalDataProviderId), externalCertificateId)
+            reader.execute(transactionContext).singleOrNull()
+                ?: throw DataProviderCertificateNotFoundException(
+                    ExternalId(request.externalDataProviderId), externalCertificateId) {
+                  "Certificate not found."
+                }
+          }
+          RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+            val reader =
+                CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+                    .bindWhereClause(
+                        ExternalId(request.externalMeasurementConsumerId), externalCertificateId)
+            reader.execute(transactionContext).singleOrNull()
+                ?: throw MeasurementConsumerCertificateNotFoundException(
+                    ExternalId(request.externalMeasurementConsumerId), externalCertificateId) {
+                  "Certificate not found."
+                }
+          }
+          RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
+            val duchyId =
+                InternalId(
+                    DuchyIds.getInternalId(request.externalDuchyId)
+                        ?: throw DuchyNotFoundException(request.externalDuchyId) {
+                          " Duchy not found."
+                        })
+            val reader =
+                CertificateReader(CertificateReader.ParentType.DUCHY)
+                    .bindWhereClause(duchyId, externalCertificateId)
+            reader.execute(transactionContext).singleOrNull()
+                ?: throw DuchyCertificateNotFoundException(
+                    request.externalDuchyId, externalCertificateId) { "Certificate not found." }
+          }
+          RevokeCertificateRequest.ParentCase.PARENT_NOT_SET ->
+              throw IllegalStateException("RevokeCertificateRequest is missing parent field.")
         }
-        RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
-          val reader =
-            CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-              .bindWhereClause(
-                ExternalId(request.externalMeasurementConsumerId),
-                externalCertificateId
-              )
-          reader.execute(transactionContext).singleOrNull()
-            ?: throw MeasurementConsumerCertificateNotFoundException(
-              ExternalId(request.externalMeasurementConsumerId),
-              externalCertificateId
-            ) { "Certificate not found." }
-        }
-        RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
-          val duchyId =
-            InternalId(
-              DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw DuchyNotFoundException(request.externalDuchyId) { " Duchy not found." }
-            )
-          val reader =
-            CertificateReader(CertificateReader.ParentType.DUCHY)
-              .bindWhereClause(duchyId, externalCertificateId)
-          reader.execute(transactionContext).singleOrNull()
-            ?: throw DuchyCertificateNotFoundException(
-              duchyId,
-              request.externalDuchyId,
-              externalCertificateId
-            ) { "Certificate not found." }
-        }
-        RevokeCertificateRequest.ParentCase.PARENT_NOT_SET ->
-          throw IllegalStateException("RevokeCertificateRequest is missing parent field.")
-      }
 
     transactionContext.bufferUpdateMutation("Certificates") {
       set("CertificateId" to certificateResult.certificateId.value)
@@ -113,62 +109,58 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     when (request.parentCase) {
       RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
         val filter =
-          StreamMeasurementsRequestKt.filter {
-            externalMeasurementConsumerId = request.externalMeasurementConsumerId
-            externalMeasurementConsumerCertificateId = request.externalCertificateId
-            states += PENDING_MEASUREMENT_STATES
-          }
+            StreamMeasurementsRequestKt.filter {
+              externalMeasurementConsumerId = request.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId = request.externalCertificateId
+              states += PENDING_MEASUREMENT_STATES
+            }
 
         StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
           val details =
-            it.measurement.details.copy {
-              failure =
-                MeasurementKt.failure {
-                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                  message = "The associated Measurement Consumer certificate has been revoked."
-                }
-            }
+              it.measurement.details.copy {
+                failure =
+                    MeasurementKt.failure {
+                      reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                      message = "The associated Measurement Consumer certificate has been revoked."
+                    }
+              }
 
           failMeasurement(it.measurementConsumerId, it.measurementId, details)
         }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
         StreamMeasurementsByDataProviderCertificate(
-            certificateResult.certificateId,
-            PENDING_MEASUREMENT_STATES
-          )
-          .execute(transactionContext)
-          .collect {
-            val details =
-              it.measurementDetails.copy {
-                failure =
-                  MeasurementKt.failure {
-                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                    message = "An associated Data Provider certificate has been revoked."
+                certificateResult.certificateId, PENDING_MEASUREMENT_STATES)
+            .execute(transactionContext)
+            .collect {
+              val details =
+                  it.measurementDetails.copy {
+                    failure =
+                        MeasurementKt.failure {
+                          reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                          message = "An associated Data Provider certificate has been revoked."
+                        }
                   }
-              }
 
-            failMeasurement(it.measurementConsumerId, it.measurementId, details)
-          }
+              failMeasurement(it.measurementConsumerId, it.measurementId, details)
+            }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
         StreamMeasurementsByDuchyCertificate(
-            certificateResult.certificateId,
-            PENDING_MEASUREMENT_STATES
-          )
-          .execute(transactionContext)
-          .collect {
-            val details =
-              it.measurementDetails.copy {
-                failure =
-                  MeasurementKt.failure {
-                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-                    message = "An associated Duchy certificate has been revoked."
+                certificateResult.certificateId, PENDING_MEASUREMENT_STATES)
+            .execute(transactionContext)
+            .collect {
+              val details =
+                  it.measurementDetails.copy {
+                    failure =
+                        MeasurementKt.failure {
+                          reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                          message = "An associated Duchy certificate has been revoked."
+                        }
                   }
-              }
 
-            failMeasurement(it.measurementConsumerId, it.measurementId, details)
-          }
+              failMeasurement(it.measurementConsumerId, it.measurementId, details)
+            }
       }
       else -> {}
     }
@@ -181,9 +173,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
   }
 
   private fun TransactionScope.failMeasurement(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    details: Measurement.Details
+      measurementConsumerId: InternalId,
+      measurementId: InternalId,
+      details: Measurement.Details
   ) {
     updateMeasurementState(measurementConsumerId, measurementId, Measurement.State.FAILED, details)
   }

@@ -22,10 +22,10 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 internal fun SpannerWriter.TransactionScope.updateRequisition(
-  readResult: RequisitionReader.Result,
-  state: Requisition.State,
-  details: Requisition.Details,
-  fulfillingDuchyId: InternalId? = null
+    readResult: RequisitionReader.Result,
+    state: Requisition.State,
+    details: Requisition.Details,
+    fulfillingDuchyId: InternalId? = null
 ) {
   transactionContext.bufferUpdateMutation("Requisitions") {
     set("MeasurementId" to readResult.measurementId.value)

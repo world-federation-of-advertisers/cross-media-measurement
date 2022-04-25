@@ -26,32 +26,27 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class CreateEventGroupMetadataDescriptor(
-  private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
+    private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
 ) : SpannerWriter<EventGroupMetadataDescriptor, EventGroupMetadataDescriptor>() {
   override suspend fun TransactionScope.runTransaction(): EventGroupMetadataDescriptor {
     val dataProviderId =
-      DataProviderReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
-        )
-        ?.dataProviderId
-        ?: throw DataProviderNotFoundException(
-          ExternalId(eventGroupMetadataDescriptor.externalDataProviderId)
-        )
+        DataProviderReader()
+            .readByExternalDataProviderId(
+                transactionContext, ExternalId(eventGroupMetadataDescriptor.externalDataProviderId))
+            ?.dataProviderId
+            ?: throw DataProviderNotFoundException(
+                ExternalId(eventGroupMetadataDescriptor.externalDataProviderId))
     return if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId == 0L) {
       createNewEventGroupMetadataDescriptor(dataProviderId)
     } else {
       findExistingEventGroupMetadataDescriptor(
-        dataProviderId,
-        eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-      )
-        ?: createNewEventGroupMetadataDescriptor(dataProviderId)
+          dataProviderId, eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId)
+          ?: createNewEventGroupMetadataDescriptor(dataProviderId)
     }
   }
 
   private suspend fun TransactionScope.createNewEventGroupMetadataDescriptor(
-    dataProviderId: Long
+      dataProviderId: Long
   ): EventGroupMetadataDescriptor {
     val internalDescriptorId: InternalId = idGenerator.generateInternalId()
     val externalDescriptorId: ExternalId = idGenerator.generateExternalId()
@@ -66,24 +61,24 @@ class CreateEventGroupMetadataDescriptor(
     }
 
     return eventGroupMetadataDescriptor
-      .toBuilder()
-      .setExternalEventGroupMetadataDescriptorId(externalDescriptorId.value)
-      .build()
+        .toBuilder()
+        .setExternalEventGroupMetadataDescriptorId(externalDescriptorId.value)
+        .build()
   }
 
   private suspend fun TransactionScope.findExistingEventGroupMetadataDescriptor(
-    dataProviderId: Long,
-    externalEventGroupMetadataDescriptorId: Long
+      dataProviderId: Long,
+      externalEventGroupMetadataDescriptorId: Long
   ): EventGroupMetadataDescriptor? {
     return EventGroupMetadataDescriptorReader()
-      .bindWhereClause(dataProviderId, externalEventGroupMetadataDescriptorId)
-      .execute(transactionContext)
-      .singleOrNull()
-      ?.eventGroupMetadataDescriptor
+        .bindWhereClause(dataProviderId, externalEventGroupMetadataDescriptorId)
+        .execute(transactionContext)
+        .singleOrNull()
+        ?.eventGroupMetadataDescriptor
   }
 
   override fun ResultScope<EventGroupMetadataDescriptor>.buildResult():
-    EventGroupMetadataDescriptor {
+      EventGroupMetadataDescriptor {
     return checkNotNull(this.transactionResult)
   }
 }

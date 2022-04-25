@@ -20,12 +20,10 @@ import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.InternalId
 
 internal fun SpannerWriter.TransactionScope.deleteMeasurementConsumerCreationToken(
-  measurementConsumerCreationTokenId: InternalId
+    measurementConsumerCreationTokenId: InternalId
 ) {
   transactionContext.buffer(
-    Mutation.delete(
-      "MeasurementConsumerCreationTokens",
-      KeySet.singleKey(Key.of(measurementConsumerCreationTokenId.value))
-    )
-  )
+      Mutation.delete(
+          "MeasurementConsumerCreationTokens",
+          KeySet.singleKey(Key.of(measurementConsumerCreationTokenId.value))))
 }

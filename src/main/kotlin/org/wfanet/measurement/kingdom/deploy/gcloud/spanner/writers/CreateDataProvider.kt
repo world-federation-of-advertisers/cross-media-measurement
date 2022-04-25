@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.copy
 
 class CreateDataProvider(private val dataProvider: DataProvider) :
-  SpannerWriter<DataProvider, DataProvider>() {
+    SpannerWriter<DataProvider, DataProvider>() {
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val internalCertificateId = idGenerator.generateInternalId()
 
@@ -50,10 +50,10 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
     return dataProvider.copy {
       this.externalDataProviderId = externalDataProviderId.value
       certificate =
-        certificate.copy {
-          this.externalDataProviderId = externalDataProviderId.value
-          externalCertificateId = externalDataProviderCertificateId.value
-        }
+          certificate.copy {
+            this.externalDataProviderId = externalDataProviderId.value
+            externalCertificateId = externalDataProviderCertificateId.value
+          }
     }
   }
 

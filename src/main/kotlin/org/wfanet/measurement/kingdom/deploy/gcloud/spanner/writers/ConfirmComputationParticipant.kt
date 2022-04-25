@@ -44,28 +44,23 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * * [ErrorCode.DUCHY_NOT_FOUND]
  */
 class ConfirmComputationParticipant(private val request: ConfirmComputationParticipantRequest) :
-  SpannerWriter<ComputationParticipant, ComputationParticipant>() {
+    SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
 
     val duchyId =
-      DuchyIds.getInternalId(request.externalDuchyId)
-        ?: throw DuchyNotFoundException(request.externalDuchyId)
+        DuchyIds.getInternalId(request.externalDuchyId)
+            ?: throw DuchyNotFoundException(request.externalDuchyId)
 
     val computationParticipantResult: ComputationParticipantReader.Result =
-      ComputationParticipantReader()
-        .readByExternalComputationId(
-          transactionContext,
-          ExternalId(request.externalComputationId),
-          InternalId(duchyId)
-        )
-        ?: throw ComputationParticipantNotFoundByComputationException(
-          ExternalId(request.externalComputationId),
-          request.externalDuchyId
-        ) {
-          "ComputationParticipant for external computation ID ${request.externalComputationId} " +
-            "and external duchy ID ${request.externalDuchyId} not found"
-        }
+        ComputationParticipantReader()
+            .readByExternalComputationId(
+                transactionContext, ExternalId(request.externalComputationId), InternalId(duchyId))
+            ?: throw ComputationParticipantNotFoundByComputationException(
+                ExternalId(request.externalComputationId), request.externalDuchyId) {
+              "ComputationParticipant for external computation ID ${request.externalComputationId} " +
+                  "and external duchy ID ${request.externalDuchyId} not found"
+            }
 
     val computationParticipant = computationParticipantResult.computationParticipant
     val measurementId = computationParticipantResult.measurementId
@@ -73,26 +68,24 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     val measurementState = computationParticipantResult.measurementState
     if (measurementState != Measurement.State.PENDING_PARTICIPANT_CONFIRMATION) {
       throw MeasurementStateIllegalException(
-        ExternalId(computationParticipant.externalMeasurementConsumerId),
-        ExternalId(computationParticipant.externalMeasurementId),
-        measurementState
-      ) {
+          ExternalId(computationParticipant.externalMeasurementConsumerId),
+          ExternalId(computationParticipant.externalMeasurementId),
+          measurementState) {
         "Measurement for external computation Id ${request.externalComputationId} " +
-          "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION}  " +
-          "but was in state $measurementState"
+            "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
+            "It should have been in state ${Measurement.State.PENDING_PARTICIPANT_CONFIRMATION}  " +
+            "but was in state $measurementState"
       }
     }
     if (computationParticipant.state != ComputationParticipant.State.REQUISITION_PARAMS_SET) {
       throw ComputationParticipantStateIllegalException(
-        ExternalId(request.externalComputationId),
-        request.externalDuchyId,
-        computationParticipant.state
-      ) {
+          ExternalId(request.externalComputationId),
+          request.externalDuchyId,
+          computationParticipant.state) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
-          "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-          "It should have been in state ${ComputationParticipant.State.REQUISITION_PARAMS_SET} " +
-          "but was in state ${computationParticipant.state}"
+            "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
+            "It should have been in state ${ComputationParticipant.State.REQUISITION_PARAMS_SET} " +
+            "but was in state ${computationParticipant.state}"
       }
     }
 
@@ -105,21 +98,18 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     }
 
     val otherDuchyIds: List<InternalId> =
-      DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
+        DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
 
     if (computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
         InternalId(measurementConsumerId),
         InternalId(measurementId),
-        NEXT_COMPUTATION_PARTICIPANT_STATE
-      )
-    ) {
+        NEXT_COMPUTATION_PARTICIPANT_STATE)) {
       updateMeasurementState(
-        InternalId(measurementConsumerId),
-        InternalId(measurementId),
-        Measurement.State.PENDING_COMPUTATION
-      )
+          InternalId(measurementConsumerId),
+          InternalId(measurementId),
+          Measurement.State.PENDING_COMPUTATION)
     }
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }

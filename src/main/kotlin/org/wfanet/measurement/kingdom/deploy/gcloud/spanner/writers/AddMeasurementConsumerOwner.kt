@@ -35,8 +35,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [ErrorCode.ACCOUNT_NOT_FOUND]
  */
 class AddMeasurementConsumerOwner(
-  private val externalAccountId: ExternalId,
-  private val externalMeasurementConsumerId: ExternalId
+    private val externalAccountId: ExternalId,
+    private val externalMeasurementConsumerId: ExternalId
 ) : SimpleSpannerWriter<MeasurementConsumer>() {
 
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
@@ -52,13 +52,13 @@ class AddMeasurementConsumerOwner(
   }
 
   private suspend fun TransactionScope.readAccountId(externalAccountId: ExternalId): InternalId =
-    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
-      ?: throw AccountNotFoundException(externalAccountId)
+      AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
+          ?: throw AccountNotFoundException(externalAccountId)
 
   private suspend fun TransactionScope.readMeasurementConsumerResult(
-    externalMeasurementConsumerId: ExternalId
+      externalMeasurementConsumerId: ExternalId
   ): MeasurementConsumerReader.Result =
-    MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      MeasurementConsumerReader()
+          .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
+          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

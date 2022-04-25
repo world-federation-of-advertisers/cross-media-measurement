@@ -43,35 +43,30 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FA
  * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
  */
 class FailComputationParticipant(private val request: FailComputationParticipantRequest) :
-  SpannerWriter<ComputationParticipant, ComputationParticipant>() {
+    SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
 
     val duchyId =
-      DuchyIds.getInternalId(request.externalDuchyId)
-        ?: throw DuchyNotFoundException(request.externalDuchyId)
+        DuchyIds.getInternalId(request.externalDuchyId)
+            ?: throw DuchyNotFoundException(request.externalDuchyId)
 
     val computationParticipantResult: ComputationParticipantReader.Result =
-      ComputationParticipantReader()
-        .readByExternalComputationId(
-          transactionContext,
-          ExternalId(request.externalComputationId),
-          InternalId(duchyId)
-        )
-        ?: throw ComputationParticipantNotFoundByComputationException(
-          ExternalId(request.externalComputationId),
-          request.externalDuchyId
-        ) {
-          "ComputationParticipant for external computation ID ${request.externalComputationId} " +
-            "and external duchy ID ${request.externalDuchyId} not found"
-        }
+        ComputationParticipantReader()
+            .readByExternalComputationId(
+                transactionContext, ExternalId(request.externalComputationId), InternalId(duchyId))
+            ?: throw ComputationParticipantNotFoundByComputationException(
+                ExternalId(request.externalComputationId), request.externalDuchyId) {
+              "ComputationParticipant for external computation ID ${request.externalComputationId} " +
+                  "and external duchy ID ${request.externalDuchyId} not found"
+            }
 
     val (
-      computationParticipant,
-      measurementId,
-      measurementConsumerId,
-      measurementState,
-      measurementDetails,
+        computationParticipant,
+        measurementId,
+        measurementConsumerId,
+        measurementState,
+        measurementDetails,
     ) = computationParticipantResult
 
     when (measurementState) {
@@ -85,10 +80,11 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED, -> {
         throw MeasurementStateIllegalException(
-          ExternalId(computationParticipant.externalMeasurementConsumerId),
-          ExternalId(computationParticipant.externalMeasurementId),
-          measurementState
-        ) { "Unexpected Measurement state $measurementState (${measurementState.number})" }
+            ExternalId(computationParticipant.externalMeasurementConsumerId),
+            ExternalId(computationParticipant.externalMeasurementId),
+            measurementState) {
+          "Unexpected Measurement state $measurementState (${measurementState.number})"
+        }
       }
     }
 
@@ -101,19 +97,18 @@ class FailComputationParticipant(private val request: FailComputationParticipant
     }
 
     val updatedMeasurementDetails =
-      measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-          }
-      }
+        measurementDetails.copy {
+          failure =
+              MeasurementKt.failure {
+                reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+              }
+        }
 
     updateMeasurementState(
-      InternalId(measurementConsumerId),
-      InternalId(measurementId),
-      Measurement.State.FAILED,
-      updatedMeasurementDetails
-    )
+        InternalId(measurementConsumerId),
+        InternalId(measurementId),
+        Measurement.State.FAILED,
+        updatedMeasurementDetails)
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
   }

@@ -53,11 +53,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  * * [ErrorCode.CERTIFICATE_IS_INVALID]
  */
 class CreateMeasurement(private val measurement: Measurement) :
-  SpannerWriter<Measurement, Measurement>() {
+    SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val measurementConsumerId: InternalId =
-      readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
+        readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
 
     if (measurement.providedMeasurementId.isNotBlank()) {
       val existingMeasurement = findExistingMeasurement(measurementConsumerId)
@@ -68,8 +68,7 @@ class CreateMeasurement(private val measurement: Measurement) :
 
     // protocol has to be set for the measurement to require computation
     return if (measurement.details.protocolConfig.protocolCase !=
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET) {
       createComputedMeasurement(measurement, measurementConsumerId)
     } else {
       createDirectMeasurement(measurement, measurementConsumerId)
@@ -77,8 +76,8 @@ class CreateMeasurement(private val measurement: Measurement) :
   }
 
   private suspend fun TransactionScope.createComputedMeasurement(
-    measurement: Measurement,
-    measurementConsumerId: InternalId
+      measurement: Measurement,
+      measurementConsumerId: InternalId
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
@@ -86,26 +85,24 @@ class CreateMeasurement(private val measurement: Measurement) :
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
     insertMeasurement(
-      measurementConsumerId,
-      measurementId,
-      externalMeasurementId,
-      externalComputationId,
-      initialMeasurementState
-    )
+        measurementConsumerId,
+        measurementId,
+        externalMeasurementId,
+        externalComputationId,
+        initialMeasurementState)
 
     // Insert into Requisitions for each EDP
     insertRequisitions(
-      measurementConsumerId,
-      measurementId,
-      measurement.dataProvidersMap,
-      Requisition.State.PENDING_PARAMS
-    )
+        measurementConsumerId,
+        measurementId,
+        measurement.dataProvidersMap,
+        Requisition.State.PENDING_PARAMS)
 
     DuchyIds.entries.forEach { entry ->
       insertComputationParticipant(
-        measurementConsumerId,
-        measurementId,
-        InternalId(entry.internalDuchyId),
+          measurementConsumerId,
+          measurementId,
+          InternalId(entry.internalDuchyId),
       )
     }
 
@@ -117,28 +114,22 @@ class CreateMeasurement(private val measurement: Measurement) :
   }
 
   private suspend fun TransactionScope.createDirectMeasurement(
-    measurement: Measurement,
-    measurementConsumerId: InternalId
+      measurement: Measurement,
+      measurementConsumerId: InternalId
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_FULFILLMENT
 
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     insertMeasurement(
-      measurementConsumerId,
-      measurementId,
-      externalMeasurementId,
-      null,
-      initialMeasurementState
-    )
+        measurementConsumerId, measurementId, externalMeasurementId, null, initialMeasurementState)
 
     // Insert into Requisitions for each EDP
     insertRequisitions(
-      measurementConsumerId,
-      measurementId,
-      measurement.dataProvidersMap,
-      Requisition.State.UNFULFILLED
-    )
+        measurementConsumerId,
+        measurementId,
+        measurement.dataProvidersMap,
+        Requisition.State.UNFULFILLED)
 
     return measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
@@ -147,23 +138,21 @@ class CreateMeasurement(private val measurement: Measurement) :
   }
 
   private suspend fun TransactionScope.insertMeasurement(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    externalMeasurementId: ExternalId,
-    externalComputationId: ExternalId?,
-    initialMeasurementState: Measurement.State
+      measurementConsumerId: InternalId,
+      measurementId: InternalId,
+      externalMeasurementId: ExternalId,
+      externalComputationId: ExternalId?,
+      initialMeasurementState: Measurement.State
   ) {
     val externalMeasurementConsumerId =
-      ExternalId(measurement.externalMeasurementConsumerCertificateId)
+        ExternalId(measurement.externalMeasurementConsumerCertificateId)
     val reader =
-      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-        .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
+        CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+            .bindWhereClause(measurementConsumerId, externalMeasurementConsumerId)
     val measurementConsumerCertificateId =
-      reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw MeasurementConsumerCertificateNotFoundException(
-          externalMeasurementConsumerId,
-          externalMeasurementId
-        )
+        reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
+            ?: throw MeasurementConsumerCertificateNotFoundException(
+                externalMeasurementConsumerId, externalMeasurementId)
 
     transactionContext.bufferInsertMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -185,9 +174,9 @@ class CreateMeasurement(private val measurement: Measurement) :
   }
 
   private fun TransactionScope.insertComputationParticipant(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    duchyId: InternalId
+      measurementConsumerId: InternalId,
+      measurementId: InternalId,
+      duchyId: InternalId
   ) {
     val participantDetails = ComputationParticipant.Details.getDefaultInstance()
     transactionContext.bufferInsertMutation("ComputationParticipants") {
@@ -202,55 +191,49 @@ class CreateMeasurement(private val measurement: Measurement) :
   }
 
   private suspend fun TransactionScope.insertRequisitions(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
-    initialRequisitionState: Requisition.State,
+      measurementConsumerId: InternalId,
+      measurementId: InternalId,
+      dataProvidersMap: Map<Long, Measurement.DataProviderValue>,
+      initialRequisitionState: Requisition.State,
   ) {
     for ((externalDataProviderId, dataProviderValue) in dataProvidersMap) {
-      val dataProviderId = readDataProviderId(ExternalId(externalDataProviderId))
       insertRequisition(
-        measurementConsumerId,
-        measurementId,
-        ExternalId(externalDataProviderId),
-        dataProviderId,
-        dataProviderValue,
-        initialRequisitionState
-      )
+          measurementConsumerId,
+          measurementId,
+          ExternalId(externalDataProviderId),
+          dataProviderValue,
+          initialRequisitionState)
     }
   }
 
   private suspend fun TransactionScope.insertRequisition(
-    measurementConsumerId: InternalId,
-    measurementId: InternalId,
-    externalDataProviderId: ExternalId,
-    dataProviderId: InternalId,
-    dataProviderValue: Measurement.DataProviderValue,
-    initialRequisitionState: Requisition.State
+      measurementConsumerId: InternalId,
+      measurementId: InternalId,
+      externalDataProviderId: ExternalId,
+      dataProviderValue: Measurement.DataProviderValue,
+      initialRequisitionState: Requisition.State
   ) {
+    val dataProviderId = readDataProviderId(externalDataProviderId)
     val reader =
-      CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-        .bindWhereClause(
-          dataProviderId,
-          ExternalId(dataProviderValue.externalDataProviderCertificateId)
-        )
+        CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+            .bindWhereClause(
+                dataProviderId, ExternalId(dataProviderValue.externalDataProviderCertificateId))
 
     val dataProviderCertificateId =
-      reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
-        ?: throw DataProviderCertificateNotFoundException(
-          externalDataProviderId,
-          ExternalId(dataProviderValue.externalDataProviderCertificateId)
-        )
+        reader.execute(transactionContext).singleOrNull()?.let { validateCertificate(it) }
+            ?: throw DataProviderCertificateNotFoundException(
+                externalDataProviderId,
+                ExternalId(dataProviderValue.externalDataProviderCertificateId))
 
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
     val details: Requisition.Details =
-      RequisitionKt.details {
-        dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-        dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-        encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-        nonceHash = dataProviderValue.nonceHash
-      }
+        RequisitionKt.details {
+          dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
+          dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
+          encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
+          nonceHash = dataProviderValue.nonceHash
+        }
 
     transactionContext.bufferInsertMutation("Requisitions") {
       set("MeasurementConsumerId" to measurementConsumerId)
@@ -267,28 +250,28 @@ class CreateMeasurement(private val measurement: Measurement) :
   }
 
   private suspend fun TransactionScope.findExistingMeasurement(
-    measurementConsumerId: InternalId
+      measurementConsumerId: InternalId
   ): Measurement? {
     val params =
-      object {
-        val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
-        val PROVIDED_MEASUREMENT_ID = "providedMeasurementId"
-      }
+        object {
+          val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
+          val PROVIDED_MEASUREMENT_ID = "providedMeasurementId"
+        }
     val whereClause =
-      """
+        """
       WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
         AND ProvidedMeasurementId = @${params.PROVIDED_MEASUREMENT_ID}
       """.trimIndent()
 
     return MeasurementReader(Measurement.View.DEFAULT)
-      .fillStatementBuilder {
-        appendClause(whereClause)
-        bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
-        bind(params.PROVIDED_MEASUREMENT_ID to measurement.providedMeasurementId)
-      }
-      .execute(transactionContext)
-      .map { it.measurement }
-      .singleOrNull()
+        .fillStatementBuilder {
+          appendClause(whereClause)
+          bind(params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)
+          bind(params.PROVIDED_MEASUREMENT_ID to measurement.providedMeasurementId)
+        }
+        .execute(transactionContext)
+        .map { it.measurement }
+        .singleOrNull()
   }
 
   override fun ResultScope<Measurement>.buildResult(): Measurement {
@@ -305,35 +288,33 @@ class CreateMeasurement(private val measurement: Measurement) :
 }
 
 private suspend fun TransactionScope.readMeasurementConsumerId(
-  externalMeasurementConsumerId: ExternalId
+    externalMeasurementConsumerId: ExternalId
 ): InternalId {
   val column = "MeasurementConsumerId"
   return transactionContext.readRowUsingIndex(
-      "MeasurementConsumers",
-      "MeasurementConsumersByExternalId",
-      Key.of(externalMeasurementConsumerId.value),
-      column
-    )
-    ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId) {
-      "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
-    }
+          "MeasurementConsumers",
+          "MeasurementConsumersByExternalId",
+          Key.of(externalMeasurementConsumerId.value),
+          column)
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId) {
+        "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
+      }
 }
 
 private suspend fun TransactionScope.readDataProviderId(
-  externalDataProviderId: ExternalId
+    externalDataProviderId: ExternalId
 ): InternalId {
   val column = "DataProviderId"
   return transactionContext.readRowUsingIndex(
-      "DataProviders",
-      "DataProvidersByExternalId",
-      Key.of(externalDataProviderId.value),
-      column
-    )
-    ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw DataProviderNotFoundException(externalDataProviderId) {
-      "DataProvider with external ID $externalDataProviderId not found"
-    }
+          "DataProviders",
+          "DataProvidersByExternalId",
+          Key.of(externalDataProviderId.value),
+          column)
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw DataProviderNotFoundException(externalDataProviderId) {
+        "DataProvider with external ID $externalDataProviderId not found"
+      }
 }
 
 /**
@@ -343,7 +324,7 @@ private suspend fun TransactionScope.readDataProviderId(
  * Throws a [ErrorCode.CERTIFICATE_IS_INVALID] otherwise.
  */
 private fun validateCertificate(
-  certificateResult: CertificateReader.Result,
+    certificateResult: CertificateReader.Result,
 ): InternalId {
   if (!certificateResult.isValid) {
     throw CertificateIsInvalidException()

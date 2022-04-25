@@ -34,39 +34,35 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
 class DeleteApiKey(
-  private val externalMeasurementConsumerId: ExternalId,
-  private val externalApiKeyId: ExternalId,
+    private val externalMeasurementConsumerId: ExternalId,
+    private val externalApiKeyId: ExternalId,
 ) : SimpleSpannerWriter<ApiKey>() {
 
   override suspend fun TransactionScope.runTransaction(): ApiKey {
     val apiKeyResult = readApiKey(externalApiKeyId)
 
     transactionContext.buffer(
-      Mutation.delete(
-        "MeasurementConsumerApiKeys",
-        KeySet.singleKey(
-          Key.of(
-            readInternalMeasurementConsumerId(externalMeasurementConsumerId),
-            apiKeyResult.apiKeyId
-          )
-        )
-      )
-    )
+        Mutation.delete(
+            "MeasurementConsumerApiKeys",
+            KeySet.singleKey(
+                Key.of(
+                    readInternalMeasurementConsumerId(externalMeasurementConsumerId),
+                    apiKeyResult.apiKeyId))))
 
     return apiKeyResult.apiKey
   }
 
   private suspend fun TransactionScope.readInternalMeasurementConsumerId(
-    externalMeasurementConsumerId: ExternalId
+      externalMeasurementConsumerId: ExternalId
   ): Long =
-    MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?.measurementConsumerId
-      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      MeasurementConsumerReader()
+          .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
+          ?.measurementConsumerId
+          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 
   private suspend fun TransactionScope.readApiKey(
-    externalApiKeyId: ExternalId
+      externalApiKeyId: ExternalId
   ): MeasurementConsumerApiKeyReader.Result =
-    MeasurementConsumerApiKeyReader().readByExternalId(transactionContext, externalApiKeyId)
-      ?: throw ApiKeyNotFoundException(externalApiKeyId)
+      MeasurementConsumerApiKeyReader().readByExternalId(transactionContext, externalApiKeyId)
+          ?: throw ApiKeyNotFoundException(externalApiKeyId)
 }
