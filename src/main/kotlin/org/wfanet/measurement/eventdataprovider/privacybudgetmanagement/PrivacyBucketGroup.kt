@@ -76,7 +76,7 @@ data class PrivacyBucketGroup(
 }
 
 /**
- * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
+ * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filtered by the CEL expression for
  * that message.
  *
  * TODO(@uakyol) : Update this to [Event] message when actual templates are registered.
@@ -85,21 +85,23 @@ fun PrivacyBucketGroup.toEventProto(): TestEvent {
   val privacyBucketGroupGender = this.gender
   return testEvent {
     privacyBudget = testPrivacyBudgetTemplate {
-      age =
-        if (ageGroup == AgeGroup.RANGE_18_34) ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-        else
-          (if (ageGroup == AgeGroup.RANGE_35_54) ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-          else ageRange { value = AgeRange.Value.AGE_OVER_54 })
-
-      gender =
-        if (privacyBucketGroupGender == Gender.MALE)
-          TestPrivacyBudgetTemplateKt.gender {
-            value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-          }
-        else
-          TestPrivacyBudgetTemplateKt.gender {
-            value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-          }
+      when (ageGroup) {
+        AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+        AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
+        AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
+      }
+      when (privacyBucketGroupGender) {
+        Gender.MALE ->
+          gender =
+            TestPrivacyBudgetTemplateKt.gender {
+              value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
+            }
+        Gender.FEMALE ->
+          gender =
+            TestPrivacyBudgetTemplateKt.gender {
+              value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
+            }
+      }
     }
   }
 }
