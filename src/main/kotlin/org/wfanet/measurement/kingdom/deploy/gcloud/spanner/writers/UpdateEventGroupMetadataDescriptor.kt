@@ -23,27 +23,31 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMet
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class UpdateEventGroupMetadataDescriptor(
-    private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
+  private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
 ) : SpannerWriter<EventGroupMetadataDescriptor, EventGroupMetadataDescriptor>() {
   override suspend fun TransactionScope.runTransaction(): EventGroupMetadataDescriptor {
     val internalMetadataDescriptorResult =
-        EventGroupMetadataDescriptorReader()
-            .readByExternalIds(
-                transactionContext,
-                eventGroupMetadataDescriptor.externalDataProviderId,
-                eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId)
-            ?: throw EventGroupMetadataDescriptorNotFoundException(
-                ExternalId(eventGroupMetadataDescriptor.externalDataProviderId),
-                ExternalId(eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId))
+      EventGroupMetadataDescriptorReader()
+        .readByExternalIds(
+          transactionContext,
+          eventGroupMetadataDescriptor.externalDataProviderId,
+          eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+        )
+        ?: throw EventGroupMetadataDescriptorNotFoundException(
+          ExternalId(eventGroupMetadataDescriptor.externalDataProviderId),
+          ExternalId(eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId)
+        )
 
     transactionContext.bufferUpdateMutation("EventGroupMetadataDescriptors") {
       set("DataProviderId" to internalMetadataDescriptorResult.internalDataProviderId.value)
       set(
-          "EventGroupMetadataDescriptorId" to
-              internalMetadataDescriptorResult.internalDescriptorId.value)
+        "EventGroupMetadataDescriptorId" to
+          internalMetadataDescriptorResult.internalDescriptorId.value
+      )
       set(
-          "ExternalEventGroupMetadataDescriptorId" to
-              eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId)
+        "ExternalEventGroupMetadataDescriptorId" to
+          eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+      )
 
       set("DescriptorDetails" to eventGroupMetadataDescriptor.details)
       setJson("DescriptorDetailsJson" to eventGroupMetadataDescriptor.details)
@@ -53,7 +57,7 @@ class UpdateEventGroupMetadataDescriptor(
   }
 
   override fun ResultScope<EventGroupMetadataDescriptor>.buildResult():
-      EventGroupMetadataDescriptor {
+    EventGroupMetadataDescriptor {
     return eventGroupMetadataDescriptor
   }
 }

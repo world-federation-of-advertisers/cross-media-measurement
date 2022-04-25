@@ -59,46 +59,53 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
-    SpannerWriter<ComputationParticipant, ComputationParticipant>() {
+  SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
     val duchyId =
-        DuchyIds.getInternalId(request.externalDuchyId)
-            ?: throw DuchyNotFoundException(request.externalDuchyId)
+      DuchyIds.getInternalId(request.externalDuchyId)
+        ?: throw DuchyNotFoundException(request.externalDuchyId)
     val duchyCertificateId =
-        readDuchyCertificateId(InternalId(duchyId), ExternalId(request.externalDuchyCertificateId))
+      readDuchyCertificateId(InternalId(duchyId), ExternalId(request.externalDuchyCertificateId))
 
     val certificateResult =
-        CertificateReader(CertificateReader.ParentType.DUCHY)
-            .fillStatementBuilder {
-              appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
-              bind("duchyId" to duchyId)
-              bind("certificateId" to duchyCertificateId)
-            }
-            .execute(transactionContext)
-            .single()
+      CertificateReader(CertificateReader.ParentType.DUCHY)
+        .fillStatementBuilder {
+          appendClause("WHERE DuchyId = @duchyId AND CertificateId = @certificateId")
+          bind("duchyId" to duchyId)
+          bind("certificateId" to duchyCertificateId)
+        }
+        .execute(transactionContext)
+        .single()
 
     if (!certificateResult.isValid) {
       throw CertificateIsInvalidException()
     }
 
     val computationParticipantResult: ComputationParticipantReader.Result =
-        ComputationParticipantReader()
-            .readByExternalComputationId(
-                transactionContext, ExternalId(request.externalComputationId), InternalId(duchyId))
-            ?: throw ComputationParticipantNotFoundByComputationException(
-                ExternalId(request.externalComputationId), request.externalDuchyId) {
-              "ComputationParticipant for external computation ID ${request.externalComputationId} " +
-                  "and external duchy ID ${request.externalDuchyId} not found"
-            }
+      ComputationParticipantReader()
+        .readByExternalComputationId(
+          transactionContext,
+          ExternalId(request.externalComputationId),
+          InternalId(duchyId)
+        )
+        ?: throw ComputationParticipantNotFoundByComputationException(
+          ExternalId(request.externalComputationId),
+          request.externalDuchyId
+        ) {
+          "ComputationParticipant for external computation ID ${request.externalComputationId} " +
+            "and external duchy ID ${request.externalDuchyId} not found"
+        }
 
     val computationParticipant = computationParticipantResult.computationParticipant
     if (computationParticipantResult.measurementState !=
-        Measurement.State.PENDING_REQUISITION_PARAMS) {
+        Measurement.State.PENDING_REQUISITION_PARAMS
+    ) {
       throw MeasurementStateIllegalException(
-          ExternalId(computationParticipant.externalMeasurementConsumerId),
-          ExternalId(computationParticipant.externalMeasurementId),
-          computationParticipantResult.measurementState)
+        ExternalId(computationParticipant.externalMeasurementConsumerId),
+        ExternalId(computationParticipant.externalMeasurementId),
+        computationParticipantResult.measurementState
+      )
     }
 
     val measurementId = computationParticipantResult.measurementId
@@ -106,17 +113,18 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
       throw ComputationParticipantStateIllegalException(
-          ExternalId(request.externalComputationId),
-          request.externalDuchyId,
-          computationParticipant.state) {
+        ExternalId(request.externalComputationId),
+        request.externalDuchyId,
+        computationParticipant.state
+      ) {
         "ComputationParticipant for external computation Id ${request.externalComputationId} " +
-            "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
-            "It should have been in state CREATED but was in state ${computationParticipant.state}"
+          "and external duchy ID ${request.externalDuchyId} has the wrong state. " +
+          "It should have been in state CREATED but was in state ${computationParticipant.state}"
       }
     }
 
     val participantDetails =
-        computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
+      computationParticipant.details.copy { liquidLegionsV2 = request.liquidLegionsV2 }
     transactionContext.bufferUpdateMutation("ComputationParticipants") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
@@ -129,33 +137,37 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     }
 
     val otherDuchyIds: List<InternalId> =
-        DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
+      DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
     if (computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
         InternalId(measurementConsumerId),
         InternalId(measurementId),
-        NEXT_COMPUTATION_PARTICIPANT_STATE)) {
+        NEXT_COMPUTATION_PARTICIPANT_STATE
+      )
+    ) {
       updateMeasurementState(
-          InternalId(measurementConsumerId),
-          InternalId(measurementId),
-          Measurement.State.PENDING_REQUISITION_FULFILLMENT)
+        InternalId(measurementConsumerId),
+        InternalId(measurementId),
+        Measurement.State.PENDING_REQUISITION_FULFILLMENT
+      )
 
       StreamRequisitions(
-              StreamRequisitionsRequestKt.filter {
-                externalMeasurementConsumerId = computationParticipant.externalMeasurementConsumerId
-                externalMeasurementId = computationParticipant.externalMeasurementId
-              })
-          .execute(transactionContext)
-          .collect {
-            transactionContext.bufferUpdateMutation("Requisitions") {
-              set("MeasurementConsumerId" to measurementConsumerId)
-              set("MeasurementId" to measurementId)
-              set("RequisitionId" to it.requisitionId)
-              set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-              set("State" to Requisition.State.UNFULFILLED)
-            }
+          StreamRequisitionsRequestKt.filter {
+            externalMeasurementConsumerId = computationParticipant.externalMeasurementConsumerId
+            externalMeasurementId = computationParticipant.externalMeasurementId
           }
+        )
+        .execute(transactionContext)
+        .collect {
+          transactionContext.bufferUpdateMutation("Requisitions") {
+            set("MeasurementConsumerId" to measurementConsumerId)
+            set("MeasurementId" to measurementId)
+            set("RequisitionId" to it.requisitionId)
+            set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+            set("State" to Requisition.State.UNFULFILLED)
+          }
+        }
     }
 
     return computationParticipant.copy {
@@ -170,19 +182,20 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
   }
 
   private suspend fun TransactionScope.readDuchyCertificateId(
-      duchyId: InternalId,
-      externalCertificateId: ExternalId
+    duchyId: InternalId,
+    externalCertificateId: ExternalId
   ): InternalId {
     val column = "CertificateId"
     return transactionContext.readRowUsingIndex(
-            "DuchyCertificates",
-            "DuchyCertificatesByExternalId",
-            Key.of(duchyId.value, externalCertificateId.value),
-            column)
-        ?.let { struct -> InternalId(struct.getLong(column)) }
-        ?: throw DuchyCertificateNotFoundException(request.externalDuchyId, externalCertificateId) {
-          "Certificate for Duchy ${duchyId.value} with external ID " +
-              "$externalCertificateId not found"
-        }
+        "DuchyCertificates",
+        "DuchyCertificatesByExternalId",
+        Key.of(duchyId.value, externalCertificateId.value),
+        column
+      )
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw DuchyCertificateNotFoundException(request.externalDuchyId, externalCertificateId) {
+        "Certificate for Duchy ${duchyId.value} with external ID " +
+          "$externalCertificateId not found"
+      }
   }
 }

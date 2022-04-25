@@ -45,32 +45,30 @@ private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
  * * [ErrorCode.CERTIFICATE_NOT_FOUND]
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
-    SpannerWriter<Measurement, Measurement>() {
+  SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val (measurementConsumerId, measurementId, measurement) =
-        MeasurementReader(Measurement.View.DEFAULT)
-            .readByExternalComputationId(
-                transactionContext, ExternalId(request.externalComputationId))
-            ?: throw MeasurementNotFoundByComputationException(
-                ExternalId(request.externalComputationId)) {
-              "Measurement for external computation ID ${request.externalComputationId} not found"
-            }
+      MeasurementReader(Measurement.View.DEFAULT)
+        .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
+        ?: throw MeasurementNotFoundByComputationException(
+          ExternalId(request.externalComputationId)
+        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
     val aggregatorDuchyId =
-        DuchyIds.getInternalId(request.externalAggregatorDuchyId)
-            ?: throw DuchyNotFoundException(request.externalAggregatorDuchyId) {
-              "Duchy with external ID ${request.externalAggregatorDuchyId} not found"
-            }
+      DuchyIds.getInternalId(request.externalAggregatorDuchyId)
+        ?: throw DuchyNotFoundException(request.externalAggregatorDuchyId) {
+          "Duchy with external ID ${request.externalAggregatorDuchyId} not found"
+        }
     val aggregatorCertificateId =
-        CertificateReader.getDuchyCertificateId(
-            transactionContext,
-            InternalId(aggregatorDuchyId),
-            ExternalId(request.externalAggregatorCertificateId))
-            ?: throw DuchyCertificateNotFoundException(
-                request.externalAggregatorDuchyId,
-                ExternalId(request.externalAggregatorCertificateId)) {
-              "Aggregator certificate ${request.externalAggregatorCertificateId} not found"
-            }
+      CertificateReader.getDuchyCertificateId(
+        transactionContext,
+        InternalId(aggregatorDuchyId),
+        ExternalId(request.externalAggregatorCertificateId)
+      )
+        ?: throw DuchyCertificateNotFoundException(
+          request.externalAggregatorDuchyId,
+          ExternalId(request.externalAggregatorCertificateId)
+        ) { "Aggregator certificate ${request.externalAggregatorCertificateId} not found" }
 
     transactionContext.bufferInsertMutation("DuchyMeasurementResults") {
       set("MeasurementConsumerId" to measurementConsumerId)

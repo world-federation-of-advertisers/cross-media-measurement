@@ -29,21 +29,25 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProvide
 private val INITIAL_STATE: RecurringExchange.State = RecurringExchange.State.ACTIVE
 
 class CreateRecurringExchange(private val recurringExchange: RecurringExchange) :
-    SimpleSpannerWriter<RecurringExchange>() {
+  SimpleSpannerWriter<RecurringExchange>() {
   override suspend fun TransactionScope.runTransaction(): RecurringExchange {
     val dataProviderId =
-        DataProviderReader()
-            .readByExternalDataProviderId(
-                transactionContext, ExternalId(recurringExchange.externalDataProviderId))
-            ?.dataProviderId
-            ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+      DataProviderReader()
+        .readByExternalDataProviderId(
+          transactionContext,
+          ExternalId(recurringExchange.externalDataProviderId)
+        )
+        ?.dataProviderId
+        ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
 
     val modelProviderId =
-        ModelProviderReader()
-            .readByExternalModelProviderId(
-                transactionContext, ExternalId(recurringExchange.externalModelProviderId))
-            ?.modelProviderId
-            ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+      ModelProviderReader()
+        .readByExternalModelProviderId(
+          transactionContext,
+          ExternalId(recurringExchange.externalModelProviderId)
+        )
+        ?.modelProviderId
+        ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {

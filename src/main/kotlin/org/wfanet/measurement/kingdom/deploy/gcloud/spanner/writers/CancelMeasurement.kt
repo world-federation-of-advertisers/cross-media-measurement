@@ -31,19 +31,20 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
  */
 class CancelMeasurement(
-    private val externalMeasurementConsumerId: ExternalId,
-    private val externalMeasurementId: ExternalId
+  private val externalMeasurementConsumerId: ExternalId,
+  private val externalMeasurementId: ExternalId
 ) : SpannerWriter<Measurement, Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val (measurementConsumerId, measurementId, measurement) =
-        MeasurementReader(Measurement.View.DEFAULT)
-            .readByExternalIds(
-                transactionContext, externalMeasurementConsumerId, externalMeasurementId)
-            ?: throw MeasurementNotFoundByMeasurementConsumerException(
-                externalMeasurementConsumerId, externalMeasurementId) {
-              "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
-                  "external Measurement ID $externalMeasurementId not found"
-            }
+      MeasurementReader(Measurement.View.DEFAULT)
+        .readByExternalIds(transactionContext, externalMeasurementConsumerId, externalMeasurementId)
+        ?: throw MeasurementNotFoundByMeasurementConsumerException(
+          externalMeasurementConsumerId,
+          externalMeasurementId
+        ) {
+          "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
+            "external Measurement ID $externalMeasurementId not found"
+        }
 
     when (val state = measurement.state) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
@@ -56,9 +57,10 @@ class CancelMeasurement(
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED -> {
         throw MeasurementStateIllegalException(
-            externalMeasurementConsumerId, externalMeasurementId, state) {
-          "Unexpected Measurement state $state (${state.number})"
-        }
+          externalMeasurementConsumerId,
+          externalMeasurementId,
+          state
+        ) { "Unexpected Measurement state $state (${state.number})" }
       }
     }
 

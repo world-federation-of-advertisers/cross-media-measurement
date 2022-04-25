@@ -41,42 +41,45 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ClaimReadyEx
 private val DEFAULT_EXPIRATION_DURATION: Duration = Duration.ofDays(1)
 
 class ClaimReadyExchangeStep(
-    private val provider: Provider,
-    private val clock: Clock,
+  private val provider: Provider,
+  private val clock: Clock,
 ) : SpannerWriter<Optional<Result>, Optional<Result>>() {
   data class Result(val step: ExchangeStep, val attemptIndex: Int)
 
   override suspend fun TransactionScope.runTransaction(): Optional<Result> {
     // Get the first ExchangeStep with status: READY | READY_FOR_RETRY  by given Provider id.
     val exchangeStepResult =
-        StreamExchangeSteps(
-                requestFilter =
-                    filter {
-                      principal = provider
-                      stepProvider = provider
-                      states += ExchangeStep.State.READY_FOR_RETRY
-                      states += ExchangeStep.State.READY
-                    },
-                limit = 1)
-            .execute(transactionContext)
-            .singleOrNull()
-            ?: return Optional.absent()
+      StreamExchangeSteps(
+          requestFilter =
+            filter {
+              principal = provider
+              stepProvider = provider
+              states += ExchangeStep.State.READY_FOR_RETRY
+              states += ExchangeStep.State.READY
+            },
+          limit = 1
+        )
+        .execute(transactionContext)
+        .singleOrNull()
+        ?: return Optional.absent()
 
     val exchangeStep = exchangeStepResult.exchangeStep
     val recurringExchangeId = exchangeStepResult.recurringExchangeId
 
     // Create an Exchange Step Attempt for this Step.
     val attemptIndex =
-        createExchangeStepAttempt(
-            recurringExchangeId = recurringExchangeId,
-            date = exchangeStep.date,
-            stepIndex = exchangeStep.stepIndex.toLong())
+      createExchangeStepAttempt(
+        recurringExchangeId = recurringExchangeId,
+        date = exchangeStep.date,
+        stepIndex = exchangeStep.stepIndex.toLong()
+      )
 
     // Finally, update the Exchange Step status to IN_PROGRESS.
     updateExchangeStepState(
-        exchangeStep = exchangeStep,
-        recurringExchangeId = exchangeStepResult.recurringExchangeId,
-        state = ExchangeStep.State.IN_PROGRESS)
+      exchangeStep = exchangeStep,
+      recurringExchangeId = exchangeStepResult.recurringExchangeId,
+      state = ExchangeStep.State.IN_PROGRESS
+    )
 
     val updatedStep = exchangeStep.copy { state = ExchangeStep.State.IN_PROGRESS }
 
@@ -90,15 +93,15 @@ class ClaimReadyExchangeStep(
     }
 
     val exchangeStepWithUpdateTime =
-        transactionResult.get().step.copy { updateTime = commitTimestamp.toProto() }
+      transactionResult.get().step.copy { updateTime = commitTimestamp.toProto() }
 
     return Optional.of(Result(exchangeStepWithUpdateTime, transactionResult.get().attemptIndex))
   }
 
   private suspend fun TransactionScope.createExchangeStepAttempt(
-      recurringExchangeId: Long,
-      date: Date,
-      stepIndex: Long
+    recurringExchangeId: Long,
+    date: Date,
+    stepIndex: Long
   ): Long {
     val now = clock.instant()
 
@@ -127,12 +130,12 @@ class ClaimReadyExchangeStep(
   }
 
   private suspend fun TransactionScope.findAttemptIndex(
-      recurringExchangeId: Long,
-      date: Date,
-      stepIndex: Long
+    recurringExchangeId: Long,
+    date: Date,
+    stepIndex: Long
   ): Long {
     val sql =
-        """
+      """
       SELECT IFNULL(MAX(AttemptIndex), 0) AS MaxAttemptIndex
       FROM ExchangeStepAttempts
       WHERE ExchangeStepAttempts.RecurringExchangeId = @recurring_exchange_id
@@ -141,11 +144,11 @@ class ClaimReadyExchangeStep(
       """.trimIndent()
 
     val statement: Statement =
-        statement(sql) {
-          bind("recurring_exchange_id").to(recurringExchangeId)
-          bind("date").to(date.toCloudDate())
-          bind("step_index").to(stepIndex)
-        }
+      statement(sql) {
+        bind("recurring_exchange_id").to(recurringExchangeId)
+        bind("date").to(date.toCloudDate())
+        bind("step_index").to(stepIndex)
+      }
 
     val row: Struct = transactionContext.executeQuery(statement).single()
 

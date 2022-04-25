@@ -44,10 +44,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
 class ActivateAccount(
-    private val externalAccountId: ExternalId,
-    private val activationToken: ExternalId,
-    private val issuer: String,
-    private val subject: String,
+  private val externalAccountId: ExternalId,
+  private val activationToken: ExternalId,
+  private val issuer: String,
+  private val subject: String,
 ) : SimpleSpannerWriter<Account>() {
   override suspend fun TransactionScope.runTransaction(): Account {
     if (isIdentityDuplicate(issuer = issuer, subject = subject)) {
@@ -62,7 +62,9 @@ class ActivateAccount(
 
     if (readAccountResult.account.activationState == Account.ActivationState.ACTIVATED) {
       throw AccountActivationStateIllegalException(
-          externalAccountId, Account.ActivationState.ACTIVATED)
+        externalAccountId,
+        Account.ActivationState.ACTIVATED
+      )
     }
 
     val internalOpenIdConnectIdentityId = idGenerator.generateInternalId()
@@ -81,7 +83,7 @@ class ActivateAccount(
 
     if (readAccountResult.account.externalOwnedMeasurementConsumerId != 0L) {
       val ownedMeasurementConsumerId =
-          readMeasurementConsumerId(readAccountResult.account.externalOwnedMeasurementConsumerId)
+        readMeasurementConsumerId(readAccountResult.account.externalOwnedMeasurementConsumerId)
 
       transactionContext.bufferInsertMutation("MeasurementConsumerOwners") {
         set("MeasurementConsumerId" to ownedMeasurementConsumerId)
@@ -97,32 +99,34 @@ class ActivateAccount(
         subject = source.subject
       }
       externalOwnedMeasurementConsumerIds +=
-          readAccountResult.account.externalOwnedMeasurementConsumerId
+        readAccountResult.account.externalOwnedMeasurementConsumerId
     }
   }
 
   private suspend fun TransactionScope.isIdentityDuplicate(
-      issuer: String,
-      subject: String,
+    issuer: String,
+    subject: String,
   ): Boolean =
-      OpenIdConnectIdentityReader()
-          .readByIssuerAndSubject(transactionContext, issuer = issuer, subject = subject)
-          .let {
-            return it != null
-          }
+    OpenIdConnectIdentityReader()
+      .readByIssuerAndSubject(transactionContext, issuer = issuer, subject = subject)
+      .let {
+        return it != null
+      }
 
   private suspend fun TransactionScope.readAccount(
-      externalAccountId: ExternalId
+    externalAccountId: ExternalId
   ): AccountReader.Result =
-      AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-          ?: throw AccountNotFoundException(externalAccountId)
+    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
+      ?: throw AccountNotFoundException(externalAccountId)
 
   private suspend fun TransactionScope.readMeasurementConsumerId(
-      externalMeasurementConsumerId: Long
+    externalMeasurementConsumerId: Long
   ): Long =
-      MeasurementConsumerReader()
-          .readByExternalMeasurementConsumerId(
-              transactionContext, ExternalId(externalMeasurementConsumerId))
-          ?.measurementConsumerId
-          ?: throw MeasurementConsumerNotFoundException(ExternalId(externalMeasurementConsumerId))
+    MeasurementConsumerReader()
+      .readByExternalMeasurementConsumerId(
+        transactionContext,
+        ExternalId(externalMeasurementConsumerId)
+      )
+      ?.measurementConsumerId
+      ?: throw MeasurementConsumerNotFoundException(ExternalId(externalMeasurementConsumerId))
 }

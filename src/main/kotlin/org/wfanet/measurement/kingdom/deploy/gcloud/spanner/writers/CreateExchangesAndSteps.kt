@@ -53,32 +53,36 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
 
     // Calculate the new next exchange date for the recurring exchange.
     val nextNextExchangeDate =
-        nextExchangeDate.applyCronSchedule(recurringExchange.details.cronSchedule)
+      nextExchangeDate.applyCronSchedule(recurringExchange.details.cronSchedule)
 
     // Update recurring exchange with new next exchange date. Its state doesn't change.
     updateRecurringExchange(
-        recurringExchangeId = recurringExchangeId, nextExchangeDate = nextNextExchangeDate)
+      recurringExchangeId = recurringExchangeId,
+      nextExchangeDate = nextNextExchangeDate
+    )
 
     // Create all steps for the Exchange, set them all to BLOCKED State initially.
     createExchangeSteps(
-        workflow = workflow,
-        recurringExchangeId = recurringExchangeId,
-        date = nextExchangeDate,
-        modelProviderId = modelProviderId,
-        dataProviderId = dataProviderId)
+      workflow = workflow,
+      recurringExchangeId = recurringExchangeId,
+      date = nextExchangeDate,
+      modelProviderId = modelProviderId,
+      dataProviderId = dataProviderId
+    )
 
     // Update all Steps States based on the workflow.
     updateExchangeStepsToReady(
-        steps = workflow.stepsList.filter { step -> step.prerequisiteStepIndicesCount == 0 },
-        recurringExchangeId = recurringExchangeId,
-        date = nextExchangeDate)
+      steps = workflow.stepsList.filter { step -> step.prerequisiteStepIndicesCount == 0 },
+      recurringExchangeId = recurringExchangeId,
+      date = nextExchangeDate
+    )
   }
 
   private suspend fun TransactionScope.getRecurringExchange(): RecurringExchangeReader.Result? {
     return RecurringExchangeReader()
-        .fillStatementBuilder {
-          appendClause(
-              """
+      .fillStatementBuilder {
+        appendClause(
+          """
           WHERE State = @recurringExchangeState
             AND NextExchangeDate <= CURRENT_DATE("+0")
             AND ${providerFilter(provider)}
@@ -91,13 +95,14 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
             )
           ORDER BY NextExchangeDate
           LIMIT 1
-          """.trimIndent())
-          bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
-          bind(PROVIDER_PARAM to provider.externalId)
-          bind("exchangeState" to Exchange.State.FAILED)
-        }
-        .execute(transactionContext)
-        .singleOrNull()
+          """.trimIndent()
+        )
+        bind("recurringExchangeState" to RecurringExchange.State.ACTIVE)
+        bind(PROVIDER_PARAM to provider.externalId)
+        bind("exchangeState" to Exchange.State.FAILED)
+      }
+      .execute(transactionContext)
+      .singleOrNull()
   }
 
   private fun TransactionScope.createExchange(recurringExchangeId: Long, date: Date) {
@@ -113,8 +118,8 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
   }
 
   private fun TransactionScope.updateRecurringExchange(
-      recurringExchangeId: Long,
-      nextExchangeDate: Date
+    recurringExchangeId: Long,
+    nextExchangeDate: Date
   ) {
     transactionContext.bufferUpdateMutation("RecurringExchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
@@ -123,11 +128,11 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
   }
 
   private fun TransactionScope.createExchangeSteps(
-      workflow: ExchangeWorkflow,
-      recurringExchangeId: Long,
-      date: Date,
-      modelProviderId: Long,
-      dataProviderId: Long
+    workflow: ExchangeWorkflow,
+    recurringExchangeId: Long,
+    date: Date,
+    modelProviderId: Long,
+    dataProviderId: Long
   ) {
     for (step in workflow.stepsList) {
       transactionContext.bufferInsertMutation("ExchangeSteps") {
@@ -137,11 +142,13 @@ class CreateExchangesAndSteps(private val provider: Provider) : SimpleSpannerWri
         set("State" to ExchangeStep.State.BLOCKED)
         set("UpdateTime" to Value.COMMIT_TIMESTAMP)
         set(
-            "ModelProviderId" to
-                if (step.party == ExchangeWorkflow.Party.MODEL_PROVIDER) modelProviderId else null)
+          "ModelProviderId" to
+            if (step.party == ExchangeWorkflow.Party.MODEL_PROVIDER) modelProviderId else null
+        )
         set(
-            "DataProviderId" to
-                if (step.party == ExchangeWorkflow.Party.DATA_PROVIDER) dataProviderId else null)
+          "DataProviderId" to
+            if (step.party == ExchangeWorkflow.Party.DATA_PROVIDER) dataProviderId else null
+        )
       }
     }
   }
