@@ -94,7 +94,7 @@ private val DURATION_MEASUREMENT_SPEC = measurementSpec {
 class PrivacyBudgetManagerTest {
 
   @Test
-  fun `Privacy budget manager fails for a large single charge`() {
+  fun `chargePrivacyBudget throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 1.0f, 0.01f)
     val exception =
@@ -110,7 +110,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `Privacy budget manager fails for a wrong event filter`() {
+  fun `chargePrivacyBudget throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
 
@@ -142,7 +142,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `Privacy budget manager works as expected for reach and frequency measurement`() {
+  fun `chargePrivacyBudget works as expected for reach and frequency measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
     pbm.chargePrivacyBudget(
@@ -163,7 +163,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `Privacy budget manager works as expected for imprression measurement`() {
+  fun `chargePrivacyBudget works as expected for imprression measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
     pbm.chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
@@ -181,7 +181,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `Privacy budget manager works as expected for duration measurement`() {
+  fun `chargePrivacyBudget works as expected for duration measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
     pbm.chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)

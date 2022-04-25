@@ -70,7 +70,7 @@ data class PrivacyBucketGroup(
     val thisVidSampleEnd = this.vidSampleStart + this.vidSampleWidth
     val otherVidSampleEnd = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
 
-    // Vid ranges are non inclusive. vid(0.1, 0.2) does not overlap with vid(0.2, 0.3)
+    // Vid ranges are non half-open intervals. [0.1, 0.2) does not overlap with vid[0.2, 0.3)
     if (otherVidSampleEnd <= this.vidSampleStart ||
         thisVidSampleEnd <= otherBucketGroup.vidSampleStart
     ) {
