@@ -46,27 +46,32 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
   override suspend fun TransactionScope.runTransaction() {
     if (request.externalMeasurementConsumerId != 0L) {
       val measurementConsumerResult =
-          MeasurementConsumerReader()
-              .readByExternalMeasurementConsumerId(
-                  transactionContext, ExternalId(request.externalMeasurementConsumerId))
-              ?: throw MeasurementConsumerNotFoundException(
-                  ExternalId(request.externalMeasurementConsumerId))
+        MeasurementConsumerReader()
+          .readByExternalMeasurementConsumerId(
+            transactionContext,
+            ExternalId(request.externalMeasurementConsumerId)
+          )
+          ?: throw MeasurementConsumerNotFoundException(
+            ExternalId(request.externalMeasurementConsumerId)
+          )
 
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-          .readMeasurementConsumerCertificateIdByExternalId(
-              transactionContext,
-              InternalId(measurementConsumerResult.measurementConsumerId),
-              ExternalId(request.externalCertificateId))
-          ?: throw MeasurementConsumerCertificateNotFoundException(
-              ExternalId(request.externalMeasurementConsumerId),
-              ExternalId(request.externalCertificateId))
+        .readMeasurementConsumerCertificateIdByExternalId(
+          transactionContext,
+          InternalId(measurementConsumerResult.measurementConsumerId),
+          ExternalId(request.externalCertificateId)
+        )
+        ?: throw MeasurementConsumerCertificateNotFoundException(
+          ExternalId(request.externalMeasurementConsumerId),
+          ExternalId(request.externalCertificateId)
+        )
 
       val measurementConsumerDetails =
-          measurementConsumerResult.measurementConsumer.details.copy {
-            apiVersion = request.apiVersion
-            publicKey = request.publicKey
-            publicKeySignature = request.publicKeySignature
-          }
+        measurementConsumerResult.measurementConsumer.details.copy {
+          apiVersion = request.apiVersion
+          publicKey = request.publicKey
+          publicKeySignature = request.publicKeySignature
+        }
 
       transactionContext.bufferUpdateMutation("MeasurementConsumers") {
         set("MeasurementConsumerId" to measurementConsumerResult.measurementConsumerId)
@@ -75,25 +80,30 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
       }
     } else if (request.externalDataProviderId != 0L) {
       val dataProviderResult =
-          DataProviderReader()
-              .readByExternalDataProviderId(
-                  transactionContext, ExternalId(request.externalDataProviderId))
-              ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
+        DataProviderReader()
+          .readByExternalDataProviderId(
+            transactionContext,
+            ExternalId(request.externalDataProviderId)
+          )
+          ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
 
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-          .readDataProviderCertificateIdByExternalId(
-              transactionContext,
-              InternalId(dataProviderResult.dataProviderId),
-              ExternalId(request.externalCertificateId))
-          ?: throw DataProviderCertificateNotFoundException(
-              ExternalId(request.externalDataProviderId), ExternalId(request.externalCertificateId))
+        .readDataProviderCertificateIdByExternalId(
+          transactionContext,
+          InternalId(dataProviderResult.dataProviderId),
+          ExternalId(request.externalCertificateId)
+        )
+        ?: throw DataProviderCertificateNotFoundException(
+          ExternalId(request.externalDataProviderId),
+          ExternalId(request.externalCertificateId)
+        )
 
       val dataProviderDetails =
-          dataProviderResult.dataProvider.details.copy {
-            apiVersion = request.apiVersion
-            publicKey = request.publicKey
-            publicKeySignature = request.publicKeySignature
-          }
+        dataProviderResult.dataProvider.details.copy {
+          apiVersion = request.apiVersion
+          publicKey = request.publicKey
+          publicKeySignature = request.publicKeySignature
+        }
 
       transactionContext.bufferUpdateMutation("DataProviders") {
         set("DataProviderId" to dataProviderResult.dataProviderId)

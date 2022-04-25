@@ -31,21 +31,23 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * * [ErrorCode.CERTIFICATE_IS_INVALID]
  */
 suspend fun checkValidCertificate(
-    measurementConsumerCertificateId: Long,
-    measurementConsumerId: Long,
-    transactionContext: AsyncDatabaseClient.TransactionContext
+  measurementConsumerCertificateId: Long,
+  measurementConsumerId: Long,
+  transactionContext: AsyncDatabaseClient.TransactionContext
 ): InternalId {
   val externalMeasurementConsumerId = ExternalId(measurementConsumerId)
   val externalMeasurementConsumerCertificateId = ExternalId(measurementConsumerCertificateId)
   val reader =
-      CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-          .bindWhereClause(externalMeasurementConsumerId, externalMeasurementConsumerCertificateId)
+    CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+      .bindWhereClause(externalMeasurementConsumerId, externalMeasurementConsumerCertificateId)
 
   return reader.execute(transactionContext).singleOrNull()?.let {
     if (!it.isValid) {
       throw CertificateIsInvalidException()
     } else it.certificateId
   }
-      ?: throw MeasurementConsumerCertificateNotFoundException(
-          externalMeasurementConsumerId, externalMeasurementConsumerCertificateId)
+    ?: throw MeasurementConsumerCertificateNotFoundException(
+      externalMeasurementConsumerId,
+      externalMeasurementConsumerCertificateId
+    )
 }

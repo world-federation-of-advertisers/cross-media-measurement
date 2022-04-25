@@ -31,8 +31,9 @@ class CreateMeasurementConsumerCreationToken() : SimpleSpannerWriter<Long>() {
     transactionContext.bufferInsertMutation("MeasurementConsumerCreationTokens") {
       set("MeasurementConsumerCreationTokenId" to internalMeasurementConsumerCreationTokenId)
       set(
-          "MeasurementConsumerCreationTokenHash" to
-              measurementConsumerCreationTokenHash.toGcloudByteArray())
+        "MeasurementConsumerCreationTokenHash" to
+          measurementConsumerCreationTokenHash.toGcloudByteArray()
+      )
       set("CreateTime" to Value.COMMIT_TIMESTAMP)
     }
 

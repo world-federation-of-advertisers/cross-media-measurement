@@ -26,35 +26,40 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
 
 class UpdateEventGroup(private val eventGroup: EventGroup) :
-    SpannerWriter<EventGroup, EventGroup>() {
+  SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
     val internalEventGroupResult =
-        EventGroupReader()
-            .readByExternalIds(
-                transactionContext,
-                eventGroup.externalDataProviderId,
-                eventGroup.externalEventGroupId)
-            ?: throw EventGroupNotFoundException(
-                ExternalId(eventGroup.externalDataProviderId),
-                ExternalId(eventGroup.externalEventGroupId))
+      EventGroupReader()
+        .readByExternalIds(
+          transactionContext,
+          eventGroup.externalDataProviderId,
+          eventGroup.externalEventGroupId
+        )
+        ?: throw EventGroupNotFoundException(
+          ExternalId(eventGroup.externalDataProviderId),
+          ExternalId(eventGroup.externalEventGroupId)
+        )
     if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
-        eventGroup.externalMeasurementConsumerId) {
+        eventGroup.externalMeasurementConsumerId
+    ) {
       throw EventGroupInvalidArgsException(
-          ExternalId(internalEventGroupResult.eventGroup.externalMeasurementConsumerId),
-          ExternalId(eventGroup.externalMeasurementConsumerId))
+        ExternalId(internalEventGroupResult.eventGroup.externalMeasurementConsumerId),
+        ExternalId(eventGroup.externalMeasurementConsumerId)
+      )
     }
     val measurementConsumerCertificateId =
-        if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
-            checkValidCertificate(
-                    eventGroup.externalMeasurementConsumerCertificateId,
-                    eventGroup.externalMeasurementConsumerId,
-                    transactionContext)
-                .value
-        else null
+      if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
+        checkValidCertificate(
+            eventGroup.externalMeasurementConsumerCertificateId,
+            eventGroup.externalMeasurementConsumerId,
+            transactionContext
+          )
+          .value
+      else null
     val providedEventGroupId =
-        if (eventGroup.providedEventGroupId.isNotBlank()) {
-          eventGroup.providedEventGroupId
-        } else null
+      if (eventGroup.providedEventGroupId.isNotBlank()) {
+        eventGroup.providedEventGroupId
+      } else null
 
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to internalEventGroupResult.internalDataProviderId.value)

@@ -37,9 +37,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
  */
 class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
-    private val externalAccountId: ExternalId,
-    private val issuer: String,
-    private val subject: String,
+  private val externalAccountId: ExternalId,
+  private val issuer: String,
+  private val subject: String,
 ) : SimpleSpannerWriter<Account>() {
 
   override suspend fun TransactionScope.runTransaction(): Account {
@@ -51,45 +51,49 @@ class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
 
     if (readAccountResult.account.activationState == Account.ActivationState.UNACTIVATED) {
       throw AccountActivationStateIllegalException(
-          externalAccountId, readAccountResult.account.activationState)
+        externalAccountId,
+        readAccountResult.account.activationState
+      )
     }
 
     OpenIdConnectIdentityReader()
-        .readByAccountId(transactionContext, readAccountResult.accountId)
-        ?.let {
-          transactionContext.bufferUpdateMutation("OpenIdConnectIdentities") {
-            set("OpenIdConnectIdentityId" to it.openIdConnectIdentityId)
-            set("AccountId" to it.accountId)
-            set("Issuer" to issuer)
-            set("Subject" to subject)
-          }
+      .readByAccountId(transactionContext, readAccountResult.accountId)
+      ?.let {
+        transactionContext.bufferUpdateMutation("OpenIdConnectIdentities") {
+          set("OpenIdConnectIdentityId" to it.openIdConnectIdentityId)
+          set("AccountId" to it.accountId)
+          set("Issuer" to issuer)
+          set("Subject" to subject)
         }
-        ?: throw AccountActivationStateIllegalException(
-            externalAccountId, Account.ActivationState.UNACTIVATED)
+      }
+      ?: throw AccountActivationStateIllegalException(
+        externalAccountId,
+        Account.ActivationState.UNACTIVATED
+      )
 
     val source = this@ReplaceAccountIdentityWithNewOpenIdConnectIdentity
     return readAccountResult.account.copy {
       openIdIdentity =
-          AccountKt.openIdConnectIdentity {
-            issuer = source.issuer
-            subject = source.subject
-          }
+        AccountKt.openIdConnectIdentity {
+          issuer = source.issuer
+          subject = source.subject
+        }
     }
   }
 
   private suspend fun TransactionScope.isIdentityDuplicate(
-      issuer: String,
-      subject: String,
+    issuer: String,
+    subject: String,
   ): Boolean =
-      OpenIdConnectIdentityReader()
-          .readByIssuerAndSubject(transactionContext, issuer = issuer, subject = subject)
-          .let {
-            return it != null
-          }
+    OpenIdConnectIdentityReader()
+      .readByIssuerAndSubject(transactionContext, issuer = issuer, subject = subject)
+      .let {
+        return it != null
+      }
 
   private suspend fun TransactionScope.readAccount(
-      externalAccountId: ExternalId
+    externalAccountId: ExternalId
   ): AccountReader.Result =
-      AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-          ?: throw AccountNotFoundException(externalAccountId)
+    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
+      ?: throw AccountNotFoundException(externalAccountId)
 }

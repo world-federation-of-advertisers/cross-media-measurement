@@ -32,7 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [KingdomInternalException.Code.MEASUREMENT_CONSUMER_NOT_FOUND]
  */
 class CreateApiKey(
-    private val apiKey: ApiKey,
+  private val apiKey: ApiKey,
 ) : SimpleSpannerWriter<ApiKey>() {
 
   override suspend fun TransactionScope.runTransaction(): ApiKey {
@@ -43,8 +43,9 @@ class CreateApiKey(
 
     transactionContext.bufferInsertMutation("MeasurementConsumerApiKeys") {
       set(
-          "MeasurementConsumerId" to
-              readInternalMeasurementConsumerId(ExternalId(apiKey.externalMeasurementConsumerId)))
+        "MeasurementConsumerId" to
+          readInternalMeasurementConsumerId(ExternalId(apiKey.externalMeasurementConsumerId))
+      )
       set("ApiKeyId" to internalApiKeyId)
       set("ExternalMeasurementConsumerApiKeyId" to externalApiKeyId)
       set("Nickname" to apiKey.nickname)
@@ -59,10 +60,10 @@ class CreateApiKey(
   }
 
   private suspend fun TransactionScope.readInternalMeasurementConsumerId(
-      externalMeasurementConsumerId: ExternalId
+    externalMeasurementConsumerId: ExternalId
   ): Long =
-      MeasurementConsumerReader()
-          .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-          ?.measurementConsumerId
-          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+    MeasurementConsumerReader()
+      .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
+      ?.measurementConsumerId
+      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

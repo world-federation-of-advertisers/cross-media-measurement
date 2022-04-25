@@ -23,9 +23,9 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 
 internal fun SpannerWriter.TransactionScope.updateExchangeStepsToReady(
-    steps: List<ExchangeWorkflow.Step>,
-    recurringExchangeId: Long,
-    date: Date
+  steps: List<ExchangeWorkflow.Step>,
+  recurringExchangeId: Long,
+  date: Date
 ) {
   for (step in steps) {
     transactionContext.bufferUpdateMutation("ExchangeSteps") {
@@ -39,9 +39,9 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepsToReady(
 }
 
 internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
-    exchangeStep: ExchangeStep,
-    recurringExchangeId: Long,
-    state: ExchangeStep.State
+  exchangeStep: ExchangeStep,
+  recurringExchangeId: Long,
+  state: ExchangeStep.State
 ) {
   // TODO(yunyeng): Add logger and log exceptional cases like this.
   if (exchangeStep.state == state) return
@@ -61,13 +61,13 @@ internal fun SpannerWriter.TransactionScope.updateExchangeStepState(
 
 internal val ExchangeStep.State.isTerminal: Boolean
   get() =
-      when (this) {
-        ExchangeStep.State.BLOCKED,
-        ExchangeStep.State.READY,
-        ExchangeStep.State.READY_FOR_RETRY,
-        ExchangeStep.State.IN_PROGRESS -> false
-        ExchangeStep.State.SUCCEEDED,
-        ExchangeStep.State.FAILED,
-        ExchangeStep.State.UNRECOGNIZED,
-        ExchangeStep.State.STATE_UNSPECIFIED -> true
-      }
+    when (this) {
+      ExchangeStep.State.BLOCKED,
+      ExchangeStep.State.READY,
+      ExchangeStep.State.READY_FOR_RETRY,
+      ExchangeStep.State.IN_PROGRESS -> false
+      ExchangeStep.State.SUCCEEDED,
+      ExchangeStep.State.FAILED,
+      ExchangeStep.State.UNRECOGNIZED,
+      ExchangeStep.State.STATE_UNSPECIFIED -> true
+    }

@@ -35,8 +35,8 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  */
 abstract class SpannerWriter<T, R> {
   data class TransactionScope(
-      val transactionContext: AsyncDatabaseClient.TransactionContext,
-      val idGenerator: IdGenerator
+    val transactionContext: AsyncDatabaseClient.TransactionContext,
+    val idGenerator: IdGenerator
   )
 
   data class ResultScope<T>(val transactionResult: T?, val commitTimestamp: Timestamp)
@@ -59,8 +59,8 @@ abstract class SpannerWriter<T, R> {
   private val executed = AtomicBoolean(false)
 
   private suspend fun runTransaction(
-      runner: AsyncDatabaseClient.TransactionRunner,
-      idGenerator: IdGenerator
+    runner: AsyncDatabaseClient.TransactionRunner,
+    idGenerator: IdGenerator
   ): T? {
     return try {
       runner.execute { transactionContext ->

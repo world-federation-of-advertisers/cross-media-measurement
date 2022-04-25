@@ -36,44 +36,50 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
  * is not found.
  */
 class CreateEventGroup(private val eventGroup: EventGroup) :
-    SpannerWriter<EventGroup, EventGroup>() {
+  SpannerWriter<EventGroup, EventGroup>() {
   override suspend fun TransactionScope.runTransaction(): EventGroup {
     val measurementConsumerId =
-        MeasurementConsumerReader()
-            .readByExternalMeasurementConsumerId(
-                transactionContext, ExternalId(eventGroup.externalMeasurementConsumerId))
-            ?.measurementConsumerId
-            ?: throw MeasurementConsumerNotFoundException(
-                ExternalId(eventGroup.externalMeasurementConsumerId))
+      MeasurementConsumerReader()
+        .readByExternalMeasurementConsumerId(
+          transactionContext,
+          ExternalId(eventGroup.externalMeasurementConsumerId)
+        )
+        ?.measurementConsumerId
+        ?: throw MeasurementConsumerNotFoundException(
+          ExternalId(eventGroup.externalMeasurementConsumerId)
+        )
 
     val dataProviderId =
-        DataProviderReader()
-            .readByExternalDataProviderId(
-                transactionContext, ExternalId(eventGroup.externalDataProviderId))
-            ?.dataProviderId
-            ?: throw DataProviderNotFoundException(ExternalId(eventGroup.externalDataProviderId))
+      DataProviderReader()
+        .readByExternalDataProviderId(
+          transactionContext,
+          ExternalId(eventGroup.externalDataProviderId)
+        )
+        ?.dataProviderId
+        ?: throw DataProviderNotFoundException(ExternalId(eventGroup.externalDataProviderId))
 
     return if (eventGroup.providedEventGroupId.isBlank()) {
       createNewEventGroup(dataProviderId, measurementConsumerId)
     } else {
       findExistingEventGroup(dataProviderId)
-          ?: createNewEventGroup(dataProviderId, measurementConsumerId)
+        ?: createNewEventGroup(dataProviderId, measurementConsumerId)
     }
   }
 
   private suspend fun TransactionScope.createNewEventGroup(
-      dataProviderId: Long,
-      measurementConsumerId: Long
+    dataProviderId: Long,
+    measurementConsumerId: Long
   ): EventGroup {
     val internalEventGroupId: InternalId = idGenerator.generateInternalId()
     val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
     val measurementConsumerCertificateId =
-        if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
-            checkValidCertificate(
-                eventGroup.externalMeasurementConsumerCertificateId,
-                eventGroup.externalMeasurementConsumerId,
-                transactionContext)
-        else null
+      if (eventGroup.externalMeasurementConsumerCertificateId > 0L)
+        checkValidCertificate(
+          eventGroup.externalMeasurementConsumerCertificateId,
+          eventGroup.externalMeasurementConsumerId,
+          transactionContext
+        )
+      else null
     transactionContext.bufferInsertMutation("EventGroups") {
       set("EventGroupId" to internalEventGroupId)
       set("ExternalEventGroupId" to externalEventGroupId)
@@ -98,10 +104,10 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
     return EventGroupReader()
-        .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
-        .execute(transactionContext)
-        .singleOrNull()
-        ?.eventGroup
+      .bindWhereClause(dataProviderId, eventGroup.providedEventGroupId)
+      .execute(transactionContext)
+      .singleOrNull()
+      ?.eventGroup
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {

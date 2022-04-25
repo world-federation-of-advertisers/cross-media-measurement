@@ -43,31 +43,33 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNo
  * * [ErrorCode.DUCHY_NOT_FOUND]
  */
 class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurementLogEntryRequest) :
-    SpannerWriter<DuchyMeasurementLogEntry, DuchyMeasurementLogEntry>() {
+  SpannerWriter<DuchyMeasurementLogEntry, DuchyMeasurementLogEntry>() {
   data class MeasurementIds(
-      val measurementId: InternalId,
-      val measurementConsumerId: InternalId,
-      val externalMeasurementId: ExternalId,
-      val externalMeasurementConsumerId: ExternalId
+    val measurementId: InternalId,
+    val measurementConsumerId: InternalId,
+    val externalMeasurementId: ExternalId,
+    val externalMeasurementConsumerId: ExternalId
   )
 
   override suspend fun TransactionScope.runTransaction(): DuchyMeasurementLogEntry {
 
     val measurementIds =
-        readMeasurementIds()
-            ?: throw MeasurementNotFoundByComputationException(
-                ExternalId(request.externalComputationId)) {
-              "Measurement for external computation ID ${request.externalComputationId} not found"
-            }
+      readMeasurementIds()
+        ?: throw MeasurementNotFoundByComputationException(
+          ExternalId(request.externalComputationId)
+        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
     val duchyId =
-        DuchyIds.getInternalId(request.externalDuchyId)
-            ?: throw DuchyNotFoundException(request.externalDuchyId)
+      DuchyIds.getInternalId(request.externalDuchyId)
+        ?: throw DuchyNotFoundException(request.externalDuchyId)
 
     insertMeasurementLogEntry(measurementIds.measurementId, measurementIds.measurementConsumerId)
 
     val externalComputationLogEntryId =
-        insertDuchyMeasurementLogEntry(
-            measurementIds.measurementId, measurementIds.measurementConsumerId, InternalId(duchyId))
+      insertDuchyMeasurementLogEntry(
+        measurementIds.measurementId,
+        measurementIds.measurementConsumerId,
+        InternalId(duchyId)
+      )
     return duchyMeasurementLogEntry {
       this.externalComputationLogEntryId = externalComputationLogEntryId.value
       details = request.details
@@ -81,8 +83,8 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
   }
 
   private fun TransactionScope.insertMeasurementLogEntry(
-      measurementId: InternalId,
-      measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    measurementConsumerId: InternalId,
   ) {
 
     transactionContext.bufferInsertMutation("MeasurementLogEntries") {
@@ -95,9 +97,9 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
   }
 
   private fun TransactionScope.insertDuchyMeasurementLogEntry(
-      measurementId: InternalId,
-      measurementConsumerId: InternalId,
-      duchyId: InternalId
+    measurementId: InternalId,
+    measurementConsumerId: InternalId,
+    duchyId: InternalId
   ): ExternalId {
     val externalComputationLogEntryId = idGenerator.generateExternalId()
 
@@ -115,18 +117,19 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
   }
 
   fun translateToInternalIds(struct: Struct): MeasurementIds =
-      MeasurementIds(
-          InternalId(struct.getLong("MeasurementId")),
-          InternalId(struct.getLong("MeasurementConsumerId")),
-          ExternalId(struct.getLong("ExternalMeasurementId")),
-          ExternalId(struct.getLong("ExternalMeasurementConsumerId")))
+    MeasurementIds(
+      InternalId(struct.getLong("MeasurementId")),
+      InternalId(struct.getLong("MeasurementConsumerId")),
+      ExternalId(struct.getLong("ExternalMeasurementId")),
+      ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+    )
 
   private suspend fun TransactionScope.readMeasurementIds(): MeasurementIds? {
 
     return transactionContext
-        .executeQuery(
-            Statement.newBuilder(
-                    """
+      .executeQuery(
+        Statement.newBuilder(
+            """
           SELECT
             Measurements.MeasurementId,
             Measurements.MeasurementConsumerId,
@@ -137,10 +140,12 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
           JOIN MeasurementConsumers USING (MeasurementConsumerId)
           WHERE ExternalComputationId = ${request.externalComputationId}
           LIMIT 1
-        """.trimIndent())
-                .build())
-        .map(::translateToInternalIds)
-        .singleOrNull()
+        """.trimIndent()
+          )
+          .build()
+      )
+      .map(::translateToInternalIds)
+      .singleOrNull()
   }
 
   override fun ResultScope<DuchyMeasurementLogEntry>.buildResult(): DuchyMeasurementLogEntry {

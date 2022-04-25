@@ -35,8 +35,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * * [ErrorCode.ACCOUNT_NOT_FOUND]
  */
 class CreateAccount(
-    private val externalCreatorAccountId: ExternalId?,
-    private val externalOwnedMeasurementConsumerId: ExternalId?
+  private val externalCreatorAccountId: ExternalId?,
+  private val externalOwnedMeasurementConsumerId: ExternalId?
 ) : SimpleSpannerWriter<Account>() {
 
   override suspend fun TransactionScope.runTransaction(): Account {
@@ -55,16 +55,16 @@ class CreateAccount(
 
           if (source.externalOwnedMeasurementConsumerId != null) {
             MeasurementConsumerOwnerReader()
-                .checkOwnershipExist(
-                    transactionContext,
-                    readCreatorAccountResult.accountId,
-                    source.externalOwnedMeasurementConsumerId)
-                ?.let {
-                  externalOwnedMeasurementConsumerId =
-                      source.externalOwnedMeasurementConsumerId.value
-                  set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
-                }
-                ?: throw PermissionDeniedException()
+              .checkOwnershipExist(
+                transactionContext,
+                readCreatorAccountResult.accountId,
+                source.externalOwnedMeasurementConsumerId
+              )
+              ?.let {
+                externalOwnedMeasurementConsumerId = source.externalOwnedMeasurementConsumerId.value
+                set("OwnedMeasurementConsumerId" to it.measurementConsumerId)
+              }
+              ?: throw PermissionDeniedException()
           }
         }
 
@@ -83,8 +83,8 @@ class CreateAccount(
   }
 
   private suspend fun TransactionScope.readAccount(
-      externalAccountId: ExternalId
+    externalAccountId: ExternalId
   ): AccountReader.Result =
-      AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
-          ?: throw AccountNotFoundException(externalAccountId)
+    AccountReader().readByExternalAccountId(transactionContext, externalAccountId)
+      ?: throw AccountNotFoundException(externalAccountId)
 }
