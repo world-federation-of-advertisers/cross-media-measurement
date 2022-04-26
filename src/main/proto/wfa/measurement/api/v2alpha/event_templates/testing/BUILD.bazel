@@ -3,7 +3,6 @@ load("@rules_java//java:defs.bzl", "java_proto_library")
 load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
 
 package(
-    default_testonly = True,
     default_visibility = ["//visibility:public"],
 )
 
