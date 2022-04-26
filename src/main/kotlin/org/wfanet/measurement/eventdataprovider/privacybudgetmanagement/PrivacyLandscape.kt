@@ -16,8 +16,8 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.LocalDate
 
 object PrivacyLandscape {
-  val dates = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
-  val ageGroups = listOf(AgeGroup.RANGE_18_34, AgeGroup.RANGE_35_54, AgeGroup.ABOVE_54)
-  val genders = listOf(Gender.MALE, Gender.FEMALE)
-  val vids = (0..300).map { it / 100f }
+  val dates: List<LocalDate> = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
+  val ageGroups: Set<AgeGroup> = AgeGroup.values().toSet()
+  val genders = Gender.values().toSet()
+  val vids: List<Float> = (0..300).map { it / 100f }
 }
