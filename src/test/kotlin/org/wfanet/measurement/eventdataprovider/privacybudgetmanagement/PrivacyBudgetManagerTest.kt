@@ -14,14 +14,12 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Message
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -40,8 +38,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
@@ -97,47 +94,6 @@ private val DURATION_MEASUREMENT_SPEC = measurementSpec {
     privacyParams = differentialPrivacyParams {
       epsilon = 0.3
       delta = 0.02
-    }
-  }
-}
-
-class TestPrivacyBucketMapper : PrivacyBucketMapper {
-
-  override fun toPrivacyFilterProgram(filterExpression: String): Program =
-    try {
-      EventFilters.compileProgram(
-        filterExpression,
-        testEvent {},
-        setOf("privacy_budget.age.value", "privacy_budget.gender.value")
-      )
-    } catch (e: EventFilterValidationException) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        emptyList()
-      )
-    }
-
-  override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
-    return testEvent {
-      privacyBudget = testPrivacyBudgetTemplate {
-        when (privacyBucketGroup.ageGroup) {
-          AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-          AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-          AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
-        }
-        when (privacyBucketGroup.gender) {
-          Gender.MALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-              }
-          Gender.FEMALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-              }
-        }
-      }
     }
   }
 }
