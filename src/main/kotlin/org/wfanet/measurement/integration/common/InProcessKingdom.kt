@@ -62,10 +62,10 @@ import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourc
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(
-  dataServicesProvider: () -> DataServices,
-  val verboseGrpcLogging: Boolean = true,
-  /** The open id client redirect uri when creating the authentication uri. */
-  private val redirectUri: String,
+    dataServicesProvider: () -> DataServices,
+    val verboseGrpcLogging: Boolean = true,
+    /** The open id client redirect uri when creating the authentication uri. */
+    private val redirectUri: String,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
@@ -101,75 +101,73 @@ class InProcessKingdom(
   private val internalExchangesClient by lazy { InternalExchangesCoroutineStub(internalApiChannel) }
 
   private val internalDataServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Kingdom's internal Data services")
-      kingdomDataServices.buildDataServices().toList().forEach {
-        addService(it.withVerboseLogging(verboseGrpcLogging))
-      }
-    }
-  private val systemApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Kingdom's system API services")
-      listOf(
-          systemComputationsService(internalMeasurementsClient),
-          systemComputationLogEntriesService(internalMeasurementLogEntriesClient),
-          systemComputationParticipantsService(internalComputationParticipantsClient),
-          systemRequisitionsService(internalRequisitionsClient)
-        )
-        .forEach {
-          addService(it.withMetadataDuchyIdentities().withVerboseLogging(verboseGrpcLogging))
-        }
-    }
-  private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Kingdom's public API services")
-
-      listOf(
-          ApiKeysService(internalApiKeysClient)
-            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-          CertificatesService(internalCertificatesClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          DataProvidersService(internalDataProvidersClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          EventGroupsService(internalEventGroupsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          MeasurementsService(internalMeasurementsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          PublicKeysService(internalPublicKeysClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          RequisitionsService(internalRequisitionsClient)
-            .withMetadataPrincipalIdentities()
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          AccountsService(internalAccountsClient, redirectUri)
-            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-          MeasurementConsumersService(internalMeasurementConsumersClient)
-            .withMetadataPrincipalIdentities()
-            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
-            .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
-        )
-        .forEach {
-          // TODO(@wangyaopw): set up all public services to use the appropriate principal
-          // interceptors.
+      GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+        logger.info("Building Kingdom's internal Data services")
+        kingdomDataServices.buildDataServices().toList().forEach {
           addService(it.withVerboseLogging(verboseGrpcLogging))
         }
+      }
+  private val systemApiServer =
+      GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+        logger.info("Building Kingdom's system API services")
+        listOf(
+                systemComputationsService(internalMeasurementsClient),
+                systemComputationLogEntriesService(internalMeasurementLogEntriesClient),
+                systemComputationParticipantsService(internalComputationParticipantsClient),
+                systemRequisitionsService(internalRequisitionsClient))
+            .forEach {
+              addService(it.withMetadataDuchyIdentities().withVerboseLogging(verboseGrpcLogging))
+            }
+      }
+  private val publicApiServer =
+      GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+        logger.info("Building Kingdom's public API services")
 
-      listOf(
-          ExchangeStepAttemptsService(
-            internalExchangeStepAttemptsClient,
-            internalExchangeStepsClient
-          ),
-          ExchangeStepsService(internalExchangeStepsClient),
-          ExchangesService(internalExchangesClient)
-        )
-        .forEach {
-          addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
-        }
-    }
+        listOf(
+                ApiKeysService(internalApiKeysClient)
+                    .withAccountAuthenticationServerInterceptor(
+                        internalAccountsClient, redirectUri),
+                CertificatesService(internalCertificatesClient)
+                    .withMetadataPrincipalIdentities()
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+                DataProvidersService(internalDataProvidersClient)
+                    .withMetadataPrincipalIdentities()
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+                EventGroupsService(internalEventGroupsClient)
+                    .withMetadataPrincipalIdentities()
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+                MeasurementsService(internalMeasurementsClient)
+                    .withMetadataPrincipalIdentities()
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+                PublicKeysService(internalPublicKeysClient)
+                    .withMetadataPrincipalIdentities()
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+                RequisitionsService(internalRequisitionsClient)
+                    .withMetadataPrincipalIdentities()
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
+                AccountsService(internalAccountsClient, redirectUri)
+                    .withAccountAuthenticationServerInterceptor(
+                        internalAccountsClient, redirectUri),
+                MeasurementConsumersService(internalMeasurementConsumersClient)
+                    .withMetadataPrincipalIdentities()
+                    .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
+                    .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient))
+            .forEach {
+              // TODO(@wangyaopw): set up all public services to use the appropriate principal
+              // interceptors.
+              addService(it.withVerboseLogging(verboseGrpcLogging))
+            }
+
+        listOf(
+                ExchangeStepAttemptsService(
+                    internalExchangeStepAttemptsClient, internalExchangeStepsClient),
+                ExchangeStepsService(internalExchangeStepsClient),
+                ExchangesService(internalExchangesClient, internalExchangeStepsClient))
+            .forEach {
+              addService(
+                  it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
+            }
+      }
 
   /** Provides a gRPC channel to the Kingdom's public API. */
   val publicApiChannel: Channel
@@ -192,7 +190,7 @@ class InProcessKingdom(
 
   override fun apply(statement: Statement, description: Description): Statement {
     return chainRulesSequentially(internalDataServer, systemApiServer, publicApiServer)
-      .apply(statement, description)
+        .apply(statement, description)
   }
 
   companion object {

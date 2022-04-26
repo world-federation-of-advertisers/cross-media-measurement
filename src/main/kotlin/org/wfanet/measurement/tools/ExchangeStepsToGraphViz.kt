@@ -41,7 +41,11 @@ fun createGraphViz(exchangeWorkflow: ExchangeWorkflow, exchangeSteps: List<Excha
         node(nodeName) {
           set("color" to color)
           set("shape" to STEP_SHAPE)
-          set("label" to step.stepId.plus(": ").plus(stepIndexToStep.get(step.stepId)?.stepStateToString()))
+          set(
+              "label" to
+                  step.stepId
+                      .plus(": ")
+                      .plus(stepIndexToStep.get(step.stepId)?.stepStateToString()))
         }
 
         for (label in step.outputLabelsMap.values) {
@@ -73,7 +77,7 @@ private fun String.toNodeName(): String {
 }
 
 private fun ExchangeStep.stepStateToString(): String {
-  return when(state) {
+  return when (state) {
     ExchangeStep.State.BLOCKED -> "Blocked"
     ExchangeStep.State.READY -> "Ready"
     ExchangeStep.State.READY_FOR_RETRY -> "Ready for retry"
