@@ -26,6 +26,7 @@ private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
 /**
  * Instantiates a privacy budget manager.
  *
+ * @param filter: An object that maps [PrivacyBucketGroup]s to Event messages.
  * @param backingStore: An object that provides persistent storage of privacy budget data in a
  * consistent and atomic manner.
  * @param maximumPrivacyBudget: The maximum privacy budget that can be used in any privacy bucket.
