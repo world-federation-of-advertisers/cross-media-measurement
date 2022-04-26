@@ -291,7 +291,7 @@ fun Measurement.toInternal(
   }
 }
 
-fun InternalExchange.toV2Alpha(): Exchange {
+fun InternalExchange.toV2Alpha(graphvizRepresentation: String): Exchange {
   val exchangeKey =
     ExchangeKey(
       dataProviderId = null,
@@ -304,8 +304,7 @@ fun InternalExchange.toV2Alpha(): Exchange {
     date = this@toV2Alpha.date
     state = v2AlphaState
     auditTrailHash = details.auditTrailHash
-    // TODO(@yunyeng): Add graphvizRepresentation to Exchange proto.
-    graphvizRepresentation = ""
+    this.graphvizRepresentation = graphvizRepresentation
   }
 }
 
