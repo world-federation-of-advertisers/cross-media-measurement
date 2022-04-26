@@ -169,7 +169,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `charges privacy budget for imprression measurement`() {
+  fun `charges privacy budget for impression measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
 
