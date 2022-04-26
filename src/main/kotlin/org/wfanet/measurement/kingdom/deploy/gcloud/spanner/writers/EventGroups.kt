@@ -18,17 +18,14 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
  * Checks that a given Measurement Consumer certificate is valid and returns its ID.
- * @throws KingdomInternalException with the following codes/conditions:
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
- * * [ErrorCode.CERTIFICATE_IS_INVALID]
+ * @throws MeasurementConsumerCertificateNotFoundException if Certificate is not found
+ * @throws CertificateIsInvalidException if Certificate is not valid
  */
 suspend fun checkValidCertificate(
   measurementConsumerCertificateId: Long,
