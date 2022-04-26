@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.crypto.tink.HybridDecrypt
+import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +54,10 @@ class HybridDecryptTask : ExchangeTask {
   }
 
   companion object {
+    init {
+      HybridConfig.register()
+    }
+
     private val logger by loggerFor()
   }
 }

@@ -16,6 +16,7 @@ package org.wfanet.panelmatch.client.exchangetasks
 
 import com.google.crypto.tink.HybridEncrypt
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,8 @@ class HybridEncryptTask : ExchangeTask {
   ): Map<String, Flow<ByteString>> {
     logger.addToTaskLog("Executing hybrid encrypt task")
 
+    // TODO: Use PrivateKeystore instead of loading the KeysetHandle directly from blob storage
+    // See https://github.com/world-federation-of-advertisers/panel-exchange-client/issues/322
     val inputData = input.getValue(PLAINTEXT_DATA_LABEL).toByteString()
     val publicKeyData = input.getValue(PUBLIC_KEY_LABEL).toByteString()
     val publicKeysetHandle = KeysetHandle.readNoSecret(publicKeyData.toByteArray())
@@ -50,6 +53,10 @@ class HybridEncryptTask : ExchangeTask {
   }
 
   companion object {
+    init {
+      HybridConfig.register()
+    }
+
     private val logger by loggerFor()
   }
 }
