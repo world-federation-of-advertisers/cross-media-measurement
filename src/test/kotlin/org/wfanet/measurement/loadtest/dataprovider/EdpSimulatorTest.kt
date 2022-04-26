@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+// import
+// org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
+// import
+// org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Message
@@ -31,6 +35,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.projectnessie.cel.Program
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.AnySketch.Register
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
@@ -61,11 +66,12 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender as PrivacyGender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange as privacyAgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.gender as privacyGender
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.ageRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
@@ -87,8 +93,16 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyBucketGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -137,6 +151,51 @@ private val SKETCH_CONFIG = sketchConfig {
     name = "Frequency"
     aggregator = Aggregator.SUM
     distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+  }
+}
+
+class TestPrivacyBucketMapper : PrivacyBucketMapper {
+
+  override fun toPrivacyFilterProgram(filterExpression: String): Program =
+    try {
+      EventFilters.compileProgram(
+        filterExpression,
+        testEvent {},
+        setOf("privacy_budget.age.value", "privacy_budget.gender.value")
+      )
+    } catch (e: EventFilterValidationException) {
+      throw PrivacyBudgetManagerException(
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
+        emptyList()
+      )
+    }
+
+  override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
+    return testEvent {
+      privacyBudget = testPrivacyBudgetTemplate {
+        when (privacyBucketGroup.ageGroup) {
+          AgeGroup.RANGE_18_34 -> age = privacyAgeRange {
+              value = PrivacyAgeRange.Value.AGE_18_TO_24
+            }
+          AgeGroup.RANGE_35_54 -> age = privacyAgeRange {
+              value = PrivacyAgeRange.Value.AGE_35_TO_54
+            }
+          AgeGroup.ABOVE_54 -> age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_OVER_54 }
+        }
+        when (privacyBucketGroup.gender) {
+          PrivacyBucketGender.MALE ->
+            gender =
+              TestPrivacyBudgetTemplateKt.gender {
+                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
+              }
+          PrivacyBucketGender.FEMALE ->
+            gender =
+              TestPrivacyBudgetTemplateKt.gender {
+                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
+              }
+        }
+      }
+    }
   }
 }
 
@@ -212,20 +271,16 @@ class EdpSimulatorTest {
   }
 
   private fun getEvents(
-    videoAd: TestVideoTemplate,
     bannerAd: TestBannerTemplate,
+    privacyBudget: TestPrivacyBudgetTemplate,
     vidRange: IntRange
   ): Map<Int, TestEvent> {
     return vidRange
       .map {
         it to
           testEvent {
-            this.videoAd = videoAd
             this.bannerAd = bannerAd
-            this.privacyBudget = testPrivacyBudgetTemplate {
-              gender = privacyGender { value = PrivacyGender.Value.GENDER_MALE }
-              age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
-            }
+            this.privacyBudget = privacyBudget
           }
       }
       .toMap()
@@ -252,6 +307,11 @@ class EdpSimulatorTest {
       gender = gender { value = Gender.Value.GENDER_MALE }
     }
 
+    testPrivacyBudgetTemplate {
+      gender = privacyGender { value = PrivacyGender.Value.GENDER_MALE }
+      age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
+    }
+
     // val someTestPrivacyBudgetTemplate = testPrivacyBudgetTemplate {
     //   gender = gender { value = Gender.Value.GENDER_MALE }
     //   age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
@@ -274,7 +334,13 @@ class EdpSimulatorTest {
     val allEvents = matchingEvents + nonMatchingEvents
 
     val backingStore = InMemoryBackingStore()
-    val privacyBudgetManager = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
+    val privacyBudgetManager =
+      PrivacyBudgetManager(
+        PrivacyBucketFilter(TestPrivacyBucketMapper()),
+        backingStore,
+        10.0f,
+        0.02f
+      )
 
     val edpSimulator =
       EdpSimulator(

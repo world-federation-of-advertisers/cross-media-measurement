@@ -14,12 +14,75 @@
 
 package org.wfanet.measurement.loadtest.config
 
+import com.google.protobuf.Message
+import org.projectnessie.cel.Program
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
+
+class TestPrivacyBucketMapper : PrivacyBucketMapper {
+
+  override fun toPrivacyFilterProgram(filterExpression: String): Program =
+    try {
+      EventFilters.compileProgram(
+        filterExpression,
+        testEvent {},
+        setOf("privacy_budget.age.value", "privacy_budget.gender.value")
+      )
+    } catch (e: EventFilterValidationException) {
+      throw PrivacyBudgetManagerException(
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
+        emptyList()
+      )
+    }
+
+  override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
+    return testEvent {
+      privacyBudget = testPrivacyBudgetTemplate {
+        when (privacyBucketGroup.ageGroup) {
+          AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+          AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
+          AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
+        }
+        when (privacyBucketGroup.gender) {
+          Gender.MALE ->
+            gender =
+              TestPrivacyBudgetTemplateKt.gender {
+                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
+              }
+          Gender.FEMALE ->
+            gender =
+              TestPrivacyBudgetTemplateKt.gender {
+                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
+              }
+        }
+      }
+    }
+  }
+}
 
 object PrivacyBudgets {
   /** Builds a [PrivacyBudgetManager] with [InMemoryBackingStore]. */
   fun createInMemoryPrivacyBudgetManager(): PrivacyBudgetManager {
-    return PrivacyBudgetManager(InMemoryBackingStore(), 1000.0f, 1000.0f)
+    return PrivacyBudgetManager(
+      PrivacyBucketFilter(TestPrivacyBucketMapper()),
+      InMemoryBackingStore(),
+      1000.0f,
+      1000.0f
+    )
   }
 }

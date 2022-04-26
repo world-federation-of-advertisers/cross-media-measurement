@@ -75,29 +75,6 @@ class PrivacyBucketFilterTest {
   }
 
   @Test
-  fun `testing stuff`() {
-    val requisitionSpec = requisitionSpec {
-      eventGroups += eventGroupEntry {
-        key = "eventGroups/someEventGroup"
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            collectionInterval = timeInterval {
-              startTime =
-                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-            }
-            filter = eventFilter {
-              expression =
-                "(privacy_budget.gender.value == 1 || privacy_budget.age.value == 2) && (video_ad.age.value == 1 || banner_ad.gender.value == 2)"
-            }
-          }
-      }
-    }
-
-    getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, MEASUREMENT_SPEC, requisitionSpec)
-  }
-
-  @Test
   fun `Mapper succeeds for filter expression with only privacy budget Fields`() {
 
     val requisitionSpec = requisitionSpec {
