@@ -80,11 +80,11 @@ class PrivacyBudgetManager(
       //
       // chargeList.add(PrivacyCharge(
       //   measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat(),
-      // 	 measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat()))
+      //  measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat()))
       //
       // chargeList.add(PrivacyCharge(
       //   measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon.toFloat(),
-      //	 measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat()))
+      //  measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat()))
       // }
 
       MeasurementTypeCase.IMPRESSION ->
