@@ -20,6 +20,7 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -93,6 +94,17 @@ private val DURATION_MEASUREMENT_SPEC = measurementSpec {
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
 
+  private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
+    measurementSpec: MeasurementSpec
+  ) {
+    val exception =
+      assertFailsWith<PrivacyBudgetManagerException> {
+        chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, REQUISITION_SPEC, measurementSpec)
+      }
+    assertThat(exception.errorType)
+      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+  }
+
   @Test
   fun `chargePrivacyBudget throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
     val backingStore = InMemoryBackingStore()
@@ -142,59 +154,41 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `chargePrivacyBudget works as expected for reach and frequency measurement`() {
+  fun `charges privacy budget for reach and frequency measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
       MEASUREMENT_CONSUMER_ID,
       REQUISITION_SPEC,
       REACH_AND_FREQ_MEASUREMENT_SPEC
     )
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          MEASUREMENT_CONSUMER_ID,
-          REQUISITION_SPEC,
-          REACH_AND_FREQ_MEASUREMENT_SPEC
-        )
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    // Second charge should exceed the budget.
+    pbm.assertChargeExceedsPrivacyBudget(REACH_AND_FREQ_MEASUREMENT_SPEC)
   }
 
   @Test
-  fun `chargePrivacyBudget works as expected for imprression measurement`() {
+  fun `charges privacy budget for imprression measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
 
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          MEASUREMENT_CONSUMER_ID,
-          REQUISITION_SPEC,
-          IMPRESSION_MEASUREMENT_SPEC
-        )
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    // Second charge should exceed the budget.
+    pbm.assertChargeExceedsPrivacyBudget(IMPRESSION_MEASUREMENT_SPEC)
   }
 
   @Test
-  fun `chargePrivacyBudget works as expected for duration measurement`() {
+  fun `charges privacy budget for duration measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
 
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          MEASUREMENT_CONSUMER_ID,
-          REQUISITION_SPEC,
-          DURATION_MEASUREMENT_SPEC
-        )
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    // Second charge should exceed the budget.
+    pbm.assertChargeExceedsPrivacyBudget(DURATION_MEASUREMENT_SPEC)
   }
 }
