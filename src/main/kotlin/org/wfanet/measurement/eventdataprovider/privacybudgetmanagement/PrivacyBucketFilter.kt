@@ -66,21 +66,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
     vidSamplingIntervalEnd: Float
   ): Sequence<PrivacyBucketGroup> {
 
-    val program =
-      privacyBucketMapper.toPrivacyFilterProgram(eventGroupEntryValue.filter.expression)
-    // try {
-    //   EventFilters.compileProgram(
-    //     eventGroupEntryValue.filter.expression,
-    //     // TODO(@uakyol) : Update to Event proto once real event templates are checked in.
-    //     privacyBucketMapper.event,
-    //     privacyBucketMapper.operativePrivacyBudgetFields
-    //   )
-    // } catch (e: EventFilterValidationException) {
-    //   throw PrivacyBudgetManagerException(
-    //     PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-    //     emptyList()
-    //   )
-    // }
+    val program = privacyBucketMapper.toPrivacyFilterProgram(eventGroupEntryValue.filter.expression)
 
     val startDate: LocalDate = eventGroupEntryValue.collectionInterval.startTime.toLocalDate("UTC")
     val endDate: LocalDate = eventGroupEntryValue.collectionInterval.endTime.toLocalDate("UTC")
