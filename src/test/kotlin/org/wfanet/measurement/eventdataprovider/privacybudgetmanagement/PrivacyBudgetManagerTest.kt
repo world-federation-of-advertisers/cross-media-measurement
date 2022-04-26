@@ -164,6 +164,7 @@ class PrivacyBudgetManagerTest {
       REQUISITION_SPEC,
       REACH_AND_FREQ_MEASUREMENT_SPEC
     )
+                                   
     // Second charge should exceed the budget.
     pbm.assertChargeExceedsPrivacyBudget(REACH_AND_FREQ_MEASUREMENT_SPEC)
   }

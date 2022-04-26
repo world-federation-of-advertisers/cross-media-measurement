@@ -80,7 +80,7 @@ class PrivacyBucketGroupTest {
   }
 
   @Test
-  fun `overlapsWith non overlapping works as expected for neighbor bucket groups`() {
+  fun `overlapsWith returns false for two neighboring, non-overlapping, bucket groups`() {
     val bucketGroup2 =
       PrivacyBucketGroup(
         "ACME",
