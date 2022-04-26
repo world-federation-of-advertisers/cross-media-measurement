@@ -22,6 +22,6 @@ interface PrivacyBucketMapper {
   /** Maps [filterExpression] to a [Program] by using privacy related fields and [Message] */
   fun toPrivacyFilterProgram(filterExpression: String): Program
 
-  /** Maps [privacyBucketGroup] to an event [Message]  */
+  /** Maps [privacyBucketGroup] to an event [Message] */
   fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message
 }
