@@ -21,3 +21,12 @@ kt_jvm_library(
     ],
     deps = ["@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler"],
 )
+
+kt_jvm_library(
+    name = "privacy_budgets",
+    srcs = ["PrivacyBudgets.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
+    deps = ["//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",],
+)

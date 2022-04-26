@@ -15,8 +15,12 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Timestamp
 import com.google.protobuf.duration
 import java.nio.file.Paths
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
@@ -57,12 +61,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -72,7 +79,9 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -88,6 +97,8 @@ import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
@@ -116,7 +127,8 @@ class EdpSimulator(
   private val sketchStore: SketchStore,
   private val eventQuery: EventQuery,
   private val throttler: MinimumIntervalThrottler,
-  private val eventTemplateNames: List<String>
+  private val eventTemplateNames: List<String>,
+  private val privacyBudgetManager: PrivacyBudgetManager
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -248,18 +260,45 @@ class EdpSimulator(
       .forEach { anySketch.insert(it, mapOf("frequency" to 1L)) }
   }
 
-  fun generateSketch(
+  suspend fun chargePrivacyBudget(
+    requisitionName: String,
+    measurementSpec: MeasurementSpec,
+    requisitionSpec: RequisitionSpec
+  ) =
+    try {
+      privacyBudgetManager.chargePrivacyBudget(
+        measurementConsumerName,
+        requisitionSpec,
+        measurementSpec
+      )
+    } catch (e: PrivacyBudgetManagerException) {
+      logger.log(
+        Level.WARNING,
+        "RequisitionFulfillmentWorkflow failed due to: Not Enough Privacy Budget",
+        e
+      )
+      refuseRequisition(
+        requisitionName,
+        Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+        "Invalid requisitionSpec"
+      )
+    }
+
+  suspend fun generateSketch(
+    requisitionName: String,
     sketchConfig: SketchConfig,
-    eventFilter: EventFilter,
-    vidSamplingIntervalStart: Float,
-    vidSamplingIntervalWidth: Float
+    measurementSpec: MeasurementSpec,
+    requisitionSpec: RequisitionSpec
   ): Sketch {
-    logger.info("Generating Sketch...")
+    chargePrivacyBudget(requisitionName, measurementSpec, requisitionSpec)
+    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
+    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
+    logger.info("Generating Sketch...")
 
     populateAnySketch(
-      eventFilter,
+      requisitionSpec.eventGroupsList[0].value.filter,
       VidSampler(VID_SAMPLER_HASH_FUNCTION),
       vidSamplingIntervalStart,
       vidSamplingIntervalWidth,
@@ -303,17 +342,9 @@ class EdpSimulator(
       requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
     val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
 
-    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-
     val sketch =
       try {
-        generateSketch(
-          sketchConfig,
-          requisitionSpec.eventGroupsList[0].value.filter,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
-        )
+        generateSketch(requisition.name, sketchConfig, measurementSpec, requisitionSpec)
       } catch (e: EventFilterValidationException) {
         logger.log(
           Level.WARNING,
@@ -506,3 +537,8 @@ private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
     }
   }
 }
+
+private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
+  Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
+    .atZone(ZoneId.of(timeZone))
+    .toLocalDate()
