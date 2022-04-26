@@ -14,13 +14,6 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
 
 enum class AgeGroup(val string: String) {
   RANGE_18_34("18_34"),
@@ -67,40 +60,10 @@ data class PrivacyBucketGroup(
       return false
     }
 
-    val thisVidSampleEnd = this.vidSampleStart + this.vidSampleWidth
-    val otherVidSampleEnd = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
+    val vidSampleEnd1 = this.vidSampleStart + this.vidSampleWidth
+    val vidSampleEnd2 = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
 
-    // Vid ranges are half-open intervals. [0.1, 0.2) does not overlap with vid[0.2, 0.3)
-    return this.vidSampleStart < otherVidSampleEnd &&
-      otherBucketGroup.vidSampleStart < thisVidSampleEnd
-  }
-}
-
-/**
- * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filered by the CEL expression for
- * that message.
- *
- * TODO(@uakyol) : Update this to [Event] message when actual templates are registered.
- */
-fun PrivacyBucketGroup.toEventProto(): TestEvent {
-  val privacyBucketGroupGender = this.gender
-  return testEvent {
-    privacyBudget = testPrivacyBudgetTemplate {
-      age =
-        if (ageGroup == AgeGroup.RANGE_18_34) ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-        else
-          (if (ageGroup == AgeGroup.RANGE_35_54) ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-          else ageRange { value = AgeRange.Value.AGE_OVER_54 })
-
-      gender =
-        if (privacyBucketGroupGender == Gender.MALE)
-          TestPrivacyBudgetTemplateKt.gender {
-            value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-          }
-        else
-          TestPrivacyBudgetTemplateKt.gender {
-            value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-          }
-    }
+    return (this.vidSampleStart <= vidSampleEnd2) &&
+      (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
   }
 }
