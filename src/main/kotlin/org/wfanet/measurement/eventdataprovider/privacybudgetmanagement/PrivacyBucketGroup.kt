@@ -67,34 +67,3 @@ data class PrivacyBucketGroup(
       (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
   }
 }
-
-/**
- * Converts [PrivacyBucketGroup] to a [TestEvent] message to be filtered by the CEL expression for
- * that message.
- *
- * TODO(@uakyol) : Update this to [Event] message when actual templates are registered.
- */
-// fun PrivacyBucketGroup.toEventProto(): TestEvent {
-//   val privacyBucketGroupGender = this.gender
-//   return testEvent {
-//     privacyBudget = testPrivacyBudgetTemplate {
-//       when (ageGroup) {
-//         AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-//         AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-//         AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
-//       }
-//       when (privacyBucketGroupGender) {
-//         Gender.MALE ->
-//           gender =
-//             TestPrivacyBudgetTemplateKt.gender {
-//               value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-//             }
-//         Gender.FEMALE ->
-//           gender =
-//             TestPrivacyBudgetTemplateKt.gender {
-//               value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-//             }
-//       }
-//     }
-//   }
-// }

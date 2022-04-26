@@ -24,9 +24,6 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.01f
 
-// private val OPERATIVE_PRIVACY_BUDGET_FIELDS =
-//   setOf("privacy_budget.age.value", "privacy_budget.gender.value")
-
 class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
   /**
    * Returns a list of privacy bucket groups that might be affected by a query.
