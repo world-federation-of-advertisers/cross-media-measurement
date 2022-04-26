@@ -13,7 +13,6 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import com.google.protobuf.Message
 import com.google.protobuf.Timestamp
 import java.time.Instant
 import java.time.LocalDate
@@ -21,16 +20,14 @@ import java.time.ZoneId
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
 private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.01f
 
-private val OPERATIVE_PRIVACY_BUDGET_FIELDS =
-  setOf("privacy_budget.age.value", "privacy_budget.gender.value")
+// private val OPERATIVE_PRIVACY_BUDGET_FIELDS =
+//   setOf("privacy_budget.age.value", "privacy_budget.gender.value")
 
-object PrivacyBucketMapping {
+class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
   /**
    * Returns a list of privacy bucket groups that might be affected by a query.
    *
@@ -73,19 +70,20 @@ object PrivacyBucketMapping {
   ): Sequence<PrivacyBucketGroup> {
 
     val program =
-      try {
-        EventFilters.compileProgram(
-          eventGroupEntryValue.filter.expression,
-          // TODO(@uakyol) : Update to Event proto once real event templates are checked in.
-          testEvent {},
-          OPERATIVE_PRIVACY_BUDGET_FIELDS
-        )
-      } catch (e: EventFilterValidationException) {
-        throw PrivacyBudgetManagerException(
-          PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-          emptyList()
-        )
-      }
+      privacyBucketMapper.toPrivacyFilterProgram(eventGroupEntryValue.filter.expression)
+    // try {
+    //   EventFilters.compileProgram(
+    //     eventGroupEntryValue.filter.expression,
+    //     // TODO(@uakyol) : Update to Event proto once real event templates are checked in.
+    //     privacyBucketMapper.event,
+    //     privacyBucketMapper.operativePrivacyBudgetFields
+    //   )
+    // } catch (e: EventFilterValidationException) {
+    //   throw PrivacyBudgetManagerException(
+    //     PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
+    //     emptyList()
+    //   )
+    // }
 
     val startDate: LocalDate = eventGroupEntryValue.collectionInterval.startTime.toLocalDate("UTC")
     val endDate: LocalDate = eventGroupEntryValue.collectionInterval.endTime.toLocalDate("UTC")
@@ -115,7 +113,11 @@ object PrivacyBucketMapping {
                   vid,
                   PRIVACY_BUCKET_VID_SAMPLE_WIDTH
                 )
-              if (EventFilters.matches(privacyBucketGroup.toEventProto() as Message, program)) {
+              if (EventFilters.matches(
+                  privacyBucketMapper.toEventMessage(privacyBucketGroup),
+                  program
+                )
+              ) {
                 yield(privacyBucketGroup)
               }
             }

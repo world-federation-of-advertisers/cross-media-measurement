@@ -34,13 +34,15 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "PrivacyBucketMapperTest",
-    srcs = ["PrivacyBucketMapperTest.kt"],
-    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketMapperTest",
+    name = "PrivacyBucketFilterTest",
+    srcs = ["PrivacyBucketFilterTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilterTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",

@@ -14,13 +14,6 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
 
 enum class AgeGroup(val string: String) {
   RANGE_18_34("18_34"),
@@ -81,27 +74,27 @@ data class PrivacyBucketGroup(
  *
  * TODO(@uakyol) : Update this to [Event] message when actual templates are registered.
  */
-fun PrivacyBucketGroup.toEventProto(): TestEvent {
-  val privacyBucketGroupGender = this.gender
-  return testEvent {
-    privacyBudget = testPrivacyBudgetTemplate {
-      when (ageGroup) {
-        AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-        AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-        AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
-      }
-      when (privacyBucketGroupGender) {
-        Gender.MALE ->
-          gender =
-            TestPrivacyBudgetTemplateKt.gender {
-              value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-            }
-        Gender.FEMALE ->
-          gender =
-            TestPrivacyBudgetTemplateKt.gender {
-              value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-            }
-      }
-    }
-  }
-}
+// fun PrivacyBucketGroup.toEventProto(): TestEvent {
+//   val privacyBucketGroupGender = this.gender
+//   return testEvent {
+//     privacyBudget = testPrivacyBudgetTemplate {
+//       when (ageGroup) {
+//         AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+//         AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
+//         AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
+//       }
+//       when (privacyBucketGroupGender) {
+//         Gender.MALE ->
+//           gender =
+//             TestPrivacyBudgetTemplateKt.gender {
+//               value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
+//             }
+//         Gender.FEMALE ->
+//           gender =
+//             TestPrivacyBudgetTemplateKt.gender {
+//               value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
+//             }
+//       }
+//     }
+//   }
+// }

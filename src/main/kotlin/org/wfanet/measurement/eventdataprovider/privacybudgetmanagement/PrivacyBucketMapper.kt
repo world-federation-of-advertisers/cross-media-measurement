@@ -13,11 +13,15 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import java.time.LocalDate
+import com.google.protobuf.Message
+import org.projectnessie.cel.Program
 
-object PrivacyLandscape {
-  val dates:List<LocalDate> = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
-  val ageGroups = AgeGroup.values()
-  val genders = Gender.values()
-  val vids = (0..300).map { it / 100f }
+/** Maps Privacy bucket related objects to event filter related objects and vice versa. */
+interface PrivacyBucketMapper {
+
+  /** Maps [filterExpression] to a [Program] by using privacy related fields and [Message] */
+  fun toPrivacyFilterProgram(filterExpression: String): Program
+
+  /** Maps [privacyBucketGroup] to an event [Message]  */
+  fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message
 }
