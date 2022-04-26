@@ -33,6 +33,7 @@ private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
  * privacy bucket.
  */
 class PrivacyBudgetManager(
+  val filter: PrivacyBucketFilter,
   val backingStore: PrivacyBudgetLedgerBackingStore,
   val maximumPrivacyBudget: Float = MAXIMUM_PRIVACY_USAGE_PER_BUCKET,
   val maximumTotalDelta: Float = MAXIMUM_DELTA_PER_BUCKET,
@@ -58,7 +59,7 @@ class PrivacyBudgetManager(
     measurementSpec: MeasurementSpec
   ) {
     val affectedPrivacyBuckets =
-      getPrivacyBucketGroups(measurementConsumerId, measurementSpec, requisitionSpec)
+      filter.getPrivacyBucketGroups(measurementConsumerId, measurementSpec, requisitionSpec)
     val chargeList = mutableListOf<PrivacyCharge>()
 
     when (measurementSpec.measurementTypeCase) {

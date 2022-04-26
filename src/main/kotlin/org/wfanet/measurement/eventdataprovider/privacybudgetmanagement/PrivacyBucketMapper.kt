@@ -14,7 +14,6 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.protobuf.Message
-
 import org.projectnessie.cel.Program
 
 /** Maps Privacy bucket related objects to event filter related objects and vice versa. */
