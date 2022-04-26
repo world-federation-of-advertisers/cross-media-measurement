@@ -78,20 +78,4 @@ class PrivacyBucketGroupTest {
 
     assertThat(bucketGroup.overlapsWith(bucketGroup2)).isFalse()
   }
-
-  @Test
-  fun `overlapsWith returns false for two neighboring, non-overlapping, bucket groups`() {
-    val bucketGroup2 =
-      PrivacyBucketGroup(
-        "ACME",
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.MALE,
-        0.5f,
-        0.1f
-      )
-
-    assertThat(bucketGroup.overlapsWith(bucketGroup2)).isFalse()
-  }
 }
