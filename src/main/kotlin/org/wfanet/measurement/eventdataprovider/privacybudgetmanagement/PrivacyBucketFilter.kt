@@ -111,7 +111,8 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
   }
 }
 
+// TODO(@uakyol): Update time conversion after getting alignment on civil calendar days.
 private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
   Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
-    .atZone(ZoneId.of(timeZone)) // This is problematic!
+    .atZone(ZoneId.of(timeZone))
     .toLocalDate()
