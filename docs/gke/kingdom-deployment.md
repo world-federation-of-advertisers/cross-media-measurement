@@ -132,9 +132,11 @@ containerized builds, replace `bazel run` with `tools/bazel-container-run`.
 Note: You may want to add a specific tag for the images in your container
 registry.
 
-## Step 3. Create IAM service accounts for the cluster
+## Step 3. Create resources for the cluster
 
 See [GKE Cluster Configuration](cluster-config.md) for background.
+
+### IAM Service Accounts
 
 We'll want to
 [create a least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
@@ -145,6 +147,21 @@ We'll additionally want to create a service account that we'll use to allow the
 internal API server to access the Spanner database. See
 [Granting Cloud Spanner database access](cluster-config.md#granting-cloud-spanner-database-access)
 for how to make sure this service account has the appropriate role.
+
+### KMS key for secret encryption
+
+Follow the steps in
+[Create a Cloud KMS key](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets#creating-key)
+to create a KMS key and grant permission to the GKE service agent to use it.
+
+Let's assume we've created a key named `k8s-secret` in a key ring named
+`test-key-ring` in the `us-central1` region under the `halo-cmm-dev` project.
+The resource name would be the following:
+`projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret`.
+We'll use this when creating the cluster.
+
+Tip: For convenience, there is a "Copy resource name" action on the key in the
+Cloud console.
 
 ## Step 4. Create the cluster
 
@@ -161,6 +178,7 @@ the Kingdom, running under the `gke-cluster` service account in the
 gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --enable-network-policy --workload-pool=halo-kingdom-demo.svc.id.goog \
   --service-account="gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com" \
+  --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
   --machine-type=e2-small
 ```
@@ -305,7 +323,7 @@ repository. These can be used to generate a secret for testing, but **must not**
 be used for production environments as doing so would be highly insecure.
 
 ```shell
-kubectl apply -k src/main/k8s/testing/secretfiles
+bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 ```
 
 ## Step 7. Create the K8s configMap
