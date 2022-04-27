@@ -309,8 +309,7 @@ private class EqualizeQueriesPerShardFn(
     paddingQueriesDistribution.update(-queryCountDelta.toLong())
     val paddingQueries =
       List(-queryCountDelta) {
-        // TODO: If we add in query mitigation, the BucketId should be set to the fake bucket
-        BucketQuery(PADDING_QUERY_JOIN_KEY_IDENTIFIER, kv.key, bucketIdOf(0))
+        BucketQuery(PADDING_QUERY_JOIN_KEY_IDENTIFIER, kv.key, paddingNonceBucket)
       }
 
     context.output(kvOf(kv.key, allQueries + paddingQueries))
