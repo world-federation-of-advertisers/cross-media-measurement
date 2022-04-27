@@ -67,7 +67,9 @@ class ParseDecryptedEventData : Runnable {
 
     PrintWriter(outputFile.outputStream()).use { printWriter ->
       for (keyedDecryptedEventDataSet in parsedShards) {
-        printWriter.println(keyedDecryptedEventDataSet.toDataProviderEventSetEntry().toJson())
+        if (!keyedDecryptedEventDataSet.hasPaddingNonce()) {
+          printWriter.println(keyedDecryptedEventDataSet.toDataProviderEventSetEntry().toJson())
+        }
       }
     }
   }
@@ -99,6 +101,10 @@ class ParseDecryptedEventData : Runnable {
         }
       }
     }
+  }
+
+  private fun KeyedDecryptedEventDataSet.hasPaddingNonce(): Boolean {
+    return plaintextJoinKeyAndId.joinKeyIdentifier.id.isEmpty
   }
 }
 
