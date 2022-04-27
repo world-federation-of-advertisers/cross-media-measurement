@@ -25,12 +25,11 @@ import org.wfanet.panelmatch.client.privatemembership.JniPrivateMembership
 
 class JniQueryEvaluatorContext(shardCount: Int, bucketsPerShardCount: Int) : Serializable {
   val privateMembershipParameters: Shared.Parameters = parameters {
-    shardParameters =
-      shardParameters {
-        numberOfShards = shardCount
-        numberOfBucketsPerShard = bucketsPerShardCount + 1 // To account for padding queries
-        enablePaddingNonces = true
-      }
+    shardParameters = shardParameters {
+      numberOfShards = shardCount
+      numberOfBucketsPerShard = bucketsPerShardCount + 1 // To account for padding queries
+      enablePaddingNonces = true
+    }
     cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
   }
 

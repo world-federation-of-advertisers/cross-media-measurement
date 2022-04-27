@@ -98,7 +98,7 @@ class GrpcApiClientTest {
   private val exchangeStepsServiceMock: ExchangeStepsCoroutineImplBase = mockService {}
 
   private val exchangeStepsAttemptsServiceMock: ExchangeStepAttemptsCoroutineImplBase =
-      mockService {}
+    mockService {}
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {

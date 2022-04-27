@@ -31,11 +31,10 @@ class JniEncryptEventsTest {
       identifierHashPepper = "identifier-hash-pepper".toByteStringUtf8()
       hkdfPepper = "hkdf-pepper".toByteStringUtf8()
       compressionParameters = compressionParameters { uncompressed = noCompression {} }
-      unprocessedEvents +=
-        unprocessedEvent {
-          id = "identifier".toByteStringUtf8()
-          data = "event-data".toByteStringUtf8()
-        }
+      unprocessedEvents += unprocessedEvent {
+        id = "identifier".toByteStringUtf8()
+        data = "event-data".toByteStringUtf8()
+      }
     }
     // TODO(@efoxepstein): once we have a JNIed way to decrypt, this should check roundtrips.
     JniEventPreprocessor().preprocess(request)

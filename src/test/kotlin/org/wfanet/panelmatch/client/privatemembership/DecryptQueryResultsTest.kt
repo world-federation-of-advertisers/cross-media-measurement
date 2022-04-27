@@ -153,28 +153,25 @@ private object TestQueryResultsDecryptor : QueryResultsDecryptor {
       // To ensure that things are properly flattened, we test two eventDataSets.
 
       // To ensure the request parameters are correct, we encode them in the first eventDataSet.
-      eventDataSets +=
-        decryptedEventDataSet {
-          decryptedEventData += plaintext { payload = parameters.decryptedJoinKey.key }
-          decryptedEventData += plaintext { payload = parameters.hkdfPepper }
-          decryptedEventData +=
-            plaintext {
-              payload =
-                parameters.parameters.unpack(StringValue::class.java).value.toByteStringUtf8()
-            }
-          decryptedEventData +=
-            plaintext { payload = parameters.compressionParameters.toByteString() }
-          decryptedEventData += plaintext { payload = parameters.serializedPublicKey }
-          decryptedEventData += plaintext { payload = parameters.serializedPrivateKey }
+      eventDataSets += decryptedEventDataSet {
+        decryptedEventData += plaintext { payload = parameters.decryptedJoinKey.key }
+        decryptedEventData += plaintext { payload = parameters.hkdfPepper }
+        decryptedEventData += plaintext {
+          payload = parameters.parameters.unpack(StringValue::class.java).value.toByteStringUtf8()
         }
+        decryptedEventData += plaintext {
+          payload = parameters.compressionParameters.toByteString()
+        }
+        decryptedEventData += plaintext { payload = parameters.serializedPublicKey }
+        decryptedEventData += plaintext { payload = parameters.serializedPrivateKey }
+      }
 
       // To ensure the request encryptedQueryResults are correct, we encode them in an eventDataSet.
-      eventDataSets +=
-        decryptedEventDataSet {
-          for (result in parameters.encryptedQueryResults) {
-            decryptedEventData += plaintext { payload = result.serializedEncryptedQueryResult }
-          }
+      eventDataSets += decryptedEventDataSet {
+        for (result in parameters.encryptedQueryResults) {
+          decryptedEventData += plaintext { payload = result.serializedEncryptedQueryResult }
         }
+      }
     }
   }
 }

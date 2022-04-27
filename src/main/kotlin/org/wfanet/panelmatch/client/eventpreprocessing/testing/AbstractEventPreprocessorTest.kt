@@ -33,20 +33,17 @@ abstract class AbstractEventPreprocessorTest {
       cryptoKey = "some-crypto-key".toByteStringUtf8()
       identifierHashPepper = "some-identifier-hash-pepper".toByteStringUtf8()
       hkdfPepper = "some-hkdf-pepper".toByteStringUtf8()
-      compressionParameters =
-        compressionParameters {
-          brotli = brotliCompressionParameters { dictionary = "some-dictionary".toByteStringUtf8() }
-        }
-      unprocessedEvents +=
-        unprocessedEvent {
-          id = "1".toByteStringUtf8()
-          data = "some-data".toByteStringUtf8()
-        }
-      unprocessedEvents +=
-        unprocessedEvent {
-          id = "2".toByteStringUtf8()
-          data = "some-other-data".toByteStringUtf8()
-        }
+      compressionParameters = compressionParameters {
+        brotli = brotliCompressionParameters { dictionary = "some-dictionary".toByteStringUtf8() }
+      }
+      unprocessedEvents += unprocessedEvent {
+        id = "1".toByteStringUtf8()
+        data = "some-data".toByteStringUtf8()
+      }
+      unprocessedEvents += unprocessedEvent {
+        id = "2".toByteStringUtf8()
+        data = "some-other-data".toByteStringUtf8()
+      }
     }
     assertThat(eventPreprocessor.preprocess(request)).isNotNull()
   }

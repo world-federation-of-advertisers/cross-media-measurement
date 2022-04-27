@@ -27,11 +27,10 @@ import org.wfanet.panelmatch.client.privatemembership.testing.encryptedQueryOf
 import org.wfanet.panelmatch.client.privatemembership.testing.unencryptedQueryOf
 
 private val parameters = clientParameters {
-  shardParameters =
-    shardParameters {
-      numberOfShards = 200
-      numberOfBucketsPerShard = 2000
-    }
+  shardParameters = shardParameters {
+    numberOfShards = 200
+    numberOfBucketsPerShard = 2000
+  }
   cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
 }
 

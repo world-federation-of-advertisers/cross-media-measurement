@@ -48,11 +48,10 @@ class EncryptEventsDoFn(
       hkdfPepper = hkdfPepperProvider.get()
       compressionParameters = c.sideInput(compressionParametersView)
       for (event in events) {
-        unprocessedEvents +=
-          unprocessedEvent {
-            id = event.key
-            data = event.value
-          }
+        unprocessedEvents += unprocessedEvent {
+          id = event.key
+          data = event.value
+        }
       }
     }
     val stopWatch: Stopwatch = Stopwatch.createStarted()

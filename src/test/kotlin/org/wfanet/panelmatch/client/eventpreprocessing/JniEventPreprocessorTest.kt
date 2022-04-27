@@ -30,11 +30,10 @@ private val REQUEST = preprocessEventsRequest {
   hkdfPepper = "some-hkdf-pepper".toByteStringUtf8()
   identifierHashPepper = "some-identifier-hash-pepper".toByteStringUtf8()
   compressionParameters = compressionParameters { uncompressed = noCompression {} }
-  unprocessedEvents +=
-    unprocessedEvent {
-      id = "some-id".toByteStringUtf8()
-      data = "some-data".toByteStringUtf8()
-    }
+  unprocessedEvents += unprocessedEvent {
+    id = "some-id".toByteStringUtf8()
+    data = "some-data".toByteStringUtf8()
+  }
 }
 
 @RunWith(JUnit4::class)

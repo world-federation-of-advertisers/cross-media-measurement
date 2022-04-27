@@ -3,6 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(
     default_testonly = True,
     default_visibility = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/testing:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/client/exchangetasks:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/client/launcher:__subpackages__",
     ],
