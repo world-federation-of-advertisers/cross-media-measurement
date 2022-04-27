@@ -14,9 +14,13 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -30,6 +34,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -51,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisitio
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
@@ -63,8 +69,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
-import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
 private const val DUCHY_ID: String = "some-duchy-id"
 private const val MILL_ID: String = "some-mill-id"
@@ -326,14 +332,11 @@ class ComputationsServiceTest {
   fun `stream active computations successfully`() = runBlocking {
     var calls = 0L
     fun nextMeasurement() =
-      INTERNAL_MEASUREMENT
-        .toBuilder()
-        .apply {
-          externalComputationId = 100 + calls
-          updateTimeBuilder.seconds = 1000 + calls
-          ++calls
-        }
-        .build()
+      INTERNAL_MEASUREMENT.copy {
+        externalComputationId = 100 + calls
+        updateTime = timestamp { seconds = 1000 + calls }
+        ++calls
+      }
 
     fun expectedResponse(id: Long) =
       StreamActiveComputationsResponse.newBuilder()
@@ -345,7 +348,9 @@ class ComputationsServiceTest {
     }
 
     val flow =
-      service.streamActiveComputations(StreamActiveComputationsRequest.getDefaultInstance())
+      service.streamActiveComputations(
+        streamActiveComputationsRequest { duchyName = DuchyKey(DUCHY_ID).toName() }
+      )
 
     assertThat(flow.take(5).toList())
       .comparingExpectedFieldsOnly()
@@ -392,6 +397,28 @@ class ComputationsServiceTest {
       }
     }
   }
+
+  @Test
+  fun `streamActiveComputations throws INVALID_ARGUMENT when duchy name is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.streamActiveComputations(streamActiveComputationsRequest {})
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `streamActiveComputations throws PERMISSION_DENIED when duchy name doesn't match caller`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.streamActiveComputations(
+            streamActiveComputationsRequest { duchyName = DuchyKey(DUCHY_ID).toName() + "2" }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    }
 
   @Test
   fun `set computation result successfully`() = runBlocking {

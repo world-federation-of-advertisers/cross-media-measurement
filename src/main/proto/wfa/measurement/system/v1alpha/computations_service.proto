@@ -61,10 +61,13 @@ message GetComputationRequest {
 
 // Request message for `StreamActiveComputations` method.
 message StreamActiveComputationsRequest {
-  // TODO(@tristanvuong): Add duchy name as additional field
+  // Resource name of the `Duchy` caller. Required. Can use `me` in place of the
+  // canonical name (https://google.aip.dev/122#resource-id-aliases).
+  string duchy_name = 1
+      [(google.api.resource_reference).type = "halo.wfanet.org/Duchy"];
 
   // If empty, streams from the least recently updated Computation.
-  string continuation_token = 1;
+  string continuation_token = 2;
 }
 
 // Response message for `StreamActiveComputations` method.

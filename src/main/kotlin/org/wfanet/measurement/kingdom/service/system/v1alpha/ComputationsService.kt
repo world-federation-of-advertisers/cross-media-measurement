@@ -21,8 +21,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -65,6 +67,15 @@ class ComputationsService(
   override fun streamActiveComputations(
     request: StreamActiveComputationsRequest
   ): Flow<StreamActiveComputationsResponse> {
+    val key =
+      grpcRequireNotNull(DuchyKey.fromName(request.duchyName)) {
+        "Resource name unspecified or invalid."
+      }
+
+    if (key.duchyId != "me" && key.duchyId != duchyIdentityProvider().id) {
+      failGrpc(Status.PERMISSION_DENIED) { "Cannot stream active computations for another duchy" }
+    }
+
     var currentContinuationToken = ContinuationTokenConverter.decode(request.continuationToken)
     return renewedFlow(reconnectInterval, reconnectDelay) {
       logger.info("Streaming active global computations since $currentContinuationToken")
