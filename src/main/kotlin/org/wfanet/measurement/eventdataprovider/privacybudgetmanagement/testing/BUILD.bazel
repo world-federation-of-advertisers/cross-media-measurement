@@ -3,9 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(
     default_testonly = True,
     default_visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/eventdataprovider:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
 )
 
@@ -15,8 +13,6 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
     ],
