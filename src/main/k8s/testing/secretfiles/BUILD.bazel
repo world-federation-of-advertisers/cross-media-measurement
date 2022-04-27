@@ -1,3 +1,6 @@
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+
 package(
     default_testonly = True,
     default_visibility = [
@@ -21,4 +24,121 @@ filegroup(
 filegroup(
     name = "all_configs",
     srcs = glob(["*.textproto"]),
+)
+
+filegroup(
+    name = "root_certs",
+    srcs = glob(["*_root.pem"]),
+)
+
+genrule(
+    name = "gen_trusted_certs",
+    srcs = [":root_certs"],
+    outs = ["all_root_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+SECRET_FILES = [
+    "all_root_certs.pem",
+    "health_probe_tls.key",
+    "health_probe_tls.pem",
+    "kingdom_tls.key",
+    "kingdom_tls.pem",
+    "aggregator_tls.key",
+    "aggregator_tls.pem",
+    "aggregator_cs_cert.der",
+    "aggregator_cs_private.der",
+    "worker1_tls.key",
+    "worker1_tls.pem",
+    "worker1_cs_cert.der",
+    "worker1_cs_private.der",
+    "worker2_tls.key",
+    "worker2_tls.pem",
+    "worker2_cs_cert.der",
+    "worker2_cs_private.der",
+    "edp1_cs_cert.der",
+    "edp1_cs_private.der",
+    "edp1_enc_private.tink",
+    "edp1_enc_public.tink",
+    "edp1_tls.key",
+    "edp1_tls.pem",
+    "edp2_cs_cert.der",
+    "edp2_cs_private.der",
+    "edp2_enc_private.tink",
+    "edp2_enc_public.tink",
+    "edp2_tls.key",
+    "edp2_tls.pem",
+    "edp3_cs_cert.der",
+    "edp3_cs_private.der",
+    "edp3_enc_private.tink",
+    "edp3_enc_public.tink",
+    "edp3_tls.key",
+    "edp3_tls.pem",
+    "edp4_cs_cert.der",
+    "edp4_cs_private.der",
+    "edp4_enc_private.tink",
+    "edp4_enc_public.tink",
+    "edp4_tls.key",
+    "edp4_tls.pem",
+    "edp5_cs_cert.der",
+    "edp5_cs_private.der",
+    "edp5_enc_private.tink",
+    "edp5_enc_public.tink",
+    "edp5_tls.key",
+    "edp5_tls.pem",
+    "edp6_cs_cert.der",
+    "edp6_cs_private.der",
+    "edp6_enc_private.tink",
+    "edp6_enc_public.tink",
+    "edp6_tls.key",
+    "edp6_tls.pem",
+    "mp1_tls.pem",
+    "mp1_tls.key",
+    "mp1_cs_cert.der",
+    "mp1_cs_private.der",
+    "mp1_enc_private.tink",
+    "mp1_enc_public.tink",
+    "mc_cs_cert.der",
+    "mc_cs_private.der",
+    "mc_enc_private.tink",
+    "mc_enc_public.tink",
+    "mc_tls.key",
+    "mc_tls.pem",
+    "duchy_id_config.textproto",
+    "duchy_cert_config.textproto",
+    "aggregator_protocols_setup_config.textproto",
+    "non_aggregator_protocols_setup_config.textproto",
+    "llv2_protocol_config_config.textproto",
+    "exchange_workflow.textproto",
+]
+
+filegroup(
+    name = "secret_files",
+    srcs = SECRET_FILES,
+)
+
+write_file(
+    name = "gen_kustomization",
+    out = "kustomization.yaml",
+    content = [
+        "secretGenerator:",
+        "- name: certs-and-configs",
+        "  files:",
+    ] + ["  - " + file for file in SECRET_FILES],
+)
+
+pkg_tar(
+    name = "pkg_kustomization",
+    srcs = [
+        ":kustomization.yaml",
+        ":secret_files",
+    ],
+    out = "kustomization.tar",
+)
+
+sh_binary(
+    name = "apply_kustomization",
+    srcs = ["apply_kustomization.sh"],
+    data = [":kustomization.tar"],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
 )
