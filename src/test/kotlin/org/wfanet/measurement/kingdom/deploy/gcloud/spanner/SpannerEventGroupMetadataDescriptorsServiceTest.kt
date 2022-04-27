@@ -20,7 +20,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupMetadataDescriptorsAndHelperServices
 import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupMetadataDescriptorsServiceTest
 
@@ -28,7 +28,7 @@ import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupMetadat
 class SpannerEventGroupMetadataDescriptorsServiceTest :
   EventGroupMetadataDescriptorsServiceTest<SpannerEventGroupMetadataDescriptorsService>() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
   override fun newServices(

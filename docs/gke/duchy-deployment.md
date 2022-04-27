@@ -1,123 +1,99 @@
 # How to deploy a Halo Duchy on GKE
 
-Last updated: 2022-01-27
-
-***The doc is updated to work with commit
-[7fab61049e425bb0edd5fa2802290bf1722254e7](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/429/commits/0b0e10d952f1fbfe4aa665c722e859bdeed9128d).
-Newer changes may require some commands to be updated. Stay tuned.***
-
 ***Disclaimer***:
 
--   This instruction is just one way of achieving the goal, not necessarily the
-    best approach.
+-   This guide is just one way of achieving the goal, not necessarily the best
+    approach.
 -   Almost all steps can be done via either the
-    [Google Cloud Console](https://console.cloud.google.com/) UI or the GCloud
-    CLI. The doc picks the easier one for each step. But you are free to do it
-    in an alternative way.
+    [Google Cloud Console](https://console.cloud.google.com/) UI or the
+    [`gcloud` CLI](https://cloud.google.com/sdk/gcloud/reference). The doc picks
+    the easier one for each step. But you are free to do it in an alternative
+    way.
 -   All names used in this doc can be replaced with something else. We use
     specific names in the doc for ease of reference.
 -   All quotas and resource configs are just examples, adjust the quota and size
     based on the actual usage.
--   In the doc, we assume we are deploying a duchy named `worker1` to a single
-    region, i.e. `us-central1`. If you are deploying to another region or
-    multiple regions, just need to adjust each step mentioning "region"
-    accordingly.
+-   In the doc, we assume we are deploying to a single region, i.e. us-central1.
+    If you are deploying to another region or multiple regions, just need to
+    adjust each step mentioning "region" accordingly.
 
 ## What are we creating/deploying?
 
--   1 GCP Project
-    -   1 spanner instance
-    -   1 Cloud Storage bucket
-    -   1 GKE cluster
-    -   1 Kubernetes secret
-    -   1 Kubernetes configmap
-    -   4 Kubernetes Service
-        -   worker1-async-computation-control-server (Cluster IP)
-        -   worker1-computation-control-server (External load balancer)
-        -   worker1-requisition-fulfillment-server (External load balancer)
-        -   worker1-spanner-computations-server (Cluster IP)
-    -   6 Kubernetes deployment
-        -   worker1-async-computation-control-server-deployment (gRPC service)
-        -   worker1-computation-control-server-deployment (gRPC service)
-        -   worker1-herald-daemon-deployment (Daemon Job)
-        -   worker1-liquid-legions-v2-mill-daemon-deployment (Daemon Job)
-        -   worker1-requisition-fulfillment-server-deployment (gRPC service)
-        -   worker1-spanner-computations-server-deployment (gRPC service)
-    -   1 Kubernetes Job
-        -   worker1-push-spanner-schema-job
-    -   8 Kubernetes NetworkPolicy
-        -   worker1-async-computation-controls-server-network-policy
-        -   worker1-computation-control-server-network-policy
-        -   worker1-herald-daemon-network-policy
-        -   worker1-liquid-legions-v2-mill-daemon-network-policy
-        -   worker1-push-spanner-schema-job-network-policy
-        -   worker1-requisition-fulfillment-server-network-policy
-        -   worker1-spanner-computations-server-network-policy
-        -   default-deny-ingress-and-egress
+For a Duchy named `worker1`:
+
+-   1 Cloud Spanner database
+-   1 Cloud Storage bucket
+-   1 GKE cluster
+-   1 Kubernetes secret
+-   1 Kubernetes configmap
+-   4 Kubernetes services
+    -   worker1-async-computation-control-server (Cluster IP)
+    -   worker1-computation-control-server (External load balancer)
+    -   worker1-requisition-fulfillment-server (External load balancer)
+    -   worker1-spanner-computations-server (Cluster IP)
+-   6 Kubernetes deployments
+    -   worker1-async-computation-control-server-deployment (gRPC service)
+    -   worker1-computation-control-server-deployment (gRPC service)
+    -   worker1-herald-daemon-deployment (Daemon Job)
+    -   worker1-liquid-legions-v2-mill-daemon-deployment (Daemon Job)
+    -   worker1-requisition-fulfillment-server-deployment (gRPC service)
+    -   worker1-spanner-computations-server-deployment (gRPC service)
+-   8 Kubernetes network policies
+    -   worker1-async-computation-controls-server-network-policy
+    -   worker1-computation-control-server-network-policy
+    -   worker1-herald-daemon-network-policy
+    -   worker1-liquid-legions-v2-mill-daemon-network-policy
+    -   worker1-push-spanner-schema-job-network-policy
+    -   worker1-requisition-fulfillment-server-network-policy
+    -   worker1-spanner-computations-server-network-policy
+    -   default-deny-ingress-and-egress
 
 ## Step 0. Before You Start
 
-See [Machine Setup](machine-setup.md).
+Follow Step 0 of the
+[Kingdom deployment guide](kingdom-deployment.md#step-0-before-you-start).
 
 ## Step 1. Register your duchy with the kingdom (offline)
 
-In order to join the cross-media-measurement system, the duchy needs to first
-register itself with the kingdom. This will be done offline with the help from
-the kingdom operator.
+In order to join the Cross-Media Measurement System, the Duchy needs to first be
+registered with the Kingdom. This will be done offline with the help from the
+Kingdom operator.
 
-The duchy operator needs to share the following information to the kingdom
-operator.
+The Duchy operator needs to share the following information with the Kingdom
+operator:
 
--   The display name (a string, used as externalId) of the duchy (unique among
-    all duchies)
--   public key of root certificate
--   public key of the TLS certificate
--   public key of the consent signaling certificate
+-   The name (a string, used as an ID) of the Duchy (unique amongst all Duchies)
+-   The CA ("root") certificate
+-   A consent signaling ("leaf") certificate
 
-The Kingdom operator will register all corresponding resources for the duchy via
-internal admin tools. The resource ids will be shared with the duchy operator.
+The Kingdom operator will
+[register all corresponding resources](../operations/creating-resources.md) for
+the Duchy via internal admin tools. The resource names will be shared with the
+Duchy operator.
 
-TODO: add a link to the doc about how to onboard a duchy to the system (doesn't
-exist yet)
+## Step 2. Create the database
 
-## Step 2. Create and set up the GCP Project
+The Duchy expects its own database within your Spanner instance. You can create
+one with the `gcloud` CLI. For example, a database named
+`worker1_duchy_computations` in the `dev-instance` instance.
 
-1.  [Register](https://console.cloud.google.com/freetrial) a GCP account.
-2.  In the [Google Cloud console](https://console.cloud.google.com/), create a
-    GCP project with project name `halo work1 demo`, and project id
-    `halo-worker1-demo`. (The project name doesn't matter and can be changed
-    later, but the project id will be used in all our configurations and is
-    immutable, so it is better to choose a good human-readable name for the
-    project id.)
-3.  Set up Billing of the project in the Console -> Billing page.
-4.  Update the project quotas in the Console -> IAM & Admin -> Quotas page If
-    necessary. (The default quota might just work since the kingdom doesn't
-    consume too many resources). You can skip this step for now and come back
-    later if any future operation fails due to "out of quota" errors.
+```shell
+gcloud spanner databases create worker1_duchy_computations \
+  --instance=dev-instance
+```
 
-If you are using an existing project, make sure your account has the `writer`
-role in that project.
+You then need to update the schema. This is done using
+[Liquibase](https://www.liquibase.org/).
 
-## Step 3. Create the Spanner instance Visit the GCloud console spanner page.
+Assuming a `halo-worker1-demo` project, run:
 
-Visit the GCloud console
-[spanner](https://console.cloud.google.com/spanner/instances) page.
+```shell
+liquibase update \
+  --url=jdbc:cloudspanner:/projects/halo-worker1-demo/instances/dev-instance/databases/worker1_duchy_computations \
+  --changelog-file=src/main/resources/duchy/spanner/changelog.yaml
+```
 
-1.  Enable the `Cloud Spanner API` if you haven’t done it yet.
-2.  Click Create Instance with
-    -   instance name = `halo-worker1-instance` (You can use whatever name here,
-        but usually we use "-instance" as the suffix)
-    -   regional, us-central1
-    -   Processing units = 100 (cost would be $0.09 per hour)
-
-Notes:
-
--   100 processing units is the minimum value we can choose. It should be good
-    enough before the project is fully launched and we get more traffic.
--   By default, the instance is accessible by all clusters created within this
-    GCP project.
-
-## Step 4. Create the Cloud Storage Bucket
+## Step 3. Create the Cloud Storage Bucket
 
 Note: all settings here are just examples. Pick values that make sense in your
 use case.
@@ -132,7 +108,7 @@ use case.
 The created cloud storage bucket will be accessible by all pods/clusters in the
 `halo-worker1-demo` GCP project.
 
-## Step 5. Prepare the docker images
+## Step 4. Prepare the docker images
 
 In this example, we use Google Cloud
 [container-registry](https://cloud.google.com/container-registry) to store our
@@ -176,21 +152,9 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
     You should see log like "Successfully pushed Docker image to
     gcr.io/halo-worker1- demo/setup/push-spanner-schema:latest".
 
-    Or you can run
-
-    ```shell
-    bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
-      bazel run -c opt --define container_registry=gcr.io --define \
-      image_repo_prefix=halo-kingdom-demo
-    ```
-
     Tip: If you're using [Hybrid Development](../building.md#hybrid-development)
     for containerized builds, replace `bazel run` with
     `tools/bazel-container-run`.
-
-    The above command builds and pushes all halo binaries one by one. You should
-    see logs like "Successfully pushed Docker image to gcr.io/halo-kingdom-
-    demo/something" multiple times.
 
     If you see an `UNAUTHORIZED` error, run the following command and retry.
 
@@ -199,7 +163,7 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
     gcloud auth login
     ```
 
-## Step 6. Create the Cluster
+## Step 5. Create the Cluster
 
 See [GKE Cluster Configuration](cluster-config.md) for more background.
 
@@ -253,7 +217,7 @@ To configure `kubectl` to access this cluster, run
 gcloud container clusters get-credentials halo-cmm-worker1-demo-cluster
 ```
 
-## Step 7. Create Kubernetes secrets.
+## Step 6. Create Kubernetes secrets.
 
 ***(Note: this step does not use any halo code, and you don't need to do it
 within the cross-media-measurement repo.)***
@@ -355,7 +319,7 @@ be used for production environments as doing so would be highly insecure.
 bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 ```
 
-## Step 8. Create the configmap
+## Step 7. Create the configmap
 
 Create a `authority_key_identifier_to_principal_map.textproto` file with the
 following content. This file contains all EDPs that are allowed to call this
@@ -414,7 +378,7 @@ You can verify that the config file is successfully update by running
 kubectldescribe configmaps config-files
 ```
 
-## Step 9. Update cue files.
+## Step 8. Update cue files.
 
 We recommend that you modify the
 [duchy_gke.cue](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/dev/duchy_gke.cue)
@@ -449,7 +413,7 @@ _computation_control_targets: {
 You can also update the memory and cpu request/limit of each pod, as well as the
 number of replicas per deployment.
 
-## Step 10. Deploy the duchy to GKE
+## Step 9. Deploy the duchy to GKE
 
 Replace the k8s_duchy_secret_name and duchy_cert_name (obtained from the kingdom
 operator offline) in the command, and run
@@ -491,7 +455,7 @@ Note: If you are not modifying the existing `duchy_gke.cue` file, but are
 creating another cue file in the previous step, you need to update the
 `yaml-file` and `environment` args to make it work.
 
-## Step 11. Make the Duchy accessible on the open internet.
+## Step 10. Make the Duchy accessible on the open internet.
 
 ### Reserve the external IPs
 

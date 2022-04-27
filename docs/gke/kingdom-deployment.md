@@ -74,22 +74,21 @@ following:
 
 ## Step 1. Create the database
 
-The Kingdom expects its own database within your Spanner instance.
-
-You can use the
-`//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl`
-Bazel target to generate a file with the necessary Data Definition Language
-(DDL) to create the database.
+The Kingdom expects its own database within your Spanner instance. You can
+create one with the `gcloud` CLI. For example, a database named `kingdom` in the
+`dev-instance` instance.
 
 ```shell
-bazel build //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl
+gcloud spanner databases create kingdom --instance=dev-instance
 ```
 
-You can then create the `kingdom` database using the `gloud` CLI:
+You then need to update the schema. This is done using
+[Liquibase](https://www.liquibase.org/).
 
 ```shell
-gcloud spanner databases create kingdom --instance=dev-instance \
-  --ddl-file=bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl
+liquibase update \
+  --url=jdbc:cloudspanner:/projects/halo-kingdom-demo/instances/dev-instance/databases/kingdom \
+  --changelog-file=src/main/resources/kingdom/spanner/changelog.yaml
 ```
 
 ## Step 2. Build and push the container images
@@ -123,8 +122,8 @@ bazel run src/main/docker/push_kingdom_system_api_server_image \
   --define image_repo_prefix=halo-kingdom-demo
 ```
 
-You should see log like "Successfully pushed Docker image to
-gcr.io/halo-kingdom-demo/setup/push-spanner-schema:latest"
+You should see output like "Successfully pushed Docker image to
+gcr.io/halo-kingdom-demo/kingdom/data-server:latest"
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
 containerized builds, replace `bazel run` with `tools/bazel-container-run`.
