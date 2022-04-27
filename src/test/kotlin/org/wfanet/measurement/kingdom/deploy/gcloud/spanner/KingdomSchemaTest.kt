@@ -18,10 +18,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 
 @RunWith(JUnit4::class)
-class KingdomSchemaTest : UsingSpannerEmulator(KINGDOM_SCHEMA) {
+class KingdomSchemaTest : UsingSpannerEmulator(Schemata.KINGDOM_CHANGELOG_PATH) {
 
   @Test fun `database is created`() {}
 }

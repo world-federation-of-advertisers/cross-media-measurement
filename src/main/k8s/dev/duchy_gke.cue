@@ -47,7 +47,12 @@ _secret_name:                  string @tag("secret_name")
 	resourceLimitMemory:   "512Mi"
 }
 
-objectSets: [default_deny_ingress_and_egress] + [ for d in duchy {d}]
+objectSets: [
+	default_deny_ingress_and_egress,
+	duchy.deployments,
+	duchy.services,
+	duchy.networkPolicies,
+]
 
 duchy: #Duchy & {
 	_duchy: {
@@ -62,11 +67,6 @@ duchy: #Duchy & {
 		"worker2":    "system.worker2.dev.halo-cmm.org:8443"
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
-	_spanner_schema_push_flags: [
-		"--ignore-already-existing-databases",
-		"--instance-name=" + #SpannerInstance,
-		"--project-name=" + #GloudProject,
-	]
 	_spanner_flags: [
 		"--spanner-instance=" + #SpannerInstance,
 		"--spanner-project=" + #GloudProject,

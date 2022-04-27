@@ -16,6 +16,8 @@ Ensure the following additional software is installed on your machine.
 
 *   [Kubectl](https://kubernetes.io/docs/tasks/tools/)
 *   [Cloud SDK](https://cloud.google.com/sdk/docs/install)
+*   [Liquibase](https://www.liquibase.org/) CLI
+    *   [Liquibase Spanner Extension](https://github.com/cloudspannerecosystem/liquibase-spanner)
 
 If you are doing a GKE deployment, it is assumed that you have some familiarity
 with using these.

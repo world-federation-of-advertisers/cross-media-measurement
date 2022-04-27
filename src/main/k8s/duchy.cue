@@ -58,18 +58,18 @@ import ("strings")
 	_debug_verbose_grpc_server_logging_flag:            "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 	_computation_control_target_flags: [ for duchyId, target in _computation_control_targets {"--duchy-computation-control-target=\(duchyId)=\(target)"}]
 
-	duchy_service: [Name=_]: #GrpcService & {
+	services: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
 		_system: "duchy"
 	}
-	duchy_service: {
+	services: {
 		"async-computation-control-server": {}
 		"computation-control-server": _type: "LoadBalancer"
 		"spanner-computations-server": {}
 		"requisition-fulfillment-server": _type: "LoadBalancer"
 	}
 
-	duchy_deployment: [Name=_]: #Deployment & {
+	deployments: [Name=_]: #Deployment & {
 		_unprefixed_name:       strings.TrimSuffix(Name, "-deployment")
 		_name:                  _object_prefix + _unprefixed_name
 		_secretName:            _duchy_secret_name
@@ -83,7 +83,7 @@ import ("strings")
 		_resourceLimitCpu:      _resource_configs[_unprefixed_name].resourceLimitCpu
 	}
 
-	duchy_deployment: {
+	deployments: {
 		"herald-daemon-deployment": #Deployment & {
 			_args: [
 				_computations_service_target_flag,
@@ -186,7 +186,7 @@ import ("strings")
 		_image:           _images["push-spanner-schema-container"]
 		_imagePullPolicy: _duchy_image_pull_policy
 		_args:            [
-					"--databases=\(_duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
+					"--database-schema=\(_duchy.name)_duchy_computations=duchy/spanner/create-computations-schema.sql",
 		] + _spanner_schema_push_flags
 		_jobSpec: {
 			backoffLimit: 0 // Don't retry.
@@ -196,11 +196,11 @@ import ("strings")
 		}
 	}]
 
-	duchy_internal_network_policy: [Name=_]: #NetworkPolicy & {
+	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name: _object_prefix + Name
 	}
 	// TODO(@wangyaopw): Consider setting GCS and spanner destinations explicityly.
-	duchy_internal_network_policy: {
+	networkPolicies: {
 		"spanner-computations-server": {
 			_app_label: _object_prefix + "spanner-computations-server-app"
 			_sourceMatchLabels: [

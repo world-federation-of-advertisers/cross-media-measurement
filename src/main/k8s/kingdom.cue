@@ -60,7 +60,7 @@ package k8s
 			_image:           _images["push-spanner-schema-container"]
 			_imagePullPolicy: _kingdom_image_pull_policy
 			_args:            [
-						"--databases=kingdom=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl",
+						"--database-schema=kingdom=kingdom/spanner/kingdom.ddl",
 			] + _spanner_schema_push_flags
 			_jobSpec: {
 				backoffLimit: 0 // Don't retry.

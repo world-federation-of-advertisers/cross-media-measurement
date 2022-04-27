@@ -16,11 +16,13 @@ package org.wfanet.measurement.tools
 
 import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.SpannerException
-import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.concurrent.ExecutionException
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.getJarResourcePath
 import org.wfanet.measurement.gcloud.spanner.buildSpanner
 import org.wfanet.measurement.gcloud.spanner.createDatabase
 import org.wfanet.measurement.gcloud.spanner.createInstance
@@ -28,6 +30,11 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
+/**
+ * Flags for pushing Spanner schema to database.
+ *
+ * TODO(@SanjayVas): Use Liquibase, dropping flags that don't make sense such as --create-instance.
+ */
 private class Flags {
   @Option(
     names = ["--project-name"],
@@ -46,11 +53,11 @@ private class Flags {
     private set
 
   @Option(
-    names = ["--databases"],
-    description = ["Map from database names to SDL files"],
+    names = ["--database-schema"],
+    description = ["Map from database name to schema resource name"],
     required = true
   )
-  lateinit var databases: Map<String, String>
+  lateinit var databaseSchemata: Map<String, String>
 
   @set:Option(
     names = ["--create-instance"],
@@ -135,7 +142,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val instance = spanner.instanceAdminClient.getInstance(flags.instanceName)
 
-  for ((databaseName, ddlFilePath) in flags.databases.entries) {
+  for ((databaseName, ddlResourceName) in flags.databaseSchemata.entries) {
     try {
       if (flags.dropDatabasesFirst) {
         logger.info("Dropping database $databaseName")
@@ -145,10 +152,12 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       logger.info("Database $databaseName doesn't exist but tried to drop")
     }
 
-    logger.info("Creating database $databaseName from DDL file $ddlFilePath")
-    File(ddlFilePath).useLines { schemaDefinitionLines ->
+    logger.info("Creating database $databaseName from DDL resource $ddlResourceName")
+    val ddlPath: Path =
+      requireNotNull(Thread.currentThread().contextClassLoader.getJarResourcePath(ddlResourceName))
+    Files.newBufferedReader(ddlPath).use { reader ->
       try {
-        createDatabase(instance, schemaDefinitionLines, databaseName)
+        createDatabase(instance, reader.lineSequence(), databaseName)
       } catch (e: ExecutionException) {
         if (flags.ignoreAlreadyExistingDatabases && e.isAlreadyExistsException) {
           logger.info("Database $databaseName already exists")
