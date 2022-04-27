@@ -106,6 +106,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private const val MC_NAME = "mc"
@@ -151,51 +152,6 @@ private val SKETCH_CONFIG = sketchConfig {
     name = "Frequency"
     aggregator = Aggregator.SUM
     distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
-  }
-}
-
-class TestPrivacyBucketMapper : PrivacyBucketMapper {
-
-  override fun toPrivacyFilterProgram(filterExpression: String): Program =
-    try {
-      EventFilters.compileProgram(
-        filterExpression,
-        testEvent {},
-        setOf("privacy_budget.age.value", "privacy_budget.gender.value")
-      )
-    } catch (e: EventFilterValidationException) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        emptyList()
-      )
-    }
-
-  override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
-    return testEvent {
-      privacyBudget = testPrivacyBudgetTemplate {
-        when (privacyBucketGroup.ageGroup) {
-          AgeGroup.RANGE_18_34 -> age = privacyAgeRange {
-              value = PrivacyAgeRange.Value.AGE_18_TO_24
-            }
-          AgeGroup.RANGE_35_54 -> age = privacyAgeRange {
-              value = PrivacyAgeRange.Value.AGE_35_TO_54
-            }
-          AgeGroup.ABOVE_54 -> age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_OVER_54 }
-        }
-        when (privacyBucketGroup.gender) {
-          PrivacyBucketGender.MALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-              }
-          PrivacyBucketGender.FEMALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-              }
-        }
-      }
-    }
   }
 }
 
@@ -293,44 +249,35 @@ class EdpSimulatorTest {
     val nonMatchingVids = (21..40)
     val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
 
-    val matchingTestVideoTemplate = testVideoTemplate {
-      age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+    val matchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
+      age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
     }
     val matchingTestBannerTemplate = testBannerTemplate {
       gender = gender { value = Gender.Value.GENDER_FEMALE }
     }
 
-    val nonMatchingTestVideoTemplate = testVideoTemplate {
-      age = ageRange { value = AgeRange.Value.AGE_RANGE_UNSPECIFIED }
+    val nonMatchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
+      age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
     }
     val nonMatchingTestBannerTemplate = testBannerTemplate {
       gender = gender { value = Gender.Value.GENDER_MALE }
     }
 
-    testPrivacyBudgetTemplate {
-      gender = privacyGender { value = PrivacyGender.Value.GENDER_MALE }
-      age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
-    }
 
-    // val someTestPrivacyBudgetTemplate = testPrivacyBudgetTemplate {
-    //   gender = gender { value = Gender.Value.GENDER_MALE }
-    //   age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-    // }
-
-    val videoTemplateMatchingEvents =
-      getEvents(matchingTestVideoTemplate, nonMatchingTestBannerTemplate, videoTemplateMatchingVids)
+    val privacyTemplateMatchingEvents =
+      getEvents(nonMatchingTestBannerTemplate,  matchingTestPrivacyTemplate, videoTemplateMatchingVids)
 
     val bannerTemplateMatchingEvents =
       getEvents(
-        nonMatchingTestVideoTemplate,
         matchingTestBannerTemplate,
+        nonMatchingTestPrivacyTemplate,
         bannerTemplateMatchingVids
       )
 
     val nonMatchingEvents =
-      getEvents(nonMatchingTestVideoTemplate, nonMatchingTestBannerTemplate, nonMatchingVids)
+      getEvents(nonMatchingTestBannerTemplate, nonMatchingTestPrivacyTemplate, nonMatchingVids)
 
-    val matchingEvents = videoTemplateMatchingEvents + bannerTemplateMatchingEvents
+    val matchingEvents = privacyTemplateMatchingEvents + bannerTemplateMatchingEvents
     val allEvents = matchingEvents + nonMatchingEvents
 
     val backingStore = InMemoryBackingStore()
@@ -377,7 +324,7 @@ class EdpSimulatorTest {
             }
             filter = eventFilter {
               expression =
-                "( privacy_budget.gender.value == 1 || privacy_budget.age.value == 2 ) && (video_ad.age.value == 1 || banner_ad.gender.value == 2)"
+                "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
             }
           }
       }

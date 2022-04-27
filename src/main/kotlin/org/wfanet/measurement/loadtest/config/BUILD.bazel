@@ -1,5 +1,9 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
+package(
+    default_testonly = True
+)
+
 filegroup(
     name = "config",
     srcs = [
@@ -12,6 +16,8 @@ filegroup(
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__pkg__",
     ],
 )
+
+
 
 kt_jvm_library(
     name = "event_filters",
@@ -29,6 +35,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
     ],
     deps = [
+                "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
     ],
 )
