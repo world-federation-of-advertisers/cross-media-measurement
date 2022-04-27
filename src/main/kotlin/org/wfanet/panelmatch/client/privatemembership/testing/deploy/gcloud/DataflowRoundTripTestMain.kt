@@ -79,13 +79,12 @@ private const val QUERIES_PER_SHARD_COUNT = 16
 
 private val PRIVATE_MEMBERSHIP_PARAMETERS = parameters {
   cryptoParameters = PRIVATE_MEMBERSHIP_CRYPTO_PARAMETERS
-  shardParameters =
-    shardParameters {
-      numberOfBucketsPerShard = BUCKETS_PER_SHARD_COUNT + 1
-      numberOfShards = SHARD_COUNT
-      requiredQueriesPerShard = QUERIES_PER_SHARD_COUNT
-      requiredFakeQueries = 0
-    }
+  shardParameters = shardParameters {
+    numberOfBucketsPerShard = BUCKETS_PER_SHARD_COUNT + 1
+    numberOfShards = SHARD_COUNT
+    requiredQueriesPerShard = QUERIES_PER_SHARD_COUNT
+    requiredFakeQueries = 0
+  }
 }
 
 // TODO: generalize this to other Cloud Providers/Runners.

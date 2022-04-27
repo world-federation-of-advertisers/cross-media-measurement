@@ -27,6 +27,7 @@ java_library(
     ],
     runtime_deps = [
         "//src/main/kotlin/org/wfanet/panelmatch/client/eventpreprocessing/testing",
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/launcher/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/privatemembership/testing",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage/testing",

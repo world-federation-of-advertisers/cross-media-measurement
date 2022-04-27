@@ -27,11 +27,10 @@ class FakeEventPreprocessor : EventPreprocessor {
     val suffix = with(request) { identifierHashPepper.concat(hkdfPepper).concat(cryptoKey) }
     return preprocessEventsResponse {
       for (events in request.unprocessedEventsList) {
-        processedEvents +=
-          processedEvent {
-            encryptedId = events.id.toStringUtf8().toLong() + 1
-            encryptedData = events.data.concat(suffix)
-          }
+        processedEvents += processedEvent {
+          encryptedId = events.id.toStringUtf8().toLong() + 1
+          encryptedData = events.data.concat(suffix)
+        }
       }
     }
   }

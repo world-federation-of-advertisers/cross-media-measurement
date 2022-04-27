@@ -69,11 +69,10 @@ class JniQueryEvaluatorTestHelper(private val context: JniQueryEvaluatorContext)
         queries.map { (queryId, bucketId) ->
           plaintextQuery {
             this.bucketId = bucketId.id
-            queryMetadata =
-              queryMetadata {
-                shardId = shard.id
-                this.queryId = queryId.id
-              }
+            queryMetadata = queryMetadata {
+              shardId = shard.id
+              this.queryId = queryId.id
+            }
           }
         }
     }

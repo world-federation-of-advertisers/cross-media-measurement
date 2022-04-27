@@ -36,8 +36,9 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private val WORKFLOW = exchangeWorkflow {
   steps += inputStep("a" to "b")
-  steps +=
-    step { this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {} }
+  steps += step {
+    this.commutativeDeterministicEncryptStep = commutativeDeterministicEncryptStep {}
+  }
 }
 
 private val DATE: LocalDate = LocalDate.of(2021, 11, 1)

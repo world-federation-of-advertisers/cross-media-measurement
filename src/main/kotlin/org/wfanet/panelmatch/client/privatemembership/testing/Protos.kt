@@ -50,11 +50,12 @@ fun encryptedQueryOf(shard: Int, query: Int): EncryptedQuery =
 
 /** Constructs a [EncryptedEventDataSet]. */
 fun encryptedEventDataSetOf(ciphertexts: List<String>, query: Int): EncryptedEventDataSet =
-    encryptedEventDataSet {
-  queryId = queryIdOf(query)
-  this.encryptedEventData =
-    encryptedEventData { this.ciphertexts += ciphertexts.map { it.toByteStringUtf8() } }
-}
+  encryptedEventDataSet {
+    queryId = queryIdOf(query)
+    this.encryptedEventData = encryptedEventData {
+      this.ciphertexts += ciphertexts.map { it.toByteStringUtf8() }
+    }
+  }
 
 /** Constructs a [DecryptedQueryResult]. */
 fun decryptedQueryOf(query: Int, queryResult: ByteString): DecryptedQueryResult =

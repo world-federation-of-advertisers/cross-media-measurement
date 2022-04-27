@@ -93,13 +93,12 @@ class PlaintextPrivateMembershipCryptorHelper : PrivateMembershipCryptorHelper {
     require(plaintext.queryId == joinkey.first) { "QueryId must be the same" }
     return encryptedEventDataSet {
       queryId = plaintext.queryId
-      encryptedEventData =
-        encryptedEventData {
-          ciphertexts +=
-            plaintext.decryptedEventDataList.map {
-              symmetricCryptor.encrypt(joinkey.second.key, listOf(it.payload)).single()
-            }
-        }
+      encryptedEventData = encryptedEventData {
+        ciphertexts +=
+          plaintext.decryptedEventDataList.map {
+            symmetricCryptor.encrypt(joinkey.second.key, listOf(it.payload)).single()
+          }
+      }
     }
   }
 }

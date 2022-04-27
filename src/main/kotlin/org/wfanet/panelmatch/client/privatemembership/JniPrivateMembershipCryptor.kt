@@ -51,11 +51,10 @@ class JniPrivateMembershipCryptor(private val parameters: Any) : PrivateMembersh
       unencryptedQueries.map {
         plaintextQuery {
           bucketId = it.bucketId.id
-          queryMetadata =
-            queryMetadata {
-              queryId = it.queryId.id
-              shardId = it.shardId.id
-            }
+          queryMetadata = queryMetadata {
+            queryId = it.queryId.id
+            shardId = it.shardId.id
+          }
         }
       }
     val request = encryptQueriesRequest {

@@ -62,8 +62,9 @@ class JniQueryEvaluator(parameters: Any) : QueryEvaluator {
         }
       }
 
-      rawDatabase =
-        rawDatabase { this.shards += shards.map { it.toPrivateMembershipRawDatabaseShard() } }
+      rawDatabase = rawDatabase {
+        this.shards += shards.map { it.toPrivateMembershipRawDatabaseShard() }
+      }
     }
 
     check(request.queriesList.all { !it.prngSeed.isEmpty })
