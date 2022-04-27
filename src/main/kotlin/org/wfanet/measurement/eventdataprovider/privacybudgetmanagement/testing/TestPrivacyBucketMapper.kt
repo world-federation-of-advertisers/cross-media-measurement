@@ -32,8 +32,13 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
-  override fun toPrivacyFilterProgram(filterExpression: String): Program =
-    try {
+  override fun toPrivacyFilterProgram(filterExpression: String): Program {
+
+    println("WHAHAAAAAAAAATTTTT!!!!!!")
+    println("WHAHAAAAAAAAATTTTT!!!!!!")
+    println("WHAHAAAAAAAAATTTTT!!!!!!")
+    println(filterExpression)
+    return try {
       EventFilters.compileProgram(
         filterExpression,
         testEvent {},
@@ -45,6 +50,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
         emptyList()
       )
     }
+  }
 
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
     return testEvent {

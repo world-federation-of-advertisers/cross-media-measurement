@@ -39,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
@@ -393,7 +392,10 @@ class FrontendSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
-        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
+        vidSamplingInterval = vidSamplingInterval {
+          start = 0.1f
+          width = 0.1f
+        }
       }
       this.nonceHashes += nonceHashes
     }
@@ -461,25 +463,8 @@ class FrontendSimulator(
       .getDataProvider(request)
   }
 
-  /**
-   * Creates a CEL filter using Event Templates names to qualify each variable in expression.
-   *
-   * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
-   * wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
-   */
-  private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
-    val eventGroupTemplateNameMap: Map<String, String> =
-      registeredEventTemplates.associateWith { (EventTemplates.getEventTemplateForType(it)!!).name }
-
-    return eventTemplateFilters
-      .map {
-        if (!eventGroupTemplateNameMap.containsKey(it.key)) {
-          error("EventGroup is not registered to the template ${it.key}")
-        }
-        "${eventGroupTemplateNameMap[it.key]}.${it.value}"
-      }
-      .reduce { acc, string -> "$acc && $string" }
-  }
+  private fun createFilterExpression(): String =
+    eventTemplateFilters.values.reduce { acc, string -> "$acc && $string" }
 
   private suspend fun createDataProviderEntry(
     eventGroup: EventGroup,
@@ -488,8 +473,18 @@ class FrontendSimulator(
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
 
-    val eventFilterExpression =
-      createFilterExpression(eventGroup.eventTemplatesList.map { it.type })
+    val eventFilterExpression = createFilterExpression()
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println(eventFilterExpression)
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println("Hereeeeeee")
+    println("Hereeeeeee")
 
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {

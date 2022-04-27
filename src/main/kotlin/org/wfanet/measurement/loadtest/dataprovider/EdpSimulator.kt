@@ -290,7 +290,7 @@ class EdpSimulator(
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec
   ): Sketch {
-    chargePrivacyBudget(requisitionName, measurementSpec, requisitionSpec)
+    // chargePrivacyBudget(requisitionName, measurementSpec, requisitionSpec)
     val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
     val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
 

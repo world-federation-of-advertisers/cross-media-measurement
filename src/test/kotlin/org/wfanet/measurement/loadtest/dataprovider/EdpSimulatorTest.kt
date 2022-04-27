@@ -35,7 +35,6 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.projectnessie.cel.Program
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.AnySketch.Register
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
@@ -68,16 +67,10 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender as PrivacyGender
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange as privacyAgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.gender as privacyGender
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.ageRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
@@ -93,20 +86,13 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyBucketGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketMapper
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private const val MC_NAME = "mc"
@@ -263,9 +249,12 @@ class EdpSimulatorTest {
       gender = gender { value = Gender.Value.GENDER_MALE }
     }
 
-
     val privacyTemplateMatchingEvents =
-      getEvents(nonMatchingTestBannerTemplate,  matchingTestPrivacyTemplate, videoTemplateMatchingVids)
+      getEvents(
+        nonMatchingTestBannerTemplate,
+        matchingTestPrivacyTemplate,
+        videoTemplateMatchingVids
+      )
 
     val bannerTemplateMatchingEvents =
       getEvents(
@@ -323,8 +312,7 @@ class EdpSimulatorTest {
               endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
             }
             filter = eventFilter {
-              expression =
-                "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
+              expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
             }
           }
       }
