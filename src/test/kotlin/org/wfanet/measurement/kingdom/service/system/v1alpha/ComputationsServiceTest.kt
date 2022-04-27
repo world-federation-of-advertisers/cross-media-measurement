@@ -38,14 +38,24 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -155,28 +165,31 @@ private val INTERNAL_COMPUTATION_PARTICIPANT =
     }
     .build()
 
-private val INTERNAL_MEASUREMENT =
-  InternalMeasurement.newBuilder()
-    .apply {
-      externalComputationId = EXTERNAL_COMPUTATION_ID
-      state = InternalMeasurement.State.FAILED
-      detailsBuilder.apply {
-        apiVersion = PUBLIC_API_VERSION
-        measurementSpec = MEASUREMENT_SPEC
-        duchyProtocolConfigBuilder.liquidLegionsV2Builder.apply {
-          mpcNoiseBuilder.apply {
-            blindedHistogramNoiseBuilder.apply {
+private val INTERNAL_MEASUREMENT = internalMeasurement {
+  externalComputationId = EXTERNAL_COMPUTATION_ID
+  state = InternalMeasurement.State.FAILED
+  details = details {
+    apiVersion = PUBLIC_API_VERSION
+    measurementSpec = MEASUREMENT_SPEC
+    duchyProtocolConfig = duchyProtocolConfig {
+      liquidLegionsV2 =
+        DuchyProtocolConfigKt.liquidLegionsV2 {
+          mpcNoise = mpcNoise {
+            blindedHistogramNoise = differentialPrivacyParams {
               epsilon = 1.1
               delta = 2.1
             }
-            noiseForPublisherNoiseBuilder.apply {
+            noiseForPublisherNoise = differentialPrivacyParams {
               epsilon = 3.1
               delta = 4.1
             }
           }
         }
-        protocolConfigBuilder.liquidLegionsV2Builder.apply {
-          sketchParamsBuilder.apply {
+    }
+    protocolConfig = protocolConfig {
+      liquidLegionsV2 =
+        ProtocolConfigKt.liquidLegionsV2 {
+          sketchParams = liquidLegionsSketchParams {
             decayRate = 10.0
             maxSize = 100
             samplingIndicatorSize = 1000
@@ -184,14 +197,16 @@ private val INTERNAL_MEASUREMENT =
           ellipticCurveId = 123
           maximumFrequency = 12
         }
-        externalAggregatorDuchyId = DUCHY_ID
-        externalAggregatorCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
-        encryptedResult = ENCRYPTED_RESULT
-        addComputationParticipants(INTERNAL_COMPUTATION_PARTICIPANT)
-        addRequisitions(INTERNAL_REQUISITION)
-      }
     }
-    .build()
+  }
+  results += resultInfo {
+    externalAggregatorDuchyId = DUCHY_ID
+    externalCertificateId = EXTERNAL_DUCHY_CERTIFICATE_ID
+    encryptedResult = ENCRYPTED_RESULT
+  }
+  computationParticipants += INTERNAL_COMPUTATION_PARTICIPANT
+  requisitions += INTERNAL_REQUISITION
+}
 
 @RunWith(JUnit4::class)
 class ComputationsServiceTest {

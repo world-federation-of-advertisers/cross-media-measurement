@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.loadtest.config
 
-private const val TEMPLATE_PREFIX = "org.wfa.measurement.api.v2alpha.event_templates.testing"
+import com.google.common.hash.Hashing
+
+private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 
 object EventFilters {
 
@@ -28,4 +30,6 @@ object EventFilters {
    */
   val EVENT_TEMPLATES_TO_FILTERS_MAP =
     mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
+
+  val VID_SAMPLER_HASH_FUNCTION = Hashing.farmHashFingerprint64()
 }
