@@ -69,9 +69,8 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
     val startDate: LocalDate = eventGroupEntryValue.collectionInterval.startTime.toLocalDate("UTC")
     val endDate: LocalDate = eventGroupEntryValue.collectionInterval.endTime.toLocalDate("UTC")
 
-    val vids =
-      PrivacyLandscape.vids.filter {
-        // TODO(@uakyol) : clarify that the start should be inclusive w.r.t to the query vid range.
+    val vidsIntervalStartPoints =
+      PrivacyLandscape.vidsIntervalStartPoints.filter {
         it >= vidSamplingIntervalStart && it <= vidSamplingIntervalEnd
       }
     val dates =
@@ -81,7 +80,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
       }
 
     return sequence {
-      for (vid in vids) {
+      for (vidsIntervalStartPoint in vidsIntervalStartPoints) {
         for (date in dates) {
           for (ageGroup in PrivacyLandscape.ageGroups) {
             for (gender in PrivacyLandscape.genders) {
@@ -92,7 +91,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
                   date,
                   ageGroup,
                   gender,
-                  vid,
+                  vidsIntervalStartPoint,
                   PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
                 )
               if (EventFilters.matches(

@@ -24,6 +24,6 @@ object PrivacyLandscape {
 
   // There are 300 Vid intervals in the range [0, 1). The last interval has a little larger length -
   // [0.986 1) all others have length 0.0033
-  val vids: List<Float> =
+  val vidsIntervalStartPoints: List<Float> =
     (1..299).runningFold(0.0f) { previousVid, _ -> previousVid + PRIVACY_BUCKET_VID_SAMPLE_WIDTH }
 }
