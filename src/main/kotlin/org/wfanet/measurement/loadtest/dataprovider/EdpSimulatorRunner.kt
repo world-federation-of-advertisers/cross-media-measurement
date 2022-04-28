@@ -27,7 +27,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.loadtest.config.EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
-import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createInMemoryPrivacyBudgetManager
+import org.wfanet.measurement.loadtest.config.PrivacyBudgets.createNoOpPrivacyBudgetManager
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 import picocli.CommandLine
@@ -84,7 +84,7 @@ abstract class EdpSimulatorRunner : Runnable {
           eventQuery,
           MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
           eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
-          createInMemoryPrivacyBudgetManager()
+          createNoOpPrivacyBudgetManager()
         )
         .process()
     }

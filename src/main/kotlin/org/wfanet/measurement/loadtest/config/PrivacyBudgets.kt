@@ -77,7 +77,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
 object PrivacyBudgets {
   /** Builds a [PrivacyBudgetManager] with [InMemoryBackingStore]. */
-  fun createInMemoryPrivacyBudgetManager(): PrivacyBudgetManager {
+  fun createNoOpPrivacyBudgetManager(): PrivacyBudgetManager {
     return PrivacyBudgetManager(
       PrivacyBucketFilter(TestPrivacyBucketMapper()),
       InMemoryBackingStore(),
