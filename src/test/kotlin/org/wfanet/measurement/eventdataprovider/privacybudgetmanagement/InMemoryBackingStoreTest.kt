@@ -13,7 +13,6 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.AbstractPrivacyBudgetLedgerStoreTest
 
 class InMemoryBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {

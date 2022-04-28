@@ -227,8 +227,7 @@ class FrontendSimulator(
     newMeasurementSpec:
       (
         serializedMeasurementPublicKey: ByteString,
-        nonceHashes: MutableList<ByteString>
-      ) -> MeasurementSpec
+        nonceHashes: MutableList<ByteString>) -> MeasurementSpec
   ): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
 
