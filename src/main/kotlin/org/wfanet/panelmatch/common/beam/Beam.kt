@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.common.beam
 
+import java.util.UUID
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.ListCoder
 import org.apache.beam.sdk.coders.NullableCoder
@@ -254,4 +255,23 @@ fun <T> PCollection<T>.combineIntoList(name: String = "CombineIntoList"): PColle
     .setCoder(ListCoder.of(coder))
     .apply("$name/Combine", Combine.globally { elements: Iterable<List<T>> -> elements.flatten() })
     .setCoder(ListCoder.of(coder))
+}
+
+/**
+ * Breaks Dataflow fusion by forcing materialization of a [PCollection].
+ *
+ * This operation can be inserted between operations that have significantly different data sizes or
+ * processing requirements to prevent Dataflow from fusing those operations together. Without this,
+ * a heavy-processing stage that immediately follows a light-processing stage may be forced to
+ * compute on a single worker. By inserting a [BreakFusion], the results of the light-processing
+ * stage are materialized, allowing the heavy-processing stage to run with a different number of
+ * workers.
+ */
+inline fun <reified T> PCollection<T>.breakFusion(name: String = "BreakFusion"): PCollection<T> {
+  return parDo<T, KV<String, T>>("$name/PairWithUUID") {
+      yield(kvOf(UUID.randomUUID().toString(), it))
+    }
+    .groupByKey("$name/GBK")
+    .flatMap("$name/FlatMap") { it.value }
+    .setCoder(this.coder)
 }
