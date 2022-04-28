@@ -44,6 +44,8 @@ class BeamTest : BeamTestBase() {
     listOf(pcollectionOf("first", 1, 2, 3), pcollectionOf("second", 4, 5, 6))
   }
 
+  private val collectionWithDuplicates by lazy { pcollectionOf("duplicates", "a", "a", "a") }
+
   @Test
   fun keys() {
     assertThat(collection.keys()).containsInAnyOrder(1, 2, 3)
@@ -211,5 +213,16 @@ class BeamTest : BeamTestBase() {
     val result: PCollection<KV<Int, Long>> =
       collection.parDoWithSideInput(sideInput) { element, count -> yield(kvOf(element.key, count)) }
     assertThat(result).containsInAnyOrder(kvOf(1, 3L), kvOf(2, 3L), kvOf(3, 3L))
+  }
+
+  @Test
+  fun breakFusionPreservesElements() {
+    assertThat(collection.breakFusion())
+      .containsInAnyOrder(kvOf(1, "A"), kvOf(2, "B"), kvOf(3, "C"))
+  }
+
+  @Test
+  fun breakFusionPreservesElementMultiplicity() {
+    assertThat(collectionWithDuplicates.breakFusion()).containsInAnyOrder("a", "a", "a")
   }
 }
