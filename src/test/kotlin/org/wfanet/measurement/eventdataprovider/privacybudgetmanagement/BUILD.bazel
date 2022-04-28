@@ -78,7 +78,6 @@ kt_jvm_test(
     ],
 )
 
-
 kt_jvm_test(
     name = "InMemoryBackingStoreTest",
     srcs = ["InMemoryBackingStoreTest.kt"],
@@ -93,4 +92,3 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
     ],
 )
-
