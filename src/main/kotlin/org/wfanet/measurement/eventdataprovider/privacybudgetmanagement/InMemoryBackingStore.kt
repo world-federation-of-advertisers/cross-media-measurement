@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
@@ -27,7 +27,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyC
  * stores. This code is not thread safe.
  */
 class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  private val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+  val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
   private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {

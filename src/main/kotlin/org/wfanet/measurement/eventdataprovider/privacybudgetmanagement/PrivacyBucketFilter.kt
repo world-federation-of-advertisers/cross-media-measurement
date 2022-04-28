@@ -22,8 +22,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
-private const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 0.003f
-
 class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
   /**
    * Returns a list of privacy bucket groups that might be affected by a query.
@@ -73,6 +71,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
 
     val vids =
       PrivacyLandscape.vids.filter {
+        // TODO(@uakyol) : clarify that the start should be inclusive w.r.t to the query vid range.
         it >= vidSamplingIntervalStart && it <= vidSamplingIntervalEnd
       }
     val dates =
@@ -94,7 +93,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
                   ageGroup,
                   gender,
                   vid,
-                  PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+                  PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
                 )
               if (EventFilters.matches(
                   privacyBucketMapper.toEventMessage(privacyBucketGroup),

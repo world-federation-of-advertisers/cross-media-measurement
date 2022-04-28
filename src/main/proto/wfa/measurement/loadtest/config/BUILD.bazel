@@ -10,7 +10,7 @@ IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
     name = "loadtest_event_proto",
-    srcs = glob(["*.proto"]),
+    srcs = ["loadtest_event.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
     ],

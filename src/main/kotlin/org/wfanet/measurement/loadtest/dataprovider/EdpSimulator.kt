@@ -279,7 +279,7 @@ class EdpSimulator(
       )
       refuseRequisition(
         requisitionName,
-        Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+        Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
         "Invalid requisitionSpec"
       )
     }

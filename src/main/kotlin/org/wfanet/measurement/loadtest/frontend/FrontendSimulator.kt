@@ -463,8 +463,7 @@ class FrontendSimulator(
       .getDataProvider(request)
   }
 
-  private fun createFilterExpression(): String =
-    eventTemplateFilters.values.reduce { acc, string -> "$acc && $string" }
+  private fun createFilterExpression(): String = eventTemplateFilters.values.joinToString(" && ")
 
   private suspend fun createDataProviderEntry(
     eventGroup: EventGroup,

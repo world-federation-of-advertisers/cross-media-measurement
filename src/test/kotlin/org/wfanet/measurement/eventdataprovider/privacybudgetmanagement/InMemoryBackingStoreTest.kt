@@ -11,9 +11,10 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.AbstractPrivacyBudgetLedgerStoreTest
 
 class InMemoryBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
   companion object {
