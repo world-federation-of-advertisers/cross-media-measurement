@@ -16,16 +16,8 @@ package org.wfanet.measurement.loadtest.config
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
@@ -36,12 +28,13 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
+  /** This mapper does not charge any bucket [filterExpression] is ignored. */
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
       EventFilters.compileProgram(
-        filterExpression,
-        testEvent {},
-        setOf("privacy_budget.age.value", "privacy_budget.gender.value")
+        "privacy_filterable == true",
+        loadTestEvent {},
+        setOf("privacy_filterable")
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
@@ -49,29 +42,9 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
         emptyList()
       )
     }
-
+  /** To not charge any buckets, [privacyBucketGroup] is ignored and set to be not filterable. */
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
-    return testEvent {
-      privacyBudget = testPrivacyBudgetTemplate {
-        when (privacyBucketGroup.ageGroup) {
-          AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-          AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-          AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
-        }
-        when (privacyBucketGroup.gender) {
-          Gender.MALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-              }
-          Gender.FEMALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-              }
-        }
-      }
-    }
+    return loadTestEvent { privacyFilterable = false }
   }
 }
 

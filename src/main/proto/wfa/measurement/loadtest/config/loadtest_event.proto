@@ -20,5 +20,6 @@ option java_package = "org.wfanet.measurement.loadtest.config";
 option java_multiple_files = true;
 
 message LoadTestEvent {
-  bool filterable = 1;
+  // Wheter or not this event can be filtered by the privacy bucket filter.
+  bool privacy_filterable = 1;
 }
