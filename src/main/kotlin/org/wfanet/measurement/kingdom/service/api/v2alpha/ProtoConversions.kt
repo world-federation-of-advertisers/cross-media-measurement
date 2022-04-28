@@ -338,7 +338,7 @@ fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
 fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
   return when (this) {
     ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
-      error("Invalid State: $this")
+      error("Invalid ExchangeStepAttempt state: $this")
     ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
     ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
     ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
@@ -384,7 +384,7 @@ fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
     ExchangeStep.State.SUCCEEDED -> InternalExchangeStep.State.SUCCEEDED
     ExchangeStep.State.FAILED -> InternalExchangeStep.State.FAILED
     ExchangeStep.State.STATE_UNSPECIFIED, ExchangeStep.State.UNRECOGNIZED ->
-      error("Invalid state: $this")
+      error("Invalid ExchangeStep state: $this")
   }
 }
 
@@ -398,7 +398,8 @@ private fun ExchangeStepAttemptDetails.DebugLog.toV2Alpha(): ExchangeStepAttempt
 private fun InternalExchangeStepAttempt.State.toV2Alpha(): ExchangeStepAttempt.State {
   return when (this) {
     InternalExchangeStepAttempt.State.STATE_UNSPECIFIED,
-    InternalExchangeStepAttempt.State.UNRECOGNIZED -> error("Invalid State: $this")
+    InternalExchangeStepAttempt.State.UNRECOGNIZED ->
+      error("Invalid InternalExchangeStepAttempt state: $this")
     InternalExchangeStepAttempt.State.ACTIVE -> ExchangeStepAttempt.State.ACTIVE
     InternalExchangeStepAttempt.State.SUCCEEDED -> ExchangeStepAttempt.State.SUCCEEDED
     InternalExchangeStepAttempt.State.FAILED -> ExchangeStepAttempt.State.FAILED
@@ -417,7 +418,7 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
       InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
       InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
       InternalExchangeStep.State.STATE_UNSPECIFIED, InternalExchangeStep.State.UNRECOGNIZED ->
-        error("Invalid state: $this")
+        error("Invalid InternalExchangeStep state: $this")
     }
   }
 
