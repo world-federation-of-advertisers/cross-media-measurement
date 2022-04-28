@@ -23,7 +23,6 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.GetRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -42,20 +41,6 @@ class SpannerRequisitionsService(
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun getRequisition(request: GetRequisitionRequest): Requisition {
-    return RequisitionReader()
-      .readByExternalId(
-        client.singleUse(),
-        externalMeasurementConsumerId = request.externalMeasurementConsumerId,
-        externalMeasurementId = request.externalMeasurementId,
-        externalRequisitionId = request.externalRequisitionId
-      )
-      ?.requisition
-      ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
-  }
-
-  override suspend fun getRequisitionByDataProviderId(
-    request: GetRequisitionByDataProviderIdRequest
-  ): Requisition {
     return RequisitionReader()
       .readByExternalDataProviderId(
         client.singleUse(),
