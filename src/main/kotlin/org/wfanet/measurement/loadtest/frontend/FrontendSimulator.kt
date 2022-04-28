@@ -393,8 +393,8 @@ class FrontendSimulator(
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
         vidSamplingInterval = vidSamplingInterval {
-          start = 0.1f
-          width = 0.1f
+          start = 0.0f
+          width = 1.0f
         }
       }
       this.nonceHashes += nonceHashes
@@ -474,17 +474,6 @@ class FrontendSimulator(
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
 
     val eventFilterExpression = createFilterExpression()
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println(eventFilterExpression)
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println("Hereeeeeee")
-    println("Hereeeeeee")
 
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {

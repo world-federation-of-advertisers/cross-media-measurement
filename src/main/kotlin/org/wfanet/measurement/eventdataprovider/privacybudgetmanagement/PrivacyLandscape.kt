@@ -13,11 +13,13 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.lang.Math
 import java.time.LocalDate
 
 object PrivacyLandscape {
   val dates: List<LocalDate> = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
   val ageGroups: Set<AgeGroup> = AgeGroup.values().toSet()
   val genders = Gender.values().toSet()
-  val vids: List<Float> = (0..300).map { it / 100f }
+  // There are 300 Vid intervals in the range [0, 1)
+  val vids: List<Float> = (0..1).map { (Math.round((it / 300f) * 1000.0) / 1000.0).toFloat() }
 }
