@@ -125,10 +125,12 @@ class PrivacyBudgetLedger(
     if (allChargesEquivalent) {
       val nCharges = nonUniqueCharges.sumOf { it.count }
       val advancedCompositionEpsilon =
-        totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(nonUniqueCharges[0].epsilon, nonUniqueCharges[0].delta),
-          nCharges,
-          maximumTotalDelta
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          AdvancedCompositionKey(
+            PrivacyCharge(nonUniqueCharges[0].epsilon, nonUniqueCharges[0].delta),
+            nCharges,
+            maximumTotalDelta
+          )
         )
       val budgetExceeded =
         if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon

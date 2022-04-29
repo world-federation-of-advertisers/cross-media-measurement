@@ -46,7 +46,7 @@ private val REQUISITION_SPEC = requisitionSpec {
       RequisitionSpecKt.EventGroupEntryKt.value {
         collectionInterval = timeInterval {
           startTime =
-            LocalDate.now().minusDays(400).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
           endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
         filter = eventFilter {
@@ -196,7 +196,7 @@ class PrivacyBudgetManagerTest {
     warmup(pbm)
     // end warmup
     println("##########################")
-    val num_trials = 500
+    val num_trials = 100
     val now: Instant = Instant.now()
     var total_diff: Duration = Duration.between(now, now)
 
@@ -204,7 +204,7 @@ class PrivacyBudgetManagerTest {
       val start = Instant.now()
       pbm.chargePrivacyBudget(
         MEASUREMENT_CONSUMER_ID,
-        REQUISITION_SPEC_ALL,
+        REQUISITION_SPEC,
         REACH_AND_FREQ_MEASUREMENT_SPEC
       )
       val finish = Instant.now()
