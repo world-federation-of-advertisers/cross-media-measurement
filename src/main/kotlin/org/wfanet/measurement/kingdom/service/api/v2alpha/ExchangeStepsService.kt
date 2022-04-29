@@ -70,7 +70,12 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     if (internalResponse == internalClaimReadyExchangeStepResponse {}) {
       return claimReadyExchangeStepResponse {}
     }
-    val externalExchangeStep = internalResponse.exchangeStep.toV2Alpha()
+    val externalExchangeStep =
+      try {
+        internalResponse.exchangeStep.toV2Alpha()
+      } catch (e: Throwable) {
+        failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ExchangeStep" }
+      }
     val externalExchangeStepAttempt =
       ExchangeStepAttemptKey(
           recurringExchangeId =
@@ -130,7 +135,16 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
           dates += LocalDate.parse(key.exchangeId).toProtoDate()
         }
         dates += request.filter.exchangeDatesList
-        states += request.filter.statesList.map { it.toInternal() }
+        states +=
+          request.filter.statesList.map {
+            try {
+              it.toInternal()
+            } catch (e: Throwable) {
+              failGrpc(Status.INVALID_ARGUMENT) {
+                e.message ?: "Failed to convert ExchangeStep.State"
+              }
+            }
+          }
       }
     }
 
@@ -142,7 +156,16 @@ class ExchangeStepsService(private val internalExchangeSteps: InternalExchangeSt
     }
 
     return listExchangeStepsResponse {
-      exchangeStep += results.map(InternalExchangeStep::toV2Alpha)
+      exchangeStep +=
+        results.map {
+          try {
+            it.toV2Alpha()
+          } catch (e: Throwable) {
+            failGrpc(Status.INVALID_ARGUMENT) {
+              e.message ?: "Failed to convert ProtocolConfig ExchangeStep"
+            }
+          }
+        }
       nextPageToken = results.last().updateTime.toByteArray().base64UrlEncode()
     }
   }

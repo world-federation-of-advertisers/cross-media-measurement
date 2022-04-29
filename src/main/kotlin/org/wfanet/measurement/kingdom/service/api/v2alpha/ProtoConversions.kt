@@ -128,6 +128,7 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
   }
 }
 
+/** @throws [IllegalStateException] if MeasurementType not specified */
 fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
   val source = this
   return protocolConfig {
@@ -247,7 +248,10 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry 
   }
 }
 
-/** Converts a public [Measurement] to an internal [InternalMeasurement] for creation. */
+/**
+ * Converts a public [Measurement] to an internal [InternalMeasurement] for creation.
+ * @throws [IllegalStateException] if MeasurementType not specified
+ */
 fun Measurement.toInternal(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
   dataProvidersMap: Map<Long, DataProviderValue>,
@@ -289,6 +293,7 @@ fun Measurement.toInternal(
   }
 }
 
+/** @throws [IllegalStateException] if InternalExchange.State not specified */
 fun InternalExchange.toV2Alpha(): Exchange {
   val exchangeKey =
     ExchangeKey(
@@ -319,6 +324,7 @@ private val InternalExchange.v2AlphaState: Exchange.State
     }
   }
 
+/** @throws [IllegalStateException] if InternalExchangeStep.State not specified */
 fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   val exchangeStepKey =
     ExchangeStepKey(
@@ -335,6 +341,7 @@ fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   }
 }
 
+/** @throws [IllegalStateException] if State not specified */
 fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
   return when (this) {
     ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
@@ -356,6 +363,7 @@ fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
   }
 }
 
+/** @throws [IllegalStateException] if InternalExchangeStepAttempt.State not specified */
 fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   val key =
     ExchangeStepAttemptKey(
@@ -374,6 +382,7 @@ fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   }
 }
 
+/** @throws [IllegalStateException] if State not specified */
 fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {
@@ -422,6 +431,7 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
     }
   }
 
+/** @throws [IllegalArgumentException] if step dependencies invalid */
 fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
   val labelsMap = mutableMapOf<String, MutableSet<Pair<String, Int>>>()
   for ((index, step) in stepsList.withIndex()) {
@@ -457,10 +467,12 @@ fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
   return exchangeWorkflow { steps += internalSteps }
 }
 
+/** @throws [IllegalArgumentException] if Provider not specified */
 fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
   return when (this) {
     ExchangeWorkflow.Party.DATA_PROVIDER -> InternalExchangeWorkflow.Party.DATA_PROVIDER
     ExchangeWorkflow.Party.MODEL_PROVIDER -> InternalExchangeWorkflow.Party.MODEL_PROVIDER
-    else -> throw IllegalArgumentException("Provider is not set for the Exchange Step.")
+    ExchangeWorkflow.Party.PARTY_UNSPECIFIED, ExchangeWorkflow.Party.UNRECOGNIZED ->
+      throw IllegalArgumentException("Provider is not set for the Exchange Step.")
   }
 }
