@@ -14,12 +14,17 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
+  INVALID_PRIVACY_BUCKET_FILTER("Provided Event Filter is invalid for Privacy Bucket mapping"),
   PRIVACY_BUDGET_EXCEEDED("The available privacy budget was exceeded"),
-  DATABASE_UPDATE_ERROR("An error occurred committing the update to the database")
+  DATABASE_UPDATE_ERROR("An error occurred committing the update to the database"),
+  UPDATE_AFTER_COMMIT("Cannot update a transaction context after a commit"),
+  NESTED_TRANSACTION("Backing Store doesn't support nested transactions"),
+  BACKING_STORE_CLOSED("Cannot start a transaction after closing the backing store"),
 }
 
 /** An exception thrown by the privacy budget manager. */
 class PrivacyBudgetManagerException(
+  // TODO(@uakyol @duliomatos) refactor this exception to use a sealed exception class hierarchy
   val errorType: PrivacyBudgetManagerExceptionType,
   val privacyBuckets: List<PrivacyBucketGroup>
 ) : Exception(errorType.errorMessage)

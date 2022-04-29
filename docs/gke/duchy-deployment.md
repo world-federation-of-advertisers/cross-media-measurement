@@ -201,71 +201,53 @@ haven't done it. If you use other repositories, adjust the commands accordingly.
 
 ## Step 6. Create the Cluster
 
-Read the "Before you begin" section at this
-[page](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
-and finish those steps if you have not done them yet.
+See [GKE Cluster Configuration](cluster-config.md) for more background.
 
-We recommend using `gcloud init`, and choose default region as `us-central1-c`
-(or any other region you prefer)
+The following steps assume that you've configured your default project and
+location for the `gcloud` tool.
 
-After it is done, verify it works by running
+Tip: The
+[Before you begin](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
+section in the *Creating a regional cluster* guide is helpful to set up some
+default configuration for the `gcloud` tool.
 
-```shell
-gcloud config get-value project
-```
+Follow the steps in
+[Create a Cloud KMS key](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets#creating-key)
+to create a KMS key and grant permission to the GKE service agent to use it.
 
-You should get result
+Let's assume we've created a key named `k8s-secret` in a key ring named
+`test-key-ring` in the `us-central1` region under the `halo-cmm-dev` project.
+The resource name would be the following:
+`projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret`.
+We'll use this when creating the cluster.
 
-```shell
-halo-worker1-demo
-```
+Tip: For convenience, there is a "Copy resource name" action on the key in the
+Cloud console.
 
-Note: if you are using an existing project, you can run the following command to
-set the current project to it.
-
-```shell
-gcloud projects list
-gcloud config set project project-id
-```
-
-Enable the Kubernetes API in the console if your account hasn't done it. Run the
-following command to create the cluster
+Enable the Kubernetes API in the console if your account hasn't done it. To
+create a cluster named `halo-cmm-worker1-demo-cluster`, run the following
+command:
 
 ```shell
-gcloud container clusters create halo-cmm-worker1-demo-cluster --num-nodes 3
---machine-type=e2-medium --enable-autoscaling --min-nodes 2 --max-nodes 5
---enable-network-policy --scopes
-"https://www.googleapis.com/auth/cloud-platform"
+gcloud container clusters create halo-cmm-worker1-demo-cluster \
+  --enable-network-policy \
+  --scopes "https://www.googleapis.com/auth/cloud-platform" \
+  --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
+  --enable-autoscaling --min-nodes 2 --max-nodes 5 --num-nodes 3 \
+  --machine-type=e2-medium
 ```
 
-Note:
+Note: The Duchy contains 4 API services and 2 daemon jobs. Those API services
+and the Herald daemon don't require too many resources. However, the Mill daemon
+performs CPU intensive computations, and may need plenty of replicas depending
+on how many active computations the system is expected to process per day.
+Select the appropriate machine type and number of nodes based on the traffic and
+your budget. For demo purposes, we choose `e2-medium`. In production, you may
+want to choose from the
+[compute-optimized](https://cloud.google.com/compute/docs/compute-optimized-machines)
+machine family (e.g. `c2-standard-4`) which are more expensive.
 
--   The duchy contains 4 API services and 2 daemon jobs. Those API services and
-    the herald daemon don't require too many resources. However, the mill daemon
-    performs CPU intensive computations, and may need plenty of replicas
-    depending on how many active computations the system is expected to process
-    per day. Select the appropriate machine-type and number of nodes based on
-    the traffic and your budget. For the demo purpose, we choose `e2-medium`. In
-    product, you may want to choose from the
-    [compute-optimized](https://cloud.google.com/compute/docs/compute-optimized-machines)
-    machine family, e.g., `c2-standard-4`, which are more expensive.
--   The "scopes" and "enable-network-policy" flags are critical for the kingdom.
-    It is recommended to specify them during cluster creation time.
-
-Run
-
-```shell
-gcloud container clusters list
-```
-
-You should get something like
-
-```shell
-NAME                          LOCATION      MASTER_VERSION   MASTER_IP      MACHINE_TYPE NODE_VERSION     NUM_NODES STATUS
-halo-cmm-worker1-demo-cluster us-central1-c 1.20.10-gke.1600 34.122.232.195 e2-small     1.20.10-gke.1600 2         RUNNING
-```
-
-Finally, we connect to the above cluster in `kubectl` by running:
+To configure `kubectl` to access this cluster, run
 
 ```shell
 gcloud container clusters get-credentials halo-cmm-worker1-demo-cluster
@@ -276,73 +258,64 @@ gcloud container clusters get-credentials halo-cmm-worker1-demo-cluster
 ***(Note: this step does not use any halo code, and you don't need to do it
 within the cross-media-measurement repo.)***
 
-The kingdom binary is configured to read certificates and config files from the
+The Duchy binaries are configured to read certificates and config files from a
 mounted Kubernetes secret volume.
 
-First, prepare all the files we want to include in the Kubernetes secret. The
-following files are required in the kingdom
+Prepare all the files we want to include in the Kubernetes secret. The following
+files are required in a Duchy:
 
-1.  all_root_certs.pem
+1.  `all_root_certs.pem`
 
-    -   This is the concatenation of root certificates of all parties that this
-        duchy communicates with, including
+    This makes up the TLS trusted CA store for the Duchy. It's the concatenation
+    of the CA ("root") certificates for all the entites that connect to the
+    Duchy, including:
 
-        -   all other duchies
-        -   edps that select to fulfill requisitions at this duchy
-        -   This duchy own root certificate (for duchy internal traffic)
-        -   A certificate used for health check purpose
+    -   All other Duchies
+    -   EDPs that select to fulfill requisitions at this Duchy
+    -   This Duchy's own CA certificate (for Duchy internal traffic)
+    -   A certificate used for health check purposes
 
-    -   One way to construct the all_root_certs file is put all root certs in
-        the same folder, and add a BUILD.bazel similar to
+    Supposing your root certs are all in a single folder and end with
+    `_root.pem`, you can concatenate them all with a simple shell command:
 
-        ```shell
-        genrule(
-          name = "all_root_certs",
-          srcs = glob(["*_root.pem"]),
-          outs = ["all_root_certs.pem"],
-          cmd = "cat $(SRCS) > $@",
-          visibility = ["//visibility:public"],
-        )
-        ```
-
-        and then build with `bazel`.
+    ```shell
+    cat *_root.pem > all_root_certs.pem
+    ```
 
 2.  `worker1_tls.pem`
 
-    -   This is the public key of this duchy's TLS certificate.
+    The `worker1` Duchy's TLS certificate in PEM format.
 
 3.  `worker1_tls.key`
 
-    -   This is the private key of this duchy's TLS certificate.
+    The private key for the TLS certificate in PEM format.
 
 4.  `health_probe_tls.pem`
 
-    -   This is the public key of the TLS certificate used to do health checks
-        in the kingdom.
+    The client TLS certificate used by the health probe in PEM format.
 
 5.  `health_probe_tls.key`
 
-    -   This is the private key of the TLS certificate used to do health checks
-        in the kingdom.
+    The private key for the health probe TLS certificate in PEM format.
 
 6.  `worker1_cs_cert.der`
 
-    -   This is the public key of this duchy's consent signaling certificate.
+    The `worker1` Duchy's consent signaling certificate in DER format.
 
 7.  `worker1_cs_private.der`
 
-    -   This is the private key of this duchy's consent signaling certificate.
+    The private key for the Duchy's consent signaling certificate in DER format.
 
 8.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
 
     -   This contains information about the protocols run in the duchy
     -   Set the role (aggregator or non_aggregator) in the config appropriately
-    -   [Example](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
+    -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
 
-Second, put all above files in the same folder (anywhere in your local machine),
-and create a file with name `kustomization.yaml` and content as follows
+Put all above files in the same folder (anywhere in your local machine), and
+create a file named `kustomization.yaml` with the following content:
 
-```shell
+```yaml
 secretGenerator:
 - name: certs-and-configs
   files:
@@ -359,7 +332,7 @@ secretGenerator:
 and run
 
 ```shell
-kubectl apply -k path-to-the-above-folder
+kubectl apply -k <path-to-the-above-folder>
 ```
 
 Now the secret is created in the `halo-cmm-worker1-demo-cluster`. You should be
@@ -372,13 +345,14 @@ kubectl get secrets
 We assume the name is `certs-and-configs-abcdedf` and will use it in the
 following documents.
 
-Note: there are
-[test certificates and config files](https://github.com/world-federation-of-advertisers/cross-media-measurement/tree/main/src/main/k8s/testing/secretfiles)
-checked in the cross-media-measurement repo. You can run the following command
-to create a secret for testing.
+### Secret files for testing
+
+There are some [secret files](../../src/main/k8s/testing/secretfiles) within the
+repository. These can be used to generate a secret for testing, but **must not**
+be used for production environments as doing so would be highly insecure.
 
 ```shell
-kubectl apply -k src/main/k8s/testing/secretfiles
+bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 ```
 
 ## Step 8. Create the configmap
@@ -388,7 +362,7 @@ following content. This file contains all EDPs that are allowed to call this
 duchy to fulfill the requisitions. If there is no EDP registered yet. Just leave
 the file empty.
 
-```shell
+```prototext
 # proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
 # proto-message: AuthorityKeyToPrincipalMap
 entries {
@@ -451,7 +425,7 @@ NOT COMMIT it.
 First, open the `/src/main/k8s/dev/duchy_gke.cue` file in your local branch.
 Update the tag variables in the beginning to the following values.
 
-```shell
+```
 # KingdomSystemApiTarget: "your kingdom's system API domain or subdomain:8443"
 # GloudProject: "halo-worker1-demo"
 # SpannerInstance: "halo-worker1-instance"
@@ -464,7 +438,7 @@ If you picked other names in the previous steps, update the value accordingly.
 Then in the same file, update the following part to match with the domains you
 plan to use.
 
-```shell
+```
 _computation_control_targets: {
   "aggregator": "your aggregator's system API domain:8443"
   "worker1": "your worker1's system API domain:8443"

@@ -13,21 +13,15 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import com.google.protobuf.Message
+import org.projectnessie.cel.Program
 
-/**
- * Returns a list of privacy bucket groups that might be affected by a query.
- *
- * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
- * range and demo groups are obtained from this.
- * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
- * sampling interval is obtained from from this.
- * @return A list of potentially affected PrivacyBucketGroups. It is guaranteed that the items in
- * this list are disjoint. In the current implementation, each privacy bucket group represents a
- * single privacy bucket.
- */
-internal fun getPrivacyBucketGroups(
-  measurementSpec: MeasurementSpec,
-  requisitionSpec: RequisitionSpec
-): List<PrivacyBucketGroup> = TODO("Not implemented $measurementSpec $requisitionSpec")
+/** Maps Privacy bucket related objects to event filter related objects and vice versa. */
+interface PrivacyBucketMapper {
+
+  /** Maps [filterExpression] to a [Program] by using privacy related fields and [Message] */
+  fun toPrivacyFilterProgram(filterExpression: String): Program
+
+  /** Maps [privacyBucketGroup] to an event [Message] */
+  fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message
+}

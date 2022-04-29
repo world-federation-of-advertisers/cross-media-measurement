@@ -13,12 +13,13 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 import kotlin.math.pow
 
 /** Memoized computation of binomial coefficients. */
-class Binom {
-  var memoizedCoeffs = HashMap<Pair<Int, Int>, Float>()
+object Binom {
+  private val memoizedCoeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
 
   /**
    * Computes the number of distinct ways to choose k items from a set of n.
@@ -29,18 +30,14 @@ class Binom {
    * coefficient of x^k in the expansion of (1 + x)^n.
    */
   fun coeff(n: Int, k: Int): Float {
-    if ((n < 0) || (k < 0) || (n < k)) {
-      return 0.0f
+    return if ((n < 0) || (k < 0) || (n < k)) {
+      0.0f
     } else if ((k == 0) || (n == k)) {
-      return 1.0f
+      1.0f
     } else if (n - k < k) {
-      return coeff(n, n - k)
-    } else if (memoizedCoeffs.containsKey(Pair(n, k))) {
-      return memoizedCoeffs.get(Pair(n, k)) ?: 0.0f
+      coeff(n, n - k)
     } else {
-      val c = coeff(n - 1, k - 1) + coeff(n - 1, k)
-      memoizedCoeffs.put(Pair(n, k), c)
-      return c
+      memoizedCoeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
     }
   }
 }
@@ -76,14 +73,13 @@ fun totalPrivacyBudgetUsageUnderAdvancedComposition(
   val epsilon = charge.epsilon
   val delta = charge.delta
   val k = repetitionCount
-  val binom = Binom()
 
   // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
   for (i in k / 2 downTo 0) {
     var deltaI = 0.0f
     for (l in 0..i - 1) {
       deltaI +=
-        binom.coeff(k, l) *
+        Binom.coeff(k, l) *
           (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
     }
     deltaI /= (1.0f + exp(epsilon)).pow(k)
