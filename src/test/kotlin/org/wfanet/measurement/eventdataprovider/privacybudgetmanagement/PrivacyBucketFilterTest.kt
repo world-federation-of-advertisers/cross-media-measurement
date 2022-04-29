@@ -37,7 +37,7 @@ private val MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency = reachAndFrequency {
     vidSamplingInterval = vidSamplingInterval {
       start = 0.0f
-      width = 0.01f
+      width = 0.0033f
     }
   }
 }
@@ -75,7 +75,7 @@ class PrivacyBucketFilterTest {
   }
 
   @Test
-  fun `Mapper succeeds for filter expression with only privacy budget Fields`() {
+  fun `Filter succeeds for filter expression with only privacy budget Fields`() {
 
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {
@@ -109,7 +109,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.01f
+          0.0033f
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -118,7 +118,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.01f
+          0.0033f
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -126,8 +126,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.01f,
-          0.01f
+          0.0033f,
+          0.0033f
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -135,8 +135,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.01f,
-          0.01f
+          0.0033f,
+          0.0033f
         ),
       )
   }
@@ -178,7 +178,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.01f
+          0.0033f
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -187,7 +187,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.01f
+          0.0033f
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -195,8 +195,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.01f,
-          0.01f
+          0.0033f,
+          0.0033f
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -204,8 +204,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.01f,
-          0.01f
+          0.0033f,
+          0.0033f
         ),
       )
   }

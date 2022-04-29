@@ -70,27 +70,8 @@ class PrivacyBudgetLedger(
     }
 
     for (queryBucketGroup in privacyBucketGroupList) {
-      val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
       for (charge in privacyCharges) {
-        var matchingChargeFound = false
-        for (ledgerEntry in matchingLedgerEntries) {
-          if (charge.equals(ledgerEntry.privacyCharge)) {
-            matchingChargeFound = true
-            val newLedgerEntry =
-              PrivacyBudgetLedgerEntry(
-                ledgerEntry.rowId,
-                ledgerEntry.transactionId,
-                ledgerEntry.privacyBucketGroup,
-                ledgerEntry.privacyCharge,
-                ledgerEntry.repetitionCount + 1
-              )
-            context.updateLedgerEntry(newLedgerEntry)
-            break
-          }
-        }
-        if (!matchingChargeFound) {
-          context.addLedgerEntry(queryBucketGroup, charge)
-        }
+        context.addLedgerEntry(queryBucketGroup, charge)
       }
     }
 
@@ -144,10 +125,12 @@ class PrivacyBudgetLedger(
     if (allChargesEquivalent) {
       val nCharges = nonUniqueCharges.sumOf { it.count }
       val advancedCompositionEpsilon =
-        totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(nonUniqueCharges[0].epsilon, nonUniqueCharges[0].delta),
-          nCharges,
-          maximumTotalDelta
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          AdvancedCompositionKey(
+            PrivacyCharge(nonUniqueCharges[0].epsilon, nonUniqueCharges[0].delta),
+            nCharges,
+            maximumTotalDelta
+          )
         )
       val budgetExceeded =
         if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon

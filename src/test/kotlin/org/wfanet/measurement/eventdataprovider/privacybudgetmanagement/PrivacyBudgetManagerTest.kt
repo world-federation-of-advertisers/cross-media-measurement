@@ -14,9 +14,12 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.common.truth.Truth.assertThat
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -32,7 +35,6 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
@@ -56,6 +58,25 @@ private val REQUISITION_SPEC = requisitionSpec {
   }
 }
 
+private val REQUISITION_SPEC_ALL = requisitionSpec {
+  eventGroups += eventGroupEntry {
+    key = "eventGroups/someEventGroup"
+    value =
+      RequisitionSpecKt.EventGroupEntryKt.value {
+        collectionInterval = timeInterval {
+          startTime =
+            LocalDate.now().minusDays(400).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        }
+        filter = eventFilter {
+          expression =
+            "privacy_budget.gender.value in [0,1] && privacy_budget.age.value in [0,1,2] && " +
+              "banner_ad.gender.value == 1"
+        }
+      }
+  }
+}
+
 private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency = reachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
@@ -70,7 +91,7 @@ private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
 
     vidSamplingInterval = vidSamplingInterval {
       start = 0.01f
-      width = 0.02f
+      width = 0.01f
     }
   }
 }
@@ -98,6 +119,54 @@ class PrivacyBudgetManagerTest {
 
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
+  //   companion object {
+  //     private const val TEST_DB = "junit_testing"
+  //     private const val PG_USER_NAME = "postgres"
+
+  //     @JvmStatic private val schema = POSTGRES_LEDGER_SCHEMA_FILE.readText()
+  //     @JvmStatic private lateinit var embeddedPostgres: EmbeddedPostgres
+
+  //     @JvmStatic
+  //     @BeforeClass
+  //     fun initDatabase() {
+  //       embeddedPostgres = EmbeddedPostgres.start()
+  //       embeddedPostgres.postgresDatabase.connection.use { connection ->
+  //         connection.createStatement().use { statement: Statement ->
+  //           statement.executeUpdate("CREATE DATABASE $TEST_DB")
+  //         }
+  //       }
+  //     }
+
+  //     @JvmStatic
+  //     @AfterClass
+  //     fun closeDataBase() {
+  //       embeddedPostgres.close()
+  //     }
+  //   }
+
+  //   fun recreateSchema() {
+  //     createConnection().use { connection ->
+  //       connection.createStatement().use { statement: Statement ->
+  //         // clear database schema before re-creating
+  //         statement.executeUpdate(
+  //           """
+  //           DROP TABLE IF EXISTS LedgerEntries CASCADE;
+  //           DROP TYPE IF EXISTS Gender CASCADE;
+  //           DROP TYPE IF EXISTS AgeGroup CASCADE;
+  //           DROP SEQUENCE IF EXISTS LedgerEntriesTransactionIdSeq;
+  //         """.trimIndent()
+  //         )
+  //         statement.executeUpdate(schema)
+  //       }
+  //     }
+  //   }
+
+  //   private fun createConnection(): Connection =
+  //     embeddedPostgres.getDatabase(PG_USER_NAME, TEST_DB).connection
+
+  //   fun createPostgresBackingStore(): PrivacyBudgetLedgerBackingStore {
+  //     return PostgresBackingStore(::createConnection)
+  // }
   private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
     measurementSpec: MeasurementSpec
   ) {
@@ -107,6 +176,45 @@ class PrivacyBudgetManagerTest {
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+  }
+
+  fun warmup(pbm: PrivacyBudgetManager): Unit {
+    // warmup
+    pbm.chargePrivacyBudget(
+      MEASUREMENT_CONSUMER_ID,
+      REQUISITION_SPEC,
+      REACH_AND_FREQ_MEASUREMENT_SPEC
+    )
+  }
+
+  @Test
+  fun `loadtest pbm  with Warmup`() = runBlocking {
+    val backingStore = InMemoryBackingStore()
+    // recreateSchema()
+    // val backingStore = createPostgresBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 100000.0f, 100000.0f)
+    warmup(pbm)
+    // end warmup
+    println("##########################")
+    val num_trials = 100
+    val now: Instant = Instant.now()
+    var total_diff: Duration = Duration.between(now, now)
+
+    for (i in 1..num_trials) {
+      val start = Instant.now()
+      pbm.chargePrivacyBudget(
+        MEASUREMENT_CONSUMER_ID,
+        REQUISITION_SPEC,
+        REACH_AND_FREQ_MEASUREMENT_SPEC
+      )
+      val finish = Instant.now()
+      val timeElapsed = Duration.between(start, finish)
+      println(timeElapsed.toNanos())
+      total_diff = total_diff.plus(timeElapsed)
+    }
+
+    println(total_diff.toMillis() / num_trials.toDouble())
+    // System.out.println("##########################");
   }
 
   @Test

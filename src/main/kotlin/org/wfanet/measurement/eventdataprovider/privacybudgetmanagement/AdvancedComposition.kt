@@ -17,9 +17,16 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 import kotlin.math.pow
 
+data class AdvancedCompositionKey(
+  val charge: PrivacyCharge,
+  val repetitionCount: Int,
+  val totalDelta: Float
+)
+
 /** Memoized computation of binomial coefficients. */
-object Binom {
+object AdvancedComposition {
   private val memoizedCoeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
+  private val memoizedResults = ConcurrentHashMap<AdvancedCompositionKey, Float?>()
 
   /**
    * Computes the number of distinct ways to choose k items from a set of n.
@@ -40,52 +47,57 @@ object Binom {
       memoizedCoeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
     }
   }
-}
 
-/**
- * Computes total DP parameters after applying an algorithm with given privacy parameters multiple
- * times.
- *
- * Using the optimal advanced composition theorem, Theorem 3.3 from the paper Kairouz, Oh,
- * Viswanath. "The Composition Theorem for Differential Privacy", to compute the total DP parameters
- * given that we are applying an algorithm with a given privacy parameters for a given number of
- * times.
- *
- * This code is a Kotlin implementation of the advanced_composition() function in the Google
- * differential privacy accounting library, located at
- * https://github.com/google/differential-privacy.git
- *
- * @param privacyParameters The privacy guarantee of a single query.
- * @param numQueries Number of times the algorithm is invoked.
- * @param totalDelta The target value of total delta of the privacy parameters for the multiple runs
- * of the algorithm.
- *
- * @return totalEpsilon such that, when applying the algorithm the given number of times, the result
- * is still (totalEpsilon, totalDelta)-DP. None when the total_delta is less than 1 - (1 -
- * delta)^repetitionCount, for which no guarantee of (totalEpsilon, totalDelta)-DP is possible for
- * any value of totalEpsilon.
- */
-fun totalPrivacyBudgetUsageUnderAdvancedComposition(
-  charge: PrivacyCharge,
-  repetitionCount: Int,
-  totalDelta: Float
-): Float? {
-  val epsilon = charge.epsilon
-  val delta = charge.delta
-  val k = repetitionCount
+  /**
+   * Computes total DP parameters after applying an algorithm with given privacy parameters multiple
+   * times.
+   *
+   * Using the optimal advanced composition theorem, Theorem 3.3 from the paper Kairouz, Oh,
+   * Viswanath. "The Composition Theorem for Differential Privacy", to compute the total DP
+   * parameters given that we are applying an algorithm with a given privacy parameters for a given
+   * number of times.
+   *
+   * This code is a Kotlin implementation of the advanced_composition() function in the Google
+   * differential privacy accounting library, located at
+   * https://github.com/google/differential-privacy.git
+   *
+   * @param privacyParameters The privacy guarantee of a single query.
+   * @param numQueries Number of times the algorithm is invoked.
+   * @param totalDelta The target value of total delta of the privacy parameters for the multiple
+   * runs of the algorithm.
+   *
+   * @return totalEpsilon such that, when applying the algorithm the given number of times, the
+   * result is still (totalEpsilon, totalDelta)-DP. None when the total_delta is less than 1 - (1 -
+   * delta)^repetitionCount, for which no guarantee of (totalEpsilon, totalDelta)-DP is possible for
+   * any value of totalEpsilon.
+   */
+  fun totalPrivacyBudgetUsageUnderAdvancedComposition(
+    advancedCompositionKey: AdvancedCompositionKey,
+  ): Float? {
 
-  // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
-  for (i in k / 2 downTo 0) {
-    var deltaI = 0.0f
-    for (l in 0..i - 1) {
-      deltaI +=
-        Binom.coeff(k, l) *
-          (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
+    if (memoizedResults.containsKey(advancedCompositionKey)) {
+      return memoizedResults.get(advancedCompositionKey)
     }
-    deltaI /= (1.0f + exp(epsilon)).pow(k)
-    if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= totalDelta) {
-      return epsilon * (k - 2 * i).toFloat()
+
+    val epsilon = advancedCompositionKey.charge.epsilon
+    val delta = advancedCompositionKey.charge.delta
+    val k = advancedCompositionKey.repetitionCount
+
+    // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
+    for (i in k / 2 downTo 0) {
+      var deltaI = 0.0f
+      for (l in 0..i - 1) {
+        deltaI +=
+          coeff(k, l) *
+            (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
+      }
+      deltaI /= (1.0f + exp(epsilon)).pow(k)
+      if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= advancedCompositionKey.totalDelta) {
+        memoizedResults.put(advancedCompositionKey, epsilon * (k - 2 * i).toFloat())
+        return memoizedResults.get(advancedCompositionKey)
+      }
     }
+    memoizedResults.put(advancedCompositionKey, null)
+    return null
   }
-  return null
 }
