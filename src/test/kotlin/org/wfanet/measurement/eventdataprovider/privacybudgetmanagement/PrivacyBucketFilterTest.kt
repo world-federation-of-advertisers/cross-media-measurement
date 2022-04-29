@@ -37,7 +37,7 @@ private val MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency = reachAndFrequency {
     vidSamplingInterval = vidSamplingInterval {
       start = 0.0f
-      width = 0.0033f
+      width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
     }
   }
 }
@@ -109,7 +109,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -118,7 +118,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -126,8 +126,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.0033f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -135,8 +135,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.0033f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
       )
   }
@@ -178,7 +178,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -187,7 +187,7 @@ class PrivacyBucketFilterTest {
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
           0.0f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -195,8 +195,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now(),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.0033f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -204,8 +204,8 @@ class PrivacyBucketFilterTest {
           LocalDate.now().minusDays(1),
           AgeGroup.RANGE_18_34,
           Gender.FEMALE,
-          0.0033f,
-          0.0033f
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
       )
   }

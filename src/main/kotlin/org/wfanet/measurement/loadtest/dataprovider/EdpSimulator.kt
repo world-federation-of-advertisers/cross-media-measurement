@@ -280,7 +280,7 @@ class EdpSimulator(
       refuseRequisition(
         requisitionName,
         Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
-        "Invalid requisitionSpec"
+        "Privacy Budget Exceeded."
       )
     }
 

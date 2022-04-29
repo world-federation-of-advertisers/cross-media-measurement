@@ -92,6 +92,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private const val MC_NAME = "mc"
@@ -299,7 +300,7 @@ class EdpSimulatorTest {
         )
 
       val vidSamplingIntervalStart = 0.0f
-      val vidSamplingIntervalWidth = 0.0033f
+      val vidSamplingIntervalWidth = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 
       val requisitionSpec = requisitionSpec {
         eventGroups += eventGroupEntry {
@@ -358,7 +359,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.MALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -367,7 +368,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -376,7 +377,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.MALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -385,7 +386,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -394,7 +395,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.MALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -403,7 +404,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -412,7 +413,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.MALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -421,7 +422,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -430,7 +431,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.MALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -439,7 +440,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -448,7 +449,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.MALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -457,7 +458,7 @@ class EdpSimulatorTest {
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -465,8 +466,8 @@ class EdpSimulatorTest {
             LocalDate.now(),
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.MALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -474,8 +475,8 @@ class EdpSimulatorTest {
             LocalDate.now(),
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -483,8 +484,8 @@ class EdpSimulatorTest {
             LocalDate.now(),
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.MALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -492,8 +493,8 @@ class EdpSimulatorTest {
             LocalDate.now(),
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.FEMALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -501,8 +502,8 @@ class EdpSimulatorTest {
             LocalDate.now(),
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.MALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -510,8 +511,8 @@ class EdpSimulatorTest {
             LocalDate.now(),
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.FEMALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -519,8 +520,8 @@ class EdpSimulatorTest {
             LocalDate.now().minusDays(1),
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.MALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -528,8 +529,8 @@ class EdpSimulatorTest {
             LocalDate.now().minusDays(1),
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -537,8 +538,8 @@ class EdpSimulatorTest {
             LocalDate.now().minusDays(1),
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.MALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -546,8 +547,8 @@ class EdpSimulatorTest {
             LocalDate.now().minusDays(1),
             PrivacyLandscapeAge.RANGE_35_54,
             PrivacyLandscapeGender.FEMALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -555,8 +556,8 @@ class EdpSimulatorTest {
             LocalDate.now().minusDays(1),
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.MALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
           PrivacyBucketGroup(
             MC_NAME,
@@ -564,8 +565,8 @@ class EdpSimulatorTest {
             LocalDate.now().minusDays(1),
             PrivacyLandscapeAge.ABOVE_54,
             PrivacyLandscapeGender.FEMALE,
-            0.0033f,
-            0.0033f
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           )
         )
     }
