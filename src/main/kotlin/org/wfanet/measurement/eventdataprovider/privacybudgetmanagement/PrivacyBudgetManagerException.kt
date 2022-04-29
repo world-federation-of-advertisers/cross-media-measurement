@@ -15,6 +15,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
   INVALID_PRIVACY_BUCKET_FILTER("Provided Event Filter is invalid for Privacy Bucket mapping"),
+  INVALID_BACKING_STORE_STATE("Backind Store should not be in this state"),
   PRIVACY_BUDGET_EXCEEDED("The available privacy budget was exceeded"),
   DATABASE_UPDATE_ERROR("An error occurred committing the update to the database"),
   UPDATE_AFTER_COMMIT("Cannot update a transaction context after a commit"),

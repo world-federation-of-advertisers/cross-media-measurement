@@ -70,6 +70,13 @@ fun totalPrivacyBudgetUsageUnderAdvancedComposition(
   repetitionCount: Int,
   totalDelta: Float
 ): Float? {
+
+  // Imagine this can be calculated with Dynamic programming by memoizing the previous value.
+  // Namely we know of a function f that runs in O(1) such that
+  // totalPrivacyBudgetUsageUnderAdvancedComposition(charge, repetitionCount, totalDelta) =
+  // f(totalPrivacyBudgetUsageUnderAdvancedComposition(charge, repetitionCount-1, totalDelta))
+  return 0.0f
+
   val epsilon = charge.epsilon
   val delta = charge.delta
   val k = repetitionCount

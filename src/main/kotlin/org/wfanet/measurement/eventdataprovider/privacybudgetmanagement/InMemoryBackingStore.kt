@@ -21,7 +21,9 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * stores. This code is not thread safe.
  */
 class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+
+  val ledger: HashMap<PrivacyBucketGroup, MutableList<PrivacyBudgetLedgerEntry>> = hashMapOf()
+  // val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
   private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {
@@ -33,70 +35,83 @@ class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
 }
 
 class InMemoryBackingStoreTransactionContext(
-  val ledger: MutableList<PrivacyBudgetLedgerEntry>,
+  val ledger: HashMap<PrivacyBucketGroup, MutableList<PrivacyBudgetLedgerEntry>>,
   override val transactionId: Long,
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  private var transactionLedger = ledger.toMutableList()
+  private var transactionLedger = ledger.toMutableMap()
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetLedgerEntry> {
-    return transactionLedger.filter { privacyBucketGroup.overlapsWith(it.privacyBucketGroup) }
+    return transactionLedger.getOrDefault(privacyBucketGroup, listOf())
+    // .filter { privacyBucketGroup.overlapsWith(it.privacyBucketGroup) }
   }
 
   override fun addLedgerEntry(
     privacyBucketGroup: PrivacyBucketGroup,
     privacyCharge: PrivacyCharge,
   ) {
-    val ledgerEntry =
-      PrivacyBudgetLedgerEntry(
-        transactionLedger.size.toLong(),
-        transactionId,
-        privacyBucketGroup,
-        privacyCharge,
-        1
+    // println(transactionLedger.size)
+    val ledgerEntries = transactionLedger.getOrDefault(privacyBucketGroup, mutableListOf())
+    // println(ledgerEntries.size)
+    if (ledgerEntries.isEmpty()) {
+      ledgerEntries.add(
+        PrivacyBudgetLedgerEntry(
+          transactionLedger.size.toLong(),
+          transactionId,
+          privacyBucketGroup,
+          privacyCharge,
+          1
+        )
       )
-    transactionLedger.add(ledgerEntry)
-  }
+      transactionLedger.put(privacyBucketGroup, ledgerEntries)
+      return
+    }
+    if (ledgerEntries.size > 1) {
+      throw PrivacyBudgetManagerException(
+        PrivacyBudgetManagerExceptionType.INVALID_BACKING_STORE_STATE,
+        ledgerEntries.map { privacyBucketGroup }
+      )
+    }
 
-  override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
-    transactionLedger[privacyBudgetLedgerEntry.rowId.toInt()] = privacyBudgetLedgerEntry
-  }
-
-  override fun mergePreviousTransaction(previousTransactionId: Long) {
-    for (i in transactionLedger.indices) {
-      if (transactionLedger[i].transactionId == previousTransactionId) {
-        transactionLedger[i] =
+    ledgerEntries.forEachIndexed { index, element ->
+      if (element.privacyCharge.equals(privacyCharge)) {
+        ledgerEntries[index] =
           PrivacyBudgetLedgerEntry(
-            transactionLedger[i].rowId,
-            0L,
-            transactionLedger[i].privacyBucketGroup,
-            transactionLedger[i].privacyCharge,
-            transactionLedger[i].repetitionCount
+            element.rowId,
+            element.transactionId,
+            element.privacyBucketGroup,
+            element.privacyCharge,
+            element.repetitionCount + 1
           )
       }
     }
   }
 
-  override fun undoPreviousTransaction(previousTransactionId: Long) {
-    transactionLedger =
-      transactionLedger.filter { it.transactionId != previousTransactionId }.toMutableList()
-    for (i in transactionLedger.indices) {
-      transactionLedger[i] =
-        PrivacyBudgetLedgerEntry(
-          i.toLong(),
-          transactionLedger[i].transactionId,
-          transactionLedger[i].privacyBucketGroup,
-          transactionLedger[i].privacyCharge,
-          transactionLedger[i].repetitionCount
-        )
-    }
-  }
+  override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) = TODO("TODO(@uakyol) implement this")
+
+  override fun mergePreviousTransaction(previousTransactionId: Long)= TODO("TODO(@uakyol) implement this")
+
+  override fun undoPreviousTransaction(previousTransactionId: Long)  = TODO("TODO(@uakyol) implement this")
+  //     {
+  //   transactionLedger =
+  //     transactionLedger.filter { it.transactionId != previousTransactionId }.toMutableList()
+  //   for (i in transactionLedger.indices) {
+  //     transactionLedger[i] =
+  //       PrivacyBudgetLedgerEntry(
+  //         i.toLong(),
+  //         transactionLedger[i].transactionId,
+  //         transactionLedger[i].privacyBucketGroup,
+  //         transactionLedger[i].privacyCharge,
+  //         transactionLedger[i].repetitionCount
+  //       )
+  //   }
+  // }
 
   override fun commit() {
     ledger.clear()
-    ledger.addAll(transactionLedger)
+    ledger.putAll(transactionLedger)
   }
 
   override fun close() {}

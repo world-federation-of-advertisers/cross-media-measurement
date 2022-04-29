@@ -104,7 +104,6 @@ class PrivacyBudgetManager(
         )
       else -> throw IllegalArgumentException("Measurement type not supported")
     }
-
     ledger.chargePrivacyBucketGroups(affectedPrivacyBuckets, chargeList)
   }
 }

@@ -73,6 +73,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
       PrivacyLandscape.vidsIntervalStartPoints.filter {
         it >= vidSamplingIntervalStart && it <= vidSamplingIntervalEnd
       }
+    // println(vidsIntervalStartPoints)
     val dates =
       PrivacyLandscape.dates.filter {
         (it.isAfter(startDate) || it.isEqual(startDate)) &&
