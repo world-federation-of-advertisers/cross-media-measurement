@@ -121,3 +121,21 @@ kt_jvm_grpc_proto_library(
     name = "reports_service_kt_jvm_grpc_proto",
     srcs = [":reports_service_proto"],
 )
+
+proto_library(
+    name = "reporting_sets_service_proto",
+    srcs = ["reporting_sets_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":reporting_set_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "reporting_sets_service_kt_jvm_grpc_proto",
+    srcs = [":reporting_sets_service_proto"],
+)

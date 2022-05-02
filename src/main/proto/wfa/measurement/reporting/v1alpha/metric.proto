@@ -44,7 +44,7 @@ message Metric {
     FrequencyHistogramParams frequency_histogram = 2;
     ImpressionCountParams impression_count = 3;
     WatchDurationParams watch_duration = 4;
-    ReachParams reach_curve = 5;
+    ReachCurveParams reach_curve = 5;
   }
 
   // Whether the results for a given time interval is cumulative with those of
