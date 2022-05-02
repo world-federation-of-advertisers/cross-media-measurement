@@ -26,7 +26,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationExceptionException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
@@ -58,7 +58,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
         )
-        ?: throw ComputationParticipantNotFoundByComputationException(
+        ?: throw ComputationParticipantNotFoundByComputationExceptionException(
           ExternalId(request.externalComputationId),
           request.externalDuchyId
         ) {
