@@ -26,7 +26,8 @@ option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
 
 service ReportingSets {
-  rpc ListReportingSets(ListReportingSetsRequest) returns (ListReportingSetsResponse) {
+  rpc ListReportingSets(ListReportingSetsRequest)
+      returns (ListReportingSetsResponse) {
     option (google.api.http) = {
       get: "/v1alpha/{parent=measurementConsumers/*}/reportingSets"
     };
