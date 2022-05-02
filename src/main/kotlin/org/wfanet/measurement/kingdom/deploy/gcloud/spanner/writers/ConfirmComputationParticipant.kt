@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationExceptionException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -59,7 +59,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
         )
-        ?: throw ComputationParticipantNotFoundByComputationExceptionException(
+        ?: throw ComputationParticipantNotFoundByComputationException(
           ExternalId(request.externalComputationId),
           request.externalDuchyId
         ) {

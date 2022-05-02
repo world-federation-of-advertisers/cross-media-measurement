@@ -34,7 +34,7 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationExceptionException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -89,7 +89,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           ExternalId(request.externalComputationId),
           InternalId(duchyId)
         )
-        ?: throw ComputationParticipantNotFoundByComputationExceptionException(
+        ?: throw ComputationParticipantNotFoundByComputationException(
           ExternalId(request.externalComputationId),
           request.externalDuchyId
         ) {
