@@ -150,8 +150,8 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND: DataProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("FAILED_PRECONDITION: DataProvider not found")
   }
 
   @Test

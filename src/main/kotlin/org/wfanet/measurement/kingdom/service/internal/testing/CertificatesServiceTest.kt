@@ -183,17 +183,17 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         runBlocking { certificatesService.createCertificate(certificate) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains(expectedMessage)
   }
 
   @Test
   fun `createCertificate fails due to owner not_found`() {
     assertCreateFailsWithMissingOwner("Duchy not found") { externalDuchyId = "missing-duchy-id" }
-    assertCreateFailsWithMissingOwner("DataProvider not found") {
+    assertCreateFailsWithMissingOwner("Data Provider not found") {
       externalDataProviderId = NOT_AN_ID
     }
-    assertCreateFailsWithMissingOwner("MeasurementConsumer not found") {
+    assertCreateFailsWithMissingOwner("Measurement Consumer not found") {
       externalMeasurementConsumerId = NOT_AN_ID
     }
   }
@@ -279,7 +279,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     assertThat(exception)
       .hasMessageThat()
-      .contains("Certificate with the same subject key identifier (SKID) already exists.")
+      .contains("Certificate with the subject key identifier (SKID) already exists.")
   }
 
   @Test
@@ -572,7 +572,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains("Duchy not found")
   }
 
@@ -949,7 +949,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         certificatesService.releaseCertificateHold(request)
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains("Duchy not found")
   }
 

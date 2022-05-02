@@ -103,20 +103,21 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `createApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        apiKeysService.createApiKey(
-          apiKey {
-            externalMeasurementConsumerId = 1L
-            nickname = "nickname"
-          }
-        )
-      }
+  fun `createApiKey throws FAILED_PRECONDITION when measurement consumer doesn't exist`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          apiKeysService.createApiKey(
+            apiKey {
+              externalMeasurementConsumerId = 1L
+              nickname = "nickname"
+            }
+          )
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Measurement Consumer not found")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+    }
 
   @Test
   fun `deleteApiKey returns the api key`() = runBlocking {
@@ -145,35 +146,36 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
-    val externalMeasurementConsumerId =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-        .externalMeasurementConsumerId
-    val apiKey =
-      apiKeysService.createApiKey(
-        apiKey {
-          this.externalMeasurementConsumerId = externalMeasurementConsumerId
-          nickname = "nickname"
-        }
-      )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        apiKeysService.deleteApiKey(
-          deleteApiKeyRequest {
-            if (externalMeasurementConsumerId == 1L) {
-              this.externalMeasurementConsumerId = 2L
-            } else {
-              this.externalMeasurementConsumerId = 1L
-            }
-            externalApiKeyId = apiKey.externalApiKeyId
+  fun `deleteApiKey throws FAILED_PRECONDITION when measurement consumer doesn't exist`() =
+    runBlocking {
+      val externalMeasurementConsumerId =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val apiKey =
+        apiKeysService.createApiKey(
+          apiKey {
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            nickname = "nickname"
           }
         )
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Measurement Consumer not found")
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          apiKeysService.deleteApiKey(
+            deleteApiKeyRequest {
+              if (externalMeasurementConsumerId == 1L) {
+                this.externalMeasurementConsumerId = 2L
+              } else {
+                this.externalMeasurementConsumerId = 1L
+              }
+              externalApiKeyId = apiKey.externalApiKeyId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
+    }
 
   @Test
   fun `deleteApiKey throws NOT FOUND when api key doesn't exist`() = runBlocking {
