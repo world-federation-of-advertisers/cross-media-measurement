@@ -16,8 +16,13 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.LocalDate
 
 object PrivacyLandscape {
+  const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 1f / 300f
+
   val dates: List<LocalDate> = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
   val ageGroups: Set<AgeGroup> = AgeGroup.values().toSet()
   val genders = Gender.values().toSet()
-  val vids: List<Float> = (0..300).map { it / 100f }
+
+  // There are 300 Vid intervals in the range [0, 1). The last interval has a little smaller length
+  // - [0.99666667 1) all others have length 1/300
+  val vidsIntervalStartPoints: List<Float> = (0..299).map { it * PRIVACY_BUCKET_VID_SAMPLE_WIDTH }
 }

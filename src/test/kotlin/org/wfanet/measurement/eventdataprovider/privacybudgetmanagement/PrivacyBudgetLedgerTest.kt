@@ -16,7 +16,6 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import org.junit.Test
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.InMemoryBackingStore
 
 class PrivacyBudgetLedgerTest {
   @Test
