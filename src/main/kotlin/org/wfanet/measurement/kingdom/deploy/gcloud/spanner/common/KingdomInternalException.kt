@@ -97,10 +97,17 @@ class DuchyNotFoundException(
     get() = mapOf("external_duchy_id" to externalDuchyId)
 }
 
+open class MeasurementNotFoundException(
+  provideDescription: () -> String = { "Measurement not found" }
+) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
 class MeasurementNotFoundByComputationException(
   val externalComputationId: ExternalId,
   provideDescription: () -> String = { "Measurement not found by ComputationId" }
-) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+) : MeasurementNotFoundException(provideDescription) {
   override val context
     get() = mapOf("external_computation_id" to externalComputationId.toString())
 }
@@ -109,7 +116,7 @@ class MeasurementNotFoundByMeasurementConsumerException(
   val externalMeasurementConsumerId: ExternalId,
   val externalMeasurementId: ExternalId,
   provideDescription: () -> String = { "Measurement not found by MeasurementConsumerId" }
-) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+) : MeasurementNotFoundException(provideDescription) {
   override val context
     get() =
       mapOf(
@@ -140,11 +147,19 @@ class CertSubjectKeyIdAlreadyExistsException(
     get() = emptyMap<String, String>()
 }
 
+open class CertificateNotFoundException(
+  val externalCertificateId: ExternalId,
+  provideDescription: () -> String = { "Certificate not found" }
+) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
+  override val context
+    get() = mapOf("external_certificate_id" to externalCertificateId.toString())
+}
+
 class DataProviderCertificateNotFoundException(
   val externalDataProviderId: ExternalId,
-  val externalCertificateId: ExternalId,
+  externalCertificateId: ExternalId,
   provideDescription: () -> String = { "DataProvider's Certificate not found" }
-) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
+) : CertificateNotFoundException(externalCertificateId, provideDescription) {
   override val context
     get() =
       mapOf(
@@ -155,9 +170,9 @@ class DataProviderCertificateNotFoundException(
 
 class MeasurementConsumerCertificateNotFoundException(
   val externalMeasurementConsumerId: ExternalId,
-  val externalCertificateId: ExternalId,
+  externalCertificateId: ExternalId,
   provideDescription: () -> String = { "MeasurementConsumer's Certificate not found" }
-) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
+) : CertificateNotFoundException(externalCertificateId, provideDescription) {
   override val context
     get() =
       mapOf(
@@ -168,9 +183,9 @@ class MeasurementConsumerCertificateNotFoundException(
 
 class DuchyCertificateNotFoundException(
   val externalDuchyId: String,
-  val externalCertificateId: ExternalId,
+  externalCertificateId: ExternalId,
   provideDescription: () -> String = { "Duchy's Certificate not found" }
-) : KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND, provideDescription) {
+) : CertificateNotFoundException(externalCertificateId, provideDescription) {
   override val context
     get() =
       mapOf(
@@ -214,11 +229,18 @@ class ComputationParticipantStateIllegalException(
       )
 }
 
+open class ComputationParticipantNotFound(
+  provideDescription: () -> String = { "ComputationParticipant not found" }
+) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
 class ComputationParticipantNotFoundByComputationException(
   val externalComputationId: ExternalId,
   val externalDuchyId: String,
   provideDescription: () -> String = { "ComputationParticipant not found by ComputationId" }
-) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND, provideDescription) {
+) : ComputationParticipantNotFound(provideDescription) {
   override val context
     get() =
       mapOf(
@@ -232,16 +254,24 @@ class ComputationParticipantNotFoundByMeasurementException(
   val internalMeasurementId: InternalId,
   val internalDuchyId: InternalId,
   provideDescription: () -> String = { "ComputationParticipant not found by MeasurementId" }
-) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND, provideDescription) {
+) : ComputationParticipantNotFound(provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
 
+open class RequisitionNotFoundException(
+  val externalRequisitionId: ExternalId,
+  provideDescription: () -> String = { "Requisition not found" }
+) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
+  override val context
+    get() = mapOf("external_requisition_id" to externalRequisitionId.toString())
+}
+
 class RequisitionNotFoundByComputationException(
   val externalComputationId: ExternalId,
-  val externalRequisitionId: ExternalId,
+  externalRequisitionId: ExternalId,
   provideDescription: () -> String = { "Requisition not found by Computation" }
-) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
+) : RequisitionNotFoundException(externalRequisitionId, provideDescription) {
   override val context
     get() =
       mapOf(
@@ -252,9 +282,9 @@ class RequisitionNotFoundByComputationException(
 
 class RequisitionNotFoundByDataProviderException(
   val externalDataProviderId: ExternalId,
-  val externalRequisitionId: ExternalId,
+  externalRequisitionId: ExternalId,
   provideDescription: () -> String = { "Requisition not found by DataProvider" }
-) : KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND, provideDescription) {
+) : RequisitionNotFoundException(externalRequisitionId, provideDescription) {
   override val context
     get() =
       mapOf(
