@@ -296,7 +296,8 @@ class EdpSimulator(
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
-
+    
+    // TODO(@uakyol): Populate sketch based on all event groups not just the first one.
     populateAnySketch(
       requisitionSpec.eventGroupsList[0].value.filter,
       VidSampler(VID_SAMPLER_HASH_FUNCTION),
