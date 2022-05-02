@@ -30,13 +30,11 @@ import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
@@ -125,17 +123,9 @@ class SpannerCertificatesService(
     // accordingly.
     try {
       return RevokeCertificate(request).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+    } catch (e: CertificateNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Measurement Consumer's Certificate not found. " + e.contextToString()
-      }
-    } catch (e: DataProviderCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Data Provider's Certificate not found. " + e.contextToString()
-      }
-    } catch (e: DuchyCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Duchy's Certificate not found. " + e.contextToString()
+        "Certificate not found. " + e.contextToString()
       }
     } catch (e: DuchyNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
@@ -154,17 +144,9 @@ class SpannerCertificatesService(
     // accordingly.
     try {
       return ReleaseCertificateHold(request).execute(client, idGenerator)
-    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+    } catch (e: CertificateNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Measurement Consumer's Certificate not found. " + e.contextToString()
-      }
-    } catch (e: DataProviderCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Data Provider's Certificate not found. " + e.contextToString()
-      }
-    } catch (e: DuchyCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Duchy's Certificate not found. " + e.contextToString()
+        "Certificate not found. " + e.contextToString()
       }
     } catch (e: DuchyNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
