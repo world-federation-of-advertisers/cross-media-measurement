@@ -236,7 +236,7 @@ open class ComputationParticipantNotFoundException(
     get() = emptyMap<String, String>()
 }
 
-class ComputationParticipantNotFoundByComputationExceptionException(
+class ComputationParticipantNotFoundByComputationException(
   val externalComputationId: ExternalId,
   val externalDuchyId: String,
   provideDescription: () -> String = { "ComputationParticipant not found by ComputationId" }
@@ -249,7 +249,7 @@ class ComputationParticipantNotFoundByComputationExceptionException(
       )
 }
 
-class ComputationParticipantNotFoundExceptionByMeasurementException(
+class ComputationParticipantNotFoundByMeasurementException(
   val internalMeasurementConsumerId: InternalId,
   val internalMeasurementId: InternalId,
   val internalDuchyId: InternalId,
