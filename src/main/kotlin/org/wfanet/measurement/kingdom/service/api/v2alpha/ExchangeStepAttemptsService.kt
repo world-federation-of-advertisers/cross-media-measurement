@@ -61,7 +61,13 @@ class ExchangeStepAttemptsService(
       }
     }
     val response = internalExchangeStepAttempts.appendLogEntry(internalRequest)
-    return response.toV2Alpha()
+    return try {
+      response.toV2Alpha()
+    } catch (e: Throwable) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        e.message ?: "Failed to convert InternalExchangeStepAttempt"
+      }
+    }
   }
 
   override suspend fun finishExchangeStepAttempt(
@@ -106,11 +112,22 @@ class ExchangeStepAttemptsService(
       this.date = date
       this.stepIndex = stepIndex
       attemptNumber = exchangeStepAttempt.attemptNumber
-      state = request.finalState.toInternal()
+      state =
+        try {
+          request.finalState.toInternal()
+        } catch (e: Throwable) {
+          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert FinalState" }
+        }
       debugLogEntries += request.logEntriesList.toInternal()
     }
     val response = internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
-    return response.toV2Alpha()
+    return try {
+      response.toV2Alpha()
+    } catch (e: Throwable) {
+      failGrpc(Status.INVALID_ARGUMENT) {
+        e.message ?: "Failed to convert FinishExchangeStepAttempt"
+      }
+    }
   }
 
   override suspend fun getExchangeStepAttempt(

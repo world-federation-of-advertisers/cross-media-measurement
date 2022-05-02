@@ -47,7 +47,11 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
           this.provider = provider
         }
       )
-    return internalExchange.toV2Alpha()
+    return try {
+      internalExchange.toV2Alpha()
+    } catch (e: Throwable) {
+      failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert InternalExchange" }
+    }
   }
 
   override suspend fun listExchanges(request: ListExchangesRequest): ListExchangesResponse {
