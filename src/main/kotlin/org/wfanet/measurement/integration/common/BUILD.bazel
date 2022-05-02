@@ -91,6 +91,7 @@ kt_jvm_library(
     deps = [
         ":configs",
         ":in_process_kingdom",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
