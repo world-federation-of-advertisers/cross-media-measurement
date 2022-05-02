@@ -269,7 +269,12 @@ private fun InternalRequisition.toRequisition(): Requisition {
     if (parentMeasurement.protocolConfig.protocolCase !=
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
-      protocolConfig = parentMeasurement.protocolConfig.toProtocolConfig()
+      protocolConfig =
+        try {
+          parentMeasurement.protocolConfig.toProtocolConfig()
+        } catch (e: Throwable) {
+          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
+        }
     }
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
