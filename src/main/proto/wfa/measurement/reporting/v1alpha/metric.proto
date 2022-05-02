@@ -22,15 +22,23 @@ import "wfa/measurement/reporting/v1alpha/reporting_set.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "MetricProto";
 
 // Definition of a computed metric for a `Report` in terms of set operations.
 message Metric {
+  // Parameters that are used to generate `Reach` metric.
   message ReachParams {}
+  // Parameters that are used to generate `Frequency Histogram` metric.
   message FrequencyHistogramParams {
+    // Maximum frequency cut-off value in the frequency histogram. Counts with
+    // frequency higher than `max_frequency` will be aggregated together.
     int32 max_frequency = 1;
   }
+  // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {}
+  // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {}
+  // Parameters that are used to generate `Reach Curve` metric.
   message ReachCurveParams {
     // Number of points that should be plotted on the reach curve
     int32 number_plotting_points = 1;
@@ -39,11 +47,18 @@ message Metric {
     int64 max_impression_count = 2;
   }
 
+  // Types of metrics that can be selected to be in a `Report`.
   oneof metric_type {
+    // The count of unique audiences reached given a set of event groups.
     ReachParams reach = 1;
+    // The reach frequency histogram given a set of event groups.
     FrequencyHistogramParams frequency_histogram = 2;
+    // The impression count given a set of event groups.
     ImpressionCountParams impression_count = 3;
+    // The watch duration given a set of event groups.
     WatchDurationParams watch_duration = 4;
+    // The reach curve that provides estimated reach frequency across different
+    // spend ratios given a set of event groups.
     ReachCurveParams reach_curve = 5;
   }
 
@@ -53,20 +68,29 @@ message Metric {
 
   // Represents a binary set operation.
   message SetOperation {
+    // Types of set operators.
     enum Type {
+      // Default value. This value is unused.
       TYPE_UNSPECIFIED = 0;
+      // The set union operation.
       UNION = 1;
+      // The set difference operation.
       DIFFERENCE = 2;
+      // The set intersection operation.
       INTERSECTION = 3;
     }
+    // The type of set operator that will be applied on the operands.
     Type type = 1 [(google.api.field_behavior) = REQUIRED];
 
+    // The object of a set operation.
     message Operand {
       oneof operand {
+        // Use another setOperation as an operand to achieve nested set
+        // operations.
         SetOperation operation = 1;
-        ReportingSet reporting_set = 2
-            [(google.api.resource_reference).type =
-                 "reporting.halo-cmm.org/ReportingSet"];
+        // Resource representing the `EventGroup`s and filter used to define a
+        // set of event groups.
+        ReportingSet reporting_set = 2;
       }
     }
 
@@ -76,13 +100,18 @@ message Metric {
     // empty set.
     Operand rhs = 4;
   }
+
+  // A setOperation associated with a name.
   message NamedSetOperation {
     // The name of the set for display purposes.
     //
     // e.g. this may be a column or row header in CSV output.
     string display_name = 1 [(google.api.field_behavior) = REQUIRED];
 
+    // A set operation that specifies the set of event groups.
     SetOperation set_operation = 2;
   }
+
+  // A list of named setOperations on which the same metric will be applied.
   repeated NamedSetOperation set_operations = 7;
 }
