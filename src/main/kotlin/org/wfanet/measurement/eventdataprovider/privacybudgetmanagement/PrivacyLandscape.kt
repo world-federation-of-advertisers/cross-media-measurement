@@ -23,7 +23,7 @@ object PrivacyLandscape {
   val genders = Gender.values().toSet()
 
   // There are 300 Vid intervals in the range [0, 1). The last interval has a little larger length -
-  // [0.986 1) all others have length 1/300
+  // [0.99666584 1) all others have length 1/300
   val vidsIntervalStartPoints: List<Float> =
     (1..299).runningFold(0.0f) { previousVid, _ -> previousVid + PRIVACY_BUCKET_VID_SAMPLE_WIDTH }
 }
