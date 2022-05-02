@@ -19,6 +19,16 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * The purpose of this class is to facilitate implementation of unit tests of the privacy budget
  * ledger. Also, hopefully this can serve as a guide for implementors of more sophisticated backing
  * stores. This code is not thread safe.
+ *
+ * This Backing store simple and fast.It is small enough to fit in memory. Thuscan be a good fit for
+ * use cases such as:
+ *
+ * 1) Privacy Budget Management for small number of Measurement Consumers (<10).
+ *
+ * 2) Feeding all of the charges in a single run such as estimating total consumption for a known
+ * set of queries.
+ *
+ * 3) Where multiple tasks are not expected to update it.
  */
 class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
   val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
