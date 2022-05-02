@@ -229,18 +229,18 @@ class ComputationParticipantStateIllegalException(
       )
 }
 
-open class ComputationParticipantNotFound(
+open class ComputationParticipantNotFoundException(
   provideDescription: () -> String = { "ComputationParticipant not found" }
 ) : KingdomInternalException(ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND, provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
 
-class ComputationParticipantNotFoundByComputationException(
+class ComputationParticipantNotFoundByComputationExceptionException(
   val externalComputationId: ExternalId,
   val externalDuchyId: String,
   provideDescription: () -> String = { "ComputationParticipant not found by ComputationId" }
-) : ComputationParticipantNotFound(provideDescription) {
+) : ComputationParticipantNotFoundException(provideDescription) {
   override val context
     get() =
       mapOf(
@@ -249,12 +249,12 @@ class ComputationParticipantNotFoundByComputationException(
       )
 }
 
-class ComputationParticipantNotFoundByMeasurementException(
+class ComputationParticipantNotFoundExceptionByMeasurementException(
   val internalMeasurementConsumerId: InternalId,
   val internalMeasurementId: InternalId,
   val internalDuchyId: InternalId,
   provideDescription: () -> String = { "ComputationParticipant not found by MeasurementId" }
-) : ComputationParticipantNotFound(provideDescription) {
+) : ComputationParticipantNotFoundException(provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
