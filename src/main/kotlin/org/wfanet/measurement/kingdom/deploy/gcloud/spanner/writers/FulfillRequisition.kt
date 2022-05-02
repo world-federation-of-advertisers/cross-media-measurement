@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
@@ -26,7 +27,12 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 
 private object Params {
@@ -52,15 +58,17 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
-      throw KingdomInternalException(ErrorCode.REQUISITION_STATE_ILLEGAL) {
+      throw RequisitionStateIllegalException(ExternalId(request.externalRequisitionId), state) {
         "Expected ${Requisition.State.UNFULFILLED}, got $state"
       }
     }
     val measurementState = requisition.parentMeasurement.state
     if (measurementState != Measurement.State.PENDING_REQUISITION_FULFILLMENT) {
-      throw KingdomInternalException(ErrorCode.MEASUREMENT_STATE_ILLEGAL) {
-        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
-      }
+      throw MeasurementStateIllegalException(
+        ExternalId(requisition.externalMeasurementConsumerId),
+        ExternalId(requisition.externalMeasurementId),
+        measurementState
+      ) { "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState" }
     }
 
     val updatedDetails =
@@ -113,7 +121,10 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           externalComputationId = externalComputationId,
           externalRequisitionId = externalRequisitionId
         )
-        ?: throw KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND) {
+        ?: throw RequisitionNotFoundByComputationException(
+          ExternalId(externalComputationId),
+          ExternalId(externalRequisitionId)
+        ) {
           "Requisition with external Computation ID $externalComputationId and external " +
             "Requisition ID $externalRequisitionId not found"
         }
@@ -125,7 +136,10 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           externalDataProviderId = externalDataProviderId,
           externalRequisitionId = externalRequisitionId
         )
-        ?: throw KingdomInternalException(ErrorCode.REQUISITION_NOT_FOUND) {
+        ?: throw RequisitionNotFoundByDataProviderException(
+          ExternalId(externalDataProviderId),
+          ExternalId(externalRequisitionId)
+        ) {
           "Requisition with external DataProvider ID $externalDataProviderId and external " +
             "Requisition ID $externalRequisitionId not found"
         }
@@ -135,7 +149,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   private fun getFulfillDuchyId(): InternalId {
     val externalDuchyId: String = request.computedParams.externalFulfillingDuchyId
     return DuchyIds.getInternalId(externalDuchyId)?.let { InternalId(it) }
-      ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {
+      ?: throw DuchyNotFoundException(externalDuchyId) {
         "Duchy with external ID $externalDuchyId not found"
       }
   }

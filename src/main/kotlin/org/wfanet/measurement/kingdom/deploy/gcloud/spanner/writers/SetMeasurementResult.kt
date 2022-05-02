@@ -27,7 +27,10 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
@@ -48,12 +51,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val (measurementConsumerId, measurementId, measurement) =
       MeasurementReader(Measurement.View.DEFAULT)
         .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
-        ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND) {
-          "Measurement for external computation ID ${request.externalComputationId} not found"
-        }
+        ?: throw MeasurementNotFoundByComputationException(
+          ExternalId(request.externalComputationId)
+        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
     val aggregatorDuchyId =
       DuchyIds.getInternalId(request.externalAggregatorDuchyId)
-        ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) {
+        ?: throw DuchyNotFoundException(request.externalAggregatorDuchyId) {
           "Duchy with external ID ${request.externalAggregatorDuchyId} not found"
         }
     val aggregatorCertificateId =
@@ -62,9 +65,10 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         InternalId(aggregatorDuchyId),
         ExternalId(request.externalAggregatorCertificateId)
       )
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND) {
-          "Aggregator certificate ${request.externalAggregatorCertificateId} not found"
-        }
+        ?: throw DuchyCertificateNotFoundException(
+          request.externalAggregatorDuchyId,
+          ExternalId(request.externalAggregatorCertificateId)
+        ) { "Aggregator certificate ${request.externalAggregatorCertificateId} not found" }
 
     transactionContext.bufferInsertMutation("DuchyMeasurementResults") {
       set("MeasurementConsumerId" to measurementConsumerId)

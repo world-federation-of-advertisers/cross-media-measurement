@@ -123,6 +123,8 @@ class SpannerComputationParticipantsService(
       when (e.code) {
         ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL ->
           failGrpc(Status.FAILED_PRECONDITION) { "Computation participant in illegal state." }
+        ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
+          failGrpc(Status.FAILED_PRECONDITION) { "Measurement in illegal state." }
         ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND ->
           failGrpc(Status.NOT_FOUND) { "Computation participant not found." }
         ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
@@ -134,7 +136,6 @@ class SpannerComputationParticipantsService(
         ErrorCode.MODEL_PROVIDER_NOT_FOUND,
         ErrorCode.CERTIFICATE_NOT_FOUND,
         ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
         ErrorCode.DATA_PROVIDER_NOT_FOUND,
         ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
