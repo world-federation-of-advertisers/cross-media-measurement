@@ -24,8 +24,11 @@ import "wfa/measurement/reporting/v1alpha/report.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "ReportsServiceProto";
 
+// Service for interacting with `Report` resources.
 service Reports {
+  // Returns the `Report` with the specified resource key.
   rpc GetReport(GetReportRequest) returns (Report) {
     option (google.api.http) = {
       get: "/v1alpha/{name=measurementConsumers/*/reports/*}"
@@ -33,6 +36,7 @@ service Reports {
     option (google.api.method_signature) = "name";
   }
 
+  // Lists `Report`s.
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
     option (google.api.http) = {
       get: "/v1alpha/{parent=measurementConsumers/*}/reports"
@@ -40,6 +44,7 @@ service Reports {
     option (google.api.method_signature) = "parent";
   }
 
+  // Creates a `Report`.
   rpc CreateReport(CreateReportRequest) returns (Report) {
     option (google.api.http) = {
       post: "/v1alpha/{parent=measurementConsumers/*}/reports"
@@ -49,6 +54,7 @@ service Reports {
   }
 }
 
+// Request message for `GetReport` method.
 message GetReportRequest {
   // The name of the report to retrieve.
   // Format: measurementConsumers/{measurement_consumer}/reports/{report}
@@ -58,6 +64,7 @@ message GetReportRequest {
   ];
 }
 
+// Request message for `ListReports` method.
 message ListReportsRequest {
   // Format: measurementConsumers/{measurement_consumer}
   string parent = 1 [
@@ -81,6 +88,7 @@ message ListReportsRequest {
   string page_token = 3;
 }
 
+// Response message for `ListReports` method.
 message ListReportsResponse {
   // The reports from the specified measurement consumer.
   repeated Report reports = 1;
@@ -90,6 +98,7 @@ message ListReportsResponse {
   string next_page_token = 2;
 }
 
+// Request message for `CreateReport` method.
 message CreateReportRequest {
   // The parent resource where this report will be created.
   // Format: measurementConsumers/{measurement_consumer}
