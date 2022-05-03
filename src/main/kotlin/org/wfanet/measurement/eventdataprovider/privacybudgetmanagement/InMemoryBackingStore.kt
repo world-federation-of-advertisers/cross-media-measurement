@@ -11,13 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
-
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerEntry
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 /**
  * A simple implementation of a privacy budget ledger backing store.
@@ -25,9 +19,19 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyC
  * The purpose of this class is to facilitate implementation of unit tests of the privacy budget
  * ledger. Also, hopefully this can serve as a guide for implementors of more sophisticated backing
  * stores. This code is not thread safe.
+ *
+ * This Backing store simple and fast.It is small enough to fit in memory. Thus, can be a good fit
+ * for use cases such as:
+ *
+ * 1) Privacy Budget Management for small number of Measurement Consumers (<10).
+ *
+ * 2) Feeding all of the charges in a single run such as estimating total consumption for a known
+ * set of queries.
+ *
+ * 3) Where multiple tasks are not expected to update it.
  */
 class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  private val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+  val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
   private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {

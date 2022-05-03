@@ -71,7 +71,11 @@ val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
  * For purposes of this simulation, all of the EDPs register the same templates and receive the same
  * filter from the MC.
  */
-val EVENT_TEMPLATES_TO_FILTERS_MAP = mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
+val EVENT_TEMPLATES_TO_FILTERS_MAP =
+  mapOf(
+    "$TEMPLATE_PREFIX.TestVideoTemplate" to "video_ad.age.value == 1",
+    "$TEMPLATE_PREFIX.TestPrivacyBudgetTemplate" to "privacy_budget.gender.value == 1"
+  )
 const val MC_DISPLAY_NAME = "mc"
 
 fun <T : Message> loadTextProto(fileName: String, default: T): T {
