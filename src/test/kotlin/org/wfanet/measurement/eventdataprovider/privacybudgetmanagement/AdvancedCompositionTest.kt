@@ -19,35 +19,47 @@ import org.junit.Test
 class AdvancedCompositionTest {
   @Test
   fun `binomial coefficients compute as expected`() {
-    assertThat(Binom.coeff(0, 0)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(1, 0)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(1, 1)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(2, 0)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(2, 1)).isEqualTo(2.0f)
-    assertThat(Binom.coeff(2, 2)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(3, 0)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(3, 1)).isEqualTo(3.0f)
-    assertThat(Binom.coeff(3, 2)).isEqualTo(3.0f)
-    assertThat(Binom.coeff(3, 3)).isEqualTo(1.0f)
-    assertThat(Binom.coeff(20, 10)).isEqualTo(184756.0f)
+    assertThat(AdvancedComposition.coeff(0, 0)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(1, 0)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(1, 1)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(2, 0)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(2, 1)).isEqualTo(2.0f)
+    assertThat(AdvancedComposition.coeff(2, 2)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(3, 0)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(3, 1)).isEqualTo(3.0f)
+    assertThat(AdvancedComposition.coeff(3, 2)).isEqualTo(3.0f)
+    assertThat(AdvancedComposition.coeff(3, 3)).isEqualTo(1.0f)
+    assertThat(AdvancedComposition.coeff(20, 10)).isEqualTo(184756.0f)
   }
 
   @Test
   fun `advanced composition`() {
-    assertThat(totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.0f), 30, 0.0f))
+    assertThat(AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.0f), 30, 0.0f))
       .isEqualTo(30.0f)
     assertThat(
-        totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.001f), 30, 0.06f)
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.001f),
+          30,
+          0.06f
+        )
       )
       .isEqualTo(22.0f)
     assertThat(
-        totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.001f), 30, 0.1f)
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.001f),
+          30,
+          0.1f
+        )
       )
       .isEqualTo(20.0f)
-    assertThat(totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.2f), 1, 0.1f))
+    assertThat(AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.2f), 1, 0.1f))
       .isEqualTo(null)
     assertThat(
-        totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.01f), 30, 0.26f)
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.01f),
+          30,
+          0.26f
+        )
       )
       .isEqualTo(null)
   }
