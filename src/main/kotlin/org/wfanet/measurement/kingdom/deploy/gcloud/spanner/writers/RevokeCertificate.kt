@@ -29,11 +29,14 @@ import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 private val PENDING_MEASUREMENT_STATES =
@@ -57,35 +60,49 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     val externalCertificateId = ExternalId(request.externalCertificateId)
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    val reader: BaseSpannerReader<CertificateReader.Result> =
+    val certificateResult =
       when (request.parentCase) {
-        RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-          CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-            .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
-        RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-          CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-            .bindWhereClause(
+        RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+          val reader =
+            CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
+              .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw DataProviderCertificateNotFoundException(
+              ExternalId(request.externalDataProviderId),
+              externalCertificateId
+            ) { "Certificate not found." }
+        }
+        RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+          val reader =
+            CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
+              .bindWhereClause(
+                ExternalId(request.externalMeasurementConsumerId),
+                externalCertificateId
+              )
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw MeasurementConsumerCertificateNotFoundException(
               ExternalId(request.externalMeasurementConsumerId),
               externalCertificateId
-            )
+            ) { "Certificate not found." }
+        }
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
             InternalId(
               DuchyIds.getInternalId(request.externalDuchyId)
-                ?: throw KingdomInternalException(ErrorCode.DUCHY_NOT_FOUND) { " Duchy not found." }
+                ?: throw DuchyNotFoundException(request.externalDuchyId) { " Duchy not found." }
             )
-          CertificateReader(CertificateReader.ParentType.DUCHY)
-            .bindWhereClause(duchyId, externalCertificateId)
+          val reader =
+            CertificateReader(CertificateReader.ParentType.DUCHY)
+              .bindWhereClause(duchyId, externalCertificateId)
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw DuchyCertificateNotFoundException(
+              request.externalDuchyId,
+              externalCertificateId
+            ) { "Certificate not found." }
         }
         RevokeCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw IllegalStateException("RevokeCertificateRequest is missing parent field.")
       }
-
-    val certificateResult =
-      reader.execute(transactionContext).singleOrNull()
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND) {
-          "Certificate not found."
-        }
 
     transactionContext.bufferUpdateMutation("Certificates") {
       set("CertificateId" to certificateResult.certificateId.value)

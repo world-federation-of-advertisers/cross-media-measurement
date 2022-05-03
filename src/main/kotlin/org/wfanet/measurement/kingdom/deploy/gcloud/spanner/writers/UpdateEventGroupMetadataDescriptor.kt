@@ -14,12 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class UpdateEventGroupMetadataDescriptor(
@@ -33,7 +33,10 @@ class UpdateEventGroupMetadataDescriptor(
           eventGroupMetadataDescriptor.externalDataProviderId,
           eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
         )
-        ?: throw KingdomInternalException(ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND)
+        ?: throw EventGroupMetadataDescriptorNotFoundException(
+          ExternalId(eventGroupMetadataDescriptor.externalDataProviderId),
+          ExternalId(eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId)
+        )
 
     transactionContext.bufferUpdateMutation("EventGroupMetadataDescriptors") {
       set("DataProviderId" to internalMetadataDescriptorResult.internalDataProviderId.value)
