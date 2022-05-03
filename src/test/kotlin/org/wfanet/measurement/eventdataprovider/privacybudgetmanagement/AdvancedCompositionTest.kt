@@ -34,7 +34,13 @@ class AdvancedCompositionTest {
 
   @Test
   fun `advanced composition`() {
-    assertThat(AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.0f), 30, 0.0f))
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.0f),
+          30,
+          0.0f
+        )
+      )
       .isEqualTo(30.0f)
     assertThat(
         AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
@@ -52,7 +58,13 @@ class AdvancedCompositionTest {
         )
       )
       .isEqualTo(20.0f)
-    assertThat(AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.2f), 1, 0.1f))
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.2f),
+          1,
+          0.1f
+        )
+      )
       .isEqualTo(null)
     assertThat(
         AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
