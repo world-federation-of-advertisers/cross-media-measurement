@@ -48,7 +48,7 @@ object AdvancedComposition {
     }
   }
 
-  private fun calculateAdvnacedComposition(
+  private fun calculateAdvancedComposition(
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
@@ -101,6 +101,6 @@ object AdvancedComposition {
     totalDelta: Float
   ): Float? =
     memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
-      calculateAdvnacedComposition(charge, repetitionCount, totalDelta)
+      calculateAdvancedComposition(charge, repetitionCount, totalDelta)
     }
 }
