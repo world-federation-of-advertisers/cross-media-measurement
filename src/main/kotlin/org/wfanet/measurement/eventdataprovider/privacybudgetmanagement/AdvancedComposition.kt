@@ -99,10 +99,8 @@ object AdvancedComposition {
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? {
-
-    return memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
+  ): Float? =
+    memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
       calculateAdvnacedComposition(charge, repetitionCount, totalDelta)
     }
-  }
 }
