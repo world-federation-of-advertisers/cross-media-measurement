@@ -111,8 +111,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("NOT_FOUND: DataProvider not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
   @Test
@@ -129,10 +129,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("INVALID_ARGUMENT: MeasurementConsumer not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
   @Test
@@ -155,8 +153,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("certificate not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
   }
 
   @Test
@@ -186,7 +184,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("certificate is invalid")
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
   }
 
   @Test
@@ -352,8 +350,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("certificate not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("Certificate not found")
   }
 
   @Test
@@ -390,7 +388,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception).hasMessageThat().contains("certificate is invalid")
+    assertThat(exception).hasMessageThat().contains("Certificate is invalid")
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 

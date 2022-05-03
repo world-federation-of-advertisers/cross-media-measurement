@@ -167,7 +167,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 
@@ -189,7 +189,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
@@ -792,7 +792,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { measurementsService.setMeasurementResult(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().ignoringCase().contains("certificate")
   }
 

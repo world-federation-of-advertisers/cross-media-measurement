@@ -24,7 +24,7 @@ import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -52,7 +52,7 @@ class SpannerComputationParticipantsService(
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
         "Measurement not in PENDING_REQUISITION_PARAMS state. " + e.contextToString()
       }
-    } catch (e: ComputationParticipantNotFoundByComputationException) {
+    } catch (e: ComputationParticipantNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "ComputationParticipant not found. " + e.contextToString()
       }
@@ -86,7 +86,7 @@ class SpannerComputationParticipantsService(
   ): ComputationParticipant {
     try {
       return FailComputationParticipant(request).execute(client, idGenerator)
-    } catch (e: ComputationParticipantNotFoundByComputationException) {
+    } catch (e: ComputationParticipantNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "ComputationParticipant not found. " + e.contextToString()
       }
@@ -108,7 +108,7 @@ class SpannerComputationParticipantsService(
   ): ComputationParticipant {
     try {
       return ConfirmComputationParticipant(request).execute(client, idGenerator)
-    } catch (e: ComputationParticipantNotFoundByComputationException) {
+    } catch (e: ComputationParticipantNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "ComputationParticipant not found. " + e.contextToString()
       }
