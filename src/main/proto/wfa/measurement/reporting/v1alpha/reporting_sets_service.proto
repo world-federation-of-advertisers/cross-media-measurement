@@ -24,8 +24,11 @@ import "wfa/measurement/reporting/v1alpha/reporting_set.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
+option java_outer_classname = "ReportingSetsServiceProto";
 
+// Service for interacting with `ReportingSet` resources.
 service ReportingSets {
+  // Lists `ReportingSet`s.
   rpc ListReportingSets(ListReportingSetsRequest)
       returns (ListReportingSetsResponse) {
     option (google.api.http) = {
@@ -34,15 +37,17 @@ service ReportingSets {
     option (google.api.method_signature) = "parent";
   }
 
+  // Creates a `ReportingSet`.
   rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet) {
     option (google.api.http) = {
       post: "/v1alpha/{parent=measurementConsumers/*}/reportingSets"
-      body: "reportingSet"
+      body: "reporting_set"
     };
-    option (google.api.method_signature) = "parent,reportingSet";
+    option (google.api.method_signature) = "parent,reporting_set";
   }
 }
 
+// Request message for `ListReportingSet` method.
 message ListReportingSetsRequest {
   // Format: measurementConsumers/{measurement_consumer}
   string parent = 1 [
@@ -66,6 +71,7 @@ message ListReportingSetsRequest {
   string page_token = 3;
 }
 
+// Response message for `ListReportingSet` method.
 message ListReportingSetsResponse {
   // The reportingSets from the specified measurement consumer.
   repeated ReportingSet reporting_sets = 1;
@@ -75,6 +81,7 @@ message ListReportingSetsResponse {
   string next_page_token = 2;
 }
 
+// Request message for `CreateReportingSet` method.
 message CreateReportingSetRequest {
   // The parent resource where this reportingSet will be created.
   // Format: measurementConsumers/{measurement_consumer}
@@ -85,6 +92,6 @@ message CreateReportingSetRequest {
     }
   ];
 
-  // The reportingSet to create.
+  // The ReportingSet to create.
   ReportingSet reporting_set = 2 [(google.api.field_behavior) = REQUIRED];
 }
