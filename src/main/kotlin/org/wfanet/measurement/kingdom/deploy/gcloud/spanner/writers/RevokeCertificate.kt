@@ -22,7 +22,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
@@ -50,8 +49,11 @@ private val PENDING_MEASUREMENT_STATES =
 /**
  * Revokes a certificate in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [DataProviderCertificateNotFoundException] Certificate not found
+ * @throws [MeasurementConsumerCertificateNotFoundException] Certificate not found
+ * @throws [DuchyCertificateNotFoundException] Certificate not found
+ * @throws [DuchyNotFoundException] Duchy not found
  */
 class RevokeCertificate(private val request: RevokeCertificateRequest) :
   SpannerWriter<Certificate, Certificate>() {

@@ -31,6 +31,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -38,8 +39,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 /**
  * Creates a certificate in the database.
  *
- * Throw KingdomInternalException with code CERT_SUBJECT_KEY_ID_ALREADY_EXISTS when executed if
- * subjectKeyIdentifier of [certificate] collides with a certificate already in the database.
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [CertSubjectKeyIdAlreadyExistsException] subjectKeyIdentifier of [Certificate] collides
+ * with a certificate already in the database
+ * @throws [DataProviderNotFoundException] DataProvider not found
+ * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * @throws [DuchyNotFoundException] Duchy not found
  */
 class CreateCertificate(private val certificate: Certificate) :
   SpannerWriter<Certificate, Certificate>() {

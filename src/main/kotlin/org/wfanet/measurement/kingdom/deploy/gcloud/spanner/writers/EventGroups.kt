@@ -19,13 +19,17 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
  * Checks that a given Measurement Consumer certificate is valid and returns its ID.
- * @throws MeasurementConsumerCertificateNotFoundException if Certificate is not found
- * @throws CertificateIsInvalidException if Certificate is not valid
+ *
+ * Throws a subclass of [KingdomInternalException].
+ * @throws [MeasurementConsumerCertificateNotFoundException] Measurement Consumer's Certificate is
+ * not found
+ * @throws [CertificateIsInvalidException] Certificate is not valid
  */
 suspend fun checkValidCertificate(
   measurementConsumerCertificateId: Long,

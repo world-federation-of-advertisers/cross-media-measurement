@@ -22,7 +22,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -37,8 +36,13 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
 /**
  * Revokes a certificate in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementConsumerCertificateNotFoundException] Certificate not found
+ * @throws [DataProviderCertificateNotFoundException] Certificate not found
+ * @throws [DuchyCertificateNotFoundException] Certificate not found
+ * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [CertificateRevocationStateIllegalException] CertificateRevocation state is REVOKED or
+ * not specified
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
  * associated active measurements if a certificate is revoked

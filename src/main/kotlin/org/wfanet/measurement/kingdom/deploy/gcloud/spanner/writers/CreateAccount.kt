@@ -19,7 +19,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -30,9 +29,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 /**
  * Creates an account in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.PERMISSION_DENIED]
- * * [ErrorCode.ACCOUNT_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [PermissionDeniedException] Permission denied due to ownership of MeasurementConsumer
+ * @throws [AccountNotFoundException] Creator's Account not found
  */
 class CreateAccount(
   private val externalCreatorAccountId: ExternalId?,

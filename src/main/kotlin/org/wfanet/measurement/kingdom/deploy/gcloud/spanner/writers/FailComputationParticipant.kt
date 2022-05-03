@@ -20,7 +20,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
@@ -37,10 +36,10 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FA
 /**
  * Sets participant details for a ComputationParticipant in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND]
- * * [ErrorCode.DUCHY_NOT_FOUND]
- * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
+ * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [MeasurementStateIllegalException] Measurement is not in state of pending
  */
 class FailComputationParticipant(private val request: FailComputationParticipantRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {

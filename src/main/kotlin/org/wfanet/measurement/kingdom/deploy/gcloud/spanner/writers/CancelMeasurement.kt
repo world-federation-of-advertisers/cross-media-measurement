@@ -15,7 +15,6 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -26,9 +25,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
 /**
  * Cancels a [Measurement], transitioning its state to [Measurement.State.CANCELLED].
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.MEASUREMENT_NOT_FOUND]
- * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
+ * Throws a subclass of [KingdomInternalException] on [execute]
+ * @throws [MeasurementNotFoundByMeasurementConsumerException] Measurement not found
+ * @throws [MeasurementStateIllegalException] Measurement state is not in pending
  */
 class CancelMeasurement(
   private val externalMeasurementConsumerId: ExternalId,
