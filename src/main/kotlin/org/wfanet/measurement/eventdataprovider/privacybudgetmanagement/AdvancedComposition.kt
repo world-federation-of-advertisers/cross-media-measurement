@@ -48,6 +48,30 @@ object AdvancedComposition {
     }
   }
 
+  private fun calculateAdvnacedComposition(
+    charge: PrivacyCharge,
+    repetitionCount: Int,
+    totalDelta: Float
+  ): Float? {
+    val epsilon = charge.epsilon
+    val delta = charge.delta
+    val k = repetitionCount
+    // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
+    for (i in k / 2 downTo 0) {
+      var deltaI = 0.0f
+      for (l in 0..i - 1) {
+        deltaI +=
+          coeff(k, l) *
+            (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
+      }
+      deltaI /= (1.0f + exp(epsilon)).pow(k)
+      if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= totalDelta) {
+        return epsilon * (k - 2 * i).toFloat()
+      }
+    }
+    return null
+  }
+
   /**
    * Computes total DP parameters after applying an algorithm with given privacy parameters multiple
    * times.
@@ -76,28 +100,9 @@ object AdvancedComposition {
     repetitionCount: Int,
     totalDelta: Float
   ): Float? {
-    val advancedCompositionKey: AdvancedCompositionKey =
-      AdvancedCompositionKey(charge, repetitionCount, totalDelta)
-    return memoizedResults.getOrPut(advancedCompositionKey) {
-      val epsilon = advancedCompositionKey.charge.epsilon
-      val delta = advancedCompositionKey.charge.delta
-      val k = advancedCompositionKey.repetitionCount
 
-      // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
-      for (i in k / 2 downTo 0) {
-        var deltaI = 0.0f
-        for (l in 0..i - 1) {
-          deltaI +=
-            coeff(k, l) *
-              (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
-        }
-        deltaI /= (1.0f + exp(epsilon)).pow(k)
-        if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= advancedCompositionKey.totalDelta) {
-          memoizedResults.put(advancedCompositionKey, epsilon * (k - 2 * i).toFloat())
-          return memoizedResults.get(advancedCompositionKey)
-        }
-      }
-      return null
+    return memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
+      calculateAdvnacedComposition(charge, repetitionCount, totalDelta)
     }
   }
 }
