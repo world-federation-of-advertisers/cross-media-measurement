@@ -18,22 +18,7 @@ import org.junit.Test
 
 class AdvancedCompositionTest {
   @Test
-  fun `binomial coefficients compute as expected`() {
-    assertThat(AdvancedComposition.coeff(0, 0)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(1, 0)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(1, 1)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(2, 0)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(2, 1)).isEqualTo(2.0f)
-    assertThat(AdvancedComposition.coeff(2, 2)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(3, 0)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(3, 1)).isEqualTo(3.0f)
-    assertThat(AdvancedComposition.coeff(3, 2)).isEqualTo(3.0f)
-    assertThat(AdvancedComposition.coeff(3, 3)).isEqualTo(1.0f)
-    assertThat(AdvancedComposition.coeff(20, 10)).isEqualTo(184756.0f)
-  }
-
-  @Test
-  fun `advanced composition`() {
+  fun `advanced composition computation works as expected`() {
     assertThat(
         AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.0f),

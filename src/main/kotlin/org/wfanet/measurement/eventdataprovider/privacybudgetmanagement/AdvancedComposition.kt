@@ -36,7 +36,7 @@ object AdvancedComposition {
    * @return The number of distinct ways to draw k items from a set of size n. Alternatively, the
    * coefficient of x^k in the expansion of (1 + x)^n.
    */
-  fun coeff(n: Int, k: Int): Float {
+  private fun coeff(n: Int, k: Int): Float {
     return if ((n < 0) || (k < 0) || (n < k)) {
       0.0f
     } else if ((k == 0) || (n == k)) {
