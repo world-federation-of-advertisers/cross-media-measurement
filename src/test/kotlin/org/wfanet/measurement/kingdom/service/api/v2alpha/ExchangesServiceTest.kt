@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.common.provider
 import org.wfanet.measurement.internal.kingdom.Exchange.State
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineImplBase as InternalExchangeStepsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub as InternalExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineImplBase as InternalExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub as InternalExchangesCoroutineStub
@@ -79,12 +80,19 @@ class ExchangesServiceTest {
   private val internalService: InternalExchangesCoroutineImplBase =
       mockService() { onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE) }
 
+  private val internalExchangeStepsService: InternalExchangeStepsCoroutineImplBase =
+      mockService() { onBlocking { streamExchangeSteps(any()) }.thenReturn(emptyFlow()) }
+
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
+  @get:Rule
+  val grpcTestServerRuleExchangeSteps = GrpcTestServerRule {
+    addService(internalExchangeStepsService)
+  }
 
   private val service =
       ExchangesService(
           InternalExchangesCoroutineStub(grpcTestServerRule.channel),
-          InternalExchangeStepsCoroutineStub(grpcTestServerRule.channel))
+          InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel))
 
   private fun getExchange(init: GetExchangeRequestKt.Dsl.() -> Unit): Exchange = runBlocking {
     service.getExchange(getExchangeRequest(init))
