@@ -40,7 +40,7 @@ message Report {
     type: "halo.wfanet.org/MeasurementConsumer"
   }];
 
-  // Map of EventGroup to filter predicate.
+  // Map entry of `EventGroup` to filter predicate.
   message EventGroupFilter {
     // Key of the map entry, which is an `EventGroup` resource name. Required.
     string key = 1 [
@@ -54,7 +54,7 @@ message Report {
     string value = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // A list of maps of EventGroup to filter predicate.
+  // A Map with `EventGroup`s as the keys and filter predicates as the values.
   repeated EventGroupFilter event_group_filters = 3
       [(google.api.field_behavior) = REQUIRED];
 
@@ -66,7 +66,7 @@ message Report {
     PeriodicTimeInterval periodic_time_interval = 5;
   }
 
-  // A List of metrics that are included in `Report`.
+  // The metrics that are included in `Report`.
   repeated Metric metrics = 6 [(google.api.field_behavior) = REQUIRED];
 
   // Possible states of a `Report`.
