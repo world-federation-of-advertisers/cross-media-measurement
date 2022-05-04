@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Dependencies needed for maven.
+"""
+
 load("@rules_jvm_external//:defs.bzl", "artifact")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 load(
