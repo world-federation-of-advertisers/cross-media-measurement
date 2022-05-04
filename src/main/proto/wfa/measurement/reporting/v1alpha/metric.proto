@@ -90,7 +90,7 @@ message Metric {
     Operand rhs = 4;
   }
 
-  // A setOperation associated with a name.
+  // A `SetOperation` associated with a name.
   message NamedSetOperation {
     // The name of the set for display purposes.
     //
@@ -101,6 +101,6 @@ message Metric {
     SetOperation set_operation = 2;
   }
 
-  // A list of named setOperations on which the same metric will be applied.
+  // A list of named `SetOperations` on which the same metric will be applied.
   repeated NamedSetOperation set_operations = 7;
 }
