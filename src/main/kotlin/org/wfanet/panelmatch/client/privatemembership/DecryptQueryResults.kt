@@ -34,6 +34,8 @@ import org.wfanet.panelmatch.client.exchangetasks.JoinKey
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.client.exchangetasks.joinKeyAndId
+import org.wfanet.panelmatch.common.beam.filter
+import org.wfanet.panelmatch.common.beam.flatten
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keyBy
 import org.wfanet.panelmatch.common.beam.kvOf
@@ -41,6 +43,7 @@ import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.oneToOneJoin
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.strictOneToOneJoin
+import org.wfanet.panelmatch.common.beam.toPCollectionList
 import org.wfanet.panelmatch.common.compression.CompressionParameters
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 import org.wfanet.panelmatch.common.withTime
@@ -152,24 +155,38 @@ class DecryptQueryResults(
         .map("Map to List of Plaintext") { kvOf(it.key, it.value.flatten()) }
         .setCoder(plaintextListCoder)
 
+    val paddingQueryResults =
+      groupedDecryptedResults.filter("Filter Padding Results") { it.key.isPaddingQuery }
+    val realQueryResults =
+      groupedDecryptedResults.filter("Filter Real Results") { !it.key.isPaddingQuery }
+
+    val paddingQueryKeyedDecryptedEventDataSets =
+      paddingQueryResults.map("Build Padding Nonce Results") {
+        keyedDecryptedEventDataSet {
+          plaintextJoinKeyAndId = joinKeyAndId { joinKeyIdentifier = it.key }
+          decryptedEventData += it.value
+        }
+      }
+
     val keyedPlaintextJoinKeyAndIds =
       plaintextJoinKeyAndIds.keyBy("Key PlaintextJoinKeys By JoinKeyIdentifier") {
         it.joinKeyIdentifier
       }
-    return groupedDecryptedResults.oneToOneJoin(
-        keyedPlaintextJoinKeyAndIds,
-        name = "Join Decrypted Result to Plaintext Joinkeys"
-      )
-      .map("Map to KeyedDecryptedEventDataSet") {
-        keyedDecryptedEventDataSet {
-          plaintextJoinKeyAndId =
-            it.value ?: joinKeyAndId { joinKeyIdentifier = PADDING_QUERY_JOIN_KEY_IDENTIFIER }
-          decryptedEventData +=
-            requireNotNull(it.key) {
-              "Missing result for ${plaintextJoinKeyAndId.joinKeyIdentifier.id}"
-            }
+    val realKeyedDecryptedEventDataSets =
+      realQueryResults.strictOneToOneJoin(
+          keyedPlaintextJoinKeyAndIds,
+          name = "Join Decrypted Result to Plaintext Joinkeys"
+        )
+        .map("Map to KeyedDecryptedEventDataSet") {
+          keyedDecryptedEventDataSet {
+            plaintextJoinKeyAndId = it.value
+            decryptedEventData += it.key
+          }
         }
-      }
+
+    return listOf(paddingQueryKeyedDecryptedEventDataSets, realKeyedDecryptedEventDataSets)
+      .toPCollectionList()
+      .flatten("Flatten Padding Nonces and Real Results")
   }
 
   companion object {
@@ -210,7 +227,7 @@ private class BuildDecryptQueryResultsParametersFn(
     // signal to the decryption algorithm that there is no AES encryption.
     val joinKey: JoinKey = decryptedJoinKeyAndId?.joinKey ?: joinKeyOf(ByteString.EMPTY)
     val joinKeyIdentifier: JoinKeyIdentifier =
-      decryptedJoinKeyAndId?.joinKeyIdentifier ?: PADDING_QUERY_JOIN_KEY_IDENTIFIER
+      decryptedJoinKeyAndId?.joinKeyIdentifier ?: makePaddingQueryJoinKeyIdentifier()
 
     val keys = context.sideInput(keysView)
     val compressionParameters = context.sideInput(compressionParametersView)
@@ -246,9 +263,11 @@ private class DecryptResultsFn(private val queryResultsDecryptor: QueryResultsDe
 
     decryptionTimes.update(time.toNanos())
     outputCounts.update(decryptedResults.eventDataSetsCount.toLong())
-    val key = context.element().key
+
+    val joinKeyIdentifier = context.element().key
+
     for (eventDataSet in decryptedResults.eventDataSetsList) {
-      context.output(kvOf(key, eventDataSet.decryptedEventDataList))
+      context.output(kvOf(joinKeyIdentifier, eventDataSet.decryptedEventDataList))
     }
   }
 }

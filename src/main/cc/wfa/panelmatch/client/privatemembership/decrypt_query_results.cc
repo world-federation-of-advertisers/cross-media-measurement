@@ -116,7 +116,12 @@ absl::StatusOr<DecryptQueryResultsResponse> DecryptQueryResults(
                    RemoveRlwe(request));
 
   // If this is for a padding query, don't attempt to remove AES or decompress.
-  if (request.decrypted_join_key().key().empty()) {
+  // TODO(efoxepstein@): padding queries should be signalled explicitly.
+  // Rather than detecting them based on the JKI, we should just have a boolean
+  // flag in `request`.
+  absl::string_view join_key_identifier = request.decrypted_join_key().key();
+  if (join_key_identifier.empty() ||
+      join_key_identifier.substr(0, 14) == "padding-query:") {
     DecryptQueryResultsResponse result;
     for (const ClientDecryptedQueryResult& client_decrypted_query_result :
          client_decrypt_queries_response.result()) {

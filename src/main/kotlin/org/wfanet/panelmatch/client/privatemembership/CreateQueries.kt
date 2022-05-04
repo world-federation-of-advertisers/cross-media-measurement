@@ -14,7 +14,6 @@
 
 package org.wfanet.panelmatch.client.privatemembership
 
-import com.google.protobuf.ByteString
 import java.io.Serializable
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.ListCoder
@@ -32,7 +31,6 @@ import org.apache.beam.sdk.values.PCollectionTuple
 import org.apache.beam.sdk.values.PCollectionView
 import org.apache.beam.sdk.values.TupleTag
 import org.wfanet.panelmatch.client.common.bucketIdOf
-import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
@@ -49,8 +47,6 @@ import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 import org.wfanet.panelmatch.common.withTime
-
-val PADDING_QUERY_JOIN_KEY_IDENTIFIER = joinKeyIdentifierOf(ByteString.EMPTY)
 
 /**
  * Implements a query creation engine in Apache Beam that encrypts a query so that it can later be
@@ -191,9 +187,7 @@ private class CreateQueries(
     return fullUnencryptedQueries
       .values("Drop ShardIds")
       .apply("Flatten", Flatten.iterables())
-      .filter("Filter out padded queries") {
-        it.joinKeyIdentifier.id != PADDING_QUERY_JOIN_KEY_IDENTIFIER.id
-      }
+      .filter("Filter out padded queries") { !it.joinKeyIdentifier.isPaddingQuery }
       .map("Map to Query Id") { fullUnencryptedQuery ->
         queryIdAndId {
           queryId = fullUnencryptedQuery.unencryptedQuery.queryId
