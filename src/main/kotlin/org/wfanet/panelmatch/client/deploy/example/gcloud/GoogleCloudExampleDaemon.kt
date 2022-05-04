@@ -19,8 +19,10 @@ import java.util.Optional
 import kotlin.properties.Delegates
 import org.apache.beam.runners.dataflow.DataflowRunner
 import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
+import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
+import org.apache.beam.sdk.options.SdkHarnessOptions
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
@@ -34,7 +36,6 @@ import org.wfanet.panelmatch.common.certificates.gcloud.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.gcloud.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.secrets.SecretMap
-import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
@@ -124,15 +125,17 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   lateinit var dataflowWorkerMachineType: String
     private set
 
-  @set:CommandLine.Option(
+  @set:Option(
     names = ["--dataflow-disk-size"],
     description = ["Dataflow disk size in GB."],
     defaultValue = "30"
   )
   private var dataflowDiskSize by Delegates.notNull<Int>()
 
+  private interface Options : DataflowPipelineOptions, SdkHarnessOptions
+
   override fun makePipelineOptions(): PipelineOptions {
-    return PipelineOptionsFactory.`as`(DataflowPipelineOptions::class.java).apply {
+    return PipelineOptionsFactory.`as`(Options::class.java).apply {
       runner = DataflowRunner::class.java
       project = dataflowProjectId
       region = dataflowRegion
@@ -140,6 +143,8 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
       serviceAccount = dataflowServiceAccount
       workerMachineType = dataflowWorkerMachineType
       diskSizeGb = dataflowDiskSize
+      defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.DEBUG
+      defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.DEBUG
     }
   }
 
