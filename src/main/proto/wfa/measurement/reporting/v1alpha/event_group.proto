@@ -39,4 +39,11 @@ message EventGroup {
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
+
+  // ID referencing the `EventGroup` in an external system, provided by the
+  // `DataProvider`.
+  //
+  // If set, this value must be unique among `EventGroup`s for the parent
+  // `DataProvider`.
+  string event_group_reference_id = 5;
 }
