@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.toJson
 import org.wfanet.panelmatch.client.eventpreprocessing.CombinedEvents
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
+import org.wfanet.panelmatch.client.privatemembership.isPaddingQuery
 import org.wfanet.panelmatch.client.tools.DataProviderEventSetKt.entry
 import org.wfanet.panelmatch.common.ShardedFileName
 import picocli.CommandLine.Command
@@ -104,7 +105,7 @@ class ParseDecryptedEventData : Runnable {
   }
 
   private fun KeyedDecryptedEventDataSet.hasPaddingNonce(): Boolean {
-    return plaintextJoinKeyAndId.joinKeyIdentifier.id.isEmpty
+    return plaintextJoinKeyAndId.joinKeyIdentifier.isPaddingQuery
   }
 }
 
