@@ -45,5 +45,17 @@ message EventGroup {
   //
   // If set, this value must be unique among `EventGroup`s for the parent
   // `DataProvider`.
-  string event_group_reference_id = 5;
+  string event_group_reference_id = 3;
+
+  // The template that events associated with this `EventGroup` conform to.
+  message EventTemplate {
+    // The type of the Event Template. A fully-qualified protobuf message type.
+    string type = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // TODO(@SanjayVas) Add metadata
+  }
+
+  // The `EventTemplate`s that events associated with this `EventGroup` conform
+  // to.
+  repeated EventTemplate event_templates = 4;
 }
