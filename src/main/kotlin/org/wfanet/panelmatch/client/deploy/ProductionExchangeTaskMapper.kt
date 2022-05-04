@@ -19,6 +19,8 @@ import java.time.format.DateTimeFormatter
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.BLOB
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.panelmatch.client.common.ExchangeContext
@@ -45,6 +47,8 @@ import org.wfanet.panelmatch.client.exchangetasks.IntersectValidateTask
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyHashingExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ProducerTask
 import org.wfanet.panelmatch.client.exchangetasks.buildPrivateMembershipQueries
+import org.wfanet.panelmatch.client.exchangetasks.copyFromSharedStorage
+import org.wfanet.panelmatch.client.exchangetasks.copyToSharedStorage
 import org.wfanet.panelmatch.client.exchangetasks.decryptPrivateMembershipResults
 import org.wfanet.panelmatch.client.exchangetasks.executePrivateMembershipQueries
 import org.wfanet.panelmatch.client.exchangetasks.preprocessEvents
@@ -237,29 +241,79 @@ open class ProductionExchangeTaskMapper(
 
   override suspend fun ExchangeContext.copyFromSharedStorage(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.COPY_FROM_SHARED_STORAGE_STEP)
-    val source = sharedStorageSelector.getSharedStorage(workflow.exchangeIdentifiers.storage, this)
-    val destination = privateStorageSelector.getStorageClient(exchangeDateKey)
-    return CopyFromSharedStorageTask(
-      source,
-      destination,
-      step.copyFromSharedStorageStep.copyOptions,
-      step.inputLabelsMap.values.single(),
-      step.outputLabelsMap.values.single()
-    )
+
+    val copyOptions = step.copyFromSharedStorageStep.copyOptions
+    val destinationBlobKey = step.outputLabelsMap.values.single()
+    val sourceBlobKey = step.inputLabelsMap.values.single()
+    val source =
+      sharedStorageSelector.getVerifyingStorage(
+        sourceBlobKey,
+        workflow.exchangeIdentifiers.storage,
+        this
+      )
+
+    return when (copyOptions.labelType) {
+      BLOB -> {
+        CopyFromSharedStorageTask(
+          source = source,
+          destination = privateStorageSelector.getStorageClient(exchangeDateKey),
+          copyOptions = copyOptions,
+          sourceBlobKey = sourceBlobKey,
+          destinationBlobKey = destinationBlobKey
+        )
+      }
+      MANIFEST -> {
+        apacheBeamTaskFor(
+          outputManifests = mapOf(),
+          outputBlobs = emptyList(),
+          skipReadInput = true
+        ) {
+          copyFromSharedStorage(
+            source = source,
+            destinationFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
+            copyOptions = copyOptions,
+            sourceManifestBlobKey = sourceBlobKey,
+            destinationManifestBlobKey = destinationBlobKey
+          )
+        }
+      }
+      else -> error("Unrecognized CopyOptions: $copyOptions")
+    }
   }
 
   override suspend fun ExchangeContext.copyToSharedStorage(): ExchangeTask {
     check(step.stepCase == ExchangeWorkflow.Step.StepCase.COPY_TO_SHARED_STORAGE_STEP)
-    val source = privateStorageSelector.getStorageClient(exchangeDateKey)
+
+    val copyOptions = step.copyToSharedStorageStep.copyOptions
     val destination =
-      sharedStorageSelector.getSharedStorage(workflow.exchangeIdentifiers.storage, this)
-    return CopyToSharedStorageTask(
-      source,
-      destination,
-      step.copyToSharedStorageStep.copyOptions,
-      step.inputLabelsMap.values.single(),
-      step.outputLabelsMap.values.single()
-    )
+      sharedStorageSelector.getSigningStorage(workflow.exchangeIdentifiers.storage, this)
+    val sourceLabel = step.inputLabelsMap.keys.single()
+    val sourceBlobKey = step.inputLabelsMap.values.single()
+    val destinationBlobKey = step.outputLabelsMap.values.single()
+
+    return when (copyOptions.labelType) {
+      BLOB -> {
+        CopyToSharedStorageTask(
+          source = privateStorageSelector.getStorageClient(exchangeDateKey),
+          destination = destination,
+          copyOptions = copyOptions,
+          sourceBlobKey = sourceBlobKey,
+          destinationBlobKey = destinationBlobKey
+        )
+      }
+      MANIFEST -> {
+        apacheBeamTaskFor(outputManifests = emptyMap(), outputBlobs = emptyList()) {
+          copyToSharedStorage(
+            sourceFactory = privateStorageSelector.getStorageFactory(exchangeDateKey),
+            destination = destination,
+            copyOptions = copyOptions,
+            sourceManifestLabel = sourceLabel,
+            destinationManifestBlobKey = destinationBlobKey
+          )
+        }
+      }
+      else -> error("Unrecognized CopyOptions: $copyOptions")
+    }
   }
 
   override suspend fun ExchangeContext.hybridEncrypt(): ExchangeTask {
@@ -282,6 +336,7 @@ open class ProductionExchangeTaskMapper(
   private suspend fun ExchangeContext.apacheBeamTaskFor(
     outputManifests: Map<String, Int>,
     outputBlobs: List<String>,
+    skipReadInput: Boolean = false,
     execute: suspend ApacheBeamContext.() -> Unit
   ): ApacheBeamTask {
     val pipelineOptions = makePipelineOptions()
@@ -301,6 +356,7 @@ open class ProductionExchangeTaskMapper(
       step.inputLabelsMap,
       outputBlobs.associateWith { step.outputLabelsMap.getValue(it) },
       outputManifests.mapValues { (k, v) -> ShardedFileName(step.outputLabelsMap.getValue(k), v) },
+      skipReadInput,
       execute
     )
   }

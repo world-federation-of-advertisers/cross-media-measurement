@@ -28,5 +28,7 @@ abstract class CustomIOExchangeTask : ExchangeTask {
     return emptyMap()
   }
 
+  final override fun skipReadInput(): Boolean = true
+
   abstract suspend fun execute()
 }

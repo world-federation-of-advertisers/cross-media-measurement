@@ -24,7 +24,6 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.common.ExchangeContext
-import org.wfanet.panelmatch.client.exchangetasks.CustomIOExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
@@ -115,10 +114,7 @@ class ExchangeTaskExecutor(
     timeout.runWithTimeout {
       val exchangeTask: ExchangeTask = exchangeTaskMapper.getExchangeTaskForStep(this@runStep)
       val taskInput: Map<String, Blob> =
-        when (exchangeTask) {
-          is CustomIOExchangeTask -> emptyMap()
-          else -> readInputs(step, privateStorage)
-        }
+        if (exchangeTask.skipReadInput()) emptyMap() else readInputs(step, privateStorage)
       val taskOutput: Map<String, Flow<ByteString>> = exchangeTask.execute(taskInput)
       writeOutputs(step, taskOutput, privateStorage)
     }

@@ -41,7 +41,7 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
  * @param storageFactory the kind of storage this task will read from
  */
 class ApacheBeamContext(
-  private val pipeline: Pipeline,
+  val pipeline: Pipeline,
   private val outputManifests: Map<String, ShardedFileName>,
   private val outputLabels: Map<String, String>,
   private val inputLabels: Map<String, String>,

@@ -23,14 +23,14 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.Labe
 import org.wfanet.measurement.common.mapConcurrently
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.SigningStorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.storage.toByteString
 
-/** Implements CopyToSharedStorageStep. */
+/** Implements CopyToSharedStorageStep for regular (non-beam) tasks. */
 class CopyToSharedStorageTask(
   private val source: StorageClient,
-  private val destination: VerifiedStorageClient,
+  private val destination: SigningStorageClient,
   private val copyOptions: CopyOptions,
   private val sourceBlobKey: String,
   private val destinationBlobKey: String,

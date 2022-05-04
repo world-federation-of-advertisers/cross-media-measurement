@@ -14,17 +14,22 @@
 
 package org.wfanet.panelmatch.client.storage
 
+import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.panelmatch.client.storage.testing.VerifiedStorageClientTest
-import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
 
 class FileSystemVerifiedStorageClientTest : VerifiedStorageClientTest() {
   @get:Rule val temporaryFolder = TemporaryFolder()
 
-  override val storage by lazy {
+  override val underlyingClient: StorageClient by lazy {
+    FileSystemStorageClient(directory = temporaryFolder.root)
+  }
+
+  @Before
+  fun setUpFolder() {
     temporaryFolder.create()
-    makeTestVerifiedStorageClient(FileSystemStorageClient(directory = temporaryFolder.root))
   }
 }

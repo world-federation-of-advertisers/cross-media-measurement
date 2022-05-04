@@ -31,6 +31,7 @@ class ApacheBeamTask(
   private val inputLabels: Map<String, String>,
   private val outputLabels: Map<String, String>,
   private val outputManifests: Map<String, ShardedFileName>,
+  private val skipReadInput: Boolean,
   private val executeOnPipeline: suspend ApacheBeamContext.() -> Unit
 ) : ExchangeTask {
   override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
@@ -43,4 +44,6 @@ class ApacheBeamTask(
 
     return outputManifests.mapValues { flowOf(it.value.spec.toByteStringUtf8()) }
   }
+
+  override fun skipReadInput(): Boolean = skipReadInput
 }

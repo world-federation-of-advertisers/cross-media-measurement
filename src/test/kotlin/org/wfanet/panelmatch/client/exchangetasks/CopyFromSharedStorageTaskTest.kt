@@ -27,8 +27,9 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.Labe
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyOptions
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
-import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.signatureBlobKeyFor
+import org.wfanet.panelmatch.client.storage.testing.makeTestSigningStorageClient
+import org.wfanet.panelmatch.client.storage.testing.makeTestVerifyingStorageClient
 import org.wfanet.panelmatch.common.storage.toByteString
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
@@ -44,7 +45,8 @@ private val SHARD_CONTENTS2 = "shard-2-contents".toByteStringUtf8()
 @RunWith(JUnit4::class)
 class CopyFromSharedStorageTaskTest {
   private val underlyingSource = InMemoryStorageClient()
-  private val source = makeTestVerifiedStorageClient(underlyingSource)
+  private val signingStorage = makeTestSigningStorageClient(underlyingSource)
+  private val source = makeTestVerifyingStorageClient(underlyingSource)
   private val destination = InMemoryStorageClient()
 
   private suspend fun executeTask(labelType: LabelType) {
@@ -63,7 +65,7 @@ class CopyFromSharedStorageTaskTest {
   }
 
   private suspend fun addSignedSourceBlob(blobKey: String, contents: ByteString = BLOB_CONTENTS) {
-    source.writeBlob(blobKey, contents)
+    signingStorage.writeBlob(blobKey, contents)
   }
 
   private val destinationByteStrings: List<Pair<String, ByteString>>
