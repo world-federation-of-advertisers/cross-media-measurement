@@ -53,7 +53,7 @@ _ARTIFACTS = {
 
 def cross_media_measurement_maven_artifacts():
     """Collects the Maven artifacts for cross-media-measurement.
-    
+
     Returns:
         A dict of Maven artifact name to version.
     """
