@@ -22,7 +22,10 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDeniedException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerOwnerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -51,7 +54,7 @@ class RemoveMeasurementConsumerOwner(
           externalMeasurementConsumerId = externalMeasurementConsumerId
         ) == null
     ) {
-      throw KingdomInternalException(ErrorCode.PERMISSION_DENIED)
+      throw PermissionDeniedException()
     }
 
     transactionContext.buffer(
@@ -66,12 +69,12 @@ class RemoveMeasurementConsumerOwner(
 
   private suspend fun TransactionScope.readAccountId(externalAccountId: ExternalId): InternalId =
     AccountReader().readByExternalAccountId(transactionContext, externalAccountId)?.accountId
-      ?: throw KingdomInternalException(ErrorCode.ACCOUNT_NOT_FOUND)
+      ?: throw AccountNotFoundException(externalAccountId)
 
   private suspend fun TransactionScope.readMeasurementConsumerResult(
     externalMeasurementConsumerId: ExternalId
   ): MeasurementConsumerReader.Result =
     MeasurementConsumerReader()
       .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
-      ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
+      ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
 }

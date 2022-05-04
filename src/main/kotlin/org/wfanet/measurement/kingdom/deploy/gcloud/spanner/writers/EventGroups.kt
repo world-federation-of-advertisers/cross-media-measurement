@@ -18,30 +18,33 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.ErrorCode
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
  * Checks that a given Measurement Consumer certificate is valid and returns its ID.
- * @throws KingdomInternalException if not found or invalid.
+ * @throws MeasurementConsumerCertificateNotFoundException if Certificate is not found
+ * @throws CertificateIsInvalidException if Certificate is not valid
  */
 suspend fun checkValidCertificate(
   measurementConsumerCertificateId: Long,
   measurementConsumerId: Long,
   transactionContext: AsyncDatabaseClient.TransactionContext
-): InternalId? {
+): InternalId {
+  val externalMeasurementConsumerId = ExternalId(measurementConsumerId)
+  val externalMeasurementConsumerCertificateId = ExternalId(measurementConsumerCertificateId)
   val reader =
     CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-      .bindWhereClause(
-        ExternalId(measurementConsumerId),
-        ExternalId(measurementConsumerCertificateId)
-      )
+      .bindWhereClause(externalMeasurementConsumerId, externalMeasurementConsumerCertificateId)
 
   return reader.execute(transactionContext).singleOrNull()?.let {
     if (!it.isValid) {
-      throw KingdomInternalException(ErrorCode.CERTIFICATE_IS_INVALID)
+      throw CertificateIsInvalidException()
     } else it.certificateId
   }
-    ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
+    ?: throw MeasurementConsumerCertificateNotFoundException(
+      externalMeasurementConsumerId,
+      externalMeasurementConsumerCertificateId
+    )
 }

@@ -27,9 +27,11 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.ErrorCode as InternalErrorCode
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 
@@ -75,25 +77,23 @@ class CreateCertificate(private val certificate: Certificate) :
     // TODO: change all of the reads below to use index lookups or simple queries.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (certificate.parentCase) {
-      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+      Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+        val externalDataProviderId = ExternalId(certificate.externalDataProviderId)
         DataProviderReader()
-          .readByExternalDataProviderId(
-            transactionContext,
-            ExternalId(certificate.externalDataProviderId)
-          )
+          .readByExternalDataProviderId(transactionContext, externalDataProviderId)
           ?.dataProviderId
-          ?: throw KingdomInternalException(InternalErrorCode.DATA_PROVIDER_NOT_FOUND)
-      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+          ?: throw DataProviderNotFoundException(externalDataProviderId)
+      }
+      Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+        val externalMeasurementConsumerId = ExternalId(certificate.externalMeasurementConsumerId)
         MeasurementConsumerReader()
-          .readByExternalMeasurementConsumerId(
-            transactionContext,
-            ExternalId(certificate.externalMeasurementConsumerId)
-          )
+          .readByExternalMeasurementConsumerId(transactionContext, externalMeasurementConsumerId)
           ?.measurementConsumerId
-          ?: throw KingdomInternalException(InternalErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
+          ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId)
+      }
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
         DuchyIds.getInternalId(certificate.externalDuchyId)
-          ?: throw KingdomInternalException(InternalErrorCode.DUCHY_NOT_FOUND)
+          ?: throw DuchyNotFoundException(certificate.externalDuchyId)
       Certificate.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of Certificate is not set")
     }
@@ -116,8 +116,7 @@ class CreateCertificate(private val certificate: Certificate) :
 
   override suspend fun handleSpannerException(e: SpannerException): Certificate? {
     when (e.errorCode) {
-      SpannerErrorCode.ALREADY_EXISTS ->
-        throw KingdomInternalException(InternalErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS)
+      SpannerErrorCode.ALREADY_EXISTS -> throw CertSubjectKeyIdAlreadyExistsException()
       else -> throw e
     }
   }

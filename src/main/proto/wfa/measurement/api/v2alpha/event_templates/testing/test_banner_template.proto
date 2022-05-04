@@ -21,25 +21,25 @@ import "wfa/measurement/api/v2alpha/event_annotations.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
-message Gender {
-  option (.wfa.measurement.api.v2alpha.event_field) = {
-    display_name: "Gender"
-  };
-
-  enum Value {
-    GENDER_UNKOWN = 0;
-    GENDER_MALE = 1;
-    GENDER_FEMALE = 2;
-  }
-  Value value = 1;
-}
-
 message TestBannerTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "test_banner_template"
     display_name: "Banner Ad"
     description: "A simple Event Template for a banner ad."
   };
+
+  message Gender {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Gender"
+    };
+
+    enum Value {
+      GENDER_UNKOWN = 0;
+      GENDER_MALE = 1;
+      GENDER_FEMALE = 2;
+    }
+    Value value = 1;
+  }
 
   Gender gender = 1;
 }

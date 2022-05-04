@@ -24,7 +24,11 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -47,7 +51,9 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
             transactionContext,
             ExternalId(request.externalMeasurementConsumerId)
           )
-          ?: throw KingdomInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND)
+          ?: throw MeasurementConsumerNotFoundException(
+            ExternalId(request.externalMeasurementConsumerId)
+          )
 
       CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
         .readMeasurementConsumerCertificateIdByExternalId(
@@ -55,7 +61,10 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           InternalId(measurementConsumerResult.measurementConsumerId),
           ExternalId(request.externalCertificateId)
         )
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
+        ?: throw MeasurementConsumerCertificateNotFoundException(
+          ExternalId(request.externalMeasurementConsumerId),
+          ExternalId(request.externalCertificateId)
+        )
 
       val measurementConsumerDetails =
         measurementConsumerResult.measurementConsumer.details.copy {
@@ -76,7 +85,7 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
             transactionContext,
             ExternalId(request.externalDataProviderId)
           )
-          ?: throw KingdomInternalException(ErrorCode.DATA_PROVIDER_NOT_FOUND)
+          ?: throw DataProviderNotFoundException(ExternalId(request.externalDataProviderId))
 
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
         .readDataProviderCertificateIdByExternalId(
@@ -84,7 +93,10 @@ class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpann
           InternalId(dataProviderResult.dataProviderId),
           ExternalId(request.externalCertificateId)
         )
-        ?: throw KingdomInternalException(ErrorCode.CERTIFICATE_NOT_FOUND)
+        ?: throw DataProviderCertificateNotFoundException(
+          ExternalId(request.externalDataProviderId),
+          ExternalId(request.externalCertificateId)
+        )
 
       val dataProviderDetails =
         dataProviderResult.dataProvider.details.copy {

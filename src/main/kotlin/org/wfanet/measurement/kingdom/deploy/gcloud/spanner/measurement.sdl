@@ -344,7 +344,7 @@ CREATE TABLE Requisitions (
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
 CREATE UNIQUE INDEX RequisitionsByExternalId
-  ON Requisitions(MeasurementConsumerId, MeasurementId, ExternalRequisitionId);
+  ON Requisitions(DataProviderId, ExternalRequisitionId);
 
 CREATE UNIQUE INDEX RequisitionsByDataProviderId
   ON Requisitions(MeasurementConsumerId, MeasurementId, DataProviderId);

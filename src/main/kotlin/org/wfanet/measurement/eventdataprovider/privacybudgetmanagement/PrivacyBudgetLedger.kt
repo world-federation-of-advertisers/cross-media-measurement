@@ -144,7 +144,7 @@ class PrivacyBudgetLedger(
     if (allChargesEquivalent) {
       val nCharges = nonUniqueCharges.sumOf { it.count }
       val advancedCompositionEpsilon =
-        totalPrivacyBudgetUsageUnderAdvancedComposition(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(nonUniqueCharges[0].epsilon, nonUniqueCharges[0].delta),
           nCharges,
           maximumTotalDelta

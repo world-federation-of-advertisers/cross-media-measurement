@@ -1,0 +1,19 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PrivacyBudgetPostgresSchemaTest",
+    srcs = [
+        "PrivacyBudgetPostgresSchemaTest.kt",
+    ],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:ledger.sql",
+    ],
+    test_class = "org.wfanet.measurement.integration.postgres.PrivacyBudgetPostgresSchemaTest",
+    deps = [
+        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
+        "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:schemata",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

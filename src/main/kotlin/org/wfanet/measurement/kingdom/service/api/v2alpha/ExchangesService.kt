@@ -65,7 +65,11 @@ class ExchangesService(
     val externalExchangeWorkflow = getExchangeWorkflow(internalExchange)
     val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
 
-    return internalExchange.toV2Alpha(graphvizString)
+    return try {
+      internalExchange.toV2Alpha(graphvizString)
+    } catch (e: Throwable) {
+      failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert InternalExchange" }
+    }
   }
 
   override suspend fun listExchanges(request: ListExchangesRequest): ListExchangesResponse {
