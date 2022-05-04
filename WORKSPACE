@@ -25,24 +25,42 @@ load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
 common_cpp_deps()
 
 # Maven
-load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_OVERRIDE_TARGETS", "common_jvm_maven_artifacts")
-load("@rules_jvm_external//:defs.bzl", "maven_install")
+load(
+    "//build:maven_deps.bzl",
+    "cross_media_measurement_maven_artifacts",
+    "cross_media_measurement_maven_excluded_artifacts",
+    "cross_media_measurement_maven_override_targets",
+)
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
-
-ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
-    "com.google.crypto.tink:tink": "1.6.0",
-    "com.opentable.components:otj-pg-embedded": "1.0.0",
-    "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
-    "org.projectnessie.cel:cel-core": "0.2.4",
-    "org.projectnessie.cel:cel-tools": "0.2.4",
-    "org.projectnessie.cel:cel-generated-pb": "0.2.4",
-})
+load("@rules_jvm_external//:defs.bzl", "maven_install")
 
 maven_install(
-    artifacts = common_jvm_maven_artifacts() + ADDITIONAL_MAVEN_ARTIFACTS,
+    artifacts = artifacts.dict_to_list(cross_media_measurement_maven_artifacts()),
+    excluded_artifacts = cross_media_measurement_maven_excluded_artifacts(),
     fetch_sources = True,
     generate_compat_repositories = True,
-    override_targets = COMMON_JVM_MAVEN_OVERRIDE_TARGETS,
+    override_targets = cross_media_measurement_maven_override_targets(),
+    repositories = [
+        "https://repo.maven.apache.org/maven2/",
+    ],
+)
+
+GRPC_JAVA_VERSION = "1.43.2"
+
+KOTLIN_VERSION = "1.4.31"
+
+maven_install(
+    name = "maven_export",
+    artifacts = [
+        "io.grpc:grpc-kotlin-stub:1.2.0",
+        "io.grpc:grpc-netty:" + GRPC_JAVA_VERSION,
+        "io.grpc:grpc-services:" + GRPC_JAVA_VERSION,
+        "org.jetbrains.kotlin:kotlin-reflect:" + KOTLIN_VERSION,
+        "org.jetbrains.kotlin:kotlin-stdlib-jdk7:" + KOTLIN_VERSION,
+        "org.jetbrains.kotlin:kotlin-test:" + KOTLIN_VERSION,
+    ],
+    excluded_artifacts = cross_media_measurement_maven_excluded_artifacts(),
+    generate_compat_repositories = True,
     repositories = [
         "https://repo.maven.apache.org/maven2/",
     ],
