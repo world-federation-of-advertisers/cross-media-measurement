@@ -16,11 +16,15 @@ package org.wfanet.panelmatch.integration.testing
 
 import org.wfanet.panelmatch.client.eventpreprocessing.CombinedEvents
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
-import org.wfanet.panelmatch.client.privatemembership.PADDING_QUERY_JOIN_KEY_IDENTIFIER
+import org.wfanet.panelmatch.client.privatemembership.isPaddingQuery
 
 const val TEST_PADDING_NONCE_PREFIX: String = "[Padding Nonce]"
 
-data class ParsedPlaintextResults(val joinKey: String, val plaintexts: List<String>)
+data class ParsedPlaintextResults(
+  val joinKey: String,
+  val isPaddingQuery: Boolean,
+  val plaintexts: List<String>
+)
 
 /**
  * Parses plaintext results from a [KeyedDecryptedEventDataSet] containing serialized
@@ -32,8 +36,9 @@ fun parsePlaintextResults(
   return combinedTexts.map { keyedDecryptedEventDataSet ->
     val keyAndId = keyedDecryptedEventDataSet.plaintextJoinKeyAndId
     val joinKey = requireNotNull(keyAndId.joinKey).key.toStringUtf8()
+    val isPaddingQuery = keyAndId.joinKeyIdentifier.isPaddingQuery
     val payload =
-      if (keyAndId.joinKeyIdentifier.id == PADDING_QUERY_JOIN_KEY_IDENTIFIER.id) {
+      if (isPaddingQuery) {
         val element = keyedDecryptedEventDataSet.decryptedEventDataList.single().payload
         listOf("$TEST_PADDING_NONCE_PREFIX ${element.toStringUtf8()}")
       } else {
@@ -43,6 +48,6 @@ fun parsePlaintextResults(
           }
         }
       }
-    ParsedPlaintextResults(joinKey = joinKey, plaintexts = payload)
+    ParsedPlaintextResults(joinKey = joinKey, isPaddingQuery = isPaddingQuery, plaintexts = payload)
   }
 }

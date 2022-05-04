@@ -37,6 +37,7 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCo
 import org.wfanet.panelmatch.common.compression.compressionParameters
 import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.toDelimitedByteString
+import org.wfanet.panelmatch.integration.testing.ParsedPlaintextResults
 import org.wfanet.panelmatch.integration.testing.TEST_PADDING_NONCE_PREFIX
 import org.wfanet.panelmatch.integration.testing.parsePlaintextResults
 
@@ -113,22 +114,28 @@ class FullWorkflowTest : AbstractInProcessPanelMatchIntegrationTest() {
     assertNotNull(blob)
 
     val decryptedEvents =
-      parsePlaintextResults(blob.parseDelimitedMessages(keyedDecryptedEventDataSet {})).map {
-        it.joinKey to it.plaintexts
-      }
+      parsePlaintextResults(blob.parseDelimitedMessages(keyedDecryptedEventDataSet {}))
     assertThat(decryptedEvents)
       .containsAtLeast(
-        "join-key-1" to listOf("payload-for-join-key-1"),
-        "join-key-2" to listOf("payload-for-join-key-2"),
+        ParsedPlaintextResults(
+          joinKey = "join-key-1",
+          isPaddingQuery = false,
+          plaintexts = listOf("payload-for-join-key-1")
+        ),
+        ParsedPlaintextResults(
+          joinKey = "join-key-2",
+          isPaddingQuery = false,
+          plaintexts = listOf("payload-for-join-key-2")
+        ),
       )
 
     assertThat(decryptedEvents).hasSize(3) // 1 padding nonce expected
 
-    val paddingNonce = decryptedEvents.firstOrNull { it.first.isEmpty() }
+    val paddingNonce = decryptedEvents.firstOrNull { it.isPaddingQuery }
     assertNotNull(paddingNonce)
-    assertThat(paddingNonce.second).hasSize(1)
+    assertThat(paddingNonce.plaintexts).hasSize(1)
 
-    val paddingNonceValue = paddingNonce.second.single()
+    val paddingNonceValue = paddingNonce.plaintexts.single()
     assertThat(paddingNonceValue).startsWith(TEST_PADDING_NONCE_PREFIX)
     assertThat(paddingNonceValue.length).isAtLeast(TEST_PADDING_NONCE_PREFIX.length + 8)
   }

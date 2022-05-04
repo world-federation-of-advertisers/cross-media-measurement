@@ -41,6 +41,7 @@ import org.wfanet.panelmatch.client.privatemembership.QueryId
 import org.wfanet.panelmatch.client.privatemembership.QueryIdAndId
 import org.wfanet.panelmatch.client.privatemembership.ShardId
 import org.wfanet.panelmatch.client.privatemembership.createQueries
+import org.wfanet.panelmatch.client.privatemembership.isPaddingQuery
 import org.wfanet.panelmatch.client.privatemembership.lookupKeyAndId
 import org.wfanet.panelmatch.common.beam.count
 import org.wfanet.panelmatch.common.beam.flatMap
@@ -254,6 +255,10 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
         requireNotNull(queryIdAndIdsList.singleOrNull()) {
           "${queryIdAndIdsList.size} of queryIdAndIds for $key"
         }
+
+      if (queryIdAndId.joinKeyIdentifier.isPaddingQuery) {
+        return@join
+      }
 
       val panelistQuery =
         PanelistQuery(query.shardId, query.bucketId, queryIdAndId.joinKeyIdentifier)
